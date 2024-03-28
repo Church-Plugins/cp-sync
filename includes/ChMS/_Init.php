@@ -10,8 +10,8 @@ namespace CP_Connect\ChMS;
 use CP_Connect\Admin\Settings;
 use WP_Error;
 
-require_once CP_CONNECT_PLUGIN_DIR . '/includes/ChMS/cli/PCO.php';
-require_once CP_CONNECT_PLUGIN_DIR . '/includes/ChMS/ccb-api/ccb-api.php';
+require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/PCO.php';
+require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/ccb-api/ccb-api.php';
 
 /**
  * Setup integration initialization
@@ -70,7 +70,7 @@ class _Init {
 		}
 
 		register_rest_route(
-			'cp-connect/v1',
+			'cp-sync/v1',
 			"$chms->rest_namespace/check-connection",
 			[
 				'methods'  => 'GET',
@@ -78,7 +78,7 @@ class _Init {
 					$data = $chms->check_connection();
 
 					if ( ! $data ) {
-						return rest_ensure_response( [ 'connected' => false, 'message' => __( 'No connection data found', 'cp-connect' ) ] );
+						return rest_ensure_response( [ 'connected' => false, 'message' => __( 'No connection data found', 'cp-sync' ) ] );
 					}
 
 					return rest_ensure_response(
@@ -95,7 +95,7 @@ class _Init {
 		);
 
 		register_rest_route(
-			'cp-connect/v1',
+			'cp-sync/v1',
 			"$chms->rest_namespace/authenticate",
 			[
 				'methods'  => 'POST',
@@ -156,6 +156,6 @@ class _Init {
 		 * @param string The active ChMS.
 		 * @return string
 		 */
-		return apply_filters( 'cp_connect_active_chms', Settings::get( 'chms' ) );
+		return apply_filters( 'cp_sync_active_chms', Settings::get( 'chms' ) );
 	}
 }

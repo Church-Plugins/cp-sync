@@ -30,7 +30,7 @@ class ChurchCommunityBuilder extends ChMS {
 	}
 
 	public function integrations() {
-		add_action( 'cp_connect_pull_groups', [ $this, 'pull_groups' ] );
+		add_action( 'cp_sync_pull_groups', [ $this, 'pull_groups' ] );
 		add_action( 'cp_update_item_after', [ $this, 'load_group_image' ], 10, 3 );
 		add_filter( 'cp_group_get_thumbnail', [ $this, 'get_group_image' ], 10, 2 );
 	}
@@ -60,7 +60,7 @@ class ChurchCommunityBuilder extends ChMS {
 			if ( 'success' == $response ) {
 				return [
 					'status' => 'success',
-					'message' => __( 'Connection successful', 'cp-connect' ),
+					'message' => __( 'Connection successful', 'cp-sync' ),
 				];
 			}
 
@@ -185,7 +185,7 @@ class ChurchCommunityBuilder extends ChMS {
 				$args['group_type'][] = $group->group_type;
 			}
 
-			$formatted[] = apply_filters( 'cp_connect_ccb_pull_groups_group', $args, $group );
+			$formatted[] = apply_filters( 'cp_sync_ccb_pull_groups_group', $args, $group );
 		}
 
 		$integration->process( $formatted );
@@ -241,23 +241,23 @@ class ChurchCommunityBuilder extends ChMS {
 		}
 
 		$cmb2->add_field( [
-			'name'   => __( 'Your CCB Website', 'cp-connect' ),
+			'name'   => __( 'Your CCB Website', 'cp-sync' ),
 			'id'     => 'api_prefix',
-//			'desc'   => __( 'The URL you use to access your Church Community Builder site.', 'cp-connect' ),
+//			'desc'   => __( 'The URL you use to access your Church Community Builder site.', 'cp-sync' ),
 			'type'   => 'text',
 			'before_field' => '<code>https://</code>',
-			'after_field'  => '<code>.ccbchurch.com</code><p class="cmb2-metabox-description">' . __( 'The URL you use to access your Church Community Builder site.', 'cp-connect' ) . '</p>',
+			'after_field'  => '<code>.ccbchurch.com</code><p class="cmb2-metabox-description">' . __( 'The URL you use to access your Church Community Builder site.', 'cp-sync' ) . '</p>',
 		] );
 
 		$cmb2->add_field( [
-			'name' => __( 'API Username', 'cp-connect' ),
+			'name' => __( 'API Username', 'cp-sync' ),
 			'id'   => 'api_user',
 			'type' => 'text',
-			'desc' => __( 'This is different from the login you use for Church Community Builder.', 'cp-connect' ),
+			'desc' => __( 'This is different from the login you use for Church Community Builder.', 'cp-sync' ),
 		] );
 
 		$cmb2->add_field( [
-			'name' => __( 'API Password', 'cp-connect' ),
+			'name' => __( 'API Password', 'cp-sync' ),
 			'id'   => 'api_pass',
 			'type' => 'text',
 			'attributes' => [

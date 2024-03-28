@@ -65,47 +65,47 @@ class DataFilter {
 	public static function get_compare_options() {
 		return [
 			'is' => [
-				'label'   => __( 'Is', 'cp-connect' ),
+				'label'   => __( 'Is', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => $data === $value,
 				'type'    => 'inherit',
  			],
 			'is_not' => [
-				'label'  	=> __( 'Is Not', 'cp-connect' ),
+				'label'  	=> __( 'Is Not', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => $data !== $value,
 				'type'    => 'inherit',
 			],
 			'contains' => [
-				'label'  	=> __( 'Contains', 'cp-connect' ),
+				'label'  	=> __( 'Contains', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => strpos( $data, $value ) !== false,
 				'type'    => 'text',
 			],
 			'does_not_contain' => [
-				'label'  	=> __( 'Does Not Contain', 'cp-connect' ),
+				'label'  	=> __( 'Does Not Contain', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => strpos( $data, $value ) === false,
 				'type'    => 'text',
 			],
 			'is_greater_than' => [
-				'label'  	=> __( 'Is Greater Than', 'cp-connect' ),
+				'label'  	=> __( 'Is Greater Than', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => $data > $value,
 				'type'    => 'text',
 			],
 			'is_less_than' => [
-				'label'  	=> __( 'Is Less Than', 'cp-connect' ),
+				'label'  	=> __( 'Is Less Than', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => $data < $value,
 				'type'    => 'text',
 			],
 			'is_empty' => [
-				'label'  	=> __( 'Is Empty', 'cp-connect' ),
+				'label'  	=> __( 'Is Empty', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => empty( $data ),
 				'type'    => 'bool',
 			],
 			'is_not_empty' => [
-				'label'  	=> __( 'Is Not Empty', 'cp-connect' ),
+				'label'  	=> __( 'Is Not Empty', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => ! empty( $data ),
 				'type'    => 'bool',
 			],
 			'is_in'           => [
-				'label'  	=> __( 'Is in', 'cp-connect' ),
+				'label'  	=> __( 'Is in', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => in_array( $data, $value, true ),
 				'type'    => 'multi',
 			]
@@ -212,11 +212,11 @@ class DataFilter {
 		$relation_path   = $this->filter_config[ $type ]['relation_path'] ?? null;
 
 		if ( null === $compare || null === $type ) {
-			return new \WP_Error( 'invalid_condition', __( 'Invalid condition', 'cp-connect' ) );
+			return new \WP_Error( 'invalid_condition', __( 'Invalid condition', 'cp-sync' ) );
 		}
 
 		if ( null === $path ) {
-			return new \WP_Error( 'invalid_filter_config', __( 'Invalid filter config: path not specified', 'cp-connect' ) );
+			return new \WP_Error( 'invalid_filter_config', __( 'Invalid filter config: path not specified', 'cp-sync' ) );
 		}
 
 		$compare_fn = $compare_options[ $compare ]['compare']; // get the comparison callback
@@ -225,11 +225,11 @@ class DataFilter {
 		// parse related data
 		if ( $relation ) { 
 			if ( null === $relation_path ) {
-				return new \WP_Error( 'invalid_filter_config', __( 'Invalid filter config: missing a relational data path', 'cp-connect' ) );
+				return new \WP_Error( 'invalid_filter_config', __( 'Invalid filter config: missing a relational data path', 'cp-sync' ) );
 			}
 
 			if ( ! isset( $this->relational_data[ $relation ][ $data ] ) ) {
-				return new \WP_Error( 'invalid_filter_config', __( 'Invalid filter config: missing relational data', 'cp-connect' ) );
+				return new \WP_Error( 'invalid_filter_config', __( 'Invalid filter config: missing relational data', 'cp-sync' ) );
 			}
 
 			// the data should be the related item's ID

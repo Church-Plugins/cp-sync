@@ -62,20 +62,20 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 
 			$events_enabled = $this->get_option( 'events_enabled', 1, 'cpc_pco_connect' );
 			if ( 1 == $events_enabled ) {
-				add_action( 'cp_connect_pull_events', [ $this, 'pull_events' ] );
+				add_action( 'cp_sync_pull_events', [ $this, 'pull_events' ] );
 			} elseif ( 2 == $events_enabled ) {
-				add_action( 'cp_connect_pull_events', [ $this, 'pull_registrations' ] );
+				add_action( 'cp_sync_pull_events', [ $this, 'pull_registrations' ] );
 			}
 
 			if ( $this->get_option( 'groups_enabled', 1, 'cpc_pco_connect' ) ) {
-				add_action( 'cp_connect_pull_groups', [ $this, 'pull_groups' ] );
+				add_action( 'cp_sync_pull_groups', [ $this, 'pull_groups' ] );
 			}
 		}
 
 		$this->setup_taxonomies( false );
 
 		add_action( 'cp_tec_update_item_after', [ $this, 'event_taxonomies' ], 10, 2 );
-		add_filter( 'cp_connect_show_event_registration_button', [ $this, 'show_event_registration_button' ] );
+		add_filter( 'cp_sync_show_event_registration_button', [ $this, 'show_event_registration_button' ] );
 	}
 
 	public function check_connection() {
@@ -102,7 +102,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 
 		return [
 			'status'  => 'success',
-			'message' => __( 'Connection successful', 'cp-connect' ),
+			'message' => __( 'Connection successful', 'cp-sync' ),
 		];
 
 	}
@@ -594,7 +594,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 			// }
 
 			// Add the data to our output
-			// $formatted[] = apply_filters( 'cp_connect_pco_event_args', $args, $event_instance, $event, $tags );
+			// $formatted[] = apply_filters( 'cp_sync_pco_event_args', $args, $event_instance, $event, $tags );
 
 //			$counter++;
 //			if( $counter > 20 ) {
@@ -762,7 +762,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 			}
 
 			// Add the data to our output
-			$formatted[] = apply_filters( 'cp_connect_pco_event_args', $args, $event, $raw );
+			$formatted[] = apply_filters( 'cp_sync_pco_event_args', $args, $event, $raw );
 
 		}
 
@@ -1133,7 +1133,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 		$settings->add_field( [
 			'name' => 'PCO Data Settings',
 			'id'   => 'pco_data_title',
-			'desc' => __( 'The following settings control how data is retrieved from Planning Center Online.', 'cp-connect' ),
+			'desc' => __( 'The following settings control how data is retrieved from Planning Center Online.', 'cp-sync' ),
 			'type' => 'title',
 		] );
 
@@ -1173,7 +1173,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 
 		$settings->add_field( array(
 			'name'    => __( 'Group Enrollment Status' ),
-			'desc'    => __( 'Select the enrollment status options to include in the group sync.', 'cp-connect' ),
+			'desc'    => __( 'Select the enrollment status options to include in the group sync.', 'cp-sync' ),
 			'id'      => 'groups_enrollment_status',
 			'type'    => 'multicheck',
 			'default' => [ 'open' ],
@@ -1187,7 +1187,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 
 		$settings->add_field( array(
 			'name'    => __( 'Group Enrollment Strategy' ),
-			'desc'    => __( 'Select the enrollment strategy options to include in the group sync.', 'cp-connect' ),
+			'desc'    => __( 'Select the enrollment strategy options to include in the group sync.', 'cp-sync' ),
 			'id'      => 'groups_enrollment_strategy',
 			'type'    => 'multicheck_inline',
 			'default' => [ 'request_to_join', 'open_signup' ],
@@ -1285,7 +1285,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 		parent::register_rest_routes();
 
 		register_rest_route(
-			"/cp-connect/v1/$this->rest_namespace/group_types",
+			"/cp-sync/v1/$this->rest_namespace/group_types",
 			[
 				'methods'  => 'GET',
 				'callback' => [ $this, 'get_group_types' ],

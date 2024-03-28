@@ -4,7 +4,7 @@ namespace CP_Connect;
 
 /**
  * Loads theme files in appropriate hierarchy: 1) child theme,
- * 2) parent template, 3) plugin resources. will look in the cp-connect/
+ * 2) parent template, 3) plugin resources. will look in the cp-sync/
  * directory in a theme and the templates/ directory in the plugin
  *
  * @param string $template template file to search for
@@ -50,7 +50,7 @@ function get_template_hierarchy( $template, $args = [] ) {
 	}
 
 	// Allow base path for templates to be filtered
-	$template_base_paths = apply_filters( 'cp_connect_template_paths', ( array ) cp_connect()->get_plugin_path() );
+	$template_base_paths = apply_filters( 'cp_sync_template_paths', ( array ) cp_sync()->get_plugin_path() );
 
 	// backwards compatibility if $plugin_path arg is used
 	if ( $plugin_path && ! in_array( $plugin_path, $template_base_paths ) ) {
@@ -72,7 +72,7 @@ function get_template_hierarchy( $template, $args = [] ) {
 	*/
 
 	// check if there are overrides at all
-	if ( locate_template( [ 'cp-connect/' ] ) ) {
+	if ( locate_template( [ 'cp-sync/' ] ) ) {
 		$overrides_exist = true;
 	} else {
 		$overrides_exist = false;
@@ -80,22 +80,22 @@ function get_template_hierarchy( $template, $args = [] ) {
 
 	if ( $overrides_exist ) {
 		// check the theme for specific file requested
-		$file = locate_template( [ 'cp-connect/' . $template ], false, false );
+		$file = locate_template( [ 'cp-sync/' . $template ], false, false );
 		if ( ! $file ) {
 			// if not found, it could be our plugin requesting the file with the namespace,
 			// so check the theme for the path without the namespace
 			$files = [];
 			foreach ( array_keys( $template_base_paths ) as $namespace ) {
 				if ( ! empty( $namespace ) && ! is_numeric( $namespace ) ) {
-					$files[] = 'cp-connect' . str_replace( $namespace, '', $template );
+					$files[] = 'cp-sync' . str_replace( $namespace, '', $template );
 				}
 			}
 			$file = locate_template( $files, false, false );
 			if ( $file ) {
-				_deprecated_function( sprintf( esc_html__( 'Template overrides should be moved to the correct subdirectory: %s', 'cp-connect' ), str_replace( get_stylesheet_directory() . '/cp-connect/', '', $file ) ), '3.2', $template );
+				_deprecated_function( sprintf( esc_html__( 'Template overrides should be moved to the correct subdirectory: %s', 'cp-sync' ), str_replace( get_stylesheet_directory() . '/cp-sync/', '', $file ) ), '3.2', $template );
 			}
 		} else {
-			$file = apply_filters( 'cp_connect_template', $file, $template );
+			$file = apply_filters( 'cp_sync_template', $file, $template );
 		}
 	}
 
@@ -109,7 +109,7 @@ function get_template_hierarchy( $template, $args = [] ) {
 
 			$file = $template_base_path . 'templates/' . $template;
 
-			$file = apply_filters( 'cp_connect_template', $file, $template );
+			$file = apply_filters( 'cp_sync_template', $file, $template );
 
 			// return the first one found
 			if ( file_exists( $file ) ) {
@@ -120,7 +120,7 @@ function get_template_hierarchy( $template, $args = [] ) {
 		}
 	}
 
-	return apply_filters( 'cp_connect_template_' . $template, $file );
+	return apply_filters( 'cp_sync_template_' . $template, $file );
 }
 
 /**

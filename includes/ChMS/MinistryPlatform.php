@@ -60,8 +60,8 @@ class MinistryPlatform extends ChMS {
 
 	public function integrations() {
 		$this->mpLoadConnectionParameters();
-		add_action( 'cp_connect_pull_events', [ $this, 'pull_events' ] );
-		add_action( 'cp_connect_pull_groups', [ $this, 'pull_groups' ] );
+		add_action( 'cp_sync_pull_events', [ $this, 'pull_events' ] );
+		add_action( 'cp_sync_pull_groups', [ $this, 'pull_groups' ] );
 		add_action( 'cmb2_render_mp_fields', [ $this, 'render_field_select' ], 10, 5 );
 		add_action( 'admin_init', [ $this, 'maybe_update_options' ] );
 	}
@@ -130,42 +130,42 @@ class MinistryPlatform extends ChMS {
 	 */
 	public function api_settings( $cmb2 ) {
 		$cmb2->add_field( [
-			'name' => __( 'API Configuration', 'cp-connect' ),
+			'name' => __( 'API Configuration', 'cp-sync' ),
 			'type' => 'title',
 			'id'   => 'mp_api_config_title',
 		] );
 
 		$cmb2->add_field( [
-			'name' => __( 'API Endpoint', 'cp-connect' ),
-			'desc' => __( 'ex: https://my.mychurch.org/ministryplatformapi', 'cp-connect' ),
+			'name' => __( 'API Endpoint', 'cp-sync' ),
+			'desc' => __( 'ex: https://my.mychurch.org/ministryplatformapi', 'cp-sync' ),
 			'id'   => 'mp_api_endpoint',
 			'type' => 'text',
 		] );
 
 		$cmb2->add_field( [
-			'name' => __( 'Oauth Discovery Endpoint', 'cp-connect' ),
-			'desc' => __( 'ex: https://my.mychurch.org/ministryplatform/oauth', 'cp-connect' ),
+			'name' => __( 'Oauth Discovery Endpoint', 'cp-sync' ),
+			'desc' => __( 'ex: https://my.mychurch.org/ministryplatform/oauth', 'cp-sync' ),
 			'id'   => 'mp_oauth_discovery_endpoint',
 			'type' => 'text',
 		] );
 
 		$cmb2->add_field( [
-			'name' => __( 'Client ID', 'cp-connect' ),
-			'desc' => __( 'The Client ID is defined in MP on the API Client page.', 'cp-connect' ),
+			'name' => __( 'Client ID', 'cp-sync' ),
+			'desc' => __( 'The Client ID is defined in MP on the API Client page.', 'cp-sync' ),
 			'id'   => 'mp_client_id',
 			'type' => 'text',
 		] );
 
 		$cmb2->add_field( [
-			'name' => __( 'Client Secret', 'cp-connect' ),
-			'desc' => __( 'The Client Secret is defined in MP on the API Client page.', 'cp-connect' ),
+			'name' => __( 'Client Secret', 'cp-sync' ),
+			'desc' => __( 'The Client Secret is defined in MP on the API Client page.', 'cp-sync' ),
 			'id'   => 'mp_client_secret',
 			'type' => 'text',
 		] );
 
 		$cmb2->add_field( [
-			'name' => __( 'Scope', 'cp-connect' ),
-			'desc' => __( 'Will usually be http://www.thinkministry.com/dataplatform/scopes/all', 'cp-connect' ),
+			'name' => __( 'Scope', 'cp-sync' ),
+			'desc' => __( 'Will usually be http://www.thinkministry.com/dataplatform/scopes/all', 'cp-sync' ),
 			'id'   => 'mp_api_scope',
 			'type' => 'text',
 		] );
@@ -189,24 +189,24 @@ class MinistryPlatform extends ChMS {
 		$settings = new_cmb2_box( $args );
 
 		$settings->add_field( [
-			'name'        => __( 'Group Fields', 'cp-connect' ),
+			'name'        => __( 'Group Fields', 'cp-sync' ),
 			'type'        => 'title',
 			'id'          => 'group_fields_title',
 		] );
 
 		$settings->add_field( [
-			'name'  => __( 'Group Fields', 'cp-connect' ),
+			'name'  => __( 'Group Fields', 'cp-sync' ),
 			'type'  => 'mp_fields',
 			'id'    => 'group_fields', // id must be in the format of {object_type}_fields
 			'table' => 'Groups',
-			'desc'  => __( 'These fields are pulled from Ministry Platform when pulling groups', 'cp-connect' )
+			'desc'  => __( 'These fields are pulled from Ministry Platform when pulling groups', 'cp-sync' )
 		] );
 
 		$settings->add_field( [
-			'name' => __( 'Group Field Mapping', 'cp-connect' ),
+			'name' => __( 'Group Field Mapping', 'cp-sync' ),
 			'type' => 'title',
 			'id'   => 'group_mapping_title',
-			'desc' => __( 'The following parameters are used to map Ministry Platform groups to the CP Groups plugin', 'cp-connect' ),
+			'desc' => __( 'The following parameters are used to map Ministry Platform groups to the CP Groups plugin', 'cp-sync' ),
 		] );
 
 		$mapping      = $this->get_default_object_mapping( 'group' );
@@ -240,16 +240,16 @@ class MinistryPlatform extends ChMS {
 		}
 
 		$settings->add_field( [
-			'name' => __( 'Custom Field Mapping', 'cp-connect' ),
+			'name' => __( 'Custom Field Mapping', 'cp-sync' ),
 			'type' => 'title',
 			'id'   => 'custom_group_mapping_title',
-			'desc' => __( 'Adding fields below will create custom meta fields that will be added to groups. The information will be saved in a meta key called `cp_connect_{key}` where key is the field name converted to slug format.', 'cp-connect' ),
+			'desc' => __( 'Adding fields below will create custom meta fields that will be added to groups. The information will be saved in a meta key called `cp_sync_{key}` where key is the field name converted to slug format.', 'cp-sync' ),
 		] );
 
 		$instance = $this;
 
 		$settings->add_field( [
-			'name' => __( 'Custom Field Mapping', 'cp-connect' ),
+			'name' => __( 'Custom Field Mapping', 'cp-sync' ),
 			'type' => 'text',
 			'id'   => 'group_mapping',
 			'render_row_cb' => function( $field_args, $field ) use ($instance) {
@@ -310,16 +310,16 @@ class MinistryPlatform extends ChMS {
 
 		?>
 		<div
-			class="cp-connect-field-select"
+			class="cp-sync-field-select"
 			data-object-type="<?php echo esc_attr( $object_type ); ?>"
 			data-default-fields="<?php echo esc_attr( $default_fields ); ?>"
 		>
-			<code class="cp-connect-fields-preview"></code>
+			<code class="cp-sync-fields-preview"></code>
 			<br style="height: 2rem" />
-			<ul class="cp-connect-field-select__options"></ul>
-			<div class="cp-connect-field-select__add">
-				<input class="cp-connect-field-select__add-input" type="text" placeholder="Table_Name.Field_Name" />
-				<button class="cp-connect-field-select__add-button button button-primary" type="button">Add</button>
+			<ul class="cp-sync-field-select__options"></ul>
+			<div class="cp-sync-field-select__add">
+				<input class="cp-sync-field-select__add-input" type="text" placeholder="Table_Name.Field_Name" />
+				<button class="cp-sync-field-select__add-button button button-primary" type="button">Add</button>
 			</div>
 			<input
 				type="hidden"
@@ -571,7 +571,7 @@ class MinistryPlatform extends ChMS {
 		}
 
 		$field_template = <<<EOT
-			<template class="cp-connect-custom-mapping-template">
+			<template class="cp-sync-custom-mapping-template">
 				<div class="cmb-row cmb-type-select cpc-custom-mapping--row">
 					<div class="cmb-th">
 						<input type="text" placeholder="Additional Field" class="cpc-custom-mapping--meta-key regular-text" />
@@ -779,7 +779,7 @@ class MinistryPlatform extends ChMS {
 		}
 
 		$filter_query = 'Groups.End_Date >= getdate() OR Groups.End_Date IS NULL';
-		$filter       = apply_filters( 'cp_connect_chms_mp_groups_filter', $filter_query );
+		$filter       = apply_filters( 'cp_sync_chms_mp_groups_filter', $filter_query );
 
 		$fields = Settings::get( 'group_fields', array(), 'cpc_mp_configuration' );
 
@@ -921,7 +921,7 @@ class MinistryPlatform extends ChMS {
 					$custom_mapping_data[ $key ] = array(
 						'field_name'   => $key,
 						'display_name' => $custom_mapping[ $key ],
-						'slug'         => 'cp_connect_' . sanitize_title( $custom_mapping[ $key ] ),
+						'slug'         => 'cp_sync_' . sanitize_title( $custom_mapping[ $key ] ),
 						'options'      => array(),
 					);
 				}
@@ -938,7 +938,7 @@ class MinistryPlatform extends ChMS {
 					continue;
 				}
 
-				$slug          = 'cp_connect_' . sanitize_title( $display_name );
+				$slug          = 'cp_sync_' . sanitize_title( $display_name );
 				$original_slug = $slug;
 				$suffix        = 1;
 

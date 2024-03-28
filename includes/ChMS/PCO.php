@@ -51,7 +51,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 
 		$this->load_connection_parameters();
 
-		add_filter( 'cp_connect_settings_entrypoint_data', [ $this, 'settings_entrypoint_data' ] );
+		add_filter( 'cp_sync_settings_entrypoint_data', [ $this, 'settings_entrypoint_data' ] );
 	}
 
 	/**
@@ -213,37 +213,37 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 	public function get_group_filter_config() {
 		return [
 			'name' => [
-				'label' => __( 'Name', 'cp-connect' ),
+				'label' => __( 'Name', 'cp-sync' ),
 				'path'  => 'attributes.name',
 			],
 			'description' => [
-				'label' => __( 'Description', 'cp-connect' ),
+				'label' => __( 'Description', 'cp-sync' ),
 				'path'  => 'attributes.description',
 			],
 			'group_type' => [
-				'label'         => __( 'Group Type', 'cp-connect' ),
+				'label'         => __( 'Group Type', 'cp-sync' ),
 				'path'          => 'relationships.group_type.data.id',
 				'relation'      => 'GroupType',
 				'relation_path' => 'id',
 			],
 			'location' => [
-				'label' => __( 'Location', 'cp-connect' ),
+				'label' => __( 'Location', 'cp-sync' ),
 				'path'  => 'relationships.location.data.id',
 			],
 			'enrollment_status' => [
-				'label'         => __( 'Enrollment Status', 'cp-connect' ),
+				'label'         => __( 'Enrollment Status', 'cp-sync' ),
 				'path'          => 'relationships.enrollment.data.id',
 				'relation'      => 'Enrollment',
 				'relation_path' => 'attributes.status',
 			],
 			'enrollment_strategy' => [
-				'label'         => __( 'Enrollment Strategy', 'cp-connect' ),
+				'label'         => __( 'Enrollment Strategy', 'cp-sync' ),
 				'path'          => 'relationships.enrollment.data.id',
 				'relation'      => 'Enrollment',
 				'relation_path' => 'attributes.strategy',
 			],
 			'visibility' => [
-				'label' => __( 'Visibility', 'cp-connect' ),
+				'label' => __( 'Visibility', 'cp-sync' ),
 				'path'  => 'attributes.public_church_center_web_url',
 			],
 		];
@@ -365,8 +365,8 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 		}
 
 		$taxonomies['cp_group_type'] = [
-			'plural_label' => __( 'Group Types', 'cp-connect' ),
-			'single_label' => __( 'Group Type', 'cp-connect' ),
+			'plural_label' => __( 'Group Types', 'cp-sync' ),
+			'single_label' => __( 'Group Type', 'cp-sync' ),
 			'taxonomy'     => 'cp_group_type',
 			'terms'        => []
 		];
@@ -922,29 +922,29 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 	public function get_event_filter_config() {
 		return [
 			'start_date' => [
-				'label' => __( 'Start Date', 'cp-connect' ),
+				'label' => __( 'Start Date', 'cp-sync' ),
 				'path'  => 'attributes.starts_at',
 			],
 			'end_date' => [
-				'label' => __( 'End Date', 'cp-connect' ),
+				'label' => __( 'End Date', 'cp-sync' ),
 				'path'  => 'attributes.ends_at',
 			],
 			'recurrence' => [
-				'label' => __( 'Recurrence', 'cp-connect' ),
+				'label' => __( 'Recurrence', 'cp-sync' ),
 				'path'  => 'attributes.recurrence',
 			],
 			'recurrence_description' => [
-				'label' => __( 'Recurrence Description', 'cp-connect' ),
+				'label' => __( 'Recurrence Description', 'cp-sync' ),
 				'path'  => 'attributes.recurrence_description',
 			],
 			'event_name' => [
-				'label'         => __( 'Event Name', 'cp-connect' ),
+				'label'         => __( 'Event Name', 'cp-sync' ),
 				'path'          => 'relationships.event.data.id',
 				'relation'      => 'Event',
 				'relation_path' => 'attributes.name',
 			],
 			'visible_in_church_center' => [
-				'label'         => __( 'Visible in Church Center', 'cp-connect' ),
+				'label'         => __( 'Visible in Church Center', 'cp-sync' ),
 				'path'          => 'relationships.event.data.id',
 				'relation'      => 'Event',
 				'relation_path' => 'attributes.visible_in_church_center',

@@ -57,7 +57,7 @@ abstract class Integration extends \WP_Background_Process {
 		 * @return array
 		 * @since 1.1.0
 		 */
-		$items = apply_filters( 'cp_connect_process_items', $items, $this );
+		$items = apply_filters( 'cp_sync_process_items', $items, $this );
 
 		/**
 		 * Whether to do a hard refresh.
@@ -68,7 +68,7 @@ abstract class Integration extends \WP_Background_Process {
 		 * @return bool
 		 * @since 1.0.0
 		 */
-		$hard_refresh = apply_filters( 'cp_connect_process_hard_refresh', true, $items, $this );
+		$hard_refresh = apply_filters( 'cp_sync_process_hard_refresh', true, $items, $this );
 
 		$item_store = $this->get_store();
 
@@ -88,7 +88,7 @@ abstract class Integration extends \WP_Background_Process {
 				 * @param Integration $integration The integration instance.
 				 * @return array
 				 */
-				$item_data = apply_filters( "cp_connect_{$this->type}_item", $item, $this );
+				$item_data = apply_filters( "cp_sync_{$this->type}_item", $item, $this );
 				$this->push_to_queue( $item_data );
 			}
 
@@ -112,7 +112,7 @@ abstract class Integration extends \WP_Background_Process {
 	public function process_taxonomies( $taxonomies ) {
 		$saved_taxonomies = $this->get_store( 'taxonomies' );
 
-		$hard_refresh = apply_filters( 'cp_connect_process_hard_refresh', true, $taxonomies, $this );
+		$hard_refresh = apply_filters( 'cp_sync_process_hard_refresh', true, $taxonomies, $this );
 
 		foreach( $taxonomies as $taxonomy => $data ) {
 			$saved_terms = $this->get_store( $taxonomy );
@@ -395,7 +395,7 @@ abstract class Integration extends \WP_Background_Process {
 	 * @author Tanner Moushey
 	 */
 	public function get_store( $group = null ) {
-		$key = "cp_connect_store_{$this->type}";
+		$key = "cp_sync_store_{$this->type}";
 
 		if ( $group ) {
 			$key .= "_{$group}";
@@ -420,7 +420,7 @@ abstract class Integration extends \WP_Background_Process {
 			$store[ $item['chms_id'] ] = $this->create_store_key( $item );
 		}
 
-		$key = "cp_connect_store_{$this->type}";
+		$key = "cp_sync_store_{$this->type}";
 
 		if ( $group ) {
 			$key .= "_{$group}";
@@ -459,8 +459,8 @@ abstract class Integration extends \WP_Background_Process {
 		$posts      = $data['posts'] ?? [];
 		$taxonomies = $data['taxonomies'] ?? [];
 
-		$posts      = apply_filters( 'cp_connect_pull_items', $posts, $this );
-		$taxonomies = apply_filters( 'cp_connect_pull_taxonomies', $taxonomies, $this );
+		$posts      = apply_filters( 'cp_sync_pull_items', $posts, $this );
+		$taxonomies = apply_filters( 'cp_sync_pull_taxonomies', $taxonomies, $this );
 
 		if ( is_array( $taxonomies ) ) {
 			foreach ( $taxonomies as $taxonomy ) {
@@ -483,7 +483,7 @@ abstract class Integration extends \WP_Background_Process {
 		$slug = $taxonomy['taxonomy'];
 
 		// save data in an option to create taxonomies for the integration
-		$data = get_option( "cp_connect_taxonomies_{$this->id}", [] );
+		$data = get_option( "cp_sync_taxonomies_{$this->id}", [] );
 
 		$data[ $slug ] = [
 			'single_label' => $taxonomy['single_label'],
@@ -491,7 +491,7 @@ abstract class Integration extends \WP_Background_Process {
 			'taxonomy'     => $slug,
 		];
 
-		update_option( "cp_connect_taxonomies_{$this->id}", $data );
+		update_option( "cp_sync_taxonomies_{$this->id}", $data );
 
 		$this->load_taxonomy( $slug );
 	}
@@ -510,11 +510,11 @@ abstract class Integration extends \WP_Background_Process {
 		$slug = $taxonomy;
 
 		// remove data in an option to create taxonomies for the integration
-		$data = get_option( "cp_connect_taxonomies_{$this->id}", [] );
+		$data = get_option( "cp_sync_taxonomies_{$this->id}", [] );
 
 		unset( $data[ $slug ] );
 
-		update_option( "cp_connect_taxonomies_{$this->id}", $data );
+		update_option( "cp_sync_taxonomies_{$this->id}", $data );
 
 		// remove all terms
 		$terms = get_terms( $slug, [ 'hide_empty' => false ] );
@@ -536,7 +536,7 @@ abstract class Integration extends \WP_Background_Process {
 			return;
 		}
 
-		$taxonomy_data = get_option( "cp_connect_taxonomies_{$this->id}", [] );
+		$taxonomy_data = get_option( "cp_sync_taxonomies_{$this->id}", [] );
 
 		if ( ! isset( $taxonomy_data[ $taxonomy ] ) ) {
 			return;
@@ -584,7 +584,7 @@ abstract class Integration extends \WP_Background_Process {
 		 * @param array  $args     The arguments to register the taxonomy with.
 		 * @since 1.1.0
 		 */
-		do_action( "cp_connect_load_taxonomy_{$this->id}", $taxonomy, $args );
+		do_action( "cp_sync_load_taxonomy_{$this->id}", $taxonomy, $args );
 
 		$this->register_taxonomy( $taxonomy, $args );
 	}
@@ -594,7 +594,7 @@ abstract class Integration extends \WP_Background_Process {
 	 * @since 1.1.0
 	 */
 	public function load_taxonomies() {
-		$taxonomies = get_option( "cp_connect_taxonomies_{$this->id}", [] );
+		$taxonomies = get_option( "cp_sync_taxonomies_{$this->id}", [] );
 
 		foreach( $taxonomies as $data ) {
 			$this->load_taxonomy( $data['taxonomy'] );

@@ -21,7 +21,7 @@ class _Init {
 	 *
 	 * @var string
 	 */
-	public static $_cron_hook = 'cp_connect_pull';
+	public static $_cron_hook = 'cp_sync_pull';
 
 	/**
 	 * @var Integration[]
@@ -155,7 +155,7 @@ class _Init {
 	 * @return void
 	 */
 	public function register_rest_routes() {
-		register_rest_route( 'cp-connect/v1', '/pull', [
+		register_rest_route( 'cp-sync/v1', '/pull', [
 			'methods'  => 'POST',
 			'callback' => function() {
 				$result = $this->pull_content();
@@ -172,7 +172,7 @@ class _Init {
 		] );
 
 		foreach ( self::$_integrations as $integration ) {
-			register_rest_route( 'cp-connect/v1', "/pull/{$integration->id}", [
+			register_rest_route( 'cp-sync/v1', "/pull/{$integration->id}", [
 				'methods'  => 'POST',
 				'callback' => function() use ( $integration ) {
 					$result = $this->pull_integration( $integration->id );
@@ -201,7 +201,7 @@ class _Init {
 	public function schedule_cron() {
 		if ( is_admin() && Settings::get( 'pull_now' ) ) {
 			Settings::set( 'pull_now', '' );
-			add_filter( 'cp_connect_process_hard_refresh', '__return_true' );
+			add_filter( 'cp_sync_process_hard_refresh', '__return_true' );
 			do_action( self::$_cron_hook );
 		}
 
@@ -209,7 +209,7 @@ class _Init {
 			return;
 		}
 
-		$args = apply_filters( 'cp_connect_cron_args', [
+		$args = apply_filters( 'cp_sync_cron_args', [
 			'timestamp' => time() + HOUR_IN_SECONDS, // schedule to run in the future to allow time for setting up configuration
 			'recurrence' => 'hourly',
 		] );

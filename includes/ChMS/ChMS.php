@@ -165,7 +165,7 @@ abstract class ChMS {
 	 * @author Tanner Moushey
 	 */
 	public function get_congregation_map() {
-		return apply_filters( 'cp_connect_congregation_map', [] );
+		return apply_filters( 'cp_sync_congregation_map', [] );
 	}
 
 	/**
@@ -244,7 +244,7 @@ abstract class ChMS {
 	 * @param array  $args The args to register the route with.
 	 */
 	public function add_rest_route( $path, $args ) {
-		register_rest_route( 'cp-connect/v1', "$this->rest_namespace/$path", $args );
+		register_rest_route( 'cp-sync/v1', "$this->rest_namespace/$path", $args );
 	}
 
 	/**

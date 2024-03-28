@@ -97,9 +97,9 @@ class Settings {
 		add_action( 'admin_menu', [ $this, 'settings_page' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
 
-		\ChurchPlugins\Admin\Options::register_rest_route( 'cp-connect/v1', 'cpc_' );
+		\ChurchPlugins\Admin\Options::register_rest_route( 'cp-sync/v1', 'cpc_' );
 
-		$this->license = new \ChurchPlugins\Setup\Admin\License( 'cpc_license', 438, CP_CONNECT_STORE_URL, CP_CONNECT_PLUGIN_FILE, get_admin_url( null, 'admin.php?page=cpc_license' ) );
+		$this->license = new \ChurchPlugins\Setup\Admin\License( 'cpc_license', 438, CP_SYNC_STORE_URL, CP_SYNC_PLUGIN_FILE, get_admin_url( null, 'admin.php?page=cpc_license' ) );
 	}
 
 	/**
@@ -110,8 +110,8 @@ class Settings {
 	public function settings_page() {
 		add_submenu_page(
 			'options-general.php',
-			__( 'Settings', 'cp-connect' ),
-			__( 'CP Connect', 'cp-connect' ),
+			__( 'Settings', 'cp-sync' ),
+			__( 'CP Connect', 'cp-sync' ),
 			'manage_options',
 			'cpc_settings',
 			[ $this, 'settings_page_content' ]
@@ -133,11 +133,11 @@ class Settings {
 		 * @return array
 		 * @since 1.1.0
 		 */
-		$entrypoint_data = apply_filters( 'cp_connect_settings_entrypoint_data', $entrypoint_data );
+		$entrypoint_data = apply_filters( 'cp_sync_settings_entrypoint_data', $entrypoint_data );
 
 		?>
 		<div
-			class="cp_settings_root cp-connect"
+			class="cp_settings_root cp-sync"
 			data-initial='<?php echo wp_json_encode( $entrypoint_data ); ?>'
 		></div>
 		<?php

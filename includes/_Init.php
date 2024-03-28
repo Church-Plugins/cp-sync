@@ -4,7 +4,7 @@ namespace CP_Connect;
 use CP_Connect\Admin\Settings;
 
 /**
- * Provides the global $cp_connect object
+ * Provides the global $cp_sync object
  *
  * @author costmo
  */
@@ -40,7 +40,7 @@ class _Init {
 	 *
 	 */
 	protected function __construct() {
-		$this->enqueue = new \WPackio\Enqueue( 'cpConnect', 'dist', $this->get_version(), 'plugin', CP_CONNECT_PLUGIN_FILE );
+		$this->enqueue = new \WPackio\Enqueue( 'cpConnect', 'dist', $this->get_version(), 'plugin', CP_SYNC_PLUGIN_FILE );
 		add_action( 'cp_core_loaded', [ $this, 'maybe_setup' ], - 9999 );
 		add_action( 'init', [ $this, 'maybe_init' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue' ] );
@@ -110,13 +110,13 @@ class _Init {
 	 * @return void
 	 */
 	public function required_plugins() {
-		printf( '<div class="error"><p>%s</p></div>', __( 'Your system does not meet the requirements for Church Plugins - Staff', 'cp-connect' ) );
+		printf( '<div class="error"><p>%s</p></div>', __( 'Your system does not meet the requirements for Church Plugins - Staff', 'cp-sync' ) );
 	}
 
 	/** Helper Methods **************************************/
 
 	public function get_default_thumb() {
-		return CP_CONNECT_PLUGIN_URL . '/app/public/logo512.png';
+		return CP_SYNC_PLUGIN_URL . '/app/public/logo512.png';
 	}
 
 	/**
@@ -157,7 +157,7 @@ class _Init {
 	 * @return string the plugin name
 	 */
 	public function get_plugin_name() {
-		return __( 'Church Plugins - Staff', 'cp-connect' );
+		return __( 'Church Plugins - Staff', 'cp-sync' );
 	}
 
 	/**
@@ -167,7 +167,7 @@ class _Init {
 	 * @return string the plugin name
 	 */
 	public function get_plugin_path() {
-		return CP_CONNECT_PLUGIN_DIR;
+		return CP_SYNC_PLUGIN_DIR;
 	}
 
 	/**
@@ -176,7 +176,7 @@ class _Init {
 	 * @return string
 	 */
 	public function get_id() {
-		return 'cp-connect';
+		return 'cp-sync';
 	}
 
 	/**

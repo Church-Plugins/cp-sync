@@ -112,7 +112,7 @@ class API {
 		$this->api_pass				= $api_pass;
 		$this->transient_prefix		= 'ccb_';
 		$this->test_srv				= 'api_status';
-		$this->image_cache_dir		= 'cp-connect/ccb';
+		$this->image_cache_dir		= 'cp-sync/ccb';
 
 	}
 
@@ -183,7 +183,7 @@ class API {
 			$url .= '/' . $path;
 		}
 
-		return apply_filters( 'cp_connect_ccb_get_base_url',  $url, $path );
+		return apply_filters( 'cp_sync_ccb_get_base_url',  $url, $path );
 	}
 
 	/**
@@ -464,7 +464,7 @@ class API {
 			if ( ! is_wp_error( $response ) ) {
 
 				if ( $response['response']['code'] == 404 ) {
-					return __( 'API Prefix is incorrect.', 'cp-connect' );
+					return __( 'API Prefix is incorrect.', 'cp-sync' );
 				}
 
 				// Grab the body from the response.
@@ -487,7 +487,7 @@ class API {
 				}
 
 				if ( 'not_set' === $the_response ) {
-					$the_response = esc_html__( 'The API URL appears to be incorrect', 'cp-connect-core' );
+					$the_response = esc_html__( 'The API URL appears to be incorrect', 'cp-sync-core' );
 				}
 
 				// Free up the memory.
@@ -497,7 +497,7 @@ class API {
 				$the_response = $response->get_error_message();
 			}
 		} catch ( Exception $e ) {
-			$the_response = esc_html__( 'Bad connection information', 'cp-connect-core' );
+			$the_response = esc_html__( 'Bad connection information', 'cp-sync-core' );
 		}
 
 		// Return the response.
@@ -517,7 +517,7 @@ class API {
 	public function test_connection( $api_prefix, $api_user, $api_pass ) {
 
 		if ( '' === trim( $api_prefix ) ) {
-			$message = esc_html__( 'Your CCB Website must not be blank.', 'cp-connect-core' );
+			$message = esc_html__( 'Your CCB Website must not be blank.', 'cp-sync-core' );
 			add_settings_error(
 				'api_url',
 				esc_attr( 'settings_updated' ),
@@ -546,7 +546,7 @@ class API {
 
 		switch ( $message ) {
 			case 'success':
-				$new_message = esc_html__( 'Successfully connected to Church Community Builder. Please check your API Services below.', 'cp-connect-core' );
+				$new_message = esc_html__( 'Successfully connected to Church Community Builder. Please check your API Services below.', 'cp-sync-core' );
 				$type = 'updated';
 				break;
 			default:

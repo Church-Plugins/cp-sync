@@ -68,7 +68,7 @@ class TEC extends Integration {
 
 	public function maybe_add_registration_button() {
 
-		if ( ! apply_filters( 'cp_connect_show_event_registration_button', false, get_the_ID() ) ) {
+		if ( ! apply_filters( 'cp_sync_show_event_registration_button', false, get_the_ID() ) ) {
 			return;
 		}
 
@@ -76,30 +76,30 @@ class TEC extends Integration {
 			return;
 		}
 
-		$button_text = __( 'Register', 'cp-connect' );
+		$button_text = __( 'Register', 'cp-sync' );
 		$button_class = 'tribe-common-c-btn';
 
 		if ( get_post_meta( get_the_ID(), 'registration_sold_out', true ) ) {
-			$button_text = __( 'Sold Out', 'cp-connect' );
+			$button_text = __( 'Sold Out', 'cp-sync' );
 			$button_class .= ' disabled';
 		}
 
 		?>
-		<div class="tribe-common cp-connect--register-cont">
+		<div class="tribe-common cp-sync--register-cont">
 			<a href="<?php echo esc_url( $registration_url ); ?>" class="<?php echo esc_attr( $button_class ); ?>"><?php echo esc_html( $button_text ); ?></a>
 		</div>
 
 		<style>
-			.cp-connect--register-cont {
+			.cp-sync--register-cont {
 				margin-bottom: var(--tec-spacer-7);
 				text-align: right;
 			}
 
-			.tribe-common.cp-connect--register-cont .tribe-common-c-btn {
+			.tribe-common.cp-sync--register-cont .tribe-common-c-btn {
 				width: auto;
 			}
 
-			.cp-connect--register-cont .disabled {
+			.cp-sync--register-cont .disabled {
 				opacity: 0.5;
 				pointer-events: none;
 				cursor: default;
