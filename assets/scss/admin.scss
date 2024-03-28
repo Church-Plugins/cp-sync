@@ -1,0 +1,108 @@
+
+.cp-connect-field-select__options {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	max-width: 1000px;
+	gap: 12px;
+}
+
+.cp-connect-fields-preview {
+	display: block;
+}
+
+.cpc-custom-mapping--row {
+	box-shadow: none !important;
+}
+
+.cpc-custom-mapping--field-name {
+	margin-top: 0 !important;
+}
+
+.cpc-custom-mapping--add {
+	margin: 1rem !important;
+}
+
+.cp-connect-field-select-item {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+
+	input {
+		flex: 1;
+	}
+
+	&:hover	{
+		.cp-connect-field-select-item-remove:not(:focus) {
+			opacity: 1;
+		}
+	}
+
+	.cp-connect-field-select-item-remove {
+		display: flex;
+		align-items: center;
+		margin-bottom: 0 !important;
+	}
+
+	.cp-connect-field-select-item-remove:not(:focus) {
+		opacity: 0;
+	}
+}
+
+body.settings_page_ministry_platform_plugin_options {
+
+	.cp-connect-custom-mappings {
+
+		margin-top: 1rem;
+
+		.cp-connect-custom-mappings {
+
+			&__last_row {
+				width: 100%;
+				max-width: 395px;
+
+				.dashicons {
+					float: right;
+					font-size: 2rem;
+					margin-top: 1rem;
+					cursor: pointer;
+
+				}
+			}
+
+		}
+
+		table.form-table {
+
+			margin-top: -16px;
+
+			span.dashicons-dismiss {
+				position: relative;
+				margin-left: -12px;
+				margin-top: -10px;
+				color: red;
+				cursor: pointer;
+				z-index: 10;
+			}
+
+		}
+
+		.cp-connect-field-mapping-item-container {
+
+			display: flex;
+
+			input {
+				height: 28px;
+			}
+
+			input[type="text"] {
+				margin-right: 2rem;
+    			margin-bottom: 1rem;
+			}
+		}
+
+	}
+
+	p.submit {
+		margin-top: 4rem;
+	}
+}

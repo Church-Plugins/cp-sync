@@ -1,0 +1,3 @@
+[submodule "includes/ChurchPlugins"]
+	path = includes/ChurchPlugins
+	url = https://github.com/Church-Plugins/ChurchPlugins.git

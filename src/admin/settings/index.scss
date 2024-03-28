@@ -1,0 +1,26 @@
+body.settings_page_cpc_settings {
+	background-color: white;
+}
+
+.settings_page_cpc_settings .notice {
+	margin-left: 16px;
+}
+
+.settings_page_cpc_settings #wpcontent, .privacy-settings.auto-fold #wpcontent {
+	padding-left: 0;
+}
+
+body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-connect {
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.MuiInputBase-input[type="text"] {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  height: unset;
+  padding: 16.5px 14px;
+  box-sizing: border-box;
+  line-height: 23px;
+}

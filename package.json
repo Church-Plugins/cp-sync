@@ -1,0 +1,37 @@
+{
+	"name": "cp-connect",
+	"version": "0.1.0",
+	"private": true,
+	"workspaces": [
+		"includes/ChurchPlugins"
+	],
+	"scripts": {
+		"bootstrap": "wpackio-scripts bootstrap",
+		"build": "wpackio-scripts build",
+		"start": "wpackio-scripts start",
+		"archive": "wpackio-scripts pack",
+		"build:wp": "wp-scripts build",
+		"start:wp": "wp-scripts start",
+		"lint:wp": "wp-scripts lint",
+		"format:wp": "wp-scripts format"
+	},
+	"dependencies": {
+		"@emotion/react": "^11.11.4",
+		"@emotion/styled": "^11.11.0",
+		"@fontsource/roboto": "^5.0.12",
+		"@mui/icons-material": "^5.15.14",
+		"@mui/material": "^5.15.11",
+		"@mui/system": "^5.15.14",
+		"@mui/x-date-pickers": "^7.0.0",
+		"@wordpress/api-fetch": "^6.50.0",
+		"@wordpress/compose": "^6.30.0",
+		"@wordpress/element": "^5.30.0",
+		"@wordpress/scripts": "^27.3.0",
+		"@wpackio/entrypoint": "^6.4.0",
+		"@wpackio/scripts": "^6.4.0",
+		"dayjs": "^1.11.10",
+		"react-hot-loader": "^4.13.1",
+		"sass": "^1.42.1",
+		"url-loader": "^4.1.1"
+	}
+}
