@@ -18,7 +18,7 @@ export default function SettingsTab({ data, updateField }) {
 		setIsImporting(true)
 
 		apiFetch({
-			path: '/cp-connect/v1/pull',
+			path: '/cp-sync/v1/pull',
 			method: 'POST',
 		}).then(data => {
 			if(data.success) {
@@ -44,52 +44,52 @@ export default function SettingsTab({ data, updateField }) {
 
 			{
 				!!success &&
-				<Alert severity="success" sx={{ mb: 2 }}>{ __( 'Import started', 'cp-connect' ) }</Alert>
+				<Alert severity="success" sx={{ mb: 2 }}>{ __( 'Import started', 'cp-sync' ) }</Alert>
 			}
 
 			<Button onClick={startImport} disabled={isImporting || success} variant="contained" color="primary">
-				{ success ? __( 'Import started', 'cp-connect' ) : isImporting ? __( 'Importing...', 'cp-connect' ) : __( 'Start import', 'cp-connect' ) }
+				{ success ? __( 'Import started', 'cp-sync' ) : isImporting ? __( 'Importing...', 'cp-sync' ) : __( 'Start import', 'cp-sync' ) }
 			</Button>
 
 			<div style={{ marginTop: '1rem' }}>
 				<FormControl>
-					<FormLabel id="enable-events-radio-group-label">{ __( 'Enable Events', 'cp-connect' ) }</FormLabel>
+					<FormLabel id="enable-events-radio-group-label">{ __( 'Enable Events', 'cp-sync' ) }</FormLabel>
 					<RadioGroup
 						aria-labelledby="enable-events-radio-group-label"
 						value={data.events_enabled}
 						onChange={(e) => updateField('events_enabled', e.target.value)}
 					>
-						<FormControlLabel value={0} control={<Radio />} label={ __( 'Pull from Calendar', 'cp-connect' ) } />
-						<FormControlLabel value={1} control={<Radio />} label={ __( 'Pull from Registrations (beta)', 'cp-connect' ) } />
-						<FormControlLabel value={2} control={<Radio />} label={ __( 'Do not pull', 'cp-connect' )} />
+						<FormControlLabel value={0} control={<Radio />} label={ __( 'Pull from Calendar', 'cp-sync' ) } />
+						<FormControlLabel value={1} control={<Radio />} label={ __( 'Pull from Registrations (beta)', 'cp-sync' ) } />
+						<FormControlLabel value={2} control={<Radio />} label={ __( 'Do not pull', 'cp-sync' )} />
 					</RadioGroup>
 				</FormControl>
 			</div>
 
 			<div style={{ marginTop: '1rem' }}>
 				<FormControl>
-					<FormLabel id="enable-register-button-radio-group-label">{ __( 'Event Register Button', 'cp-connect' ) }</FormLabel>
+					<FormLabel id="enable-register-button-radio-group-label">{ __( 'Event Register Button', 'cp-sync' ) }</FormLabel>
 					<RadioGroup
 						aria-labelledby="enable-register-button-radio-group-label"
 						value={data.events_register_button_enabled}
 						onChange={(e) => updateField('events_register_button_enabled', e.target.value)}
 					>
-						<FormControlLabel value={0} control={<Radio />} label={ __( 'Show', 'cp-connect' ) } />
-						<FormControlLabel value={1} control={<Radio />} label={ __( 'Hide', 'cp-connect' ) } />
+						<FormControlLabel value={0} control={<Radio />} label={ __( 'Show', 'cp-sync' ) } />
+						<FormControlLabel value={1} control={<Radio />} label={ __( 'Hide', 'cp-sync' ) } />
 					</RadioGroup>
 				</FormControl>
 			</div>
 
 			<div style={{ marginTop: '1rem' }}>
 				<FormControl>
-					<FormLabel id="enable-groups-radio-group-label">{ __( 'Enable Groups', 'cp-connect' ) }</FormLabel>
+					<FormLabel id="enable-groups-radio-group-label">{ __( 'Enable Groups', 'cp-sync' ) }</FormLabel>
 					<RadioGroup
 						aria-labelledby="enable-groups-radio-group-label"
 						value={data.groups_enabled}
 						onChange={(e) => updateField('groups_enabled', e.target.value)}
 					>
-						<FormControlLabel value={1} control={<Radio />} label={ __( 'Pull from Groups', 'cp-connect' ) } />
-						<FormControlLabel value={0} control={<Radio />} label={ __( 'Do not pull', 'cp-connect' ) } />
+						<FormControlLabel value={1} control={<Radio />} label={ __( 'Pull from Groups', 'cp-sync' ) } />
+						<FormControlLabel value={0} control={<Radio />} label={ __( 'Do not pull', 'cp-sync' ) } />
 					</RadioGroup>
 				</FormControl>
 			</div>

@@ -19,26 +19,26 @@ import { styled } from '@mui/system';
 import { useTheme } from '@mui/material/styles';
 
 const labels = {
-	'chms_id':             __( 'Group ID', 'cp-connect' ),
-	'post_title':          __( 'Group Name', 'cp-connect' ),
-	'post_content':        __( 'Description', 'cp-connect' ),
-	'leader':              __( 'Group Leader', 'cp-connect' ),
-	'start_date':          __( 'Start Date', 'cp-connect' ),
-	'end_date':            __( 'End Date', 'cp-connect' ),
-	'thumbnail_url':       __( 'Image ID', 'cp-connect' ),
-	'frequency':           __( 'Meeting Frequency', 'cp-connect' ),
-	'city':					       __( 'City', 'cp-connect' ),
-	'state_or_region':     __( 'State/Region', 'cp-connect' ),
-	'postal_code':         __( 'Postal Code', 'cp-connect' ),
-	'meeting_time':        __( 'Meeting Time', 'cp-connect' ),
-	'meeting_day':         __( 'Meeting Day', 'cp-connect' ),
-	'cp_location':         __( 'Group Campus', 'cp-connect' ),
-	'group_category':      __( 'Group Focus', 'cp-connect' ),
-	'group_type':          __( 'Group Type', 'cp-connect' ),
-	'group_life_stage':    __( 'Group Life Stage', 'cp-connect' ),
-	'kid_friendly':        __( 'Kid Friendly', 'cp-connect' ),
-	'handicap_accessible': __( 'Accessible', 'cp-connect' ),
-	'virtual':             __( 'Virtual', 'cp-connect' ),
+	'chms_id':             __( 'Group ID', 'cp-sync' ),
+	'post_title':          __( 'Group Name', 'cp-sync' ),
+	'post_content':        __( 'Description', 'cp-sync' ),
+	'leader':              __( 'Group Leader', 'cp-sync' ),
+	'start_date':          __( 'Start Date', 'cp-sync' ),
+	'end_date':            __( 'End Date', 'cp-sync' ),
+	'thumbnail_url':       __( 'Image ID', 'cp-sync' ),
+	'frequency':           __( 'Meeting Frequency', 'cp-sync' ),
+	'city':					       __( 'City', 'cp-sync' ),
+	'state_or_region':     __( 'State/Region', 'cp-sync' ),
+	'postal_code':         __( 'Postal Code', 'cp-sync' ),
+	'meeting_time':        __( 'Meeting Time', 'cp-sync' ),
+	'meeting_day':         __( 'Meeting Day', 'cp-sync' ),
+	'cp_location':         __( 'Group Campus', 'cp-sync' ),
+	'group_category':      __( 'Group Focus', 'cp-sync' ),
+	'group_type':          __( 'Group Type', 'cp-sync' ),
+	'group_life_stage':    __( 'Group Life Stage', 'cp-sync' ),
+	'kid_friendly':        __( 'Kid Friendly', 'cp-sync' ),
+	'handicap_accessible': __( 'Accessible', 'cp-sync' ),
+	'virtual':             __( 'Virtual', 'cp-sync' ),
 }
 
 function MPFields({ data, updateField, usedFields }) {
@@ -86,7 +86,7 @@ function MPFields({ data, updateField, usedFields }) {
 
 	return (
 		<>
-			<Typography variant="h5">{ __( 'Fields', 'cp-connect' ) }</Typography>
+			<Typography variant="h5">{ __( 'Fields', 'cp-sync' ) }</Typography>
 			<Autocomplete
 				multiple
 				value={group_fields}
@@ -136,12 +136,12 @@ function MPFields({ data, updateField, usedFields }) {
 
 						{
 							validCustomField === 'loading' || !validCustomField ?
-							__( 'Checking field validity', 'cp-connect' ):
+							__( 'Checking field validity', 'cp-sync' ):
 							validCustomField === 'invalid' ?
 							/* translators: %s: field name */
-							sprintf( __( 'Invalid field: "%s"', 'cp-connect' ), option.label ) :
+							sprintf( __( 'Invalid field: "%s"', 'cp-sync' ), option.label ) :
 							/* translators: %s: field name */
-							sprintf( __( 'Add "%s" field', 'cp-connect' ), option.label )
+							sprintf( __( 'Add "%s" field', 'cp-sync' ), option.label )
 						}
 					</Box>
 				)}
@@ -155,7 +155,7 @@ function MPFields({ data, updateField, usedFields }) {
 					}
 				] : [])}
 				renderInput={(params) => (
-					<TextField {...params} label={__( 'Group Fields', 'cp-connect' )} />
+					<TextField {...params} label={__( 'Group Fields', 'cp-sync' )} />
 				)}
 				sx={{
 					maxWidth: '1200px'
@@ -164,7 +164,7 @@ function MPFields({ data, updateField, usedFields }) {
 			/>
 			{
 				fieldError && <Alert severity="error">
-					{__( 'There is an error with the fields you have selected.', 'cp-connect' )}
+					{__( 'There is an error with the fields you have selected.', 'cp-sync' )}
 					<br />
 					<br />
 					<pre><code>{fieldError}</code></pre>
@@ -216,7 +216,7 @@ export default function ConfigureTab({ data, updateField }) {
 	const startImport = () => {
 		setImportPending(true)
 		apiFetch({
-			path: '/cp-connect/v1/ministry-platform/groups/pull',
+			path: '/cp-sync/v1/ministry-platform/groups/pull',
 			method: 'POST',
 			data: {}
 		}).then((response) => {
@@ -231,7 +231,7 @@ export default function ConfigureTab({ data, updateField }) {
 	if (!api) {
 		return (
 			<Box>
-				{__( 'Authenticating with Ministry Platform...', 'cp-connect' )}
+				{__( 'Authenticating with Ministry Platform...', 'cp-sync' )}
 			</Box>
 		)
 	}
@@ -239,7 +239,7 @@ export default function ConfigureTab({ data, updateField }) {
 	if(api && !api.isAuthenticated()) {
 		return (
 			<Alert severity="warning">
-				{__( 'You need to authenticate with Ministry Platform to test fields.', 'cp-connect' )}
+				{__( 'You need to authenticate with Ministry Platform to test fields.', 'cp-sync' )}
 			</Alert>
 		)
 	}
@@ -247,17 +247,17 @@ export default function ConfigureTab({ data, updateField }) {
 	return (
 		<Box display="flex" flexDirection="column" gap={2}>
 			
-			{importStarted && <Alert severity="success">{__( 'Import started', 'cp-connect' )}</Alert>}
+			{importStarted && <Alert severity="success">{__( 'Import started', 'cp-sync' )}</Alert>}
 
-			{importError && <Alert severity="error">{__( 'Error when starting import: ', 'cp-connect' )}{importError}</Alert>}
+			{importError && <Alert severity="error">{__( 'Error when starting import: ', 'cp-sync' )}{importError}</Alert>}
 
 			<Button disabled={importStarted || importPending} variant="contained" color="secondary" sx={{ alignSelf: 'start' }} onClick={startImport}>
-				{importPending ? __( 'Starting Import' ) : importStarted ? __( 'Import Started' ) : __( 'Start import', 'cp-connect' )}
+				{importPending ? __( 'Starting Import' ) : importStarted ? __( 'Import Started' ) : __( 'Start import', 'cp-sync' )}
 			</Button>
 
 			<MPFields data={data} updateField={updateField} usedFields={Object.values(data.group_field_mapping)} />
 
-			<Typography variant="h5">{ __( 'Field mapping',	'cp-connect' ) }</Typography>
+			<Typography variant="h5">{ __( 'Field mapping',	'cp-sync' ) }</Typography>
 
 			<Alert severity='warning'>
 				WARGNING
@@ -282,11 +282,11 @@ export default function ConfigureTab({ data, updateField }) {
 				</FormControl>
 			))}
 
-			<Typography variant="h5">{ __( 'Custom field mapping', 'cp-connect' ) }</Typography>
+			<Typography variant="h5">{ __( 'Custom field mapping', 'cp-sync' ) }</Typography>
 			{Object.entries(custom_group_field_mapping).map(([key, { name, value }]) => (
 				<Box key={key} display="flex" gap={1} alignItems="center">
 					<TextField
-						label={__( 'Field Name', 'cp-connect' )}
+						label={__( 'Field Name', 'cp-sync' )}
 						value={name}
 						onChange={(e) => updateCustomMappingField(key, { name: e.target.value, value: value })}
 						variant="outlined"
@@ -297,7 +297,7 @@ export default function ConfigureTab({ data, updateField }) {
 						onChange={(e, option) => updateCustomMappingField(key, { name, value: option?.value || '' })}
 						sx={{ width: '300px' }}
 						options={valid_fields.map((field) => ({ label: field, value: field }))}
-						renderInput={(params) => <TextField {...params} label={__( 'Field', 'cp-connect' )} variant="outlined" />}
+						renderInput={(params) => <TextField {...params} label={__( 'Field', 'cp-sync' )} variant="outlined" />}
 						isOptionEqualToValue={(option, value) => option.value === value}
 					/>
 				</Box>
@@ -306,7 +306,7 @@ export default function ConfigureTab({ data, updateField }) {
 			{addingCustomField && (
 				<Box display="flex" gap={1} alignItems="center">
 					<TextField
-						label={__( 'Field Name', 'cp-connect' )}
+						label={__( 'Field Name', 'cp-sync' )}
 						variant="outlined"
 						value={newLabel}
 						onChange={(e) => setNewLabel(e.target.value)}
@@ -317,7 +317,7 @@ export default function ConfigureTab({ data, updateField }) {
 							onChange={(e, option) => setNewValue(option?.value || '')}
 							sx={{ width: '300px' }}
 							options={valid_fields.map((field) => ({ label: field, value: field }))}
-							renderInput={(params) => <TextField {...params} label={__( 'Field', 'cp-connect' )} variant="outlined" />}
+							renderInput={(params) => <TextField {...params} label={__( 'Field', 'cp-sync' )} variant="outlined" />}
 							isOptionEqualToValue={(option, value) => option.value === value}
 						/>
 					</FormControl>
@@ -329,7 +329,7 @@ export default function ConfigureTab({ data, updateField }) {
 							setNewValue('')
 						}}
 					>
-						{ __( 'Create', 'cp-connect' ) }
+						{ __( 'Create', 'cp-sync' ) }
 					</Button>
 				</Box>
 			)}
@@ -339,7 +339,7 @@ export default function ConfigureTab({ data, updateField }) {
 				variant="outlined"
 				sx={{ width: '200px' }}
 			>
-				{ __( 'Add Custom Field', 'cp-connect' ) }
+				{ __( 'Add Custom Field', 'cp-sync' ) }
 			</Button>
 		</Box>
 	)

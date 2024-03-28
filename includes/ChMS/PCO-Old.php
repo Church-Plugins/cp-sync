@@ -1,8 +1,8 @@
 <?php
 
-namespace CP_Connect\ChMS;
+namespace CP_Sync\ChMS;
 
-use CP_Connect\Admin\Settings;
+use CP_Sync\Admin\Settings;
 use PlanningCenterAPI\PlanningCenterAPI;
 
 /**
@@ -10,14 +10,14 @@ use PlanningCenterAPI\PlanningCenterAPI;
  *
  * @author costmo
  */
-class PCO extends \CP_Connect\ChMS\ChMS {
+class PCO extends \CP_Sync\ChMS\ChMS {
 
 	/**
 	 * Options table key
 	 *
 	 * @var string
 	 */
-	public $settings_key = 'cpc_pco_options';
+	public $settings_key = 'cps_pco_options';
 
 	/**
 	 * Convenience reference to an external API connection
@@ -60,14 +60,14 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 		if( true === $this->load_connection_parameters() ) {
 			$this->maybe_setup_taxonomies();
 
-			$events_enabled = $this->get_option( 'events_enabled', 1, 'cpc_pco_connect' );
+			$events_enabled = $this->get_option( 'events_enabled', 1, 'cps_pco_connect' );
 			if ( 1 == $events_enabled ) {
 				add_action( 'cp_sync_pull_events', [ $this, 'pull_events' ] );
 			} elseif ( 2 == $events_enabled ) {
 				add_action( 'cp_sync_pull_events', [ $this, 'pull_registrations' ] );
 			}
 
-			if ( $this->get_option( 'groups_enabled', 1, 'cpc_pco_connect' ) ) {
+			if ( $this->get_option( 'groups_enabled', 1, 'cps_pco_connect' ) ) {
 				add_action( 'cp_sync_pull_groups', [ $this, 'pull_groups' ] );
 			}
 		}
@@ -82,7 +82,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 
 		// make sure we have all required parameters
 		foreach( [ 'app_id', 'secret' ] as $option ) {
-			if ( ! Settings::get( $option, '', 'cpc_pco_connect' ) ) {
+			if ( ! Settings::get( $option, '', 'cps_pco_connect' ) ) {
 				return false;
 			}
 		}
@@ -135,7 +135,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 	public function event_taxonomies( $item, $id ) {
 		$taxonomies = [ 'Ministry Group', 'Ministry Leader', 'Frequency', 'cp_ministry' ];
 		foreach( $taxonomies as $tax ) {
-			$tax_slug = \CP_Connect\ChMS\ChMS::string_to_slug( $tax );
+			$tax_slug = \CP_Sync\ChMS\ChMS::string_to_slug( $tax );
 			$categories = [];
 
 			if( !empty( $item['tax_input'][$tax_slug] ) ) {
@@ -1076,7 +1076,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 		if ( $existing_options = get_option( 'pco_main_options' ) ) {
 			foreach( [ 'pco_app_id' => 'app_id', 'pco_secret' => 'secret' ] as $old_option => $new_option ) {
 				if ( ! empty( $existing_options[ $old_option ] ) ) {
-					Settings::set( $new_option, $existing_options[ $old_option ], 'cpc_pco_connect' );
+					Settings::set( $new_option, $existing_options[ $old_option ], 'cps_pco_connect' );
 				}
 			}
 
@@ -1118,12 +1118,12 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 	 */
 	public function api_settings_tab() {
 		$args = array(
-			'id'           => 'cpc_pco_page',
+			'id'           => 'cps_pco_page',
 			'title'        => 'PCO Settings',
 			'object_types' => array( 'options-page' ),
 			'option_key'   => $this->settings_key,
-			'parent_slug'  => 'cpc_main_options',
-			'tab_group'    => 'cpc_main_options',
+			'parent_slug'  => 'cps_main_options',
+			'tab_group'    => 'cps_main_options',
 			'tab_title'    => 'Settings',
 			'display_cb'   => [ $this, 'options_display_with_tabs' ]
 		);
@@ -1205,8 +1205,8 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 	 * @return bool
 	 */
 	public function load_connection_parameters( $option_slug = '' ) {
-		$app_id = Settings::get( 'app_id', '', 'cpc_pco_connect' );
-		$secret = Settings::get( 'secret', '', 'cpc_pco_connect' );
+		$app_id = Settings::get( 'app_id', '', 'cps_pco_connect' );
+		$secret = Settings::get( 'secret', '', 'cps_pco_connect' );
 
 		if( empty( $app_id ) || empty( $secret ) ) {
 			return false;

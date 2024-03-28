@@ -2,12 +2,12 @@
 /**
  * Setup ChMS integration
  *
- * @package CP_Connect
+ * @package CP_Sync
  */
 
-namespace CP_Connect\ChMS;
+namespace CP_Sync\ChMS;
 
-use CP_Connect\Admin\Settings;
+use CP_Sync\Admin\Settings;
 use WP_Error;
 
 require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/PCO.php';
@@ -127,7 +127,7 @@ class _Init {
 	/**
 	 * Get the active ChMS class
 	 *
-	 * @return \CP_Connect\ChMS\ChMS | false
+	 * @return \CP_Sync\ChMS\ChMS | false
 	 */
 	public function get_active_chms_class() {
 		$active_chms = $this->get_active_chms();

@@ -1,7 +1,7 @@
 <?php
-namespace CP_Connect;
+namespace CP_Sync;
 
-use CP_Connect\Admin\Settings;
+use CP_Sync\Admin\Settings;
 
 /**
  * Provides the global $cp_sync object
@@ -40,7 +40,7 @@ class _Init {
 	 *
 	 */
 	protected function __construct() {
-		$this->enqueue = new \WPackio\Enqueue( 'cpConnect', 'dist', $this->get_version(), 'plugin', CP_SYNC_PLUGIN_FILE );
+		$this->enqueue = new \WPackio\Enqueue( 'cpSync', 'dist', $this->get_version(), 'plugin', CP_SYNC_PLUGIN_FILE );
 		add_action( 'cp_core_loaded', [ $this, 'maybe_setup' ], - 9999 );
 		add_action( 'init', [ $this, 'maybe_init' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue' ] );

@@ -2,13 +2,13 @@
 /**
  * ChMS integrations base functionality to be extended by specific integrations
  *
- * @package CP_Connect
+ * @package CP_Sync
  */
 
-namespace CP_Connect\ChMS;
+namespace CP_Sync\ChMS;
 
-use CP_Connect\Admin\Settings;
-use CP_Connect\Setup\RateLimiter;
+use CP_Sync\Admin\Settings;
+use CP_Sync\Setup\RateLimiter;
 
 /**
  * The base ChMS class must have the following abstractions:
@@ -91,7 +91,7 @@ abstract class ChMS {
 		$this->setup();
 
 		add_action( 'init', [ $this, 'integrations' ], 500 );
-		add_action( 'cmb2_save_options-page_fields_cpc_main_options_page', [ $this, 'maybe_add_connection_message' ] );
+		add_action( 'cmb2_save_options-page_fields_cps_main_options_page', [ $this, 'maybe_add_connection_message' ] );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
 
 		if ( Settings::get( 'pull_now' ) ) {

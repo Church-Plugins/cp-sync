@@ -1,7 +1,7 @@
 <?php
-namespace CP_Connect\Integrations;
+namespace CP_Sync\Integrations;
 
-use CP_Connect\Exception;
+use CP_Sync\Exception;
 
 abstract class Integration extends \WP_Background_Process {
 
@@ -53,7 +53,7 @@ abstract class Integration extends \WP_Background_Process {
 		 * Filter the items before processing.
 		 *
 		 * @param array $items The items to process.
-		 * @param \CP_Connect\Integrations\Integration $integration The integration instance.
+		 * @param \CP_Sync\Integrations\Integration $integration The integration instance.
 		 * @return array
 		 * @since 1.1.0
 		 */
@@ -64,7 +64,7 @@ abstract class Integration extends \WP_Background_Process {
 		 *
 		 * @param bool $hard_refresh Whether to do a hard refresh.
 		 * @param array $items The items to process.
-		 * @param \CP_Connect\Integrations\Integration $integration The integration instance.
+		 * @param \CP_Sync\Integrations\Integration $integration The integration instance.
 		 * @return bool
 		 * @since 1.0.0
 		 */
@@ -446,8 +446,8 @@ abstract class Integration extends \WP_Background_Process {
 	/**
 	 * Pull all data from a ChMS and enqueue it
 	 *
-	 * @param \CP_Connect\ChMS\ChMS $chms The ChMS to pull from.
-	 * @return true|\CP_Connect\Chms\ChMSError
+	 * @param \CP_Sync\ChMS\ChMS $chms The ChMS to pull from.
+	 * @return true|\CP_Sync\Chms\ChMSError
 	 */
 	public function pull_data_from_chms( $chms ) {
 		$data = $chms->get_formatted_data( $this->id );

@@ -1,8 +1,8 @@
 <?php
 
-namespace CP_Connect\Integrations;
+namespace CP_Sync\Integrations;
 
-use CP_Connect\Exception;
+use CP_Sync\Exception;
 
 class CP_Groups extends Integration {
 

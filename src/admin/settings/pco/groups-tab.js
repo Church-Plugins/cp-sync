@@ -45,7 +45,7 @@ export default function GroupsTab({ data, updateField, globalData }) {
 	const handlePull = () => {
 		setPulling(true)
 		apiFetch({
-			path: '/cp-connect/v1/pull/cp_groups',
+			path: '/cp-sync/v1/pull/cp_groups',
 			method: 'POST',
 		}).then(response => {
 			if(response.success) {
@@ -70,7 +70,7 @@ export default function GroupsTab({ data, updateField, globalData }) {
 	}, [data.tag_groups])
 
 	const filterConfig = {
-		label: __( 'Groups', 'cp-connect' ),
+		label: __( 'Groups', 'cp-sync' ),
 		enrollment_status: {
 			label: __( 'Enrollment Status' ),
 			options: Object.keys(ENROLLMENT_STATUS_OPTIONS).map(key => ({ value: key, label: ENROLLMENT_STATUS_OPTIONS[key] }))
@@ -85,43 +85,43 @@ export default function GroupsTab({ data, updateField, globalData }) {
 		<div>
 			<Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
 				<CloudOutlined sx={{ mr: 1 }} />
-				{ __( 'Select data to pull from PCO', 'cp-connect' ) }
+				{ __( 'Select data to pull from PCO', 'cp-sync' ) }
 			</Typography>
 			<AsyncSelect
-				apiPath="/cp-connect/v1/pco/groups/types"
+				apiPath="/cp-sync/v1/pco/groups/types"
 				value={data.types}
 				onChange={data => updateField('types', data)}
 				label={__( 'Group Types' )}
 				sx={{ mt: 2, width: 500 }}
 			/>
 			<AsyncSelect
-				apiPath="/cp-connect/v1/pco/groups/tag_groups"
+				apiPath="/cp-sync/v1/pco/groups/tag_groups"
 				value={data.tag_groups}
 				onChange={data => updateField('tag_groups', data)}
 				label={__( 'Relevant Tag Groups to Include' )}
 				sx={{ mt: 2, width: 500 }}
 			/>
-			<FormHelperText>{__( 'Pull these tag groups as separate taxonomies for CP Groups.', 'cp-connect' )}</FormHelperText>
+			<FormHelperText>{__( 'Pull these tag groups as separate taxonomies for CP Groups.', 'cp-sync' )}</FormHelperText>
 			<Autocomplete
 				value={data.facets}
 				onChange={(e, newValue) => updateField('facets', newValue)}
 				renderInput={(params) => (
 					<TextField
 						{...params}
-						label={__( 'Facets', 'cp-connect' )}
+						label={__( 'Facets', 'cp-sync' )}
 					/>
 				)}
 				multiple
 				options={data.tag_groups}
 				getOptionLabel={(option) => option.name}
 				isOptionEqualToValue={(option, value) => option.id === value.id}
-				noOptionsText={__( 'Select some tag types to add here', 'cp-connect' )}
+				noOptionsText={__( 'Select some tag types to add here', 'cp-sync' )}
 				sx={{ width: 500, mt: 2 }}
 			/>
-			<FormHelperText>{__( 'Only these taxonomies will be filterable as facets on the groups archive page.', 'cp-connect' )}</FormHelperText>
+			<FormHelperText>{__( 'Only these taxonomies will be filterable as facets on the groups archive page.', 'cp-sync' )}</FormHelperText>
 			<Typography variant="h6" sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
 				<FilterAltOutlined sx={{ mr: 1 }} />
-				{ __( 'Filters', 'cp-connect' ) }
+				{ __( 'Filters', 'cp-sync' ) }
 			</Typography>
 			<Autocomplete
 				value={data.enrollment_status}
@@ -152,7 +152,7 @@ export default function GroupsTab({ data, updateField, globalData }) {
 				getOptionLabel={(option) => ENROLLMENT_STRATEGY_OPTIONS[option]}
 			/>
 			<FormControl sx={{ mt: 2 }}>
-				<FormLabel id="visibility-filter-label">{ __( 'Visibility', 'cp-connect' ) }</FormLabel>
+				<FormLabel id="visibility-filter-label">{ __( 'Visibility', 'cp-sync' ) }</FormLabel>
 				<RadioGroup
 					aria-labelledby='visibility-filter-label'
 					value={data.visibility}
@@ -169,12 +169,12 @@ export default function GroupsTab({ data, updateField, globalData }) {
 				onClick={handlePull}
 				disabled={pulling}
 			>
-				{ pulling ? __( 'Starting import', 'cp-connect' ) : __( 'Pull Now', 'cp-connect' ) }
+				{ pulling ? __( 'Starting import', 'cp-sync' ) : __( 'Pull Now', 'cp-sync' ) }
 			</Button>
 			{
 				pullSuccess &&
 				<Alert severity='success' sx={{ mt: 2 }}>
-					{ __( 'Import started', 'cp-connect' ) }
+					{ __( 'Import started', 'cp-sync' ) }
 				</Alert>
 			}
 			{

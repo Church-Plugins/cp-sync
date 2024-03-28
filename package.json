@@ -1,5 +1,5 @@
 {
-	"name": "cp-connect",
+	"name": "cp-sync",
 	"version": "0.1.0",
 	"private": true,
 	"workspaces": [

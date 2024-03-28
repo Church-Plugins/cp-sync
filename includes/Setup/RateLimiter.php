@@ -2,12 +2,12 @@
 /**
  * Manages quickly fetching from an api while accounting for rate limiting.
  *
- * @package CP_Connect
+ * @package CP_Sync
  */
 
-namespace CP_Connect\Setup;
+namespace CP_Sync\Setup;
 
-use CP_Connect\Admin\Settings;
+use CP_Sync\Admin\Settings;
 
 /**
  * RateLimiter class

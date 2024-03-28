@@ -1,6 +1,6 @@
 <?php
 
-namespace CP_Connect\Admin;
+namespace CP_Sync\Admin;
 
 /**
  * Plugin licensing class

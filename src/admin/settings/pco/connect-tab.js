@@ -28,7 +28,7 @@ export default function ConnectTab({ data, updateField }) {
 	const authorize = async () => {
 		setAuthLoading(true)
 		apiFetch({
-			path: '/cp-connect/v1/pco/authenticate',
+			path: '/cp-sync/v1/pco/authenticate',
 			method: 'POST',
 			data: { app_id, secret }
 		}).then((response) => {
@@ -48,30 +48,30 @@ export default function ConnectTab({ data, updateField }) {
 
 	const steps = [
 		{
-			label: __( 'Get your API keys from PCO', 'cp-connect' ),
+			label: __( 'Get your API keys from PCO', 'cp-sync' ),
 			description: <p>
-				{ __( 'Follow the instructions from PCO to create an OAuth application. You can also create a personal access token.', 'cp-connect' ) }
+				{ __( 'Follow the instructions from PCO to create an OAuth application. You can also create a personal access token.', 'cp-sync' ) }
 
 				<br />
 
-				{ __( 'You can get your authentication credentials by ', 'cp-connect' ) }
+				{ __( 'You can get your authentication credentials by ', 'cp-sync' ) }
 	
 				<a href="https://api.planningcenteronline.com/oauth/applications" target="_blank" rel="noreferrer noopener">
 					{ __( 'clicking here' )}
 				</a>
 	
-				{ __( ' and scrolling down to "Personal Access Tokens"', 'cp-connect' ) }
+				{ __( ' and scrolling down to "Personal Access Tokens"', 'cp-sync' ) }
 			</p>
 		},
 		{
-			label: __( 'Connect to PCO', 'cp-connect' ),
+			label: __( 'Connect to PCO', 'cp-sync' ),
 			description: <p>
-				{ __( 'Enter the Application ID and Secret from the previous step into the fields below.', 'cp-connect' ) }
+				{ __( 'Enter the Application ID and Secret from the previous step into the fields below.', 'cp-sync' ) }
 				<div style={{ marginTop: '1rem' }}>
 					<TextField
 						name='app_id'
 						sx={{ width: '400px' }}
-						label={__( 'Application ID', 'cp-connect' )}
+						label={__( 'Application ID', 'cp-sync' )}
 						value={app_id}
 						onChange={updateAuthField}
 						variant="outlined"
@@ -81,7 +81,7 @@ export default function ConnectTab({ data, updateField }) {
 					<TextField
 						name='secret'
 						sx={{ width: '400px' }}
-						label={__( 'Application Secret', 'cp-connect' )}
+						label={__( 'Application Secret', 'cp-sync' )}
 						value={secret}
 						onChange={updateAuthField}
 						variant="outlined"
@@ -93,7 +93,7 @@ export default function ConnectTab({ data, updateField }) {
 
 	return (
 		<div>
-			<Typography variant="h5">{ __( 'PCO API Configuration', 'cp-connect' ) }</Typography>
+			<Typography variant="h5">{ __( 'PCO API Configuration', 'cp-sync' ) }</Typography>
 
 			<Stepper activeStep={activeStep} orientation='vertical' sx={{ mt: 2 }}>
 				{
@@ -125,19 +125,19 @@ export default function ConnectTab({ data, updateField }) {
 														authLoading &&
 														<CircularProgress size={20} color="info" />
 													}
-													{ __( 'Connect', 'cp-connect' ) }
+													{ __( 'Connect', 'cp-sync' ) }
 												</Button>
 											}
 											{
 												index < steps.length - 1 &&
 												<Button variant="text" color="primary" onClick={() => updateField('step', index + 1)}>
-													{ __( 'Next', 'cp-connect' ) }
+													{ __( 'Next', 'cp-sync' ) }
 												</Button>
 											}
 											{
 												index > 0 &&
 												<Button variant="text" color="primary" sx={{ ml: 1 }} onClick={() => updateField('step', index - 1)}>
-													{ __( 'Back', 'cp-connect' ) }
+													{ __( 'Back', 'cp-sync' ) }
 												</Button>
 											}
 										</div>
@@ -150,7 +150,7 @@ export default function ConnectTab({ data, updateField }) {
 			</Stepper>
 			{
 				isComplete &&
-				<Alert severity="success" sx={{ mt: 2 }}>{ __( 'Connected', 'cp-connect' ) }</Alert>
+				<Alert severity="success" sx={{ mt: 2 }}>{ __( 'Connected', 'cp-sync' ) }</Alert>
 			}
 		</div>
 	)

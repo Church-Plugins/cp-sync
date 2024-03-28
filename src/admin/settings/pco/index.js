@@ -10,7 +10,7 @@ export default {
 	name: 'Planning Center Online',
 	tabs: [
 		{
-			name: __( 'Connect', 'cp-connect' ),
+			name: __( 'Connect', 'cp-sync' ),
 			component: (props) => <ConnectTab {...props} />,
 			optionGroup: 'connect',
 			defaultData: {
@@ -21,7 +21,7 @@ export default {
 			}
 		},
 		{
-			name: __( 'Settings', 'cp-connect' ),
+			name: __( 'Settings', 'cp-sync' ),
 			component: (props) => <SettingsTab {...props} />,
 			optionGroup: 'settings',
 			defaultData: {
@@ -31,7 +31,7 @@ export default {
 			}
 		},
 		{
-			name: __( 'Groups', 'cp-connect' ),
+			name: __( 'Groups', 'cp-sync' ),
 			component: (props) => <GroupsTab {...props} />,
 			optionGroup: 'groups',
 			defaultData: {
@@ -48,7 +48,7 @@ export default {
 			}
 		},
 		{
-			name: __( 'Events', 'cp-connect' ),
+			name: __( 'Events', 'cp-sync' ),
 			component: (props) => <EventsTab {...props} />,
 			optionGroup: 'events',
 			defaultData: {

@@ -20,7 +20,7 @@ function LicenseTab({ data, updateField, save }) {
 		setError(null)
 		setPending(true)
 		apiFetch({
-			path: '/churchplugins/v1/license/cpc_license',
+			path: '/churchplugins/v1/license/cps_license',
 			method: 'POST',
 			data: { license: data.license }
 		}).then(data => {
@@ -40,7 +40,7 @@ function LicenseTab({ data, updateField, save }) {
 		setError(null)
 		setPending(true)
 		apiFetch({
-			path: '/churchplugins/v1/license/cpc_license',
+			path: '/churchplugins/v1/license/cps_license',
 			method: 'DELETE'
 		}).then(data => {
 			updateField('status', data.status)
@@ -78,17 +78,17 @@ function LicenseTab({ data, updateField, save }) {
 				<Button disabled={pending} onClick={status === 'valid' ? deactivateLicense : activateLicense}>
 					{
 						pending ?
-						__( 'Processing', 'cp-connect' ) :
+						__( 'Processing', 'cp-sync' ) :
 						status === 'valid' ?
-						__( 'Deactivate', 'cp-connect' ) :
-						__( 'Activate', 'cp-connect' )
+						__( 'Deactivate', 'cp-sync' ) :
+						__( 'Activate', 'cp-sync' )
 					}
 				</Button>
 			</Box>
 			
 			<FormControlLabel
 				control={<Switch checked={data.beta} onChange={(e) => updateField('beta', e.target.checked)} />}
-				label={__( 'Enable beta updates', 'cp-connect' )}
+				label={__( 'Enable beta updates', 'cp-sync' )}
 				sx={{ maxWidth: 'fit-content' }}
 			/>
 		</Box>		

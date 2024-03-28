@@ -12,12 +12,12 @@ const {
 
 module.exports = {
 	// Project Identity
-	appName: 'cpConnect', // Unique name of your project
+	appName: 'cpSync', // Unique name of your project
 	type: 'plugin', // Plugin or theme
-	slug: 'cp-connect', // Plugin or Theme slug, basically the directory name under `wp-content/<themes|plugins>`
+	slug: 'cp-sync', // Plugin or Theme slug, basically the directory name under `wp-content/<themes|plugins>`
 	// Used to generate banners on top of compiled stuff
 	bannerConfig: {
-		name: 'cpConnect',
+		name: 'cpSync',
 		author: 'Mission Lab',
 		license: 'GPL-3.0',
 		link: 'https://missionlab.dev',

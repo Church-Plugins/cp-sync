@@ -1,5 +1,5 @@
 {
-  "name": "churchplugins/cp-connect",
+  "name": "churchplugins/cp-sync",
   "type": "wordpress-plugin",
   "description": "Church staff plugin.",
   "keywords": [],
@@ -20,7 +20,7 @@
   },
   "autoload": {
     "psr-4": {
-      "CP_Connect\\": "includes/",
+      "CP_Sync\\": "includes/",
       "MinistryPlatform\\": "includes/Integrations/MinistryPlatform/",
       "PlanningCenterAPI\\": "includes/ChMS/planning-center-api/src/"
     }

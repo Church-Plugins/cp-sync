@@ -9,20 +9,20 @@ jQuery($ => {
 		}
 	}	
 
-	$('.cp-connect-field-select').each(buildMultiSelect)
+	$('.cp-sync-field-select').each(buildMultiSelect)
 
 	function buildMultiSelect() {
-		const optionsContainer = $(this).find('.cp-connect-field-select__options')
-		const addFieldInput    = $(this).find('.cp-connect-field-select__add-input')
-		const addFieldButton   = $(this).find('.cp-connect-field-select__add-button')
+		const optionsContainer = $(this).find('.cp-sync-field-select__options')
+		const addFieldInput    = $(this).find('.cp-sync-field-select__add-input')
+		const addFieldButton   = $(this).find('.cp-sync-field-select__add-button')
 		const hiddenField      = $(this).find('input[type="hidden"]')
-		const fieldsPreview    = $(this).find('.cp-connect-fields-preview')
+		const fieldsPreview    = $(this).find('.cp-sync-fields-preview')
 		const defaultFields    = $(this).data('default-fields')
 
 		let options = JSON.parse(hiddenField.val() || '[]')
 
 		const updateValue = debounce(() => {
-			options = optionsContainer.find('.cp-connect-field-select-item-value').map((i, e) => $(e).val()).toArray()
+			options = optionsContainer.find('.cp-sync-field-select-item-value').map((i, e) => $(e).val()).toArray()
 			hiddenField.val(JSON.stringify(options))
 			fieldsPreview.html([...defaultFields, ...options].join(', ')) // update field preview
 		}, 300)
@@ -51,9 +51,9 @@ jQuery($ => {
 		}, 10)
 
 		function updateList() {
-			const listItemTemplate = `<li class="cp-connect-field-select-item">
-				<input class="cp-connect-field-select-item-value regular-text" type="text" value="{value}" />
-				<button class="cp-connect-field-select-item-remove button button-secondary"><i class="material-icons">delete</i></button>
+			const listItemTemplate = `<li class="cp-sync-field-select-item">
+				<input class="cp-sync-field-select-item-value regular-text" type="text" value="{value}" />
+				<button class="cp-sync-field-select-item-remove button button-secondary"><i class="material-icons">delete</i></button>
 			</li>`;
 
 			optionsContainer.html('')
@@ -61,7 +61,7 @@ jQuery($ => {
 			options.forEach(value => {
 				const elem = $(listItemTemplate.replaceAll('{value}', value))
 
-				elem.find('.cp-connect-field-select-item-value').on('keypress', (e) => {
+				elem.find('.cp-sync-field-select-item-value').on('keypress', (e) => {
 					if(e.keyCode === 13) {
 						e.preventDefault()
 					} else {
@@ -69,7 +69,7 @@ jQuery($ => {
 					}
 				})
 
-				elem.find('.cp-connect-field-select-item-remove').on('click', () => {
+				elem.find('.cp-sync-field-select-item-remove').on('click', () => {
 					elem.remove()
 					updateValue()
 				})
@@ -79,23 +79,23 @@ jQuery($ => {
 		}
 	}
 
-	$('.cpc-custom-mapping').each(buildCustomMapping)
+	$('.cps-custom-mapping').each(buildCustomMapping)
 
 	function buildCustomMapping() {
-		const optionTemplate = $(this).find('.cp-connect-custom-mapping-template')
+		const optionTemplate = $(this).find('.cp-sync-custom-mapping-template')
 		const initialMapping = $(this).data('mapping')
 		const objectType     = $(this).data('object-type')
-		const itemContainer  = $(this).find('.cpc-custom-mapping--rows')
-		const addItemBtn     = $(this).find('.cpc-custom-mapping--add')
+		const itemContainer  = $(this).find('.cps-custom-mapping--rows')
+		const addItemBtn     = $(this).find('.cps-custom-mapping--add')
 		const hiddenField    = $(this).find('input[type="hidden"]')
 		
 		let currentMapping  = initialMapping
 
 		const updateValue = debounce(() => {
 			const newState = {}
-			itemContainer.find('.cpc-custom-mapping--row').each(function() {
-				const metaKey   = $(this).find('.cpc-custom-mapping--meta-key').val()
-				const fieldName = $(this).find('.cpc-custom-mapping--field-name').val()
+			itemContainer.find('.cps-custom-mapping--row').each(function() {
+				const metaKey   = $(this).find('.cps-custom-mapping--meta-key').val()
+				const fieldName = $(this).find('.cps-custom-mapping--field-name').val()
 				newState[fieldName] = metaKey
 			})
 			currentMapping = newState
@@ -105,9 +105,9 @@ jQuery($ => {
 		const addRow = (fieldName = '', metaKey = '', ) => {
 			const row = $(optionTemplate.clone().html())
 			
-			const metaKeyField   = row.find('.cpc-custom-mapping--meta-key')
-			const fieldNameField = row.find('.cpc-custom-mapping--field-name')
-			const removeBtn      = row.find('.cpc-custom-mapping--remove')
+			const metaKeyField   = row.find('.cps-custom-mapping--meta-key')
+			const fieldNameField = row.find('.cps-custom-mapping--field-name')
+			const removeBtn      = row.find('.cps-custom-mapping--remove')
 
 			metaKeyField.val(metaKey)
 			fieldNameField.val(fieldName)

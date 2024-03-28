@@ -1,6 +1,6 @@
 <?php
 
-namespace CP_Connect\Setup;
+namespace CP_Sync\Setup;
 
 /**
  * Setup plugin initialization

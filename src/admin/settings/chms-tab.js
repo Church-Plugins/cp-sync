@@ -15,13 +15,13 @@ function ChMSTab({ data, updateField }) {
 				<InputLabel id="chms-select-label">ChMS</InputLabel>
 				<Select
 					labelId="chms-select-label"
-					label={__( 'ChMS', 'cp-connect' )}
+					label={__( 'ChMS', 'cp-sync' )}
 					value={chms}
 					onChange={(e) => updateField('chms', e.target.value)}
-					placeholder={__( 'Select', 'cp-connect' )}	
+					placeholder={__( 'Select', 'cp-sync' )}	
 					sx={{ minWidth: "300px" }}
 				>
-					<MenuItem value="" sx={{ opacity: 0.5 }} >{__( 'Select', 'cp-connect' )}</MenuItem>
+					<MenuItem value="" sx={{ opacity: 0.5 }} >{__( 'Select', 'cp-sync' )}</MenuItem>
 					{Object.keys(platforms).map((key) => (
 						<MenuItem key={key} value={key}>{platforms[key].name}</MenuItem>
 					))}
@@ -32,7 +32,7 @@ function ChMSTab({ data, updateField }) {
 }
 
 export const chmsTab = {
-	name: __( 'ChMS', 'cp-connect' ),
+	name: __( 'ChMS', 'cp-sync' ),
 	component: (props) => <ChMSTab {...props} />,
 	optionGroup: 'main_options',
 	defaultData: {

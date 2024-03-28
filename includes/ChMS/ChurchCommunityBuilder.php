@@ -1,9 +1,9 @@
 <?php
 
-namespace CP_Connect\ChMS;
+namespace CP_Sync\ChMS;
 
 use ChurchCommunityBuilderAPI\API as CCB_API;
-use CP_Connect\Admin\Settings;
+use CP_Sync\Admin\Settings;
 
 class ChurchCommunityBuilder extends ChMS {
 
@@ -49,7 +49,7 @@ class ChurchCommunityBuilder extends ChMS {
 
 		// make sure we have all required parameters
 		foreach( [ 'api_prefix', 'api_user', 'api_pass' ] as $option ) {
-			if ( ! Settings::get( $option, false, 'cpc_ccb_connect' ) ) {
+			if ( ! Settings::get( $option, false, 'cps_ccb_connect' ) ) {
 				return false;
 			}
 		}
@@ -233,7 +233,7 @@ class ChurchCommunityBuilder extends ChMS {
 		if ( $existing_options = get_option( 'ccb_plugin_options' ) ) {
 			foreach( [ 'api_prefix', 'api_user', 'api_pass' ] as $option ) {
 				if ( ! empty( $existing_options[ $option ] ) ) {
-					Settings::set( $option, $existing_options[ $option ], 'cpc_ccb_connect' );
+					Settings::set( $option, $existing_options[ $option ], 'cps_ccb_connect' );
 				}
 			}
 

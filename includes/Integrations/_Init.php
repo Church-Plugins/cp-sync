@@ -1,9 +1,9 @@
 <?php
 
-namespace CP_Connect\Integrations;
+namespace CP_Sync\Integrations;
 
-use CP_Connect\Admin\Settings;
-use CP_Connect\ChMS\ChMSError;
+use CP_Sync\Admin\Settings;
+use CP_Sync\ChMS\ChMSError;
 use WP_Error;
 
 /**
@@ -58,11 +58,11 @@ class _Init {
 		$integrations = [];
 
 		if ( function_exists( 'cp_groups' ) ) {
-			$integrations[ 'cp_groups' ] = '\CP_Connect\Integrations\CP_Groups';
+			$integrations[ 'cp_groups' ] = '\CP_Sync\Integrations\CP_Groups';
 		}
 
 		if ( defined( 'TRIBE_EVENTS_FILE' ) ) {
-			$integrations[ 'tec' ] = '\CP_Connect\Integrations\TEC';
+			$integrations[ 'tec' ] = '\CP_Sync\Integrations\TEC';
 		}
 
 		foreach( $integrations as $key => $integration ) {
@@ -110,7 +110,7 @@ class _Init {
 	 * @return true|ChMSError
 	 */
 	public function pull_content() {
-		$chms = \CP_Connect\Chms\_Init::get_instance()->get_active_chms_class();
+		$chms = \CP_Sync\Chms\_Init::get_instance()->get_active_chms_class();
 
 		foreach( self::$_integrations as $integration ) {
 			if ( $chms->supports( $integration->id ) ) {
@@ -133,7 +133,7 @@ class _Init {
 	 * @return true|WP_Error
 	 */
 	public function pull_integration( $integration_id ) {
-		$chms = \CP_Connect\Chms\_Init::get_instance()->get_active_chms_class();
+		$chms = \CP_Sync\Chms\_Init::get_instance()->get_active_chms_class();
 
 		if ( ! isset( self::$_integrations[ $integration_id ] ) ) {
 			return new WP_Error( 'invalid_integration', 'Invalid integration' );

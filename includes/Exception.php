@@ -1,6 +1,6 @@
 <?php
 
-namespace CP_Connect;
+namespace CP_Sync;
 
 /**
  * Custom Exception class to write to log file while in debug mode

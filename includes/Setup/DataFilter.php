@@ -2,10 +2,10 @@
 /**
  * Utility class for managing and filtering a list of data based on a set of filters
  *
- * @package CP_Connect
+ * @package CP_Sync
  */
 
-namespace CP_Connect\Setup;
+namespace CP_Sync\Setup;
 
 /**
  * DataFilter class

@@ -2,10 +2,10 @@
 /**
  * ChMS specific exception class
  *
- * @package CP_Connect
+ * @package CP_Sync
  */
 
-namespace CP_Connect\ChMS;
+namespace CP_Sync\ChMS;
 
 /**
  * ChMS specific exception class

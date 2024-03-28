@@ -40,7 +40,7 @@ export default function EventsTab({ data, updateField, globalData }) {
 	const handlePull = () => {
 		setPulling(true)
 		apiFetch({
-			path: '/cp-connect/v1/pull/tec',
+			path: '/cp-sync/v1/pull/tec',
 			method: 'POST',
 		}).then(response => {
 			if(response.success) {
@@ -54,7 +54,7 @@ export default function EventsTab({ data, updateField, globalData }) {
 	}
 
 	const filterConfig = {
-		label: __( 'Events', 'cp-connect' ),
+		label: __( 'Events', 'cp-sync' ),
 		start_date: {
 			label: globalData.pco.event_filter_options.start_date,
 			type: 'date',
@@ -78,22 +78,22 @@ export default function EventsTab({ data, updateField, globalData }) {
 		<div>
 			<Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
 				<CloudOutlined sx={{ mr: 1 }} />
-				{ __( 'Select data to pull from PCO', 'cp-connect' ) }
+				{ __( 'Select data to pull from PCO', 'cp-sync' ) }
 			</Typography>
 			<AsyncSelect
-				apiPath="/cp-connect/v1/pco/events/tag_groups"
+				apiPath="/cp-sync/v1/pco/events/tag_groups"
 				value={data.tag_groups}
 				onChange={data => updateField('tag_groups', data)}
 				label={__( 'Tag groups' )}
 				sx={{ mt: 2, width: 500 }}
 			/>
-			<FormHelperText>{__( 'Pull these tag groups as separate taxonomies for The Events Calendar.', 'cp-connect' )}</FormHelperText>
+			<FormHelperText>{__( 'Pull these tag groups as separate taxonomies for The Events Calendar.', 'cp-sync' )}</FormHelperText>
 			<Typography variant="h6" sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
 				<FilterAltOutlined sx={{ mr: 1 }} />
-				{ __( 'Filters', 'cp-connect' ) }
+				{ __( 'Filters', 'cp-sync' ) }
 			</Typography>
 			<FormControl sx={{ mt: 2 }}>
-				<FormLabel id="visibility-filter-label">{ __( 'Visibility', 'cp-connect' ) }</FormLabel>
+				<FormLabel id="visibility-filter-label">{ __( 'Visibility', 'cp-sync' ) }</FormLabel>
 				<RadioGroup
 					aria-labelledby='visibility-filter-label'
 					value={data.visibility}
@@ -111,11 +111,11 @@ export default function EventsTab({ data, updateField, globalData }) {
 				disabled={pulling}
 				onClick={handlePull}
 			>
-				{ pulling ? __( 'Starting import', 'cp-connect' ) : __( 'Pull Now', 'cp-connect' ) }
+				{ pulling ? __( 'Starting import', 'cp-sync' ) : __( 'Pull Now', 'cp-sync' ) }
 			</Button>
 			{
 				pullSuccess &&
-				<Alert severity="success" sx={{ mt: 2 }}>{ __( 'Import started', 'cp-connect' ) }</Alert>
+				<Alert severity="success" sx={{ mt: 2 }}>{ __( 'Import started', 'cp-sync' ) }</Alert>
 			}
 			{
 				error &&

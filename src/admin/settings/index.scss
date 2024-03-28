@@ -1,16 +1,16 @@
-body.settings_page_cpc_settings {
+body.settings_page_cps_settings {
 	background-color: white;
 }
 
-.settings_page_cpc_settings .notice {
+.settings_page_cps_settings .notice {
 	margin-left: 16px;
 }
 
-.settings_page_cpc_settings #wpcontent, .privacy-settings.auto-fold #wpcontent {
+.settings_page_cps_settings #wpcontent, .privacy-settings.auto-fold #wpcontent {
 	padding-left: 0;
 }
 
-body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-connect {
+body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-sync {
 	height: 100%;
 	box-sizing: border-box;
 }

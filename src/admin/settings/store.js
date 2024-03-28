@@ -21,7 +21,7 @@ const actions = {
 	fetchOptionGroup(group, args = {}) {
 		return {
 			type: 'FETCH',
-			path: '/cp-connect/v1/options/' + group,
+			path: '/cp-sync/v1/options/' + group,
 			group,
 			...args
 		}

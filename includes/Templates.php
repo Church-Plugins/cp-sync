@@ -1,6 +1,6 @@
 <?php
 
-namespace CP_Connect;
+namespace CP_Sync;
 
 /**
  * Loads theme files in appropriate hierarchy: 1) child theme,

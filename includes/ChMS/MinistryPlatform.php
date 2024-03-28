@@ -1,9 +1,9 @@
 <?php
 
-namespace CP_Connect\ChMS;
+namespace CP_Sync\ChMS;
 
 use MinistryPlatformAPI\MinistryPlatformTableAPI as MP;
-use CP_Connect\Admin\Settings;
+use CP_Sync\Admin\Settings;
 
 /**
  * Ministry Platform Integration provider
@@ -13,7 +13,7 @@ use CP_Connect\Admin\Settings;
  */
 class MinistryPlatform extends ChMS {
 
-	public $settings_key = 'cpc_mp_options';
+	public $settings_key = 'cps_mp_options';
 
 	public $rest_namespace = '/ministry-platform';
 
@@ -83,10 +83,10 @@ class MinistryPlatform extends ChMS {
 
 		$custom_group_mapping = get_option( 'cp_group_custom_field_mapping' );
 		$group_mapping        = get_option( 'ministry_platform_group_mapping' );
-		$cpc_mp_options       = get_option( 'cpc_mp_options', array() );
+		$cps_mp_options       = get_option( 'cps_mp_options', array() );
 		
-		update_option( 'cpc_main_options', array( 'chms' => 'mp' ) );
-		update_option( 'cpc_mp_connect', array(
+		update_option( 'cps_main_options', array( 'chms' => 'mp' ) );
+		update_option( 'cps_mp_connect', array(
 			'api_endpoint'             => $mp_api_config['MP_API_ENDPOINT'],
 			'oauth_discovery_endpoint' => $mp_api_config['MP_OAUTH_DISCOVERY_ENDPOINT'],
 			'client_id'                => $mp_api_config['MP_CLIENT_ID'],
@@ -118,7 +118,7 @@ class MinistryPlatform extends ChMS {
 			$mp_conf['custom_field_mapping'] = $mapping;
 		}
 		
-		update_option( 'cpc_mp_configuration', $mp_conf );
+		update_option( 'cps_mp_configuration', $mp_conf );
 
 		delete_option( 'ministry_platform_api_config' );
 		delete_option( 'ministry_platform_group_mapping' );
@@ -176,12 +176,12 @@ class MinistryPlatform extends ChMS {
 	 */
 	public function api_settings_tab() {
 		$args = array(
-			'id'           => 'cpc_mp_page',
+			'id'           => 'cps_mp_page',
 			'title'        => 'Ministry Platform Settings',
 			'object_types' => array( 'options-page' ),
 			'option_key'   => $this->settings_key,
-			'parent_slug'  => 'cpc_main_options',
-			'tab_group'    => 'cpc_main_options',
+			'parent_slug'  => 'cps_main_options',
+			'tab_group'    => 'cps_main_options',
 			'tab_title'    => 'Settings',
 			'display_cb'   => [ $this, 'options_display_with_tabs' ]
 		);
@@ -572,13 +572,13 @@ class MinistryPlatform extends ChMS {
 
 		$field_template = <<<EOT
 			<template class="cp-sync-custom-mapping-template">
-				<div class="cmb-row cmb-type-select cpc-custom-mapping--row">
+				<div class="cmb-row cmb-type-select cps-custom-mapping--row">
 					<div class="cmb-th">
-						<input type="text" placeholder="Additional Field" class="cpc-custom-mapping--meta-key regular-text" />
+						<input type="text" placeholder="Additional Field" class="cps-custom-mapping--meta-key regular-text" />
 					</div>
 					<div class="cmb-td">
-						<select class="cpc-custom-mapping--field-name">%s</select>
-						<button class="cpc-custom-mapping--remove button button-secondary" type="button">Remove</button>
+						<select class="cps-custom-mapping--field-name">%s</select>
+						<button class="cps-custom-mapping--remove button button-secondary" type="button">Remove</button>
 					</div>
 				</div>
 			</template>
@@ -598,14 +598,14 @@ class MinistryPlatform extends ChMS {
 
 		?>
 		<div
-			class="cmb-row cmb-type-select cpc-custom-mapping"
+			class="cmb-row cmb-type-select cps-custom-mapping"
 			data-object-type="<?php echo esc_attr( $object_type ); ?>"
 			data-mapping="<?php echo esc_attr( $custom_mapping_data ); ?>"
 			style="padding: 0;"
 		>
 			<?php echo $field_template; ?>
-			<div class="cpc-custom-mapping--rows cmb2-metabox"></div>
-			<button class="cpc-custom-mapping--add button button-primary" type="button">Add</button>
+			<div class="cps-custom-mapping--rows cmb2-metabox"></div>
+			<button class="cps-custom-mapping--add button button-primary" type="button">Add</button>
 			<input
 				type="hidden"
 				name="<?php echo esc_attr( $field_args['id'] ); ?>"
@@ -638,11 +638,11 @@ class MinistryPlatform extends ChMS {
 	 */
 	function mpLoadConnectionParameters() {
 		$options = array(
-			'MP_API_ENDPOINT'             => Settings::get( 'api_endpoint', '', 'cpc_mp_connect' ),
-			'MP_OAUTH_DISCOVERY_ENDPOINT' => Settings::get( 'oauth_discovery_endpoint', '', 'cpc_mp_connect' ),
-			'MP_CLIENT_ID'                => Settings::get( 'client_id', '', 'cpc_mp_connect' ),
-			'MP_CLIENT_SECRET'            => Settings::get( 'client_secret', '', 'cpc_mp_connect' ),
-			'MP_API_SCOPE'                => Settings::get( 'api_scope', '', 'cpc_mp_connect' ),
+			'MP_API_ENDPOINT'             => Settings::get( 'api_endpoint', '', 'cps_mp_connect' ),
+			'MP_OAUTH_DISCOVERY_ENDPOINT' => Settings::get( 'oauth_discovery_endpoint', '', 'cps_mp_connect' ),
+			'MP_CLIENT_ID'                => Settings::get( 'client_id', '', 'cps_mp_connect' ),
+			'MP_CLIENT_SECRET'            => Settings::get( 'client_secret', '', 'cps_mp_connect' ),
+			'MP_API_SCOPE'                => Settings::get( 'api_scope', '', 'cps_mp_connect' ),
 		);
 
 		// if there are unset options, exit
@@ -658,7 +658,7 @@ class MinistryPlatform extends ChMS {
 	/**
 	 * Handles pulling events from Ministry Platform
 	 *
-	 * @param \CP_Connect\Integrations\TEC $integration The integration to pull events for.
+	 * @param \CP_Sync\Integrations\TEC $integration The integration to pull events for.
 	 */
 	public function pull_events( $integration ) {
 		$mp = new MP();
@@ -768,7 +768,7 @@ class MinistryPlatform extends ChMS {
 	/**
 	 * Performs a pull of groups from Ministry Platform
 	 *
-	 * @param \CP_Connect\Integrations\CP_Groups $integration The integration object.
+	 * @param \CP_Sync\Integrations\CP_Groups $integration The integration object.
 	 */
 	public function pull_groups( $integration ) {
 		$mp = new MP();
@@ -781,7 +781,7 @@ class MinistryPlatform extends ChMS {
 		$filter_query = 'Groups.End_Date >= getdate() OR Groups.End_Date IS NULL';
 		$filter       = apply_filters( 'cp_sync_chms_mp_groups_filter', $filter_query );
 
-		$fields = Settings::get( 'group_fields', array(), 'cpc_mp_configuration' );
+		$fields = Settings::get( 'group_fields', array(), 'cps_mp_configuration' );
 
 		$table  = $mp->table( 'Groups' );
 		$groups = $table
@@ -794,13 +794,13 @@ class MinistryPlatform extends ChMS {
 		}
 
 		// format the custom mapping data
-		$custom_mapping_option = Settings::get( 'custom_group_field_mapping', array(), 'cpc_mp_configuration' );
+		$custom_mapping_option = Settings::get( 'custom_group_field_mapping', array(), 'cps_mp_configuration' );
 		$custom_mapping        = array();
 		foreach ( $custom_mapping_option as $key => $data ) {
 			$custom_mapping[ $data['value'] ] = $data['name'];
 		}
 
-		$group_mapping       = Settings::get( 'group_field_mapping', array(), 'cpc_mp_configuration' );
+		$group_mapping       = Settings::get( 'group_field_mapping', array(), 'cps_mp_configuration' );
 		$custom_mapping_data = array();
 
 		$formatted = [];

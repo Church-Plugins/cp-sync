@@ -1,5 +1,5 @@
 <?php
-namespace CP_Connect\Setup;
+namespace CP_Sync\Setup;
 
 /**
  * Convenience helpers for the plugin

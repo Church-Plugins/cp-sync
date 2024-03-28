@@ -1,6 +1,6 @@
 <?php
 
-namespace CP_Connect\Admin;
+namespace CP_Sync\Admin;
 
 /**
  * Plugin settings
@@ -24,7 +24,7 @@ class Settings {
 	public $license;
 
 	/**
-	 * Only make one instance of \CP_Connect\Settings
+	 * Only make one instance of \CP_Sync\Settings
 	 *
 	 * @return Settings
 	 */
@@ -48,7 +48,7 @@ class Settings {
 	 *
 	 * @author Tanner Moushey
 	 */
-	public static function get( $key, $default = '', $group = 'cpc_main_options' ) {
+	public static function get( $key, $default = '', $group = 'cps_main_options' ) {
 		$options = get_option( $group, [] );
 
 		if ( isset( $options[ $key ] ) ) {
@@ -57,7 +57,7 @@ class Settings {
 			$value = $default;
 		}
 
-		return apply_filters( 'cpc_settings_get', $value, $key, $group );
+		return apply_filters( 'cps_settings_get', $value, $key, $group );
 	}
 
 	/**
@@ -67,7 +67,7 @@ class Settings {
 	 * @param mixed  $value Option value.
 	 * @param string $group Option group.
 	 */
-	public static function set( $key, $value, $group = 'cpc_main_options' ) {
+	public static function set( $key, $value, $group = 'cps_main_options' ) {
 		$options = get_option( $group, [] );
 
 		$options[ $key ] = $value;
@@ -87,7 +87,7 @@ class Settings {
 	 * @author Tanner Moushey
 	 */
 	public static function get_advanced( $key, $default = '' ) {
-		return self::get( $key, $default, 'cpc_advanced_options' );
+		return self::get( $key, $default, 'cps_advanced_options' );
 	}
 
 	/**
@@ -97,9 +97,9 @@ class Settings {
 		add_action( 'admin_menu', [ $this, 'settings_page' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
 
-		\ChurchPlugins\Admin\Options::register_rest_route( 'cp-sync/v1', 'cpc_' );
+		\ChurchPlugins\Admin\Options::register_rest_route( 'cp-sync/v1', 'cps_' );
 
-		$this->license = new \ChurchPlugins\Setup\Admin\License( 'cpc_license', 438, CP_SYNC_STORE_URL, CP_SYNC_PLUGIN_FILE, get_admin_url( null, 'admin.php?page=cpc_license' ) );
+		$this->license = new \ChurchPlugins\Setup\Admin\License( 'cps_license', 438, CP_SYNC_STORE_URL, CP_SYNC_PLUGIN_FILE, get_admin_url( null, 'admin.php?page=cps_license' ) );
 	}
 
 	/**
@@ -111,9 +111,9 @@ class Settings {
 		add_submenu_page(
 			'options-general.php',
 			__( 'Settings', 'cp-sync' ),
-			__( 'CP Connect', 'cp-sync' ),
+			__( 'CP Sync', 'cp-sync' ),
 			'manage_options',
-			'cpc_settings',
+			'cps_settings',
 			[ $this, 'settings_page_content' ]
 		);
 	}
@@ -150,7 +150,7 @@ class Settings {
 	 */
 	public function enqueue_scripts() {
 		$screen = get_current_screen();
-		if ( 'settings_page_cpc_settings' !== $screen->id ) {
+		if ( 'settings_page_cps_settings' !== $screen->id ) {
 			return;
 		}
 		\ChurchPlugins\Helpers::enqueue_asset( 'admin-settings' );

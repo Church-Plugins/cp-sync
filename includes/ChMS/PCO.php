@@ -1,15 +1,15 @@
 <?php
 
-namespace CP_Connect\ChMS;
+namespace CP_Sync\ChMS;
 
-use CP_Connect\Admin\Settings;
-use CP_Connect\Setup\DataFilter;
+use CP_Sync\Admin\Settings;
+use CP_Sync\Setup\DataFilter;
 use PlanningCenterAPI\PlanningCenterAPI;
 
 /**
  * Planning Center Online implementation
  */
-class PCO extends \CP_Connect\ChMS\ChMS {
+class PCO extends \CP_Sync\ChMS\ChMS {
 
 	/**
 	 * Rest API namespace
@@ -127,8 +127,8 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 	 * @return bool
 	 */
 	public function load_connection_parameters( $option_slug = '' ) {
-		$app_id = Settings::get( 'app_id', '', 'cpc_pco_connect' );
-		$secret = Settings::get( 'secret', '', 'cpc_pco_connect' );
+		$app_id = Settings::get( 'app_id', '', 'cps_pco_connect' );
+		$secret = Settings::get( 'secret', '', 'cps_pco_connect' );
 
 		if( empty( $app_id ) || empty( $secret ) ) {
 			return false;
@@ -325,7 +325,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 
 		$tag_groups = $tag_groups['data'] ?? [];
 
-		$include_tag_groups = Settings::get( 'tag_groups', [], 'cpc_pco_groups' );
+		$include_tag_groups = Settings::get( 'tag_groups', [], 'cps_pco_groups' );
 		$include_tag_groups = wp_list_pluck( $include_tag_groups, 'id' );
 
 		foreach ( $tag_groups as $tag_group ) {
@@ -343,7 +343,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 
 			$tags = $tags['data'] ?? [];
 
-			$tax_slug = 'cpc_' . sanitize_title( $tag_group['attributes']['name'] );
+			$tax_slug = 'cps_' . sanitize_title( $tag_group['attributes']['name'] );
 
 			$taxonomy_data = [
 				'plural_label' => $tag_group['attributes']['name'],
@@ -376,13 +376,13 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 		}
 
 		// setup a filter
-		$filter_settings = Settings::get( 'filter', [], 'cpc_pco_groups' );
+		$filter_settings = Settings::get( 'filter', [], 'cps_pco_groups' );
 		$filter_type     = $filter_settings['type'] ?? 'all';
 		$conditions      = $filter_settings['conditions'] ?? [];
 
-		$public_groups_only    = 'public' === Settings::get( 'visibility', 'public', 'cpc_pco_groups' );
-		$enrollment_status     = Settings::get( 'enrollment_status', [], 'cpc_pco_groups' );
-		$enrollment_strategies = Settings::get( 'enrollment_strategies', [], 'cpc_pco_groups' );
+		$public_groups_only    = 'public' === Settings::get( 'visibility', 'public', 'cps_pco_groups' );
+		$enrollment_status     = Settings::get( 'enrollment_status', [], 'cps_pco_groups' );
+		$enrollment_strategies = Settings::get( 'enrollment_strategies', [], 'cps_pco_groups' );
 
 		// add a few custom conditions not based on the filter UI
 		if ( $public_groups_only ) {
@@ -409,7 +409,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 			];
 		}
 
-		$filter = new \CP_Connect\Setup\DataFilter(
+		$filter = new \CP_Sync\Setup\DataFilter(
 			$filter_type,
 			$conditions,
 			$this->get_group_filter_config(),
@@ -428,7 +428,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 	}
 
 	/**
-	 * Format a group for the CP Connect integration
+	 * Format a group for the CP Sync integration
 	 *
 	 * @param array $group The group to format.
 	 * @param array {
@@ -692,7 +692,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 			$relational_data[ $event['type'] ][ $event['id'] ] = $event;
 		}
 
-		$selected_tag_groups = Settings::get( 'tag_groups', [], 'cpc_pco_events' );
+		$selected_tag_groups = Settings::get( 'tag_groups', [], 'cps_pco_events' );
 		$selected_tag_groups = wp_list_pluck( $selected_tag_groups, 'id' );
 
 		foreach ( $tag_groups as $tag_group ) {
@@ -700,7 +700,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 				continue;
 			}
 
-			$tax_slug = 'cpc_' . sanitize_title( $tag_group['attributes']['name'] );
+			$tax_slug = 'cps_' . sanitize_title( $tag_group['attributes']['name'] );
 
 			$taxonomy_data = [
 				'plural_label' => $tag_group['attributes']['name'],
@@ -730,12 +730,12 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 			$taxonomies[ $tax_slug ] = $taxonomy_data;
 		}
 
-		$filter_settings = Settings::get( 'filter', [], 'cpc_pco_events' );
+		$filter_settings = Settings::get( 'filter', [], 'cps_pco_events' );
 
 		$filter_type = $filter_settings['type'] ?? 'all';
 		$conditions  = $filter_settings['conditions'] ?? [];
 
-		$public_events_only = 'public' === Settings::get( 'visibility', 'public', 'cpc_pco_events' );
+		$public_events_only = 'public' === Settings::get( 'visibility', 'public', 'cps_pco_events' );
 
 		if ( $public_events_only ) {
 			$conditions[] = [
@@ -744,7 +744,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 			];
 		}
 
-		$filter = new \CP_Connect\Setup\DataFilter(
+		$filter = new \CP_Sync\Setup\DataFilter(
 			$filter_type,
 			$conditions,
 			$this->get_event_filter_config(),
@@ -764,7 +764,7 @@ class PCO extends \CP_Connect\ChMS\ChMS {
 	}
 
 	/**
-	 * Format an event for the CP Connect integration
+	 * Format an event for the CP Sync integration
 	 *
 	 * @param array $event_instance The event instance to format.
 	 * @param array $context The context for the data.

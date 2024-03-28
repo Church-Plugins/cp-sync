@@ -25,31 +25,31 @@ export default function ConnectTab({ data, updateField, isDirty }) {
 	return (
 		<Box display="flex" flexDirection="column" gap={2} maxWidth="350px">
 			<TextField
-				label={__( 'API Endpoint', 'cp-connect' )}
+				label={__( 'API Endpoint', 'cp-sync' )}
 				value={data.api_endpoint}
 				onChange={(e) => updateField('api_endpoint', e.target.value)}
 				variant="outlined"
 			/>
 			<TextField
-				label={__( 'OAuth Discovery Endpoint', 'cp-connect' )}
+				label={__( 'OAuth Discovery Endpoint', 'cp-sync' )}
 				value={data.oauth_discovery_endpoint}
 				onChange={(e) => updateField('oauth_discovery_endpoint', e.target.value)}
 				variant="outlined"
 			/>
 			<TextField
-				label={__( 'Client ID', 'cp-connect' )}
+				label={__( 'Client ID', 'cp-sync' )}
 				value={data.client_id}
 				onChange={(e) => updateField('client_id', e.target.value)}
 				variant="outlined"
 			/>
 			<TextField
-				label={__( 'Client Secret', 'cp-connect' )}
+				label={__( 'Client Secret', 'cp-sync' )}
 				value={data.client_secret}
 				onChange={(e) => updateField('client_secret', e.target.value)}
 				variant="outlined"
 			/>
 			<TextField
-				label={__( 'API Scope', 'cp-connect' )}
+				label={__( 'API Scope', 'cp-sync' )}
 				value={data.api_scope}
 				onChange={(e) => updateField('api_scope', e.target.value)}
 				variant="outlined"
@@ -59,13 +59,13 @@ export default function ConnectTab({ data, updateField, isDirty }) {
 				authError ?
 				<Alert severity="error">{authError}</Alert> :
 				authSuccess ?
-				<Alert severity="success">{__( 'Authentication Successful', 'cp-connect' )}</Alert> :
+				<Alert severity="success">{__( 'Authentication Successful', 'cp-sync' )}</Alert> :
 				null
 			}
 
 			{
 				isDirty &&
-				<Button variant='contained' color="info" onClick={testAuth}>{__( 'Authenticate', 'cp-connect' )}</Button>
+				<Button variant='contained' color="info" onClick={testAuth}>{__( 'Authenticate', 'cp-sync' )}</Button>
 			}
 
 		</Box>

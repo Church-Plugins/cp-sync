@@ -1,6 +1,6 @@
 <?php
 
-namespace CP_Connect\Admin;
+namespace CP_Sync\Admin;
 
 /**
  * Admin-only plugin initialization
@@ -60,7 +60,7 @@ class _Init {
 
 	public function maybe_admin_message() {
 		if ( $message = get_option( 'cp_settings_message' ) ) {
-			add_settings_error( 'cpc_main_options-notices', '', $message['message'], $message['type'] );
+			add_settings_error( 'cps_main_options-notices', '', $message['message'], $message['type'] );
 			delete_option( 'cp_settings_message' );
 		}
 	}

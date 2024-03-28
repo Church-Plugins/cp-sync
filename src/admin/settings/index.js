@@ -105,7 +105,7 @@ function DynamicTab({ tab, prefix, globalData }) {
 				variant="contained"
 				onClick={save}
 				disabled={isSaving || !isDirty}
-			>{ __( 'Save', 'cp-connect' ) }</Button>
+			>{ __( 'Save', 'cp-sync' ) }</Button>
 		</Box>
 	)
 }
@@ -171,15 +171,15 @@ function Settings({ globalData }) {
 	return (
 		<ThemeProvider theme={theme}>
 			<Box sx={{ height: '100%', p: 2, maxHeight: '100%', display: 'flex', flexDirection: 'column', gap: 0 }}>
-				<h1>CP Connect</h1>
+				<h1>CP Sync</h1>
 				<Tabs value={currentTab} onChange={(_, value) => openTab(value)} sx={{ px: 2, mb: '-2px', mt: 4 }}>
-					<Tab label={__( 'Select a ChMS', 'cp-connect' )} />
+					<Tab label={__( 'Select a ChMS', 'cp-sync' )} />
 					{
 						chmsData.tabs.map((tab) => (
 							<Tab key={tab.optionGroup} label={tab.name} />
 						))
 					}
-					<Tab label={__( 'License', 'cp-connect' )} />
+					<Tab label={__( 'License', 'cp-sync' )} />
 				</Tabs>
 				<Box sx={{ flexGrow: 1, minHeight: 0 }}>
 					<TabPanel value={currentTab} index={0}>
@@ -202,7 +202,7 @@ function Settings({ globalData }) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-	const root = document.querySelector('.cp_settings_root.cp-connect')
+	const root = document.querySelector('.cp_settings_root.cp-sync')
 
 	const globalData = JSON.parse(root.dataset.initial) // get the initial data from the root element
 

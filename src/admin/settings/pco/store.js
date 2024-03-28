@@ -21,7 +21,7 @@ const actions = {
 	}
 }
 
-const store = createReduxStore( 'cp-connect/pco', {
+const store = createReduxStore( 'cp-sync/pco', {
 	reducer: ( state = INITIAL_STATE, action ) => {
 		switch ( action.type ) {
 			case 'SET_DATA':

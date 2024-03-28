@@ -7,7 +7,7 @@ export default {
 	name: 'Ministry Platform',
 	tabs: [
 		{
-			name: __( 'Connect', 'cp-connect' ),
+			name: __( 'Connect', 'cp-sync' ),
 			component: (props) => <ConnectTab {...props} />,
 			optionGroup: 'connect',
 			defaultData: {
@@ -19,7 +19,7 @@ export default {
 			}
 		},
 		{
-			name: __( 'Configure', 'cp-connect' ),
+			name: __( 'Configure', 'cp-sync' ),
 			component: (props) => <ConfigureTab {...props} />,
 			optionGroup: 'configuration',
 			defaultData: {

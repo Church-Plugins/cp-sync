@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: CP Connect
+ * Plugin Name: CP Sync
  * Plugin URL: https://churchplugins.com
  * Description: ChurchPlugins integration plugin for ChMS
  * Version: 1.0.3
@@ -22,16 +22,16 @@ require_once( CP_SYNC_PLUGIN_DIR . "/includes/ChurchPlugins/init.php" );
 require_once( CP_SYNC_PLUGIN_DIR . 'vendor/autoload.php' );
 
 
-use CP_Connect\_Init as Init;
+use CP_Sync\_Init as Init;
 
 /**
- * @var CP_Connect\_Init
+ * @var CP_Sync\_Init
  */
 global $cp_sync;
 $cp_sync = cp_sync();
 
 /**
- * @return CP_Connect\_Init
+ * @return CP_Sync\_Init
  */
 function cp_sync() {
 	return Init::get_instance();

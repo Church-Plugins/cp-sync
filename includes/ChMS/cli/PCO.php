@@ -1,12 +1,12 @@
 <?php
 
-namespace CP_Connect\ChMS\cli;
+namespace CP_Sync\ChMS\cli;
 
-use CP_Connect\ChMS\PCO as PCO;
+use CP_Sync\ChMS\PCO as PCO;
 
 // Make the `cp` command available to WP-CLI
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
-	\WP_CLI::add_command( 'cp-pco', '\CP_Connect\ChMS\cli\PCO_CLI' );
+	\WP_CLI::add_command( 'cp-pco', '\CP_Sync\ChMS\cli\PCO_CLI' );
 }
 
 /**

@@ -28,7 +28,7 @@ if( !defined( 'CP_SYNC_INCLUDES' ) ) {
 }
 if( !defined( 'CP_SYNC_PREFIX' ) ) {
 	define ( 'CP_SYNC_PREFIX',
-		'cpc'
+		'cps'
    );
 }
 if( !defined( 'CP_SYNC_TEXT_DOMAIN' ) ) {
@@ -52,7 +52,7 @@ if( !defined( 'CP_SYNC_STORE_URL' ) ) {
 }
 if( !defined( 'CP_SYNC_ITEM_NAME' ) ) {
 	 define ( 'CP_SYNC_ITEM_NAME',
-	 	'CP Connect'
+	 	'CP Sync'
 	);
 }
 

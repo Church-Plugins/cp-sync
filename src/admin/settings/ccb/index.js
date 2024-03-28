@@ -5,7 +5,7 @@ export default {
 	name: 'Church Community Builder',
 	tabs: [
 		{
-			name: __( 'Connect', 'cp-connect' ),
+			name: __( 'Connect', 'cp-sync' ),
 			component: (props) => <ConnectTab {...props} />,
 			optionGroup: 'connect',
 			defaultData: {

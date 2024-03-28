@@ -1,9 +1,9 @@
-# Church Plugins Connect
+# Church Plugins Sync
 Connection plugin for various ChMS
 
 ##### First-time installation  #####
 
-- Copy or clone the code into `wp-content/plugins/cp-connect/`
+- Copy or clone the code into `wp-content/plugins/cp-sync/`
 - Run these commands
 ```
 composer install
@@ -15,7 +15,7 @@ npm run build
 
 ##### Dev updates  #####
 
-- There is currently no watcher that will update the React app in the WordPress context, so changes are executed through `npm run build` which can be run from either the `cp-connect`
+- There is currently no watcher that will update the React app in the WordPress context, so changes are executed through `npm run build` which can be run from either the `cp-sync`
 
 ### Change Log
 
