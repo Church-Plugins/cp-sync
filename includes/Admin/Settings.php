@@ -123,7 +123,7 @@ class Settings {
 	 */
 	public function settings_page_content() {
 		$entrypoint_data = [
-			'chms' => Settings::get( 'chms', 'mp' ),
+			'chms' => Settings::get( 'chms', 'pco' ),
 		];
 
 		/**
@@ -153,6 +153,10 @@ class Settings {
 		if ( 'settings_page_cps_settings' !== $screen->id ) {
 			return;
 		}
+
+		\ChurchPlugins\Helpers::set_plugin_dir( CP_SYNC_PLUGIN_DIR );
+		\ChurchPlugins\Helpers::set_plugin_url( CP_SYNC_PLUGIN_URL );
+
 		\ChurchPlugins\Helpers::enqueue_asset( 'admin-settings' );
 		\ChurchPlugins\Helpers::enqueue_asset( 'admin-settings', [], false, true );
 	}
