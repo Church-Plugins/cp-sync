@@ -113,6 +113,25 @@ class _Init {
 				'args' => $chms->get_auth_api_args(),
 			]
 		);
+
+		register_rest_route(
+			'cp-sync/v1',
+			"$chms->rest_namespace/disconnect",
+			[
+				'methods'  => 'POST',
+				'callback' => function ( $request ) use ( $chms ) {
+					try {
+						$chms->remove_token();
+						return rest_ensure_response( [ 'success' => true ] );
+					} catch ( \Exception $e ) {
+						return new \WP_Error( 'authentication_failed', $e->getMessage(), [ 'status' => 401 ] );
+					}
+				},
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				}
+			]
+		);
 	}
 
 	/**

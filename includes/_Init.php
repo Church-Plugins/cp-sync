@@ -87,7 +87,11 @@ class _Init {
 
 	public function admin_enqueue() {
 		$this->enqueue->enqueue( 'styles', 'admin', [] );
-		$this->enqueue->enqueue( 'scripts', 'admin', [ 'js_dep' => [ 'jquery' ] ] );
+		$assets = $this->enqueue->enqueue( 'scripts', 'admin', [ 'js_dep' => [ 'jquery' ] ] );
+		wp_localize_script( $assets['js'][0]['handle'], 'cpSync', [
+			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			'nonce'   => wp_create_nonce( 'cpSync' ),
+		] );
 	}
 
 	/**
@@ -157,7 +161,7 @@ class _Init {
 	 * @return string the plugin name
 	 */
 	public function get_plugin_name() {
-		return __( 'Church Plugins - Staff', 'cp-sync' );
+		return __( 'Church Plugins - Sync', 'cp-sync' );
 	}
 
 	/**

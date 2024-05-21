@@ -93,10 +93,57 @@ abstract class ChMS {
 		add_action( 'init', [ $this, 'integrations' ], 500 );
 		add_action( 'cmb2_save_options-page_fields_cps_main_options_page', [ $this, 'maybe_add_connection_message' ] );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+		add_action( 'admin_init', [ $this, 'maybe_save_token' ] );
 
 		if ( Settings::get( 'pull_now' ) ) {
 			add_action( 'admin_notices', [ $this, 'general_admin_notice' ] );
 		}
+	}
+
+	public function maybe_save_token() {
+		if ( empty( $_GET['token'] ) || empty( $_GET['_nonce'] ) ) {
+			return;
+		}
+
+		if ( ! wp_verify_nonce( $_GET['_nonce'], 'cpSync' ) ) {
+			return;
+		}
+
+		$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( $_GET['refresh_token'] ) : '';
+
+		$this->save_token( sanitize_text_field( $_GET['token'] ), $refresh_token );
+
+		wp_die( 'Authentication successful' );
+	}
+
+	/**
+	 * Save the token
+	 */
+	public function save_token( $token, $refresh_token = '' ) {
+		$this->set_option( 'token', $token );
+		$this->set_option( 'last_token_refresh', time() );
+
+		if ( $refresh_token ) {
+			$this->set_option( 'refresh_token', $refresh_token );
+		}
+	}
+
+	/**
+	 * Get the token
+	 */
+	public function get_token() {
+		$this->get_option( 'token' );
+	}
+
+	/**
+	 * Remove the token
+	 *
+	 * @author Tanner Moushey, 5/19/24
+	 */
+	public function remove_token() {
+		$this->set_option( 'token', '' );
+		$this->set_option( 'last_token_refresh', '' );
+		$this->set_option( 'refresh_token', '' );
 	}
 
 	/**
@@ -125,6 +172,24 @@ abstract class ChMS {
 		}
 
 		return Settings::get( $key, $default, $this->settings_key );
+	}
+
+	/**
+	 * Set the provided option
+	 *
+	 * @param $key
+	 * @param $value
+	 *
+	 * @return bool|string
+	 *
+	 * @author Tanner Moushey, 5/19/24
+	 */
+	public function set_option( $key, $value ) {
+		if ( empty( $this->settings_key ) ) {
+			return '';
+		}
+
+		return Settings::set( $key, $value, $this->settings_key );
 	}
 
 	/**

@@ -34,7 +34,7 @@ class PlanningCenterAPI
      * as part of HTTP Basic Auth
      * @var null
      */
-    private $authorization = null;
+    public $authorization = null;
 
 	/**
 	 * API endpoint parameters: URL Prefix
@@ -665,10 +665,10 @@ class PlanningCenterAPI
             $response = $client->request('GET', $endpoint, [
                 'headers' => $this->headers,
                 'curl' => $this->setGetCurlopts(),
-                'auth' => [
-                    $this->pcoApplicationId,
-                    $this->pcoSecret
-                ]
+//                'auth' => [
+//                    $this->pcoApplicationId,
+//                    $this->pcoSecret
+//                ]
             ]);
 
         } catch (\GuzzleHttp\Exception\ClientException $e) {

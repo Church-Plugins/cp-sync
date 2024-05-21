@@ -29,6 +29,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public $api = null;
 
 	/**
+	 * @var string The settings key for this integration
+	 */
+	public $settings_key = 'cps_pco_connect';
+
+	/**
 	 * Setup
 	 */
 	public function setup() {
@@ -48,8 +53,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				'format_callback'  => [ $this, 'format_event' ],
 			]
 		);
-
-		$this->load_connection_parameters();
 
 		add_filter( 'cp_sync_settings_entrypoint_data', [ $this, 'settings_entrypoint_data' ] );
 	}
@@ -123,24 +126,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Load auth connection parameters from the database
-	 * @return bool
-	 */
-	public function load_connection_parameters( $option_slug = '' ) {
-		$app_id = Settings::get( 'app_id', '', 'cps_pco_connect' );
-		$secret = Settings::get( 'secret', '', 'cps_pco_connect' );
-
-		if( empty( $app_id ) || empty( $secret ) ) {
-			return false;
-		}
-
-		putenv( "PCO_APPLICATION_ID=$app_id" );
-		putenv( "PCO_SECRET=$secret" );
-
-		return true;
-	}
-
-	/**
 	 * Singleton instance of the third-party API client
 	 *
 	 * @return PlanningCenterAPI
@@ -151,7 +136,25 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$this->api = new PlanningCenterAPI();
 		}
 
+		$this->api->authorization = 'Authorization: Bearer ' . $this->get_token();
+
 		return $this->api;
+	}
+
+	public function get_token() {
+		$last_refresh = $this->get_option( 'last_token_refresh', 0 );
+
+		if ( time() - $last_refresh > HOUR_IN_SECONDS ) {
+			if ( $token = $this->refresh_token() ) {
+				$this->save_token( $token );
+			}
+		}
+
+		return $this->get_option( 'token' );
+	}
+
+	public function refresh_token() {
+		return '';
 	}
 
 	/**
@@ -247,6 +250,19 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				'path'  => 'attributes.public_church_center_web_url',
 			],
 		];
+	}
+
+	public function check_connection() {
+		$response = $this->api()
+			->module( 'people' )
+			->table( 'me' )
+			->get();
+
+		if ( isset( $response['data'] ) && ! empty( $response['data']['id'] ) ) {
+			return [ 'status' => 'success', 'message' => 'Connection successful' ];
+		}
+
+		return false;
 	}
 
 	/**

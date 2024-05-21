@@ -72,7 +72,7 @@ class Settings {
 
 		$options[ $key ] = $value;
 
-		update_option( $group, $options );
+		return update_option( $group, $options );
 	}
 
 	/**
