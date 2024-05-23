@@ -247,7 +247,7 @@ function Condition({
 				</FormControl> :
 				fieldType === 'multi' ?
 				<Autocomplete
-					value={value}
+					value={value || []}
 					onChange={(e, newValue) => handleChange({ value: newValue })}
 					sx={{ width: 200 }}
 					multiple
@@ -271,11 +271,13 @@ function Condition({
 }
 
 /**
- * @param {
- * 		filterConfig: {*}
- * 		filter: {*}
- * 		onChange: Function
- * } props
+ * Filters component
+ *
+ * @param {Object} props
+ * @param {Object} props.filterConfig - The filter configuration
+ * @param {Object} props.filter - The current filter settings
+ * @param {Array} props.compareOptions - The possible comparison options
+ * @returns 
  */
 function Filters({ filterConfig, filter, compareOptions, onChange = () => {} }) {
 	const { conditions = [], type = 'all' } = filter

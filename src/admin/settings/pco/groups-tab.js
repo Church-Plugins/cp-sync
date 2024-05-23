@@ -70,14 +70,15 @@ export default function GroupsTab({ data, updateField, globalData }) {
 	}, [data.tag_groups])
 
 	const filterConfig = {
-		label: __( 'Groups', 'cp-sync' ),
 		enrollment_status: {
 			label: __( 'Enrollment Status' ),
-			options: Object.keys(ENROLLMENT_STATUS_OPTIONS).map(key => ({ value: key, label: ENROLLMENT_STATUS_OPTIONS[key] }))
+			options: Object.keys(ENROLLMENT_STATUS_OPTIONS).map(key => ({ value: key, label: ENROLLMENT_STATUS_OPTIONS[key] })),
+			type: 'multi'
 		},
 		group_type: {
 			label: __( 'Group Type' ),
-			options: data.types.map(type => ({ value: type.id, label: type.name }))
+			options: data.types.map(type => ({ value: type.id, label: type.name })),
+			type: 'multi'
 		},
 	}
 
@@ -162,6 +163,7 @@ export default function GroupsTab({ data, updateField, globalData }) {
 					<FormControlLabel value="public" control={<Radio />} label={__( 'Only Visible in Church Center' )} />
 				</RadioGroup>
 			</FormControl>
+			{ console.log(filterConfig, data.filter, globalData.pco.compare_options)}
 			<Filters filterConfig={filterConfig} filter={data.filter} compareOptions={globalData.pco.compare_options} onChange={updateFilters} />
 			<Button
 				variant="contained"
