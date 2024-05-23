@@ -26,7 +26,7 @@ const theme = createTheme({
 	},
 })
 
-function DynamicTab({ tab, prefix, globalData }) {
+function DynamicTab({ tab, prefix, globalData, value, index, onChange }) {
 	const { optionGroup, defaultData, component } = tab
 	const isDirtyRef = useRef(false)
 
@@ -45,10 +45,9 @@ function DynamicTab({ tab, prefix, globalData }) {
 	const { persistOptionGroup, setOptionGroup } = useDispatch(optionsStore)
 
 	const updateField = (field, value) => {
-		setOptionGroup(prefixedOptionGroup, {
-			...data,
-			[field]: value
-		})
+		const newValue = { ...data, [field]: value }
+		onChange(prefixedOptionGroup, newValue)
+		setOptionGroup(prefixedOptionGroup, newValue)
 	}
 
 	const save = () => {
@@ -75,38 +74,34 @@ function DynamicTab({ tab, prefix, globalData }) {
 	}, [])
 
 	return (
-		<Box>
-			{
-				isHydrating && 
-				<>
-				<Skeleton variant="text" width={500} />
-				<Skeleton variant="text" width={200} />
-				<Skeleton variant="text" width={250} />
-				<Skeleton variant="text" width={300} height={40} />
-				<Skeleton variant="text" width={300} height={40} />
-				<Skeleton variant="text" width={300} height={40} />
-				</>
-			}
-			{
-				!isHydrating &&
-				component({
-					data: { ...defaultData, ...data },
-					updateField,
-					save,
-					isSaving,
-					error,
-					isDirty,
-					isHydrating,
-					globalData
-				})
-			}
-			<Button
-				sx={{ mt: 4 }}
-				variant="contained"
-				onClick={save}
-				disabled={isSaving || !isDirty}
-			>{ __( 'Save', 'cp-sync' ) }</Button>
-		</Box>
+		<TabPanel value={value} index={index}>
+			<Box>
+				{
+					isHydrating && 
+					<>
+					<Skeleton variant="text" width={500} />
+					<Skeleton variant="text" width={200} />
+					<Skeleton variant="text" width={250} />
+					<Skeleton variant="text" width={300} height={40} />
+					<Skeleton variant="text" width={300} height={40} />
+					<Skeleton variant="text" width={300} height={40} />
+					</>
+				}
+				{
+					!isHydrating &&
+					component({
+						data: { ...defaultData, ...data },
+						updateField,
+						save,
+						isSaving,
+						error,
+						isDirty,
+						isHydrating,
+						globalData
+					})
+				}
+			</Box>
+		</TabPanel>
 	)
 }
 
@@ -137,6 +132,21 @@ function Settings({ globalData }) {
 			chms: select(optionsStore).getOptionGroup('main_options')?.chms,
 		}
 	})
+	const [unsavedChanges, setUnsavedChanges] = useState({})
+	const isSaving = useSelect((select) => select(optionsStore).isSaving())
+
+	const { persistOptionGroup } = useDispatch(optionsStore)
+
+	const addUnsavedChange = (key, value) => {
+		setUnsavedChanges((prev) => ({ ...prev, [key]: value }))
+	}
+
+	const save = () => {
+		Object.entries(unsavedChanges).forEach(([key, value]) => {
+			persistOptionGroup(key, value)
+		})
+		setUnsavedChanges({})
+	}
 
 	const chmsData = platforms[chms] || { tabs: [] }
 
@@ -182,20 +192,28 @@ function Settings({ globalData }) {
 					<Tab label={__( 'License', 'cp-sync' )} />
 				</Tabs>
 				<Box sx={{ flexGrow: 1, minHeight: 0 }}>
-					<TabPanel value={currentTab} index={0}>
-						<DynamicTab tab={chmsTab} globalData={globalData} />
-					</TabPanel>
+					<DynamicTab tab={chmsTab} globalData={globalData} value={currentTab} index={0} onChange={addUnsavedChange} />
 					{
 						chmsData.tabs.map((tab, index) => (
-							<TabPanel key={tab.optionGroup} value={currentTab} index={index + 1}>
-								<DynamicTab tab={tab} prefix={chms} globalData={globalData} />
-							</TabPanel>
+							<DynamicTab
+								key={tab.optionGroup}
+								tab={tab}
+								prefix={chms}
+								globalData={globalData}
+								value={currentTab}
+								index={index + 1}
+								onChange={addUnsavedChange}
+							/>
 						))
 					}
-					<TabPanel value={currentTab} index={chmsData.tabs.length + 1}>
-						<DynamicTab tab={licenseTab} globalData={globalData} />
-					</TabPanel>
+					<DynamicTab tab={licenseTab} globalData={globalData} value={currentTab} index={chmsData.tabs.length + 1} onChange={addUnsavedChange} />
 				</Box>
+				<Button
+					sx={{ mt: 4, alignSelf: 'flex-start' }}
+					variant="contained"
+					onClick={save}
+					disabled={isSaving || !Object.keys(unsavedChanges).length}
+				>{ isSaving ? __( 'Saving...', 'cp-sync' ) : __( 'Save', 'cp-sync' ) }</Button>
 			</Box>
 		</ThemeProvider>
 	)
