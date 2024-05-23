@@ -136,13 +136,19 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$this->api = new PlanningCenterAPI();
 		}
 
-		$this->api->authorization = 'Authorization: Bearer ' . $this->get_token();
+		if ( $this->get_token() ) {
+			$this->api->authorization = 'Authorization: Bearer ' . $this->get_token();
+		}
 
 		return $this->api;
 	}
 
 	public function get_token() {
-		$last_refresh = $this->get_option( 'last_token_refresh', 0 );
+		$last_refresh = absint( $this->get_option( 'last_token_refresh', 0 ) );
+
+		if ( 0 === $last_refresh ) {
+			return false;
+		}
 
 		if ( time() - $last_refresh > HOUR_IN_SECONDS ) {
 			if ( $token = $this->refresh_token() ) {
