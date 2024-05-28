@@ -67,12 +67,12 @@ class DataFilter {
 			'is' => [
 				'label'   => __( 'Is', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => $data === $value,
-				'type'    => 'inherit',
+				'type'    => 'select',
  			],
 			'is_not' => [
 				'label'  	=> __( 'Is Not', 'cp-sync' ),
 				'compare' => fn( $data, $value ) => $data !== $value,
-				'type'    => 'inherit',
+				'type'    => 'select',
 			],
 			'contains' => [
 				'label'  	=> __( 'Contains', 'cp-sync' ),
@@ -106,7 +106,7 @@ class DataFilter {
 			],
 			'is_in'           => [
 				'label'  	=> __( 'Is in', 'cp-sync' ),
-				'compare' => fn( $data, $value ) => in_array( $data, $value, true ),
+				'compare' => fn( $data, $value ) => in_array( $data, wp_list_pluck( $value, 'value' ), true ),
 				'type'    => 'multi',
 			]
 		];
@@ -120,31 +120,29 @@ class DataFilter {
 	 */
 	public function apply( &$items ) {
 		if ( 'all' === $this->type ) {
-			// Filter the results with the all filter types
-			foreach ( $this->conditions as $condition ) {
-				$item_count = count( $items );
-				for ( $i = 0; $i < $item_count; $i++ ) {
-					$item = $items[ $i ];
-
+			$item_count = count( $items );
+			for ( $i = 0; $i < $item_count; $i++ ) {
+				$item = $items[ $i ];
+				foreach ( $this->conditions as $condition ) {
 					$pass = $this->passes_condition( $item, $condition );
 
 					if ( is_wp_error( $pass ) ) {
 						return $pass;
 					}
 					
-					// remove items on each pass that don't meet the condition
 					if ( ! $pass ) {
 						array_splice( $items, $i--, 1 );
 						$item_count--;
+						break; // no need to check more conditions
 					}
 				}
 			}
 		} else if ( 'any' === $this->type ) {
 			$filtered = [];
-
-			foreach ( $this->conditions as $condition ) {
-				$item_count = count( $items );
-				for ( $i = 0; $i < $item_count; $i++ ) {
+			
+			$item_count = count( $items );
+			for ( $i = 0; $i < $item_count; $i++ ) {
+				foreach ( $this->conditions as $condition ) {
 					$item = $items[ $i ];
 
 					$pass = $this->passes_condition( $item, $condition );
@@ -206,12 +204,12 @@ class DataFilter {
 		$compare_options = self::get_compare_options();
 		$compare         = $condition['compare'] ?? null;
 		$value           = $condition['value'] ?? null;
-		$type            = $condition['type'] ?? null;
-		$path            = $this->filter_config[ $type ]['path'] ?? null;
-		$relation        = $this->filter_config[ $type ]['relation'] ?? false;
-		$relation_path   = $this->filter_config[ $type ]['relation_path'] ?? null;
+		$selector        = $condition['selector'] ?? null;
+		$path            = $this->filter_config[ $selector ]['path'] ?? null;
+		$relation        = $this->filter_config[ $selector ]['relation'] ?? false;
+		$relation_path   = $this->filter_config[ $selector ]['relation_path'] ?? null;
 
-		if ( null === $compare || null === $type ) {
+		if ( null === $compare || null === $selector ) {
 			return new \WP_Error( 'invalid_condition', __( 'Invalid condition', 'cp-sync' ) );
 		}
 

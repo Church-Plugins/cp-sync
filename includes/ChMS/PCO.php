@@ -134,12 +134,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public function api() {
 		if( empty( $this->api ) ) {
 			$this->api = new PlanningCenterAPI();
-		}
 
-		if ( $this->get_token() ) {
-			$this->api->authorization = 'Authorization: Bearer ' . $this->get_token();
+			if ( $this->get_token() ) {
+				$this->api->authorization = 'Authorization: Bearer ' . $this->get_token();
+			}	
 		}
-
+		
 		return $this->api;
 	}
 
@@ -663,54 +663,75 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 	/**
 	 * Fetch events from PCO
+	 */
+	public function fetch_events() {
+		$source = Settings::get( 'source', 'calendar', 'cps_pco_events' );
+
+		if ( 'calendar' === $source ) {
+			return $this->fetch_events_from_calendar();
+		} else if ( 'registrations' === $source ) {
+			return $this->fetch_events_from_registrations();
+		} else {
+			return new ChMSError( 'pco_fetch_error', 'Invalid source type' );
+		}
+	}
+
+	/**
+	 * Format an event
+	 */
+	public function format_event( $event, $context ) {
+		$source = Settings::get( 'source', 'calendar', 'cps_pco_events' );
+
+		if ( 'calendar' === $source ) {
+			return $this->format_event_from_calendar( $event, $context );
+		} else if ( 'registrations' === $source ) {
+			return $this->format_event_from_registrations( $event, $context );
+		} else {
+			return new ChMSError( 'pco_fetch_error', 'Invalid source type' );
+		}
+	}
+
+	/**
+	 * Fetch events from PCO calendar
 	 *
 	 * @return array {
 	 * 	 @type array items   The raw events from PCO
 	 * 	 @type array context The context for the data.
+	 *   @type array taxonomies The taxonomies for the events.
 	 * }
 	 * @throws ChMSException If there is an error fetching the events.
 	 */
-	public function fetch_events() {
-		// Pull upcoming events
-		$event_instances =
-			$this->api()
-				->module('calendar')
-				->table('event_instances')
-				->includes('event,event_times,tags')
-				->filter('future')
-				->order('starts_at')
-				->get();
+	public function fetch_events_from_calendar() {
+	
+		$raw_events = $this->api()
+			->module('calendar')
+			->table('event_instances')
+			->includes('event,event_times,tags')
+			->filter('future')
+			->order('starts_at')
+			->get();
 
-		$events =
-			$this->api()
-				->module( 'calendar' )
-				->table('events')
-				->includes('owner' )
-				->get();
-
-		$tag_groups =
-			$this->api()
-				->module( 'calendar' )
-				->table('tag_groups')
-				->get();
+		$tag_groups = $this->api()
+			->module( 'calendar' )
+			->table('tag_groups')
+			->get();
 
 		if( !empty( $this->api()->errorMessage() ) ) {
 			error_log( var_export( $this->api()->errorMessage(), true ) );
 			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
 		}
 
-		$items      = $event_instances['data'] ?? [];
-		$events     = $events['data'] ?? [];
+		$items      = $raw_events['data'] ?? [];
 		$tag_groups = $tag_groups['data'] ?? [];
 
 		$relational_data = [];
 		$taxonomies      = [];
 
-		foreach( $event_instances['included'] as $include ) {
+		foreach( $raw_events['included'] as $include ) {
 			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
 		}
 
-		foreach ( $events as $event ) {
+		foreach ( $raw_events as $event ) {
 			$relational_data[ $event['type'] ][ $event['id'] ] = $event;
 		}
 
@@ -773,12 +794,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$relational_data
 		);
 
-		$filter->apply( $items ); // Apply the filter to the items
+		$filter->apply( $items );
 
 		return [
 			'items'   => $items,
 			'context' => [
-				'events'          => $events,
 				'relational_data' => $relational_data,
 			],
 			'taxonomies' => $taxonomies,
@@ -786,13 +806,47 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Format an event for the CP Sync integration
+	 * Fetch events from PCO registrations
+	 * 
+	 * @return array {
+	 * 	 @type array items   The raw events from PCO
+	 * 	 @type array context The context for the data.
+	 *   @type array taxonomies The taxonomies for the events.
+	 * }
+	 */
+	public function fetch_events_from_registrations() {
+		$raw_events = $this->api()
+			->module( 'registrations' )
+			->table( 'events' )
+			->includes( 'categories,event_location,event_times' )
+			// ->order( 'starts_at' )
+			// ->filter( 'unarchived,published' )
+			->get();
+
+		$categories = [];
+
+		$relational_data = [];
+		foreach( $raw_events['included'] as $include ) {
+			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
+		}
+
+		return [
+			'items'      => $raw_events['data'] ?? [],
+			'context'    => [
+				'relational_data' => $relational_data,
+			],
+			'taxonomies' => [],
+		];
+	}
+
+	/**
+	 * Format an event from PCO calendar for the CP Sync integration
 	 *
 	 * @param array $event_instance The event instance to format.
 	 * @param array $context The context for the data.
 	 * @return array|bool The formatted event or false if the event should be skipped.
 	 */
-	public function format_event( $event_instance, $context ) {
+	public function format_event_from_calendar( $event_instance, $context ) {
 		$relational_data = $context['relational_data'];
 
 		// Sanity check the event
@@ -854,7 +908,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'FeaturedImage'         => $event['attributes']['image_url'] ?? '',
 		];
 
-		// // Fesatured image
+		// Featured image
 		if ( ! empty( $event['attributes']['image_url'] ) ) {
 			$url = explode( '?', $event['attributes']['image_url'], 2 );
 			$args['thumbnail_url'] = $url[0] . '?tecevent-' . sanitize_title( $args['post_title'] ) . '.jpeg&' . $url[1];
@@ -934,6 +988,170 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		// throw new ChMSException( 400, 'The event formatting is not yet implemented' );
 
 		return $args;
+	}
+
+	/**
+	 * Format an event from PCO registrations for the CP Sync integration
+	 * 
+	 * @param array $event The event to format.
+	 * @param array $context The context for the data.
+	 * @return array|bool The formatted event or false if the event should be skipped.
+	 */
+	public function format_event_from_registrations( $event, $context ) {
+		$relational_data = $context['relational_data'];
+
+		// Begin stuffing the output
+		$args = [
+			'chms_id'        => $event['id'],
+			'post_status'    => 'publish',
+			'post_title'     => $event['attributes']['name'] ?? '',
+			'post_content'   => $event['attributes']['description'] ?? '',
+			// 'post_excerpt'   => $event['attributes']['summary'] ?? '',
+			'tax_input'      => [],
+			'event_category' => [],
+			'thumbnail_url'  => '',
+			'meta_input'     => [
+				'registration_url' => '',
+			],
+			// 'EventStartDate'        => $start_date->format( 'Y-m-d' ),
+			// 'EventEndDate'          => $end_date->format( 'Y-m-d' ),
+			// 'EventAllDay'           => true,
+			// 'EventStartHour'        => $start_date->format( 'G' ),
+			// 'EventStartMinute'      => $start_date->format( 'i' ),
+			// 'EventStartMeridian'    => $event[''],
+			// 'EventEndHour'          => $end_date->format( 'G' ),
+			// 'EventEndMinute'        => $end_date->format( 'i' ),
+			// 'EventEndMeridian'      => $event[''],
+			// 'EventHideFromUpcoming' => $event[''],
+			// 'EventShowMapLink'      => $event[''],
+			// 'EventShowMap'          => $event[''],
+			// 'EventCost'             => $event[''],
+			// 'EventURL'              => $event[''],
+			// 'FeaturedImage'         => $event['attributes']['image_url'] ?? '',
+		];
+
+		if ( 'none' !== $event['attributes']['registration_type'] ) {
+			$args['meta_input']['registration_url'] = trailingslashit( $event['attributes']['public_url'] ) . 'reservations/new/';
+			$args['meta_input']['registration_sold_out'] = false;
+
+			if ( ! empty( $event['attributes']['at_maximum_capacity'] ) ) {
+				$args['meta_input']['registration_sold_out'] = true;
+			}
+		}
+
+		$time_ids  = wp_list_pluck( $event['relationships']['event_times']['data'], 'id' );
+		$date_time = current( $time_ids );
+
+		if ( empty( $date_time ) ) {
+			return false;
+		}
+
+		$start_date = $relational_data['EventTime'][ $date_time ]['attributes']['starts_at'] ?? '';
+		$end_date   = $relational_data['EventTime'][ $date_time ]['attributes']['ends_at'] ?? '';
+		$all_day    = $relational_data['EventTime'][ $date_time ]['attributes']['all_day'] ?? false;
+
+		if ( ! $start_date || ! $end_date ) {
+			return false;
+		}
+
+		$start_date = (new \DateTime( $start_date ))->setTimezone( wp_timezone() );
+		$end_date   = (new \DateTime( $end_date ))->setTimezone( wp_timezone() );
+
+		$args['EventStartDate'] = $start_date->format( 'Y-m-d' );
+		$args['EventStartHour'] = $start_date->format( 'G' );
+		$args['EventStartMinute'] = $start_date->format( 'i' );
+		$args['EventEndDate'] = $end_date->format( 'Y-m-d' );
+		$args['EventEndHour'] = $end_date->format( 'G' );
+		$args['EventEndMinute'] = $end_date->format( 'i' );
+
+		if ( $all_day ) {
+			$args['EventAllDay'] = true;
+		}
+
+		// Featured image
+		if ( ! empty( $event['attributes']['logo_url'] ) ) {
+			$args['thumbnail_url'] = $event['attributes']['logo_url'];
+		}
+
+		$category_ids = wp_list_pluck( $event['relationships']['categories']['data'], 'id' );
+		$categories = [];
+		foreach ( $category_ids as $category_id ) {
+			$data = $relational_data['Category'][ $category_id ]['attributes'];
+			$categories[ $data['slug'] ] = $data['name'];
+		}
+
+		if ( ! empty( $categories ) ) {
+			$args['event_category'] = $categories;
+		}
+
+		$location_ids = wp_list_pluck( $event['relationships']['event_location']['data'], 'id' );
+		foreach ( $location_ids as $location_id ) {
+			$data = $relational_data['Location'][ $location_id ]['attributes'];
+			$location = $this->get_location_details( $data );
+			if ( ! empty( $location['Venue'] ) ) {
+				$args['Venue'] = $location;
+				break;
+			}
+		}
+
+		return $args;
+	}
+
+	/**
+	 * Get location details for provided location
+	 *
+	 * @since  1.0.0
+	 *
+	 * @param array $location_data The location data to format.
+	 *
+	 * @return array
+	 * @author Tanner Moushey, 12/20/23
+	 */
+	protected function get_location_details( $location_data ) {
+		if ( empty( $location_data['address_data'] ) || empty( $location_data['name'] ) ) {
+			return [];
+		}
+
+		$location = [
+			'Venue'   => $location_data['name'],
+			'Country' => '',
+			'Address' => '',
+			'City'    => '',
+			'State'   => '',
+			'Zip'     => '',
+		];
+
+		foreach( $location_data['address_data'] as $part ) {
+			if ( empty( $part['types'] ) ) {
+				continue;
+			}
+
+			if ( in_array( 'street_number', $part['types'] ) ) {
+				$location['Address'] = $part['long_name'] . $location['Address'];
+			}
+
+			if ( in_array( 'route', $part['types'] ) ) {
+				$location['Address'] .= $part['long_name'];
+			}
+
+			if ( in_array( 'locality', $part['types'] ) ) {
+				$location['City'] = $part['long_name'];
+			}
+
+			if ( in_array( 'administrative_area_level_1', $part['types'] ) ) {
+				$location['State'] = $part['long_name'];
+			}
+
+			if ( in_array( 'country', $part['types'] ) ) {
+				$location['Country'] = $part['long_name'];
+			}
+
+			if ( in_array( 'postal_code', $part['types'] ) ) {
+				$location['Zip'] = $part['long_name'];
+			}
+		}
+
+		return $location;
 	}
 
 	/**

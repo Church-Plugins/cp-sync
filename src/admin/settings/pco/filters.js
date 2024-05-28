@@ -19,6 +19,14 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider/L
 import dayjs from 'dayjs';
 import { useEffect } from '@wordpress/element';
 
+/**
+ * @typedef {Object} FilterData
+ * @property {string} type - The type of the filter, e.g. 'select', 'text'
+ * @property {Array|false} options - The options for the filter
+ * @property {boolean} loading - Whether the options are loading
+ */
+
+// The possible condition compounding types
 const MATCH_TYPE_OPTIONS = [
 	{ value: 'all', label: __( 'All' ) },
 	{ value: 'any', label: __( 'Any' ) },
@@ -27,7 +35,7 @@ const MATCH_TYPE_OPTIONS = [
 /**
  * Sanitizes a value to be a number, specifically for an input[type="number"]
  *
- * @param {*} value 
+ * @param {any} value 
  * @return {number}
  */
 const numberUpdate = (value) => {
@@ -42,6 +50,17 @@ const numberUpdate = (value) => {
 	return Number(value)
 }
 
+
+/**
+ * React hook for fetching the necessary data for a condition
+ *
+ * @param {Object} filter
+ * @param {Object?} filter.options - An array of options to use directly instead of fetching
+ * @param {Function?} filter.optionsSelector - A selector to fetch options with from the store
+ * @param {Object} currentPreFilters 
+ * @param {*} currentPreFilters 
+ * @returns {FilterData}
+ */
 const useFilters = (filter, currentPreFilters) => {
 	const { options, loading } = useSelect((select) => {
 		if(filter.options) { // if options are provided directly, use them
@@ -63,6 +82,19 @@ const useFilters = (filter, currentPreFilters) => {
 	return { options, loading, type: filter.type }
 }
 
+
+/**
+ * React component for rendering a single condition
+ *
+ * @param {Object} props
+ * @param {Object} props.condition - The current condition settings
+ * @param {Function} props.onChange - The change handler
+ * @param {Function} props.onAdd - The add handler
+ * @param {Function} props.onRemove - The remove handler
+ * @param {Object} props.filterConfig - The global filter configuration
+ * @param {Array} props.compareOptions - The possible comparison options
+ * @returns {React.ReactElement}
+ */
 function Condition({
 	condition = {},
 	onChange,
@@ -72,9 +104,9 @@ function Condition({
 	compareOptions = [],
 }) {
 	const {
-		type = Object.keys(filterConfig)[0],
-		compare = compareOptions[0].value,
-		value = '',
+		selector   = Object.keys(filterConfig)[0],
+		compare    = compareOptions[0].value,
+		value      = '',
 		preFilters = {},
 	} = condition
 
@@ -89,14 +121,14 @@ function Condition({
 			populate.value = ''
 		}
 
-		if(!condition.type) {
-			populate.type = Object.keys(filterConfig)[0]
+		if(!condition.selector) {
+			populate.selector = Object.keys(filterConfig)[0]
 		}
 
 		handleChange(populate) // populate the condition with defaults
 	}, [])
 
-	const config = filterConfig[type || Object.keys(filterConfig)[0]]
+	const config = filterConfig[selector || Object.keys(filterConfig)[0]]
 
 	const { options, type: filterType } = useFilters(config, preFilters)
 
@@ -113,13 +145,13 @@ function Condition({
 		})
 	}
 
-	const updateType = (newType) => {
-		// reset preFilters when the type changes
+	const updateSelector = (newSelector) => {
 		const updatedCondition = {
 			...condition,
-			type: newType,
+			selector: newSelector,
 		}
 
+		// reset preFilters when the selector changes
 		delete updatedCondition.preFilters
 
 		onChange(updatedCondition)
@@ -132,7 +164,7 @@ function Condition({
 
 		const newData = compareOptions.find(({ value }) => value === newCompare)
 
-		const { type = 'select' } =  newData
+		const { type = 'select' } = newData
 
 		if (type !== valueType) {
 			updatedCondition.value = '' // clear the value when the comparison changes
@@ -142,6 +174,7 @@ function Condition({
 	}
 
 	const fieldType = (
+		!Array.isArray(options) && (valueType === 'select' || valueType === 'multi') ? filterType :
 		valueType === 'multi' ? 'multi' :
 		valueType === 'inherit' ?
 		filterType :
@@ -151,12 +184,13 @@ function Condition({
 	return (
 		<Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
 			<FormControl>
-				<InputLabel id="filter-type-label">{ __( 'Filter Type' ) }</InputLabel>
+				<InputLabel id="filter-selector-label" for="filter-selector">{ __( 'Selector' ) }</InputLabel>
 				<Select
-					value={type}
-					onChange={(e) => updateType(e.target.value)}
+					value={selector}
+					onChange={(e) => updateSelector(e.target.value)}
 					sx={{ width: 200 }}
 					defaultValue={Object.keys(filterConfig)[0]}
+					id="filter-selector"
 				>
 					{Object.keys(filterConfig).map(key => (
 						<MenuItem key={key} value={key}>{filterConfig[key].label}</MenuItem>
@@ -246,6 +280,7 @@ function Condition({
 					</Select>
 				</FormControl> :
 				fieldType === 'multi' ?
+				console.log(options, value) ||
 				<Autocomplete
 					value={value || []}
 					onChange={(e, newValue) => handleChange({ value: newValue })}
@@ -254,8 +289,8 @@ function Condition({
 					options={options || []}
 					getOptionLabel={(option) => option.label}
 					renderInput={(params) => <TextField {...params} label={__( 'Value' )} />}
-					isOptionEqualToValue={(option, value) => (
-						!options ? true : option.value === value.value
+					isOptionEqualToValue={(option, item) => (
+						!options ? true : option.value === item.value
 					)}
 				/> :
 				null
@@ -277,9 +312,11 @@ function Condition({
  * @param {Object} props.filterConfig - The filter configuration
  * @param {Object} props.filter - The current filter settings
  * @param {Array} props.compareOptions - The possible comparison options
- * @returns 
+ * @param {Function} props.onChange - The change handler
+ * @param {string} props.label - The label for the filter
+ * @returns {React.ReactElement}
  */
-function Filters({ filterConfig, filter, compareOptions, onChange = () => {} }) {
+function Filters({ filterConfig, filter, compareOptions, onChange = () => {}, label }) {
 	const { conditions = [], type = 'all' } = filter
 
 	const handleChange = (newData) => {
@@ -307,9 +344,8 @@ function Filters({ filterConfig, filter, compareOptions, onChange = () => {} }) 
 	return (
 		<div>
 		<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
-			<Typography>{ sprintf( __( 'Pull %s where' ), filterConfig.label ) }</Typography>
+			<Typography>{ sprintf( __( 'Pull %s where' ), label ) }</Typography>
 			<FormControl>
-				<InputLabel id="match-type-label">{ __( 'Match Type' ) }</InputLabel>
 				<Select
 					size="small"
 					value={type}

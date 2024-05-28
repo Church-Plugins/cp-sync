@@ -57,7 +57,8 @@ export default {
 				filter: {
 					type: 'all',
 					conditions: [],
-				}
+				},
+				source: 'calendar'
 			}
 		}
 	]
