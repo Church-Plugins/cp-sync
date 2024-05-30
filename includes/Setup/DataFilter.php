@@ -52,9 +52,27 @@ class DataFilter {
 	 */
 	public function __construct( $type = 'all', $conditions = [], $filter_config = [], $relational_data = [] ) {
 		$this->type            = $type;
-		$this->conditions      = $conditions;
+		$this->conditions      = $this->applicable_conditions( $conditions, $filter_config );
 		$this->relational_data = $relational_data;
 		$this->filter_config   = $filter_config;
+	}
+
+	/**
+	 * Gets applicable conditions
+	 *
+	 * @param array $conditions The conditions to check.
+	 * @param array $filter_config The filter config.
+	 */
+	public function applicable_conditions( $conditions, $filter_config ) {
+		$output = [];
+
+		foreach ( $conditions as $condition ) {
+			if( ! empty( $filter_config[ $condition['selector'] ] ) ) {
+				$output[] = $condition;
+			}
+		}
+
+		return $output;
 	}
 
 	/**
@@ -66,47 +84,47 @@ class DataFilter {
 		return [
 			'is' => [
 				'label'   => __( 'Is', 'cp-sync' ),
-				'compare' => fn( $data, $value ) => $data === $value,
+				'compare' => fn( $data, $expected ) => $data === $expected,
 				'type'    => 'select',
  			],
 			'is_not' => [
 				'label'  	=> __( 'Is Not', 'cp-sync' ),
-				'compare' => fn( $data, $value ) => $data !== $value,
+				'compare' => fn( $data, $expected ) => $data !== $expected,
 				'type'    => 'select',
 			],
 			'contains' => [
 				'label'  	=> __( 'Contains', 'cp-sync' ),
-				'compare' => fn( $data, $value ) => strpos( $data, $value ) !== false,
+				'compare' => fn( $data, $expected ) => strpos( $data, $expected ) !== false,
 				'type'    => 'text',
 			],
 			'does_not_contain' => [
 				'label'  	=> __( 'Does Not Contain', 'cp-sync' ),
-				'compare' => fn( $data, $value ) => strpos( $data, $value ) === false,
+				'compare' => fn( $data, $expected ) => strpos( $data, $expected ) === false,
 				'type'    => 'text',
 			],
 			'is_greater_than' => [
 				'label'  	=> __( 'Is Greater Than', 'cp-sync' ),
-				'compare' => fn( $data, $value ) => $data > $value,
+				'compare' => fn( $data, $expected ) => $data > $expected,
 				'type'    => 'text',
 			],
 			'is_less_than' => [
 				'label'  	=> __( 'Is Less Than', 'cp-sync' ),
-				'compare' => fn( $data, $value ) => $data < $value,
+				'compare' => fn( $data, $expected ) => $data < $expected,
 				'type'    => 'text',
 			],
 			'is_empty' => [
 				'label'  	=> __( 'Is Empty', 'cp-sync' ),
-				'compare' => fn( $data, $value ) => empty( $data ),
+				'compare' => fn( $data, $_ ) => empty( $data ),
 				'type'    => 'bool',
 			],
 			'is_not_empty' => [
 				'label'  	=> __( 'Is Not Empty', 'cp-sync' ),
-				'compare' => fn( $data, $value ) => ! empty( $data ),
+				'compare' => fn( $data, $_ ) => ! empty( $data ),
 				'type'    => 'bool',
 			],
 			'is_in'           => [
 				'label'  	=> __( 'Is in', 'cp-sync' ),
-				'compare' => fn( $data, $value ) => in_array( $data, wp_list_pluck( $value, 'value' ), true ),
+				'compare' => fn( $data, $expected ) => in_array( $data, wp_list_pluck( $expected, 'value' ), true ),
 				'type'    => 'multi',
 			]
 		];
@@ -203,11 +221,12 @@ class DataFilter {
 	protected function passes_condition( $item, $condition ) {
 		$compare_options = self::get_compare_options();
 		$compare         = $condition['compare'] ?? null;
-		$value           = $condition['value'] ?? null;
+		$expected        = $condition['value'] ?? null;
 		$selector        = $condition['selector'] ?? null;
 		$path            = $this->filter_config[ $selector ]['path'] ?? null;
 		$relation        = $this->filter_config[ $selector ]['relation'] ?? false;
 		$relation_path   = $this->filter_config[ $selector ]['relation_path'] ?? null;
+		$format          = $this->filter_config[ $selector ]['format'] ?? null;
 
 		if ( null === $compare || null === $selector ) {
 			return new \WP_Error( 'invalid_condition', __( 'Invalid condition', 'cp-sync' ) );
@@ -219,6 +238,11 @@ class DataFilter {
 
 		$compare_fn = $compare_options[ $compare ]['compare']; // get the comparison callback
 		$data       = $this->get_val( $item, $path );
+
+		// optionally format the data
+		if ( is_callable( $format ) ) {
+			$data = $format( $data );
+		}
 
 		// parse related data
 		if ( $relation ) { 
@@ -235,7 +259,18 @@ class DataFilter {
 			$data          = $this->get_val( $relation_data, $relation_path );
 		}
 
-		return (bool) $compare_fn( $data, $value );
+		// if data is an array, just check if one of them passes
+		if ( is_array( $data ) ) {
+			foreach ( $data as $val ) {
+				if ( $compare_fn( $val, $expected ) ) {
+					return true;
+				}
+			}
+
+			return false;
+		} else {
+			return (bool) $compare_fn( $data, $expected );
+		}
 	}
 
 	/**

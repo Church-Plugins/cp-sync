@@ -208,6 +208,14 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				'callback' => [ $this, 'fetch_event_tags' ],
 			]
 		);
+
+		$this->add_rest_route(
+			'events/registration_categories',
+			[
+				'methods'  => 'GET',
+				'callback' => [ $this, 'fetch_event_registration_categories' ],
+			]
+		);
 	}
 
 	/**
@@ -823,6 +831,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			// ->filter( 'unarchived,published' )
 			->get();
 
+		$items = $raw_events['data'] ?? [];
+
 		$categories = [];
 
 		$relational_data = [];
@@ -830,8 +840,31 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
 		}
 
+		$filter_settings = Settings::get( 'filter', [], 'cps_pco_events' );
+
+		$filter_type = $filter_settings['type'] ?? 'all';
+		$conditions  = $filter_settings['conditions'] ?? [];
+
+		$public_events_only = 'public' === Settings::get( 'visibility', 'public', 'cps_pco_events' );
+
+		if ( $public_events_only ) {
+			$conditions[] = [
+				'compare' => 'is_not_empty',
+				'type'    => 'visible_in_church_center',
+			];
+		}
+
+		$filter = new \CP_Sync\Setup\DataFilter(
+			$filter_type,
+			$conditions,
+			$this->get_registration_filter_config(),
+			$relational_data
+		);
+
+		$filter->apply( $items ); // Apply the filter to the items
+
 		return [
-			'items'      => $raw_events['data'] ?? [],
+			'items'      => $items,
 			'context'    => [
 				'relational_data' => $relational_data,
 			],
@@ -1193,6 +1226,39 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * Event filter config
+	 *
+	 * @return array
+	 */
+	public function get_registration_filter_config() {
+		return [
+			'start_date' => [
+				'label' => __( 'Start Date', 'cp-sync' ),
+				'path'  => 'attributes.starts_at',
+			],
+			'end_date' => [
+				'label' => __( 'End Date', 'cp-sync' ),
+				'path'  => 'attributes.ends_at',
+			],
+			'event_name' => [
+				'label'         => __( 'Event Name', 'cp-sync' ),
+				'path'          => 'attributes.name',
+			],
+			'visible_in_church_center' => [
+				'label'         => __( 'Visible in Church Center', 'cp-sync' ),
+				'path'          => 'relationships.event.data.id',
+				'relation'      => 'Event',
+				'relation_path' => 'attributes.visible_in_church_center',
+			],
+			'registration_category' => [
+				'label'         => __( 'Category', 'cp-sync' ),
+				'path'          => 'relationships.categories.data',
+				'format'        => fn( $value ) => wp_list_pluck( $value, 'id' ),
+			],
+		];
+	}
+
+	/**
 	 * Get the available tag groups for events - a rest endpoint handler
 	 */
 	public function fetch_event_tag_groups() {
@@ -1234,6 +1300,37 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->table( 'tag_groups' )
 			->id( $tag_group )
 			->associations( 'tags' )
+			->get();
+
+		if ( ! empty( $this->api()->errorMessage() ) ) {
+			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+		}
+
+		if ( empty( $raw ) ) {
+			return new ChMSError( 'pco_data_not_found', 'The data was not found in PCO' );
+		}
+
+		$tags = $raw['data'] ?? [];
+
+		$formatted = [];
+
+		foreach ( $tags as $tag ) {
+			$formatted[] = [
+				'id'   => $tag['id'],
+				'name' => $tag['attributes']['name'] ?? '',
+			];
+		}
+
+		return wp_send_json_success( $formatted, 200 );
+	}
+
+	/**
+	 * Get registration categories from PCO - a rest endpoint handler
+	 */
+	public function fetch_event_registration_categories( $request ) {
+		$raw = $this->api()
+			->module( 'registrations' )
+			->table( 'categories' )
 			->get();
 
 		if ( ! empty( $this->api()->errorMessage() ) ) {

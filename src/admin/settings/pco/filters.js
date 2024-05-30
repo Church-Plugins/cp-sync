@@ -63,6 +63,10 @@ const numberUpdate = (value) => {
  */
 const useFilters = (filter, currentPreFilters) => {
 	const { options, loading } = useSelect((select) => {
+		if(!filter) {
+			return { options: false, loading: false }
+		}
+
 		if(filter.options) { // if options are provided directly, use them
 			return { options: filter.options, loading: false }
 		}
@@ -79,7 +83,7 @@ const useFilters = (filter, currentPreFilters) => {
 		return { options: false, loading: false }
 	}, [currentPreFilters])
 
-	return { options, loading, type: filter.type }
+	return { options, loading, type: filter?.type || 'none' }
 }
 
 
@@ -128,8 +132,8 @@ function Condition({
 		handleChange(populate) // populate the condition with defaults
 	}, [])
 
-	const config = filterConfig[selector || Object.keys(filterConfig)[0]]
-
+	const config = filterConfig[selector]
+	
 	const { options, type: filterType } = useFilters(config, preFilters)
 
 	const valueType = useMemo(() => {
@@ -295,9 +299,6 @@ function Condition({
 				/> :
 				null
 			}
-			<IconButton aria-label="add" onClick={onAdd}>
-				<AddIcon />
-			</IconButton>
 			<IconButton aria-label="remove" onClick={onRemove}>
 				<RemoveIcon />
 			</IconButton>
@@ -335,11 +336,22 @@ function Filters({ filterConfig, filter, compareOptions, onChange = () => {}, la
 	}
 
 	const handleConditionAdd = (id) => {
-		const index = conditions.findIndex((c) => c.id === id)
-		const newConditions = [...conditions]
-		newConditions.splice(index + 1, 0, { id: Math.random().toString(36).substring(7) })
-		handleChange({ conditions: newConditions })
+		// const index = conditions.findIndex((c) => c.id === id)
+		// const newConditions = [...conditions]
+		// newConditions.splice(index + 1, 0, { id: Math.random().toString(36).substring(7) })
+		// handleChange({ conditions: newConditions })
+		handleChange({
+			conditions: [
+				...conditions,
+				{
+					id: Math.random().toString(36).substring(7),
+					selector: Object.keys(filterConfig)[0],
+				}
+			]
+		})
 	}
+
+	const visibleConditions = conditions.filter(condition => condition.selector in filterConfig)
 
 	return (
 		<div>
@@ -360,22 +372,18 @@ function Filters({ filterConfig, filter, compareOptions, onChange = () => {}, la
 			<Typography>{ __( 'of the following match' ) }</Typography>		
 		</Box>
 		{
-			conditions.map((condition, index) => (
+			visibleConditions.map((condition) => (
 				<Condition
 					key={condition.id}
 					filterConfig={filterConfig}
 					condition={condition}
 					onChange={(newFilter) => handleConditionChange(condition.id, newFilter)}
 					onRemove={() => handleConditionRemove(condition.id)}
-					onAdd={() => handleConditionAdd(condition.id)}
 					compareOptions={compareOptions}
 				/>
 			))
 		}
-		{
-			!conditions.length &&
-			<Button variant="outlined" onClick={() => handleConditionAdd(-1)} sx={{ mt: 2 }}>{ __( 'Add Condition' ) }</Button>
-		}
+		<Button variant="outlined" onClick={() => handleConditionAdd()} sx={{ mt: 2 }}>{ __( 'Add Condition' ) }</Button>
 		</div>
 	)
 }

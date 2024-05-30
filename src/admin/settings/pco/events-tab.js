@@ -14,9 +14,9 @@ import FormHelperText from '@mui/material/FormHelperText';
 import { __ } from '@wordpress/i18n';
 import apiFetch from '@wordpress/api-fetch';
 import { useState } from '@wordpress/element';
-
 import Filters from './filters';
 import AsyncSelect from './async-select';
+import store from './store';
 
 const EVENT_RECURRENCE_OPTIONS = [
 	{ value: 'None', label: __( 'None' ) },
@@ -62,15 +62,31 @@ export default function EventsTab({ data, updateField, globalData }) {
 			label: globalData.pco.event_filter_options.end_date,
 			type: 'date'
 		},
-		recurrence: {
+	}
+
+	if(data.source === 'registrations') {
+		filterConfig.registration_category = {
+			label: __( 'Category', 'cp-sync' ),
+			type: 'select',
+			optionsSelector: (preFilters) => {
+				return {
+					store: store,
+					selector: 'getData',
+					args: [ '/cp-sync/v1/pco/events/registration_categories' ],
+					format: (data) => data.map(category => ({ value: category.id, label: category.name }))
+				}
+			}
+		}
+	} else if(data.source === 'calendar') {
+		filterConfig.recurrence = {
 			label: globalData.pco.event_filter_options.recurrence,
 			type: 'select',
 			options: EVENT_RECURRENCE_OPTIONS,
-		},
-		recurrence_description: {
+		};
+		filterConfig.recurrence_description = {
 			label: globalData.pco.event_filter_options.recurrence_description,
 			type: 'text',
-		}
+		};
 	}
 
 	return (
@@ -118,18 +134,19 @@ export default function EventsTab({ data, updateField, globalData }) {
 						<FormControlLabel value="public" control={<Radio />} label={__( 'Only Visible in Church Center' )} />
 					</RadioGroup>
 				</FormControl>
-				<Filters
-					label={__('Events', 'cp-sync')}
-					filterConfig={filterConfig}
-					filter={data.filter}
-					compareOptions={globalData.pco.compare_options}
-					onChange={updateFilters}
-				/>
 				</> :
 				data.source === 'registrations' ?
-				<div>Registrations</div> :
+				false :
 				false
 			}
+
+			<Filters
+				label={__('Events', 'cp-sync')}
+				filterConfig={filterConfig}
+				filter={data.filter}
+				compareOptions={globalData.pco.compare_options}
+				onChange={updateFilters}
+			/>
 
 			{
 				data.source !== 'none' &&
