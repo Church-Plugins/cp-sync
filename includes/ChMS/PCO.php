@@ -827,8 +827,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->module( 'registrations' )
 			->table( 'events' )
 			->includes( 'categories,event_location,event_times' )
-			// ->order( 'starts_at' )
-			// ->filter( 'unarchived,published' )
+			->order( 'starts_at' )
+			->filter( 'unarchived,published' )
 			->get();
 
 		$items = $raw_events['data'] ?? [];
@@ -1234,7 +1234,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		return [
 			'start_date' => [
 				'label' => __( 'Start Date', 'cp-sync' ),
-				'path'  => 'attributes.starts_at',
+				'path'  => 'attributes.first_event_date',
 			],
 			'end_date' => [
 				'label' => __( 'End Date', 'cp-sync' ),

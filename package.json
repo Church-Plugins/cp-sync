@@ -7,13 +7,14 @@
 	],
 	"scripts": {
 		"bootstrap": "wpackio-scripts bootstrap",
-		"build": "wpackio-scripts build",
-		"start": "wpackio-scripts start",
+		"build": "export NODE_OPTIONS=--openssl-legacy-provider && wpackio-scripts build",
+		"start": "export NODE_OPTIONS=--openssl-legacy-provider && wpackio-scripts start",
 		"archive": "wpackio-scripts pack",
 		"build:wp": "wp-scripts build",
 		"start:wp": "wp-scripts start",
 		"lint:wp": "wp-scripts lint",
-		"format:wp": "wp-scripts format"
+		"format:wp": "wp-scripts format",
+		"build:all" : "export NODE_OPTIONS=--openssl-legacy-provider && npm run build && npm run build:wp"
 	},
 	"dependencies": {
 		"@emotion/react": "^11.11.4",
