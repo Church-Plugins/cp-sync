@@ -5,13 +5,16 @@ import Typography from '@mui/material/Typography'
 import { useState, useEffect } from '@wordpress/element'
 import apiFetch from '@wordpress/api-fetch'
 import CircularProgress from '@mui/material/CircularProgress'
+import { useDispatch, useSelect } from '@wordpress/data'
+import optionsStore from '../store'
 
 export default function ConnectTab({ data, updateField }) {
 	const { step: activeStep, authorized } = data
 	const [authLoading, setAuthLoading] = useState(false)
 	const [authError, setAuthError] = useState(null)
 	const [isDirty, setIsDirty] = useState(false)
-	const [isComplete, setIsComplete] = useState(false)
+	const { setIsConnected: dispatchSetIsConnected } = useDispatch(optionsStore)
+	const isConnected = useSelect((select) => select(optionsStore).isConnected);
 
 	const initiateOAuth = () => {
 		setAuthLoading(true)
@@ -31,9 +34,13 @@ export default function ConnectTab({ data, updateField }) {
 				if (data.connected) {
 					authWindow.close();
 					setAuthLoading(false)
-					setIsComplete(true);
+					dispatchSetIsConnected(true);
 					clearInterval(checkAuthWindow)
 				}
+			}).catch((error) => {
+				setAuthLoading(false);
+				setAuthError(error.message);
+				clearInterval(checkAuthWindow);
 			})
 		}, 500)
 	}
@@ -41,15 +48,17 @@ export default function ConnectTab({ data, updateField }) {
 	const disconnectOAuth = () => {
 		setAuthLoading(true)
 		setAuthError(null)
-
 		apiFetch({
 			path: '/cp-sync/v1/pco/disconnect',
 			method: 'POST',
 		}).then((data) => {
 			if (data.success) {
 				setAuthLoading(false);
-				setIsComplete(false);
+				dispatchSetIsConnected(false);
 			}
+		}).catch((error) => {
+			setAuthLoading(false);
+			setAuthError(error.message);
 		})
 
 	}
@@ -61,16 +70,18 @@ export default function ConnectTab({ data, updateField }) {
 			method: 'GET',
 		}).then((data) => {
 			if (data.connected) {
-				setIsComplete(true);
+				dispatchSetIsConnected(true);
 			}
+		}).catch((error) => {
+			setAuthError(error.message);
 		})
-	}, [])
+	}, [dispatchSetIsConnected])
 
 	return (
 		<div>
 			<Typography variant="h5">{ __( 'PCO API Configuration', 'cp-sync' ) }</Typography>
 				{
-					!isComplete &&
+					!isConnected &&
 					<>
 						{ __( 'Click the button below to initiate the OAuth flow and connect to Planning Center Online.', 'cp-sync' ) }
 						{
@@ -82,7 +93,7 @@ export default function ConnectTab({ data, updateField }) {
 								variant="contained"
 								color="primary"
 								onClick={initiateOAuth}
-								disabled={authLoading || isComplete}
+								disabled={authLoading || isConnected}
 								sx={{ display: 'inline-flex', gap: 2 }}
 							>
 								{
@@ -95,7 +106,7 @@ export default function ConnectTab({ data, updateField }) {
 					</>
 				}
 			{
-				isComplete &&
+				isConnected &&
 				<div>
 					<Alert severity="success" sx={{ mt: 2 }}>{ __( 'Connected', 'cp-sync' ) }</Alert>
 					<Button variant="text" color="primary" sx={{ ml: 1 }} onClick={disconnectOAuth}>

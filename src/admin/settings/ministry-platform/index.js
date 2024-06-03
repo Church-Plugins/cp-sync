@@ -4,7 +4,7 @@ import { __ } from '@wordpress/i18n';
 
 // Ministry platform data
 export default {
-	name: 'Ministry Platform',
+	name: 'Ministry Platform (Coming Soon!)',
 	tabs: [
 		{
 			name: __( 'Connect', 'cp-sync' ),

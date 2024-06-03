@@ -119,7 +119,7 @@ function TabPanel(props) {
     >
       {value === index && (
         <Card sx={{ p: 4, overflowY: 'auto', maxHeight: '100%', boxSizing: 'border-box' }} variant="outlined">
-          <Typography>{children}</Typography>
+          <Typography component="div">{children}</Typography>
         </Card>
       )}
     </div>
@@ -127,9 +127,10 @@ function TabPanel(props) {
 }
 
 function Settings({ globalData }) {
-	const { chms = globalData.chms } = useSelect((select) => {
+	const { chms = globalData.chms, isConnected } = useSelect((select) => {
 		return {
 			chms: select(optionsStore).getOptionGroup('main_options')?.chms,
+			isConnected: select(optionsStore).isConnected,
 		}
 	})
 	const [unsavedChanges, setUnsavedChanges] = useState({})
@@ -153,7 +154,7 @@ function Settings({ globalData }) {
 	// creates a list of tabs based on the selected ChMS
 	const tabsNames = [
 		'select',
-		...chmsData.tabs.map((tab) => tab.optionGroup),
+		...chmsData.tabs.filter(tab => tab.optionGroup === 'connect' || isConnected).map((tab) => tab.optionGroup),
 		'license'
 	]
 
@@ -194,7 +195,7 @@ function Settings({ globalData }) {
 				<Box sx={{ flexGrow: 1, minHeight: 0 }}>
 					<DynamicTab tab={chmsTab} globalData={globalData} value={currentTab} index={0} onChange={addUnsavedChange} />
 					{
-						chmsData.tabs.map((tab, index) => (
+						chmsData.tabs.filter(tab => tab.optionGroup === 'connect' || isConnected).map((tab, index) => (
 							<DynamicTab
 								key={tab.optionGroup}
 								tab={tab}
@@ -213,7 +214,7 @@ function Settings({ globalData }) {
 					variant="contained"
 					onClick={save}
 					disabled={isSaving || !Object.keys(unsavedChanges).length}
-				>{ isSaving ? __( 'Saving...', 'cp-sync' ) : __( 'Save', 'cp-sync' ) }</Button>
+				>{ isSaving ? __( 'Saving...', 'cp-sync' ) : __( 'Save all Settings', 'cp-sync' ) }</Button>
 			</Box>
 		</ThemeProvider>
 	)

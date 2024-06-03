@@ -6,7 +6,8 @@ const INITIAL_STATE = {
 	optionGroups: {},
 	error: null,
 	isSaving: false,
-	dirtyGroups: {}
+	dirtyGroups: {},
+	isConnected: false,
 }
 
 const actions = {
@@ -44,6 +45,12 @@ const actions = {
 		}
 
 		return { type: 'OPTIONS_UPDATE_ERROR', message: __( 'Settings were not saved.', 'cp-locations' ) }
+	},
+	setIsConnected( isConnected ) {
+		return {
+			type: 'SET_IS_CONNECTED',
+			isConnected,
+		}
 	}
 }
 
@@ -83,6 +90,11 @@ const optionsStore = createReduxStore( 'cp-locations/options', {
 					...state,
 					isSaving: action.value
 				}
+			case 'SET_IS_CONNECTED':
+				return {
+					...state,
+					isConnected: action.isConnected
+				};
 			default:
 				return state;
 		}
@@ -94,7 +106,8 @@ const optionsStore = createReduxStore( 'cp-locations/options', {
 		},
 		isSaving: ( state ) => state.isSaving,
 		isDirty: ( state, group ) => state.dirtyGroups[ group ],
-		getError: ( state ) => state.error
+		getError: ( state ) => state.error,
+		isConnected: ( state ) => state.isConnected,
 	},
 	controls: {
 		FETCH: ( args ) => apiFetch( args )
