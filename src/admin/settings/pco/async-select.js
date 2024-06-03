@@ -5,24 +5,26 @@ import { useEffect, useState } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 
 export default function AsyncSelect({ apiPath, value, onChange, label, ...props }) {
-	const [data, setData] = useState([])
-	const [error, setError] = useState(null)
-	const [loading, setLoading] = useState(true)
+	const [data, setData] = useState([]);
+	const [error, setError] = useState(null);
+	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		setLoading(true)
+		setLoading(true);
 		apiFetch({
 			path: apiPath,
-		}).then(response => {
-			if(response.success) {
-				setData(response.data)
+		}).then((response) => {
+			if (response.success) {
+				setData(response.data);
 			} else {
-				setError(response.message)
+				setError(response.message);
 			}
+		}).catch((e) => {
+			setError(e.message);
 		}).finally(() => {
-			setLoading(false)
-		})
-	}, [])
+			setLoading(false);
+		});
+	}, [apiPath]);
 
 	return (
 		<Autocomplete
@@ -33,6 +35,8 @@ export default function AsyncSelect({ apiPath, value, onChange, label, ...props 
 				<TextField
 					{...params}
 					label={label}
+					error={!!error}
+					helperText={error}
 				/>
 			)}
 			loading={loading}
@@ -42,5 +46,5 @@ export default function AsyncSelect({ apiPath, value, onChange, label, ...props 
 			isOptionEqualToValue={(option, value) => loading || option.id === value.id}
 			{...props}
 		/>
-	)
+	);
 }
