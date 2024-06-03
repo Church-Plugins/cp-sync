@@ -6,14 +6,18 @@ import { useState, useEffect } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useDispatch, useSelect } from '@wordpress/data';
-import optionsStore from '../store'; // Ensure this import is correct
+import optionsStore, { actions } from '../store'; // Ensure this import is correct
 
 export default function ConnectTab({ data, updateField }) {
 	const { step: activeStep, authorized } = data;
 	const [authLoading, setAuthLoading] = useState(false);
 	const [authError, setAuthError] = useState(null);
-	const { setIsConnected: dispatchSetIsConnected } = useDispatch(optionsStore);
+	const dispatch = useDispatch(optionsStore); // Use a generic dispatch function
 	const isConnected = useSelect((select) => select(optionsStore).isConnected); // Get isConnected from the store
+
+	useEffect(() => {
+		console.log('isConnected:', isConnected); // Log the isConnected value from the store
+	}, [isConnected]);
 
 	const initiateOAuth = () => {
 		setAuthLoading(true);
@@ -33,7 +37,7 @@ export default function ConnectTab({ data, updateField }) {
 				if (data.connected) {
 					authWindow.close();
 					setAuthLoading(false);
-					dispatchSetIsConnected(true); // Dispatch the action to update the store
+					dispatch(actions.setIsConnected(true)); // Dispatch the action to update the store
 					clearInterval(checkAuthWindow);
 				}
 			}).catch((error) => {
@@ -54,7 +58,7 @@ export default function ConnectTab({ data, updateField }) {
 		}).then((data) => {
 			if (data.success) {
 				setAuthLoading(false);
-				dispatchSetIsConnected(false); // Dispatch the action to update the store
+				dispatch(actions.setIsConnected(false)); // Dispatch the action to update the store
 			} else {
 				setAuthError(__('Failed to disconnect', 'cp-sync'));
 			}
@@ -71,12 +75,12 @@ export default function ConnectTab({ data, updateField }) {
 			method: 'GET',
 		}).then((data) => {
 			if (data.connected) {
-				dispatchSetIsConnected(true); // Dispatch the action to update the store
+				dispatch(actions.setIsConnected(true)); // Dispatch the action to update the store
 			}
 		}).catch((error) => {
 			setAuthError(error.message);
 		});
-	}, [dispatchSetIsConnected]);
+	}, [dispatch]);
 
 	return (
 		<div>

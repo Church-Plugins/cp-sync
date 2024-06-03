@@ -11,13 +11,13 @@ const INITIAL_STATE = {
 }
 
 const actions = {
-	setOptionGroup( group, data, hydrate = false ) {
+	setOptionGroup(group, data, hydrate = false) {
 		return {
 			type: 'SET_OPTION_GROUP',
 			group,
 			data,
 			hydrate
-		}
+		};
 	},
 	fetchOptionGroup(group, args = {}) {
 		return {
@@ -25,50 +25,50 @@ const actions = {
 			path: '/cp-sync/v1/options/' + group,
 			group,
 			...args
-		}
+		};
 	},
-	*persistOptionGroup( group, data ) {
-		yield { type: 'IS_SAVING', value: true }
+	*persistOptionGroup(group, data) {
+		yield { type: 'IS_SAVING', value: true };
 
 		let response;
 		try {
-			response = yield actions.fetchOptionGroup( group, { method: 'POST', data } );
-		} catch ( e ) {
+			response = yield actions.fetchOptionGroup(group, { method: 'POST', data });
+		} catch (e) {
 			return {
 				type: 'OPTIONS_UPDATE_ERROR',
 				message: e.message
-			}
+			};
 		}
 
-		if ( response ) {
-			return { type: 'OPTIONS_UPDATE_SUCCESS', data: response, group }
+		if (response) {
+			return { type: 'OPTIONS_UPDATE_SUCCESS', data: response, group };
 		}
 
-		return { type: 'OPTIONS_UPDATE_ERROR', message: __( 'Settings were not saved.', 'cp-sync' ) }
+		return { type: 'OPTIONS_UPDATE_ERROR', message: __('Settings were not saved.', 'cp-sync') };
 	},
-	setIsConnected( isConnected ) {
+	setIsConnected(isConnected) {
 		return {
 			type: 'SET_IS_CONNECTED',
 			isConnected,
-		}
+		};
 	}
-}
+};
 
-const optionsStore = createReduxStore( 'cp-sync/options', {
-	reducer: ( state = INITIAL_STATE, action ) => {
-		switch ( action.type ) {
+const optionsStore = createReduxStore('cp-sync/options', {
+	reducer: (state = INITIAL_STATE, action) => {
+		switch (action.type) {
 			case 'SET_OPTION_GROUP':
 				return {
 					...state,
 					optionGroups: {
 						...state.optionGroups,
-						[ action.group ]: action.data
+						[action.group]: action.data
 					},
 					dirtyGroups: {
 						...state.dirtyGroups,
-						[ action.group ]: action.hydrate ? false : true
+						[action.group]: action.hydrate ? false : true
 					}
-				}
+				};
 			case 'OPTIONS_UPDATE_SUCCESS':
 				return {
 					...state,
@@ -76,20 +76,20 @@ const optionsStore = createReduxStore( 'cp-sync/options', {
 					isSaving: false,
 					dirtyGroups: {
 						...state.dirtyGroups,
-						[ action.group ]: false
+						[action.group]: false
 					}
-				}
+				};
 			case 'OPTIONS_UPDATE_ERROR':
 				return {
 					...state,
 					error: action.message,
 					isSaving: false
-				}
+				};
 			case 'IS_SAVING':
 				return {
 					...state,
 					isSaving: action.value
-				}
+				};
 			case 'SET_IS_CONNECTED':
 				return {
 					...state,
@@ -101,25 +101,24 @@ const optionsStore = createReduxStore( 'cp-sync/options', {
 	},
 	actions,
 	selectors: {
-		getOptionGroup: ( state, group ) => {
-			return state.optionGroups[ group ];
-		},
-		isSaving: ( state ) => state.isSaving,
-		isDirty: ( state, group ) => state.dirtyGroups[ group ],
-		getError: ( state ) => state.error,
-		isConnected: ( state ) => state.isConnected,
+		getOptionGroup: (state, group) => state.optionGroups[group],
+		isSaving: (state) => state.isSaving,
+		isDirty: (state, group) => state.dirtyGroups[group],
+		getError: (state) => state.error,
+		isConnected: (state) => state.isConnected,
 	},
 	controls: {
-		FETCH: ( args ) => apiFetch( args )
+		FETCH: (args) => apiFetch(args)
 	},
 	resolvers: {
-		*getOptionGroup( group ) {
-			const response = yield actions.fetchOptionGroup( group );
-			return actions.setOptionGroup( group, response, true );
+		*getOptionGroup(group) {
+			const response = yield actions.fetchOptionGroup(group);
+			return actions.setOptionGroup(group, response, true);
 		}
 	}
-} )
+});
 
-register( optionsStore )
+register(optionsStore);
 
+export { actions };
 export default optionsStore;
