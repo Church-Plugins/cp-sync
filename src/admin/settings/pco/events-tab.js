@@ -64,7 +64,7 @@ export default function EventsTab({ data, updateField, globalData }) {
 		},
 	}
 
-	if(data.source === 'registrations') {
+	if(data.events_enabled === 'registrations') {
 		filterConfig.registration_category = {
 			label: __( 'Category', 'cp-sync' ),
 			type: 'select',
@@ -77,7 +77,7 @@ export default function EventsTab({ data, updateField, globalData }) {
 				}
 			}
 		}
-	} else if(data.source === 'calendar') {
+	} else if(data.events_enabled === 'calendar') {
 		filterConfig.recurrence = {
 			label: globalData.pco.event_filter_options.recurrence,
 			type: 'select',
@@ -95,8 +95,8 @@ export default function EventsTab({ data, updateField, globalData }) {
 				<FormLabel id="enable-events-radio-group-label">{ __( 'Event source', 'cp-sync' ) }</FormLabel>
 				<RadioGroup
 					aria-labelledby="enable-events-radio-group-label"
-					value={data.source}
-					onChange={(e) => updateField('source', e.target.value)}
+					value={data.events_enabled}
+					onChange={(e) => updateField('events_enabled', e.target.value)}
 				>
 					<FormControlLabel value='calendar' control={<Radio />} label={ __( 'Pull from Calendar', 'cp-sync' ) } />
 					<FormControlLabel value='registrations' control={<Radio />} label={ __( 'Pull from Registrations (beta)', 'cp-sync' ) } />
@@ -105,7 +105,7 @@ export default function EventsTab({ data, updateField, globalData }) {
 			</FormControl>
 			
 			{
-				data.source === 'calendar' ?
+				data.events_enabled === 'calendar' ?
 				<>
 				<Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
 					<CloudOutlined sx={{ mr: 1 }} />
@@ -135,7 +135,7 @@ export default function EventsTab({ data, updateField, globalData }) {
 					</RadioGroup>
 				</FormControl>
 				</> :
-				data.source === 'registrations' ?
+				data.events_enabled === 'registrations' ?
 				false :
 				false
 			}
@@ -149,7 +149,7 @@ export default function EventsTab({ data, updateField, globalData }) {
 			/>
 
 			{
-				data.source !== 'none' &&
+				data.events_enabled !== 'none' &&
 				<Button
 					variant="contained"
 					sx={{ mt: 2 }}

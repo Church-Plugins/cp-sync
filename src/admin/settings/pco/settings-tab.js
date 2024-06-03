@@ -9,7 +9,7 @@ import { __ } from '@wordpress/i18n'
 import { useState } from '@wordpress/element'
 import apiFetch from '@wordpress/api-fetch'
 
-export default function SettingsTab({ data, updateField }) {
+export default function SettingsTab({ data, updateField, unsavedChanges }) {
 	const [isImporting, setIsImporting] = useState(false)
 	const [error, setError] = useState(null)
 	const [success, setSuccess] = useState(false)
@@ -47,10 +47,6 @@ export default function SettingsTab({ data, updateField }) {
 				<Alert severity="success" sx={{ mb: 2 }}>{ __( 'Import started', 'cp-sync' ) }</Alert>
 			}
 
-			<Button onClick={startImport} disabled={isImporting || success} variant="contained" color="primary">
-				{ success ? __( 'Import started', 'cp-sync' ) : isImporting ? __( 'Importing...', 'cp-sync' ) : __( 'Start import', 'cp-sync' ) }
-			</Button>
-
 			<div style={{ marginTop: '1rem' }}>
 				<FormControl>
 					<FormLabel id="enable-events-radio-group-label">{ __( 'Enable Events', 'cp-sync' ) }</FormLabel>
@@ -59,9 +55,9 @@ export default function SettingsTab({ data, updateField }) {
 						value={data.events_enabled}
 						onChange={(e) => updateField('events_enabled', e.target.value)}
 					>
-						<FormControlLabel value={0} control={<Radio />} label={ __( 'Pull from Calendar', 'cp-sync' ) } />
-						<FormControlLabel value={1} control={<Radio />} label={ __( 'Pull from Registrations (beta)', 'cp-sync' ) } />
-						<FormControlLabel value={2} control={<Radio />} label={ __( 'Do not pull', 'cp-sync' )} />
+						<FormControlLabel value='calendar' control={<Radio />} label={ __( 'Pull from Calendar', 'cp-sync' ) } />
+						<FormControlLabel value='registrations' control={<Radio />} label={ __( 'Pull from Registrations (beta)', 'cp-sync' ) } />
+						<FormControlLabel value='none' control={<Radio />} label={ __( 'Do not pull', 'cp-sync' )} />
 					</RadioGroup>
 				</FormControl>
 			</div>
@@ -93,6 +89,10 @@ export default function SettingsTab({ data, updateField }) {
 					</RadioGroup>
 				</FormControl>
 			</div>
+
+			<Button onClick={startImport} disabled={isImporting || success || Object.keys(unsavedChanges).length > 0 } variant="contained" color="primary" sx={{ mt: 4 }}>
+				{ success ? __( 'Import started', 'cp-sync' ) : isImporting ? __( 'Importing...', 'cp-sync' ) : __( 'Start import', 'cp-sync' ) }
+			</Button>
 		</div>
 	)
 }

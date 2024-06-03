@@ -12,12 +12,8 @@ export default function ConnectTab({ data, updateField }) {
 	const { step: activeStep, authorized } = data;
 	const [authLoading, setAuthLoading] = useState(false);
 	const [authError, setAuthError] = useState(null);
-	const dispatch = useDispatch(optionsStore); // Use a generic dispatch function
-	const isConnected = useSelect((select) => select(optionsStore).isConnected); // Get isConnected from the store
-
-	useEffect(() => {
-		console.log('isConnected:', isConnected); // Log the isConnected value from the store
-	}, [isConnected]);
+	const { setIsConnected } = useDispatch(optionsStore); // Use a generic dispatch function
+	const isConnected = useSelect((select) => select('cp-sync/options').isConnected()); // Get isConnected from the store
 
 	const initiateOAuth = () => {
 		setAuthLoading(true);
@@ -37,7 +33,7 @@ export default function ConnectTab({ data, updateField }) {
 				if (data.connected) {
 					authWindow.close();
 					setAuthLoading(false);
-					dispatch(actions.setIsConnected(true)); // Dispatch the action to update the store
+					setIsConnected(true); // Dispatch the action to update the store
 					clearInterval(checkAuthWindow);
 				}
 			}).catch((error) => {
@@ -58,7 +54,7 @@ export default function ConnectTab({ data, updateField }) {
 		}).then((data) => {
 			if (data.success) {
 				setAuthLoading(false);
-				dispatch(actions.setIsConnected(false)); // Dispatch the action to update the store
+				setIsConnected(false); // Dispatch the action to update the store
 			} else {
 				setAuthError(__('Failed to disconnect', 'cp-sync'));
 			}
@@ -67,20 +63,6 @@ export default function ConnectTab({ data, updateField }) {
 			setAuthError(error.message);
 		});
 	};
-
-	// Check if the user is connected on initial load
-	useEffect(() => {
-		apiFetch({
-			path: '/cp-sync/v1/pco/check-connection',
-			method: 'GET',
-		}).then((data) => {
-			if (data.connected) {
-				dispatch(actions.setIsConnected(true)); // Dispatch the action to update the store
-			}
-		}).catch((error) => {
-			setAuthError(error.message);
-		});
-	}, [dispatch]);
 
 	return (
 		<div>
@@ -114,7 +96,11 @@ export default function ConnectTab({ data, updateField }) {
 				isConnected &&
 				<div>
 					<Alert severity="success" sx={{ mt: 2 }}>{__('Connected', 'cp-sync')}</Alert>
-					<Button variant="text" color="primary" sx={{ ml: 1 }} onClick={disconnectOAuth}>
+					<Button
+						variant="contained"
+						color="primary"
+						sx={{ mt: 4, alignSelf: 'flex-start' }}
+						onClick={disconnectOAuth}>
 						{__('Disconnect', 'cp-sync')}
 					</Button>
 				</div>

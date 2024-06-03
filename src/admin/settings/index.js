@@ -11,9 +11,10 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import platforms from './platforms';
 import { __ } from '@wordpress/i18n';
 import { useSelect, useDispatch } from '@wordpress/data';
-import optionsStore from './store';
+import optionsStore, { actions } from './store';
 import { chmsTab } from './chms-tab';
 import { licenseTab } from './license-tab';
+import apiFetch from '@wordpress/api-fetch';
 
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
@@ -26,7 +27,7 @@ const theme = createTheme({
 	},
 })
 
-function DynamicTab({ tab, prefix, globalData, value, index, onChange }) {
+function DynamicTab({ tab, prefix, globalData, value, index, onChange, unsavedChanges }) {
 	const { optionGroup, defaultData, component } = tab
 	const isDirtyRef = useRef(false)
 
@@ -97,7 +98,8 @@ function DynamicTab({ tab, prefix, globalData, value, index, onChange }) {
 						error,
 						isDirty,
 						isHydrating,
-						globalData
+						globalData,
+						unsavedChanges
 					})
 				}
 			</Box>
@@ -130,9 +132,10 @@ function Settings({ globalData }) {
 	const { chms = globalData.chms, isConnected } = useSelect((select) => {
 		return {
 			chms: select(optionsStore).getOptionGroup('main_options')?.chms,
-			isConnected: select(optionsStore).isConnected,
+			isConnected: select(optionsStore).isConnected(),
 		}
 	})
+
 	const [unsavedChanges, setUnsavedChanges] = useState({})
 	const isSaving = useSelect((select) => select(optionsStore).isSaving())
 
@@ -179,6 +182,23 @@ function Settings({ globalData }) {
 		return 0
 	})
 
+	const { setIsConnected } = useDispatch(optionsStore); // Use a generic dispatch function
+
+	useEffect(() => {
+		if (chms) { // Only run if a ChMS is selected
+			apiFetch({
+				path: '/cp-sync/v1/pco/check-connection',
+				method: 'GET',
+			}).then((data) => {
+				if (data.connected) {
+					setIsConnected(true);
+				}
+			}).catch((error) => {
+				console.error('Error checking connection:', error.message);
+			});
+		}
+	}, [chms, setIsConnected]);
+
 	return (
 		<ThemeProvider theme={theme}>
 			<Box sx={{ height: '100%', p: 2, maxHeight: '100%', display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -186,14 +206,14 @@ function Settings({ globalData }) {
 				<Tabs value={currentTab} onChange={(_, value) => openTab(value)} sx={{ px: 2, mb: '-2px', mt: 4 }}>
 					<Tab label={__( 'Select a ChMS', 'cp-sync' )} />
 					{
-						chmsData.tabs.map((tab) => (
+						chmsData.tabs.filter(tab => tab.optionGroup === 'connect' || isConnected).map((tab) => (
 							<Tab key={tab.optionGroup} label={tab.name} />
 						))
 					}
 					<Tab label={__( 'License', 'cp-sync' )} />
 				</Tabs>
 				<Box sx={{ flexGrow: 1, minHeight: 0 }}>
-					<DynamicTab tab={chmsTab} globalData={globalData} value={currentTab} index={0} onChange={addUnsavedChange} />
+					<DynamicTab tab={chmsTab} globalData={globalData} value={currentTab} index={0} onChange={addUnsavedChange} unsavedChanges={unsavedChanges} />
 					{
 						chmsData.tabs.filter(tab => tab.optionGroup === 'connect' || isConnected).map((tab, index) => (
 							<DynamicTab
@@ -204,10 +224,11 @@ function Settings({ globalData }) {
 								value={currentTab}
 								index={index + 1}
 								onChange={addUnsavedChange}
+								unsavedChanges={unsavedChanges}
 							/>
 						))
 					}
-					<DynamicTab tab={licenseTab} globalData={globalData} value={currentTab} index={chmsData.tabs.length + 1} onChange={addUnsavedChange} />
+					<DynamicTab tab={licenseTab} globalData={globalData} value={currentTab} index={chmsData.tabs.length + 1} onChange={addUnsavedChange} unsavedChanges={unsavedChanges} />
 				</Box>
 				<Button
 					sx={{ mt: 4, alignSelf: 'flex-start' }}
