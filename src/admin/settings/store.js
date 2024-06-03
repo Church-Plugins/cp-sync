@@ -44,7 +44,7 @@ const actions = {
 			return { type: 'OPTIONS_UPDATE_SUCCESS', data: response, group }
 		}
 
-		return { type: 'OPTIONS_UPDATE_ERROR', message: __( 'Settings were not saved.', 'cp-locations' ) }
+		return { type: 'OPTIONS_UPDATE_ERROR', message: __( 'Settings were not saved.', 'cp-sync' ) }
 	},
 	setIsConnected( isConnected ) {
 		return {
@@ -54,7 +54,7 @@ const actions = {
 	}
 }
 
-const optionsStore = createReduxStore( 'cp-locations/options', {
+const optionsStore = createReduxStore( 'cp-sync/options', {
 	reducer: ( state = INITIAL_STATE, action ) => {
 		switch ( action.type ) {
 			case 'SET_OPTION_GROUP':
