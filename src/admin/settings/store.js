@@ -3,87 +3,82 @@ import apiFetch from '@wordpress/api-fetch';
 import { __ } from '@wordpress/i18n';
 
 const INITIAL_STATE = {
-	optionGroups: {},
+	settingsCache: {},
 	error: null,
 	isSaving: false,
-	dirtyGroups: {},
-	isConnected: false,
+	isDirty: false,
+	isLoading: true,
+	connectedChMS: {}
 }
 
 const actions = {
-	setOptionGroup( group, data, hydrate = false ) {
+	setSettings( chms, data, options ) {
 		return {
-			type: 'SET_OPTION_GROUP',
-			group,
+			type: 'SET_SETTINGS',
+			chms,
 			data,
-			hydrate
+			...options
 		}
 	},
-	fetchOptionGroup(group, args = {}) {
+	fetchSettings({ chms, ...args }) {
 		return {
 			type: 'FETCH',
-			path: '/cp-sync/v1/options/' + group,
-			group,
+			path: `/cp-sync/v1/${chms}/settings`,
 			...args
 		}
 	},
-	*persistOptionGroup( group, data ) {
+	*persistSettings(chms, data) {
 		yield { type: 'IS_SAVING', value: true }
 
 		let response;
 		try {
-			response = yield actions.fetchOptionGroup( group, { method: 'POST', data } );
+			response = yield actions.fetchSettings({ chms, data: { data }, method: 'POST' });
 		} catch ( e ) {
 			return {
-				type: 'OPTIONS_UPDATE_ERROR',
+				type: 'SETTINGS_UPDATE_ERROR',
 				message: e.message
 			}
 		}
 
 		if ( response ) {
-			return { type: 'OPTIONS_UPDATE_SUCCESS', data: response, group }
+			return { type: 'SETTINGS_UPDATE_SUCCESS' }
 		}
 
-		return { type: 'OPTIONS_UPDATE_ERROR', message: __( 'Settings were not saved.', 'cp-locations' ) }
+		return { type: 'SETTINGS_UPDATE_ERROR', message: __( 'Settings were not saved.', 'cp-locations' ) }
 	},
-	setIsConnected( isConnected ) {
+	setIsConnected( chms, value ) {
 		return {
 			type: 'SET_IS_CONNECTED',
-			isConnected,
+			chms,
+			value
 		}
 	}
 }
 
-const optionsStore = createReduxStore( 'cp-locations/options', {
+const settingsStore = createReduxStore( 'cp-locations/settings', {
 	reducer: ( state = INITIAL_STATE, action ) => {
 		switch ( action.type ) {
-			case 'SET_OPTION_GROUP':
+			case 'SET_SETTINGS':
 				return {
 					...state,
-					optionGroups: {
-						...state.optionGroups,
-						[ action.group ]: action.data
+					settingsCache: {
+						...state.settingsCache,
+						[action.chms]: action.data
 					},
-					dirtyGroups: {
-						...state.dirtyGroups,
-						[ action.group ]: action.hydrate ? false : true
-					}
+					isDirty: !action.hydrate,
 				}
-			case 'OPTIONS_UPDATE_SUCCESS':
-				return {
-					...state,
-					error: null,
-					isSaving: false,
-					dirtyGroups: {
-						...state.dirtyGroups,
-						[ action.group ]: false
-					}
-				}
-			case 'OPTIONS_UPDATE_ERROR':
+			case 'SETTINGS_UPDATE_ERROR':
 				return {
 					...state,
 					error: action.message,
 					isSaving: false
+				}
+			case 'SETTINGS_UPDATE_SUCCESS':
+				return {
+					...state,
+					error: null,
+					isSaving: false,
+					isDirty: false
 				}
 			case 'IS_SAVING':
 				return {
@@ -93,33 +88,53 @@ const optionsStore = createReduxStore( 'cp-locations/options', {
 			case 'SET_IS_CONNECTED':
 				return {
 					...state,
-					isConnected: action.isConnected
-				};
+					connectedChMS: {
+						...state.connectedChMS,
+						[action.chms]: action.value
+					}
+				}
 			default:
-				return state;
+				return state
 		}
 	},
 	actions,
 	selectors: {
-		getOptionGroup: ( state, group ) => {
-			return state.optionGroups[ group ];
-		},
-		isSaving: ( state ) => state.isSaving,
-		isDirty: ( state, group ) => state.dirtyGroups[ group ],
-		getError: ( state ) => state.error,
-		isConnected: ( state ) => state.isConnected,
+		getSettings: ( state, chms ) => state.settingsCache[chms],
+		getError: state => state.error,
+		getIsSaving: state => state.isSaving,
+		getIsDirty: state => state.isDirty,
+		getIsLoading: state => state.isLoading,
+		getIsConnected: (state, chms) => !!state.connectedChMS[chms],
 	},
 	controls: {
-		FETCH: ( args ) => apiFetch( args )
+		FETCH: ( args ) => apiFetch( args ),
 	},
 	resolvers: {
-		*getOptionGroup( group ) {
-			const response = yield actions.fetchOptionGroup( group );
-			return actions.setOptionGroup( group, response, true );
+		*getSettings( chms ) {
+			if(!chms) return;
+
+			const settings = yield actions.fetchSettings({ chms })
+
+			if(settings) {
+				return actions.setSettings( chms, settings, { hydrate: true })
+			}
+
+			return;
+		},
+		*getIsConnected( chms ) {
+			if(!chms) return;
+			
+			const response = yield actions.fetchSettings({ chms, path: `/cp-sync/v1/${chms}/check-connection` })
+
+			if(response) {
+				return actions.setIsConnected( chms, response.connected )
+			}
+
+			return;
 		}
 	}
 } )
 
-register( optionsStore )
+register( settingsStore )
 
-export default optionsStore;
+export default settingsStore;

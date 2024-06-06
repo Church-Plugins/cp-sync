@@ -2,19 +2,18 @@ import { __ } from '@wordpress/i18n'
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
-import { useState, useEffect } from '@wordpress/element'
+import { useState } from '@wordpress/element'
 import apiFetch from '@wordpress/api-fetch'
 import CircularProgress from '@mui/material/CircularProgress'
-import { useDispatch, useSelect } from '@wordpress/data'
-import optionsStore from '../store'
+import { useSettings } from '../settingsProvider'
+import { useDispatch } from '@wordpress/data'
+import settingsStore from '../store'
 
-export default function ConnectTab({ data, updateField }) {
-	const { step: activeStep, authorized } = data
+export default function ConnectTab() {
+	const { isConnected } = useSettings()
 	const [authLoading, setAuthLoading] = useState(false)
 	const [authError, setAuthError] = useState(null)
-	const [isDirty, setIsDirty] = useState(false)
-	const { setIsConnected: dispatchSetIsConnected } = useDispatch(optionsStore)
-	const isConnected = useSelect((select) => select(optionsStore).isConnected);
+	const { invalidateResolutionForStoreSelector, setIsConnected } = useDispatch(settingsStore)
 
 	const initiateOAuth = () => {
 		setAuthLoading(true)
@@ -31,13 +30,15 @@ export default function ConnectTab({ data, updateField }) {
 				path: '/cp-sync/v1/pco/check-connection',
 				method: 'GET',
 			}).then((data) => {
+				console.log(data)
 				if (data.connected) {
 					authWindow.close();
 					setAuthLoading(false)
-					dispatchSetIsConnected(true);
 					clearInterval(checkAuthWindow)
+					setIsConnected('pco', true)
 				}
 			}).catch((error) => {
+				console.log(error)
 				setAuthLoading(false);
 				setAuthError(error.message);
 				clearInterval(checkAuthWindow);
@@ -54,28 +55,13 @@ export default function ConnectTab({ data, updateField }) {
 		}).then((data) => {
 			if (data.success) {
 				setAuthLoading(false);
-				dispatchSetIsConnected(false);
+				invalidateResolutionForStoreSelector('getIsConnected')
 			}
 		}).catch((error) => {
 			setAuthLoading(false);
 			setAuthError(error.message);
 		})
-
 	}
-
-	// Check if the user is connected on initial load
-	useEffect(() => {
-		apiFetch({
-			path: '/cp-sync/v1/pco/check-connection',
-			method: 'GET',
-		}).then((data) => {
-			if (data.connected) {
-				dispatchSetIsConnected(true);
-			}
-		}).catch((error) => {
-			setAuthError(error.message);
-		})
-	}, [dispatchSetIsConnected])
 
 	return (
 		<div>

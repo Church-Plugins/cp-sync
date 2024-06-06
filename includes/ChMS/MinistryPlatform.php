@@ -13,9 +13,17 @@ use CP_Sync\Admin\Settings;
  */
 class MinistryPlatform extends ChMS {
 
-	public $settings_key = 'cps_mp_options';
+	/**
+	 * ChMS ID
+	 *
+	 * @var string
+	 */
+	public $id = 'mp';
 
-	public $rest_namespace = '/ministry-platform';
+	/**
+	 * @var string The settings key for this integration
+	 */
+	public $settings_key = 'cp_sync_mp_settings';
 
 	public function check_auth( $data ) {
 		// load connection parameters if they aren't already loaded

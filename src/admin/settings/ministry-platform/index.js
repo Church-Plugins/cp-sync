@@ -9,7 +9,7 @@ export default {
 		{
 			name: __( 'Connect', 'cp-sync' ),
 			component: (props) => <ConnectTab {...props} />,
-			optionGroup: 'connect',
+			group: 'connect',
 			defaultData: {
 				api_endpoint: '',
 				oauth_discovery_endpoint: '',
@@ -21,7 +21,7 @@ export default {
 		{
 			name: __( 'Configure', 'cp-sync' ),
 			component: (props) => <ConfigureTab {...props} />,
-			optionGroup: 'configuration',
+			group: 'configuration',
 			defaultData: {
 				group_fields: [],
 				custom_fields: [],

@@ -12,28 +12,23 @@ export default {
 		{
 			name: __( 'Connect', 'cp-sync' ),
 			component: (props) => <ConnectTab {...props} />,
-			optionGroup: 'connect',
-			defaultData: {
-				app_id: '',
-				secret: '',
-				step: 0,
-				authorized: false,
-			}
+			group: 'connect',
+			defaultData: {},
 		},
-		{
-			name: __( 'Settings', 'cp-sync' ),
-			component: (props) => <SettingsTab {...props} />,
-			optionGroup: 'settings',
-			defaultData: {
-				events_enabled: 0,
-				events_register_button_enabled: 0,
-				groups_enabled: 1
-			}
-		},
+		// {
+		// 	name: __( 'Settings', 'cp-sync' ),
+		// 	component: (props) => <SettingsTab {...props} />,
+		// 	group: 'settings',
+		// 	defaultData: {
+		// 		events_enabled: 0,
+		// 		events_register_button_enabled: 0,
+		// 		groups_enabled: 1
+		// 	}
+		// },
 		{
 			name: __( 'Groups', 'cp-sync' ),
 			component: (props) => <GroupsTab {...props} />,
-			optionGroup: 'groups',
+			group: 'cp_groups',
 			defaultData: {
 				types: [],
 				tag_groups: [],
@@ -50,7 +45,7 @@ export default {
 		{
 			name: __( 'Events', 'cp-sync' ),
 			component: (props) => <EventsTab {...props} />,
-			optionGroup: 'events',
+			group: 'ecp',
 			defaultData: {
 				visibility: 'public',
 				tag_groups: [],

@@ -12,11 +12,6 @@ use PlanningCenterAPI\PlanningCenterAPI;
 class PCO extends \CP_Sync\ChMS\ChMS {
 
 	/**
-	 * Rest API namespace
-	 */
-	public $rest_namespace = '/pco';
-
-	/**
 	 * Class integrations
 	 */
 	public function integrations() {}
@@ -29,9 +24,16 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public $api = null;
 
 	/**
+	 * ChMS ID
+	 *
+	 * @var string
+	 */
+	public $id = 'pco';
+
+	/**
 	 * @var string The settings key for this integration
 	 */
-	public $settings_key = 'cps_pco_connect';
+	public $settings_key = 'cp_sync_pco_settings';
 
 	/**
 	 * Setup
@@ -39,18 +41,20 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public function setup() {
 		// register supported integrations
 		$this->add_support(
-			'cp_groups',
+			'groups',
 			[
 				'fetch_callback'   => [ $this, 'fetch_groups' ],
 				'format_callback'  => [ $this, 'format_group' ],
+				'filter_config'    => [ $this, 'get_group_filter_config' ]
 			]
 		);
 
 		$this->add_support(
-			'tec',
+			'events',
 			[
 				'fetch_callback'   => [ $this, 'fetch_events' ],
 				'format_callback'  => [ $this, 'format_event' ],
+				'filter_config'    => [ $this, 'get_event_filter_config' ],
 			]
 		);
 
@@ -66,7 +70,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public function settings_entrypoint_data( $entrypoint_data ) {
 		$group_filter_options = $this->get_group_filter_config();
 		$event_filter_options = $this->get_event_filter_config();
-		$compare_options      = DataFilter::get_compare_options();
 
 		$entrypoint_group_filter_options = []; // Format the group filter config for the entrypoint
 		foreach ( $group_filter_options as $key => $config ) {
@@ -77,20 +80,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		foreach ( $event_filter_options as $key => $config ) {
 			$entrypoint_event_filter_options[ $key ] = $config['label'];
 		}
-
-		$entrypoint_compare_options = []; // Format the compare config for the entrypoint
-		foreach ( $compare_options as $key => $config ) {
-			$entrypoint_compare_options[] = [
-				'value' => $key,
-				'label' => $config['label'],
-				'type'  => $config['type'],
-			];
-		}
-
+		
 		$entrypoint_data['pco'] = [
 			'group_filter_options' => $entrypoint_group_filter_options,
 			'event_filter_options' => $entrypoint_event_filter_options,
-			'compare_options'      => $entrypoint_compare_options,
 		];
 
 		return $entrypoint_data;
@@ -117,15 +110,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Check the connection to the ChMS
-	 *
-	 * @param array $data The data to check the connection with. (View get_auth_api_args for the required data)
-	 */
-	public function check_auth( $data ) {
-		return true;
-	}
-
-	/**
 	 * Singleton instance of the third-party API client
 	 *
 	 * @return PlanningCenterAPI
@@ -144,7 +128,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	public function get_token() {
-		$last_refresh = absint( $this->get_option( 'last_token_refresh', 0 ) );
+		$last_refresh = absint( $this->get_setting( 'last_token_refresh', 0, 'auth' ) );
 
 		if ( 0 === $last_refresh ) {
 			return false;
@@ -156,7 +140,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			}
 		}
 
-		return $this->get_option( 'token' );
+		return $this->get_setting( 'token', '', 'auth' );
 	}
 
 	public function refresh_token() {
@@ -219,10 +203,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * CP Groups Support Methods
-	 */
-
-	/**
 	 * Get the group filter configuration
 	 *
 	 * @return array
@@ -230,38 +210,157 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public function get_group_filter_config() {
 		return [
 			'name' => [
-				'label' => __( 'Name', 'cp-sync' ),
-				'path'  => 'attributes.name',
+				'label'    => __( 'Name', 'cp-sync' ),
+				'path'     => 'attributes.name',
+				'type'     => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+					'contains',
+					'does_not_contain',
+				],
 			],
 			'description' => [
-				'label' => __( 'Description', 'cp-sync' ),
-				'path'  => 'attributes.description',
+				'label'    => __( 'Description', 'cp-sync' ),
+				'path'     => 'attributes.description',
+				'type'     => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+					'contains',
+					'does_not_contain',
+					'is_empty',
+					'is_not_empty',
+				],
 			],
 			'group_type' => [
 				'label'         => __( 'Group Type', 'cp-sync' ),
 				'path'          => 'relationships.group_type.data.id',
 				'relation'      => 'GroupType',
 				'relation_path' => 'id',
+				'type'          => 'select',
+				'supports'      => [
+					'is',
+					'is_not',
+					'is_in',
+					'is_not_in',
+					'is_empty',
+					'is_not_empty',
+				],
+				'options'      => function() {
+					$raw = $this->api()
+						->module( 'groups' )
+						->table( 'group_types' )
+						->get();
+						
+					if ( ! empty( $this->api()->errorMessage() ) ) {
+						return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+					}
+
+					if ( empty( $raw ) ) {
+						return new ChMSError( 'pco_data_not_found', 'The data was not found in PCO' );
+					}
+
+					$group_types = $raw['data'] ? (array) $raw['data'] : [];
+
+					$formatted = [];
+
+					foreach ( $group_types as $group_type ) {
+						$formatted[] = [
+							'value' => $group_type['id'],
+							'label' => $group_type['attributes']['name'] ?? '',
+						];
+					}
+
+					return wp_send_json_success( $formatted, 200 );
+				}
 			],
+			// 'group_tag' => [
+			// 	'label'         => __( 'Group Tag', 'cp-sync' ),
+			// 	'path'          => 'relationships.tags.data.id',
+			// 	'relation'      => 'Tag',
+			// 	'relation_path' => 'id',
+			// 	'type'          => 'select',
+			// 	'supports'      => [
+			// 		'is',
+			// 		'is_not',
+			// 		'is_in',
+			// 		'is_not_in',
+			// 		'is_empty',
+			// 		'is_not_empty',
+			// 	],
+			// 	'options' => function() {
+			// 		$tag_groups = $this->fetch_all_group_tags();
+
+			// 		$tags = [];
+
+			// 		foreach ( $tag_groups as $id => $tag_group ) {
+			// 			foreach ( $tag_group['tags'] as $tag ) {
+			// 				$tags[] = [
+			// 					'value' => $id . ':' . $tag['id'],
+			// 					'label' => $tag_group['name'] . ': ' . $tag['attributes']['name'],
+			// 				];
+			// 			}
+			// 		}
+
+			// 		return wp_send_json_success( $tags );
+			// 	}
+			// ],
 			'location' => [
 				'label' => __( 'Location', 'cp-sync' ),
 				'path'  => 'relationships.location.data.id',
+				'type' => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+					'is_empty',
+					'is_not_empty',
+				],
 			],
 			'enrollment_status' => [
 				'label'         => __( 'Enrollment Status', 'cp-sync' ),
 				'path'          => 'relationships.enrollment.data.id',
 				'relation'      => 'Enrollment',
 				'relation_path' => 'attributes.status',
+				'type'          => 'select',
+				'supports'      => [
+					'is',
+					'is_not',
+					'is_in',
+					'is_not_in',
+				],
+				'options' => [
+					[ 'value' => 'open', 'label' => 'Open' ],
+					[ 'value' => 'closed', 'label' => 'Closed' ],
+					[ 'value' => 'full', 'label' => 'Full' ],
+					[ 'value' => 'private', 'label' => 'Private' ],
+				],
 			],
 			'enrollment_strategy' => [
 				'label'         => __( 'Enrollment Strategy', 'cp-sync' ),
 				'path'          => 'relationships.enrollment.data.id',
 				'relation'      => 'Enrollment',
 				'relation_path' => 'attributes.strategy',
+				'type'          => 'select',
+				'supports'      => [
+					'is',
+					'is_not',
+					'is_in',
+					'is_not_in',
+				],
+				'options' => [
+					[ 'value' => 'request_to_join', 'label' => 'Request to Join' ],
+					[ 'value' => 'open_signup', 'label' => 'Open Signup' ],
+				],
 			],
 			'visibility' => [
 				'label' => __( 'Visibility', 'cp-sync' ),
 				'path'  => 'attributes.public_church_center_web_url',
+				'type'  => 'text',
+				'supports' => [
+					'is_empty',
+					'is_not_empty',
+				],
 			],
 		];
 	}
@@ -270,7 +369,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$response = $this->api()
 			->module( 'people' )
 			->table( 'me' )
-			->get();
+			->get(1);
 
 		if ( isset( $response['data'] ) && ! empty( $response['data']['id'] ) ) {
 			return [ 'status' => 'success', 'message' => 'Connection successful' ];
@@ -355,7 +454,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		$tag_groups = $tag_groups['data'] ?? [];
 
-		$include_tag_groups = Settings::get( 'tag_groups', [], 'cps_pco_groups' );
+		$include_tag_groups = $this->get_setting( 'tag_groups', [], 'cp_groups' );
 		$include_tag_groups = wp_list_pluck( $include_tag_groups, 'id' );
 
 		foreach ( $tag_groups as $tag_group ) {
@@ -369,7 +468,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				->id( $tag_group['id'] )
 				->associations( 'tags' )
 				->get();
-
 
 			$tags = $tags['data'] ?? [];
 
@@ -406,13 +504,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		// setup a filter
-		$filter_settings = Settings::get( 'filter', [], 'cps_pco_groups' );
+		$filter_settings = $this->get_setting( 'filter', [], 'cp_groups' );
 		$filter_type     = $filter_settings['type'] ?? 'all';
 		$conditions      = $filter_settings['conditions'] ?? [];
 
-		$public_groups_only    = 'public' === Settings::get( 'visibility', 'public', 'cps_pco_groups' );
-		$enrollment_status     = Settings::get( 'enrollment_status', [], 'cps_pco_groups' );
-		$enrollment_strategies = Settings::get( 'enrollment_strategies', [], 'cps_pco_groups' );
+		$public_groups_only    = 'public' === $this->get_setting( 'visibility', 'public', 'cp_groups' );
+		$enrollment_status     = $this->get_setting( 'enrollment_status', [], 'cp_groups' );
+		$enrollment_strategies = $this->get_setting( 'enrollment_strategies', [], 'cp_groups' );
 
 		// add a few custom conditions not based on the filter UI
 		if ( $public_groups_only ) {
@@ -449,11 +547,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$filter->apply( $items ); // Apply the filter to the items
 
 		return [
-			'items'   => $items,
-			'context' => [
+			'items'      => $items,
+			'taxonomies' => $taxonomies,
+			'context'    => [
 				'relational_data' => $relational_data,
 			],
-			'taxonomies' => $taxonomies,
 		];
 	}
 
@@ -523,11 +621,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		// Meeting frequency
 		if ( ! empty( $group['attributes']['schedule'] ) ) {
 			$args['meta_input']['frequency'] = $group['attributes']['schedule'];
-		}
-
-		// Group Type
-		if ( ! empty( $item_details['GroupType']['attributes']['name'] ) ) {
-			$args['group_type'][] = $item_details['GroupType']['attributes']['name'];
 		}
 
 		// Location address
@@ -673,7 +766,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * Fetch events from PCO
 	 */
 	public function fetch_events() {
-		$source = Settings::get( 'source', 'calendar', 'cps_pco_events' );
+		$source = $this->get_setting( 'source', 'calendar', 'ecp' );
 
 		if ( 'calendar' === $source ) {
 			return $this->fetch_events_from_calendar();
@@ -688,7 +781,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * Format an event
 	 */
 	public function format_event( $event, $context ) {
-		$source = Settings::get( 'source', 'calendar', 'cps_pco_events' );
+		$source = $this->get_setting( 'source', 'calendar', 'ecp' );
 
 		if ( 'calendar' === $source ) {
 			return $this->format_event_from_calendar( $event, $context );
@@ -739,11 +832,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
 		}
 
-		foreach ( $raw_events as $event ) {
+		foreach ( $raw_events['data'] as $event ) {
 			$relational_data[ $event['type'] ][ $event['id'] ] = $event;
 		}
 
-		$selected_tag_groups = Settings::get( 'tag_groups', [], 'cps_pco_events' );
+		$selected_tag_groups = $this->get_setting( 'tag_groups', [], 'ecp' );
 		$selected_tag_groups = wp_list_pluck( $selected_tag_groups, 'id' );
 
 		foreach ( $tag_groups as $tag_group ) {
@@ -781,12 +874,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$taxonomies[ $tax_slug ] = $taxonomy_data;
 		}
 
-		$filter_settings = Settings::get( 'filter', [], 'cps_pco_events' );
+		$filter_settings = $this->get_setting( 'filter', [], 'ecp' );
 
 		$filter_type = $filter_settings['type'] ?? 'all';
 		$conditions  = $filter_settings['conditions'] ?? [];
 
-		$public_events_only = 'public' === Settings::get( 'visibility', 'public', 'cps_pco_events' );
+		$public_events_only = 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
 
 		if ( $public_events_only ) {
 			$conditions[] = [
@@ -840,12 +933,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
 		}
 
-		$filter_settings = Settings::get( 'filter', [], 'cps_pco_events' );
+		$filter_settings = $this->get_setting( 'filter', [], 'ecp' );
 
 		$filter_type = $filter_settings['type'] ?? 'all';
 		$conditions  = $filter_settings['conditions'] ?? [];
 
-		$public_events_only = 'public' === Settings::get( 'visibility', 'public', 'cps_pco_events' );
+		$public_events_only = 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
 
 		if ( $public_events_only ) {
 			$conditions[] = [
@@ -1197,30 +1290,48 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'start_date' => [
 				'label' => __( 'Start Date', 'cp-sync' ),
 				'path'  => 'attributes.starts_at',
+				'type'  => 'date',
+				'supports' => [ 'is_greater_than', 'is_less_than' ]
 			],
 			'end_date' => [
 				'label' => __( 'End Date', 'cp-sync' ),
 				'path'  => 'attributes.ends_at',
+				'type'  => 'date',
+				'supports' => [ 'is_greater_than', 'is_less_than' ]
 			],
 			'recurrence' => [
 				'label' => __( 'Recurrence', 'cp-sync' ),
 				'path'  => 'attributes.recurrence',
+				'type'  => 'select',
+				'options' => [
+					[ 'value' => 'daily', 'label' => 'Daily' ],
+					[ 'value' => 'weekly', 'label' => 'Weekly' ],
+					[ 'value' => 'monthly', 'label' => 'Monthly' ],
+					[ 'value' => 'yearly', 'label' => 'Yearly' ],
+				],
+				'supports' => [ 'is', 'is_not', 'is_empty', 'is_not_empty', 'is_in', 'is_not_in' ]
 			],
 			'recurrence_description' => [
 				'label' => __( 'Recurrence Description', 'cp-sync' ),
 				'path'  => 'attributes.recurrence_description',
+				'type'  => 'text',
+				'supports' => [ 'contains', 'does_not_contain', 'is_empty', 'is_not_empty', 'is', 'is_not' ]
 			],
 			'event_name' => [
 				'label'         => __( 'Event Name', 'cp-sync' ),
 				'path'          => 'relationships.event.data.id',
 				'relation'      => 'Event',
 				'relation_path' => 'attributes.name',
+				'type'          => 'text',
+				'supports'      => [ 'contains', 'does_not_contain', 'is_empty', 'is_not_empty', 'is', 'is_not' ]
 			],
 			'visible_in_church_center' => [
 				'label'         => __( 'Visible in Church Center', 'cp-sync' ),
 				'path'          => 'relationships.event.data.id',
 				'relation'      => 'Event',
 				'relation_path' => 'attributes.visible_in_church_center',
+				'type'          => 'text',
+				'supports'      => [ 'is_empty', 'is_not_empty' ]
 			],
 		];
 	}

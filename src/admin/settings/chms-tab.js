@@ -6,9 +6,10 @@ import MenuItem from '@mui/material/MenuItem'
 import { __ } from '@wordpress/i18n'
 import platforms from './platforms'
 import Alert from '@mui/material/Alert';
+import { useSettings } from './settingsProvider'
 
-function ChMSTab({ data, updateField }) {
-	const { chms } = data
+function ChMSTab() {
+	const { globalSettings, updateGlobalSettings, globalUnsavedChanges } = useSettings()
 
 	return (
 		<Box>
@@ -17,8 +18,8 @@ function ChMSTab({ data, updateField }) {
 				<Select
 					labelId="chms-select-label"
 					label={__( 'ChMS', 'cp-sync' )}
-					value={chms}
-					onChange={(e) => updateField('chms', e.target.value)}
+					value={globalSettings.chms}
+					onChange={(e) => updateGlobalSettings('chms', e.target.value)}
 					placeholder={__( 'Select ChMS', 'cp-sync' )}
 					sx={{ minWidth: "300px" }}
 				>
@@ -36,8 +37,4 @@ function ChMSTab({ data, updateField }) {
 export const chmsTab = {
 	name: __( 'ChMS', 'cp-sync' ),
 	component: (props) => <ChMSTab {...props} />,
-	optionGroup: 'main_options',
-	defaultData: {
-		chms: ''
-	},
 }

@@ -7,13 +7,15 @@ import TextField from '@mui/material/TextField'
 import { __ } from '@wordpress/i18n'
 import apiFetch from '@wordpress/api-fetch'
 import { useState } from '@wordpress/element'
+import { useSettings } from './settingsProvider'
 
-function LicenseTab({ data, updateField, save }) {
+function LicenseTab({ save }) {
 	const [pending, setPending] = useState(false)
 	const [error, setError] = useState(null)
 	const [success, setSuccess] = useState(false)
+	const { globalSettings, updateGlobalSettings } = useSettings()
 
-	const { license, status } = data
+	const { license, status, beta } = globalSettings
 
 	const activateLicense = () => {
 		setSuccess(null)
@@ -22,9 +24,9 @@ function LicenseTab({ data, updateField, save }) {
 		apiFetch({
 			path: '/churchplugins/v1/license/cps_license',
 			method: 'POST',
-			data: { license: data.license }
+			data: { license: globalSettings.license }
 		}).then(data => {
-			updateField('status', data.status)
+			updateGlobalSettings('status', data.status)
 			setSuccess(data.message)
 			setError(null)
 			save()
@@ -43,7 +45,7 @@ function LicenseTab({ data, updateField, save }) {
 			path: '/churchplugins/v1/license/cps_license',
 			method: 'DELETE'
 		}).then(data => {
-			updateField('status', data.status)
+			updateGlobalSettings('status', data.status)
 			setSuccess(data.message)
 			setError(null)
 			save()
@@ -70,7 +72,7 @@ function LicenseTab({ data, updateField, save }) {
 				<TextField
 					label="License Key"
 					value={license}
-					onChange={(e) => updateField('license', e.target.value)}
+					onChange={(e) => updateGlobalSettings('license', e.target.value)}
 					variant="outlined"
 					disabled={status === 'valid'}
 					sx={{ width: '300px' }}
@@ -87,7 +89,7 @@ function LicenseTab({ data, updateField, save }) {
 			</Box>
 			
 			<FormControlLabel
-				control={<Switch checked={data.beta} onChange={(e) => updateField('beta', e.target.checked)} />}
+				control={<Switch checked={beta} onChange={(e) => updateGlobalSettings('beta', e.target.checked)} />}
 				label={__( 'Enable beta updates', 'cp-sync' )}
 				sx={{ maxWidth: 'fit-content' }}
 			/>
@@ -98,10 +100,4 @@ function LicenseTab({ data, updateField, save }) {
 export const licenseTab = {
 	name: 'License',
 	component: (props) => <LicenseTab {...props} />,
-	optionGroup: 'license',
-	defaultData: {
-		license: '',
-		status: false,
-		beta: false,
-	}
 }

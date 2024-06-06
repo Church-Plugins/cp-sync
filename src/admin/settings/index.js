@@ -1,5 +1,6 @@
 import { createRoot, useState, useEffect, useRef } from '@wordpress/element';
 import './index.scss';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Tabs from '@mui/material/Tabs';
@@ -10,15 +11,16 @@ import Skeleton from '@mui/material/Skeleton';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import platforms from './platforms';
 import { __ } from '@wordpress/i18n';
-import { useSelect, useDispatch } from '@wordpress/data';
-import optionsStore from './store';
 import { chmsTab } from './chms-tab';
 import { licenseTab } from './license-tab';
+import { useSelect } from '@wordpress/data'
 
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
+import SettingsProvider, { useSettings } from './settingsProvider';
+import settingsStore from './store';
 
 const theme = createTheme({
 	palette: {
@@ -26,52 +28,25 @@ const theme = createTheme({
 	},
 })
 
-function DynamicTab({ tab, prefix, globalData, value, index, onChange }) {
-	const { optionGroup, defaultData, component } = tab
-	const isDirtyRef = useRef(false)
+function DynamicTab({ tab, value, index }) {
+	const { group, defaultData = {}, component } = tab
 
-	const prefixedOptionGroup = prefix ? `${prefix}_${optionGroup}` : optionGroup
-
-	const { data, isSaving, error, isDirty, isHydrating } = useSelect((select) => {
-		return {
-			data: select(optionsStore).getOptionGroup(prefixedOptionGroup),
-			isSaving: select(optionsStore).isSaving(),
-			error: select(optionsStore).getError(),
-			isDirty: select(optionsStore).isDirty(prefixedOptionGroup),
-			isHydrating: select(optionsStore).isResolving( 'getOptionGroup', [ prefixedOptionGroup ] )
-		}
-	}, [prefixedOptionGroup])
-
-	const { persistOptionGroup, setOptionGroup } = useDispatch(optionsStore)
-
-	const updateField = (field, value) => {
-		const newValue = { ...data, [field]: value }
-		onChange(prefixedOptionGroup, newValue)
-		setOptionGroup(prefixedOptionGroup, newValue)
-	}
-
-	const save = () => {
-		persistOptionGroup(prefixedOptionGroup, data)
-	}
+	const { settings, save, updateField, isDirty, isHydrating } = useSettings()
 
 	useEffect(() => {
-		isDirtyRef.current = isDirty
+		if(isDirty) {
+			const handleBeforeUnload = (e) => {
+				e.preventDefault()
+				return false
+			}
+	
+			window.addEventListener('beforeunload', handleBeforeUnload)
+
+			return () => {
+				window.removeEventListener('beforeunload', handleBeforeUnload)
+			}
+		}
 	}, [isDirty])
-
-	const handleBeforeUnload = (e) => {
-		if (isDirtyRef.current) {
-			e.preventDefault()
-			return false;
-		}
-	}
-
-	useEffect(() => {
-		window.addEventListener('beforeunload', handleBeforeUnload)
-
-		return () => {
-			window.removeEventListener('beforeunload', handleBeforeUnload)
-		}
-	}, [])
 
 	return (
 		<TabPanel value={value} index={index}>
@@ -90,14 +65,9 @@ function DynamicTab({ tab, prefix, globalData, value, index, onChange }) {
 				{
 					!isHydrating &&
 					component({
-						data: { ...defaultData, ...data },
-						updateField,
+						data: { ...defaultData, ...settings[group] },
+						updateField: (field, value) => updateField(group, field, value),
 						save,
-						isSaving,
-						error,
-						isDirty,
-						isHydrating,
-						globalData
 					})
 				}
 			</Box>
@@ -126,58 +96,47 @@ function TabPanel(props) {
   );
 }
 
-function Settings({ globalData }) {
-	const { chms = globalData.chms, isConnected } = useSelect((select) => {
-		return {
-			chms: select(optionsStore).getOptionGroup('main_options')?.chms,
-			isConnected: select(optionsStore).isConnected,
-		}
-	})
-	const [unsavedChanges, setUnsavedChanges] = useState({})
-	const isSaving = useSelect((select) => select(optionsStore).isSaving())
+function Settings() {
+	const { globalSettings, save, isSaving, isDirty, error, isConnected } = useSettings()
 
-	const { persistOptionGroup } = useDispatch(optionsStore)
-
-	const addUnsavedChange = (key, value) => {
-		setUnsavedChanges((prev) => ({ ...prev, [key]: value }))
-	}
-
-	const save = () => {
-		Object.entries(unsavedChanges).forEach(([key, value]) => {
-			persistOptionGroup(key, value)
-		})
-		setUnsavedChanges({})
-	}
-
-	const chmsData = platforms[chms] || { tabs: [] }
+	const chmsData = platforms[globalSettings.chms] || { tabs: [] }
+	const tabs     = chmsData.tabs.filter(tab => isConnected ? true : tab.group === 'connect')
 
 	// creates a list of tabs based on the selected ChMS
-	const tabsNames = [
+	const tabNames = [
 		'select',
-		...chmsData.tabs.filter(tab => tab.optionGroup === 'connect' || isConnected).map((tab) => tab.optionGroup),
+		...tabs.map(tab => tab.group),
 		'license'
 	]
 
 	const openTab = (index) => {
 		const url = new URL(window.location.href)
-		url.searchParams.set('tab', tabsNames[index])
+		url.searchParams.set('tab', tabNames[index])
 		window.history.pushState({}, '', url)
 		setCurrentTab(index)
 	}
 
-	const [currentTab, setCurrentTab] = useState(() => {
+	const getTabIndex = () => {
 		const url = new URL(window.location.href)
 		const tab = url.searchParams.get('tab')
 
 		if (tab) {
-			const tabIndex = tabsNames.indexOf(tab)
+			const tabIndex = tabNames.indexOf(tab)
 			if (tabIndex !== -1) {
 				return tabIndex
 			}
 		}
 
 		return 0
-	})
+	}
+
+	const [currentTab, setCurrentTab] = useState(getTabIndex)
+
+	useEffect(() => {
+		if(isConnected) {
+			setCurrentTab(getTabIndex())
+		}
+	}, [isConnected])
 
 	return (
 		<ThemeProvider theme={theme}>
@@ -186,34 +145,35 @@ function Settings({ globalData }) {
 				<Tabs value={currentTab} onChange={(_, value) => openTab(value)} sx={{ px: 2, mb: '-2px', mt: 4 }}>
 					<Tab label={__( 'Select a ChMS', 'cp-sync' )} />
 					{
-						chmsData.tabs.map((tab) => (
-							<Tab key={tab.optionGroup} label={tab.name} />
+						tabs.map((tab) => (
+							<Tab key={tab.group} label={tab.name} />
 						))
 					}
 					<Tab label={__( 'License', 'cp-sync' )} />
 				</Tabs>
 				<Box sx={{ flexGrow: 1, minHeight: 0 }}>
-					<DynamicTab tab={chmsTab} globalData={globalData} value={currentTab} index={0} onChange={addUnsavedChange} />
+					<DynamicTab tab={chmsTab} value={currentTab} index={0} key={chmsTab.group} />
 					{
-						chmsData.tabs.filter(tab => tab.optionGroup === 'connect' || isConnected).map((tab, index) => (
+						tabs.map((tab, index) => (
 							<DynamicTab
-								key={tab.optionGroup}
+								key={tab.group}
 								tab={tab}
-								prefix={chms}
-								globalData={globalData}
 								value={currentTab}
 								index={index + 1}
-								onChange={addUnsavedChange}
 							/>
 						))
 					}
-					<DynamicTab tab={licenseTab} globalData={globalData} value={currentTab} index={chmsData.tabs.length + 1} onChange={addUnsavedChange} />
+					<DynamicTab tab={licenseTab} value={currentTab} index={tabs.length + 1} key={licenseTab.group} />
 				</Box>
+				{
+					error &&
+					<Alert severity="error">{error}</Alert>
+				}
 				<Button
 					sx={{ mt: 4, alignSelf: 'flex-start' }}
 					variant="contained"
 					onClick={save}
-					disabled={isSaving || !Object.keys(unsavedChanges).length}
+					disabled={isSaving || !isDirty}
 				>{ isSaving ? __( 'Saving...', 'cp-sync' ) : __( 'Save all Settings', 'cp-sync' ) }</Button>
 			</Box>
 		</ThemeProvider>
@@ -223,11 +183,14 @@ function Settings({ globalData }) {
 document.addEventListener('DOMContentLoaded', function () {
 	const root = document.querySelector('.cp_settings_root.cp-sync')
 
-	const globalData = JSON.parse(root.dataset.initial) // get the initial data from the root element
-
+	const globalSettings = JSON.parse(root.dataset.settings) // get the initial data from the root element
+	const globalData     = JSON.parse(root.dataset.entrypoint) // get global data from the backend
+	
 	if (root) {
 		createRoot(root).render(
-			<Settings globalData={globalData} />
+			<SettingsProvider globalSettings={globalSettings} globalData={globalData}>
+				<Settings />
+			</SettingsProvider>
 		)
 	}
 })

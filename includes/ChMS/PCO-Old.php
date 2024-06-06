@@ -28,13 +28,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public $api = null;
 
 	/**
-	 * REST namespace for this integration
-	 *
-	 * @var string
-	 */
-	public $rest_namespace = '/pco';
-
-	/**
 	 * List of all formatted events
 	 *
 	 * @var array
@@ -1285,7 +1278,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		parent::register_rest_routes();
 
 		register_rest_route(
-			"/cp-sync/v1/$this->rest_namespace/group_types",
+			"/cp-sync/v1/$this->id/group_types",
 			[
 				'methods'  => 'GET',
 				'callback' => [ $this, 'get_group_types' ],

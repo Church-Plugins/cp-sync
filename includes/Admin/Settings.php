@@ -2,6 +2,8 @@
 
 namespace CP_Sync\Admin;
 
+use CP_Sync\Setup\DataFilter;
+
 /**
  * Plugin settings
  *
@@ -122,23 +124,37 @@ class Settings {
 	 * Outputs the settings react entrypoint.
 	 */
 	public function settings_page_content() {
-		$entrypoint_data = [
-			'chms' => Settings::get( 'chms', 'pco' ),
+		$global_settings = get_option( 'cp_sync_settings', [] );
+
+		$active_chms = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
+
+		/**
+		 * Filters the global settings sent to the settings page.
+		 *
+		 * @param array $global_settings The entrypoint data.
+		 * @return array
+		 * @since 1.0.0
+		 */
+		$global_settings = apply_filters( 'cp_sync_global_settings', $global_settings );
+
+		$global_data = [
+			'filters'         => $active_chms->get_formatted_filter_config(),
+			'compareOptions'  => DataFilter::get_formatted_compare_options(),
 		];
 
 		/**
-		 * Filters the entrypoint data for the settings page.
+		 * Filter the global data set on the settings page.
 		 *
-		 * @param array $entrypoint_data The entrypoint data.
+		 * @param array $global_data The entrypoint data.
 		 * @return array
-		 * @since 1.1.0
 		 */
-		$entrypoint_data = apply_filters( 'cp_sync_settings_entrypoint_data', $entrypoint_data );
+		$global_data = apply_filters( 'cp_sync_settings_entrypoint_data', $global_data );
 
 		?>
 		<div
 			class="cp_settings_root cp-sync"
-			data-initial='<?php echo wp_json_encode( $entrypoint_data ); ?>'
+			data-settings='<?php echo wp_json_encode( $global_settings ); ?>'
+			data-entrypoint='<?php echo wp_json_encode( $global_data ); ?>'
 		></div>
 		<?php
 	}

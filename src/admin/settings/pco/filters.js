@@ -18,6 +18,8 @@ import { useMemo } from '@wordpress/element';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider/LocalizationProvider';
 import dayjs from 'dayjs';
 import { useEffect } from '@wordpress/element';
+import { useSettings } from '../settingsProvider';
+import store from './store';
 
 /**
  * @typedef {Object} FilterData
@@ -71,12 +73,10 @@ const useFilters = (filter, currentPreFilters) => {
 			return { options: filter.options, loading: false }
 		}
 
-		if(filter.optionsSelector) {
-			const { args, store, selector, format } = filter.optionsSelector(currentPreFilters)
-
+		if(filter.optionsFetcher) {
 			return {
-				options: format(select(store)[selector](...args) || []),
-				loading: select(store).getIsResolving(selector, ...args)
+				options: select(store).getData(filter.optionsFetcher.endpoint) || [],
+				loading: select(store).getIsResolving('getData', [filter.optionsFetcher.endpoint])
 			}
 		}
 
@@ -136,8 +136,16 @@ function Condition({
 	
 	const { options, type: filterType } = useFilters(config, preFilters)
 
+	const { supports = [] } = config
+
 	const valueType = useMemo(() => {
-		return compareOptions.find(({ value }) => value === compare)?.type || 'string'
+		const typeConfig = compareOptions.find(({ value }) => value === compare)
+
+		if(typeConfig) {
+			return typeConfig
+		}else {
+			return { type: 'text' }
+		}
 	}, [compare])
 
 	const handleChange = (newData) => {
@@ -178,17 +186,15 @@ function Condition({
 	}
 
 	const fieldType = (
-		!Array.isArray(options) && (valueType === 'select' || valueType === 'multi') ? filterType :
-		valueType === 'multi' ? 'multi' :
-		valueType === 'inherit' ?
-		filterType :
-		valueType
+		valueType.type === 'inherit' ?
+		(filterType || valueType.default) :
+		valueType.type
 	)
 
 	return (
 		<Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
 			<FormControl>
-				<InputLabel id="filter-selector-label" for="filter-selector">{ __( 'Selector' ) }</InputLabel>
+				<InputLabel id="filter-selector-label" htmlFor="filter-selector">{ __( 'Selector' ) }</InputLabel>
 				<Select
 					value={selector}
 					onChange={(e) => updateSelector(e.target.value)}
@@ -225,7 +231,7 @@ function Condition({
 					sx={{ width: 200 }}
 					defaultValue='is'
 				>
-					{compareOptions.map(option => (
+					{compareOptions.filter(option => supports.length ? supports.includes(option.value) : true).map(option => (
 						<MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
 					))}
 				</Select>
@@ -310,15 +316,19 @@ function Condition({
  * Filters component
  *
  * @param {Object} props
- * @param {Object} props.filterConfig - The filter configuration
- * @param {Object} props.filter - The current filter settings
- * @param {Array} props.compareOptions - The possible comparison options
- * @param {Function} props.onChange - The change handler
  * @param {string} props.label - The label for the filter
+ * @param {string} props.filterGroup - The filter group to use, e.g. 'groups' or 'events'
+ * @param {Object} props.filter - The current filter settings
+ * @param {Function} props.onChange - The change handler
  * @returns {React.ReactElement}
  */
-function Filters({ filterConfig, filter, compareOptions, onChange = () => {}, label }) {
+function Filters({ label, filterGroup, filter, onChange = () => {},  }) {
+	const { globalData } = useSettings();
 	const { conditions = [], type = 'all' } = filter
+
+	const { compareOptions } = globalData
+
+	const filterConfig = globalData.filters[filterGroup]
 
 	const handleChange = (newData) => {
 		onChange({
@@ -335,11 +345,7 @@ function Filters({ filterConfig, filter, compareOptions, onChange = () => {}, la
 		handleChange({ conditions: conditions.filter((c) => c.id !== id) })
 	}
 
-	const handleConditionAdd = (id) => {
-		// const index = conditions.findIndex((c) => c.id === id)
-		// const newConditions = [...conditions]
-		// newConditions.splice(index + 1, 0, { id: Math.random().toString(36).substring(7) })
-		// handleChange({ conditions: newConditions })
+	const handleConditionAdd = () => {
 		handleChange({
 			conditions: [
 				...conditions,

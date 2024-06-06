@@ -29,6 +29,14 @@ class _Init {
 	protected static $_integrations = [];
 
 	/**
+	 * @var string[]
+	 */
+	public static $supported_types = [
+		'groups',
+		'events',
+	];
+
+	/**
 	 * Only make one instance of _Init
 	 *
 	 * @return _Init
@@ -105,47 +113,57 @@ class _Init {
 	 * trigger the contant pull
 	 *
 	 * @since  1.0.0
-	 *
-	 * @author Tanner Moushey
-	 * @return true|ChMSError
+	 * 
+	 * @return true|WP_Error
 	 */
 	public function pull_content() {
-		$chms = \CP_Sync\Chms\_Init::get_instance()->get_active_chms_class();
-
-		foreach( self::$_integrations as $integration ) {
-			if ( $chms->supports( $integration->id ) ) {
-				$result = $integration->pull_data_from_chms( $chms );
-
-				if ( is_wp_error( $result ) ) {
-					return $result;
-				}
+		foreach( self::$supported_types as $type ) {
+			$result = $this->pull_integration( $type );
+			if ( is_wp_error( $result ) ) {
+				return $result;
 			}
-
-			return true;
 		}
+		return true;
 	}
 
 	/**
 	 * Pull a single integration
 	 *
-	 * @param string $integration_id The integration to pull.
+	 * @param string $integration_id The integration id to pull.
 	 *
-	 * @return true|WP_Error
+	 * @return bool|WP_Error True on success, WP_Error on failure, false if no data was pulled.
 	 */
-	public function pull_integration( $integration_id ) {
-		$chms = \CP_Sync\Chms\_Init::get_instance()->get_active_chms_class();
-
-		if ( ! isset( self::$_integrations[ $integration_id ] ) ) {
-			return new WP_Error( 'invalid_integration', 'Invalid integration' );
+	public function pull_integration( $integration_type ) {
+		if ( ! in_array( $integration_type, self::$supported_types ) ) {
+			return new WP_Error( 'invalid_integration_type', 'Invalid integration type. Supported types are `' . implode( '`, `', self::$supported_types ) . '`' );
 		}
 
-		$integration = self::$_integrations[ $integration_id ];
+		/**
+		 * Pull data from the ChMS. The active ChMS will hook in and
+		 * return the formatted data if it supports the integration type.
+		 *
+		 * @param array|null $result The result of the pull.
+		 * @param string     $integration_type The integration type to pull.
+		 * @return array|null|WP_Error
+		 */
+		$data = apply_filters( "cp_sync_pull_$integration_type", null, $integration_type );
 
-		if ( ! $chms->supports( $integration->id ) ) {
-			return new WP_Error( 'integration_not_supported', 'Integration not supported' );
+		if ( is_wp_error( $data ) ) {
+			return $data;
 		}
 
-		return $integration->pull_data_from_chms( $chms );
+		if ( null !== $data ) {
+			// process the data for all integrations that have this type
+			foreach( self::$_integrations as $integration ) {
+				if ( $integration->type === $integration_type ) {
+					$integration->process_formatted_data( $data );
+				}
+			}
+			
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -171,11 +189,11 @@ class _Init {
 			},
 		] );
 
-		foreach ( self::$_integrations as $integration ) {
-			register_rest_route( 'cp-sync/v1', "/pull/{$integration->id}", [
+		foreach ( self::$supported_types as $type ) {
+			register_rest_route( 'cp-sync/v1', "/pull/{$type}", [
 				'methods'  => 'POST',
-				'callback' => function() use ( $integration ) {
-					$result = $this->pull_integration( $integration->id );
+				'callback' => function() use ( $type ) {
+					$result = $this->pull_integration( $type );
 	
 					if ( is_wp_error( $result ) ) {
 						return $result;

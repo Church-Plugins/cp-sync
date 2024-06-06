@@ -446,12 +446,10 @@ abstract class Integration extends \WP_Background_Process {
 	/**
 	 * Pull all data from a ChMS and enqueue it
 	 *
-	 * @param \CP_Sync\ChMS\ChMS $chms The ChMS to pull from.
+	 * @param array $data The formatted data from the ChMS.
 	 * @return true|\CP_Sync\Chms\ChMSError
 	 */
-	public function pull_data_from_chms( $chms ) {
-		$data = $chms->get_formatted_data( $this->id );
-
+	public function process_formatted_data( $data ) {
 		if ( is_wp_error( $data ) ) {
 			return $data;
 		}

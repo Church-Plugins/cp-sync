@@ -105,12 +105,14 @@ class DataFilter {
 			'is_greater_than' => [
 				'label'  	=> __( 'Is Greater Than', 'cp-sync' ),
 				'compare' => fn( $data, $expected ) => $data > $expected,
-				'type'    => 'text',
+				'type'    => 'inherit',
+				'default' => 'text',
 			],
 			'is_less_than' => [
 				'label'  	=> __( 'Is Less Than', 'cp-sync' ),
 				'compare' => fn( $data, $expected ) => $data < $expected,
-				'type'    => 'text',
+				'type'    => 'inherit',
+				'default' => 'text',
 			],
 			'is_empty' => [
 				'label'  	=> __( 'Is Empty', 'cp-sync' ),
@@ -126,8 +128,35 @@ class DataFilter {
 				'label'  	=> __( 'Is in', 'cp-sync' ),
 				'compare' => fn( $data, $expected ) => in_array( $data, wp_list_pluck( $expected, 'value' ), true ),
 				'type'    => 'multi',
-			]
+			],
+			'is_not_in'       => [
+				'label'  	=> __( 'Is Not in', 'cp-sync' ),
+				'compare' => fn( $data, $expected ) => ! in_array( $data, wp_list_pluck( $expected, 'value' ), true ),
+				'type'    => 'multi',
+			],
 		];
+	}
+
+	/**
+	 * Get compare options formatted for the settings page
+	 *
+	 * @return array The formatted compare options.
+	 */
+	public static function get_formatted_compare_options() {
+		$options = self::get_compare_options();
+
+		$output = [];
+
+		foreach ( $options as $key => $option ) {
+			$output[] = [
+				'value'   => $key,
+				'label'   => $option['label'],
+				'type'    => $option['type'],
+				'default' => $option['default'] ?? $option['type'],
+			];
+		}
+
+		return $output;
 	}
 
 	/**

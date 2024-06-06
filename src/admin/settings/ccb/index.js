@@ -7,7 +7,7 @@ export default {
 		{
 			name: __( 'Connect', 'cp-sync' ),
 			component: (props) => <ConnectTab {...props} />,
-			optionGroup: 'connect',
+			group: 'connect',
 			defaultData: {
 				api_prefix: '',
 				api_user: '',

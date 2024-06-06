@@ -17,9 +17,11 @@ export default function AsyncSelect({ apiPath, value, onChange, label, ...props 
 			if (response.success) {
 				setData(response.data);
 			} else {
+				console.log('res error', response)
 				setError(response.message);
 			}
 		}).catch((e) => {
+			console.log('caught error', e)
 			setError(e.message);
 		}).finally(() => {
 			setLoading(false);
@@ -36,7 +38,7 @@ export default function AsyncSelect({ apiPath, value, onChange, label, ...props 
 					{...params}
 					label={label}
 					error={!!error}
-					helperText={error}
+					helperText={error ? JSON.stringify(error) : ''}
 				/>
 			)}
 			loading={loading}

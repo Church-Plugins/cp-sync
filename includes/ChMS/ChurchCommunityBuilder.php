@@ -9,7 +9,17 @@ class ChurchCommunityBuilder extends ChMS {
 
 	public $api = null;
 
-	public $rest_namespace = '/ccb';
+	/**
+	 * ChMS ID
+	 *
+	 * @var string
+	 */
+	public $id = 'ccb';
+
+	/**
+	 * @var string The settings key for this integration
+	 */
+	public $settings_key = 'cp_sync_ccb_settings';
 
 	public function check_auth( $data ) {
 		return true;
@@ -49,7 +59,7 @@ class ChurchCommunityBuilder extends ChMS {
 
 		// make sure we have all required parameters
 		foreach( [ 'api_prefix', 'api_user', 'api_pass' ] as $option ) {
-			if ( ! Settings::get( $option, false, 'cps_ccb_connect' ) ) {
+			if ( ! $this->get_setting( $option, false, 'auth' ) ) {
 				return false;
 			}
 		}
@@ -228,17 +238,6 @@ class ChurchCommunityBuilder extends ChMS {
 	 * @author Tanner Moushey, 11/30/23
 	 */
 	public function api_settings( $cmb2 ) {
-
-		// handle legacy options
-		if ( $existing_options = get_option( 'ccb_plugin_options' ) ) {
-			foreach( [ 'api_prefix', 'api_user', 'api_pass' ] as $option ) {
-				if ( ! empty( $existing_options[ $option ] ) ) {
-					Settings::set( $option, $existing_options[ $option ], 'cps_ccb_connect' );
-				}
-			}
-
-			delete_option( 'ccb_plugin_options' );
-		}
 
 		$cmb2->add_field( [
 			'name'   => __( 'Your CCB Website', 'cp-sync' ),
