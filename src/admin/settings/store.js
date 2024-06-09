@@ -123,7 +123,7 @@ const settingsStore = createReduxStore( 'cp-locations/settings', {
 		},
 		*getIsConnected( chms ) {
 			if(!chms) return;
-			
+
 			const response = yield actions.fetchSettings({ chms, path: `/cp-sync/v1/${chms}/check-connection` })
 
 			if(response) {

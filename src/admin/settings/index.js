@@ -39,7 +39,7 @@ function DynamicTab({ tab, value, index }) {
 				e.preventDefault()
 				return false
 			}
-	
+
 			window.addEventListener('beforeunload', handleBeforeUnload)
 
 			return () => {
@@ -52,14 +52,14 @@ function DynamicTab({ tab, value, index }) {
 		<TabPanel value={value} index={index}>
 			<Box>
 				{
-					isHydrating && 
+					isHydrating &&
 					<>
-					<Skeleton variant="text" width={500} />
-					<Skeleton variant="text" width={200} />
-					<Skeleton variant="text" width={250} />
-					<Skeleton variant="text" width={300} height={40} />
-					<Skeleton variant="text" width={300} height={40} />
-					<Skeleton variant="text" width={300} height={40} />
+						<Skeleton variant="text" width={500} />
+						<Skeleton variant="text" width={200} />
+						<Skeleton variant="text" width={250} />
+						<Skeleton variant="text" width={300} height={40} />
+						<Skeleton variant="text" width={300} height={40} />
+						<Skeleton variant="text" width={300} height={40} />
 					</>
 				}
 				{
@@ -76,24 +76,24 @@ function DynamicTab({ tab, value, index }) {
 }
 
 function TabPanel(props) {
-  const { children, value, index, ...other } = props;
+	const { children, value, index, ...other } = props;
 
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`simple-tabpanel-${index}`}
-      aria-labelledby={`simple-tab-${index}`}
-      {...other}
+	return (
+		<div
+			role="tabpanel"
+			hidden={value !== index}
+			id={`simple-tabpanel-${index}`}
+			aria-labelledby={`simple-tab-${index}`}
+			{...other}
 			style={{ height: '100%' }}
-    >
-      {value === index && (
-        <Card sx={{ p: 4, overflowY: 'auto', maxHeight: '100%', boxSizing: 'border-box' }} variant="outlined">
-          <Typography component="div">{children}</Typography>
-        </Card>
-      )}
-    </div>
-  );
+		>
+			{value === index && (
+				<Card sx={{ p: 4, overflowY: 'auto', maxHeight: '100%', boxSizing: 'border-box' }} variant="outlined">
+					<Typography component="div">{children}</Typography>
+				</Card>
+			)}
+		</div>
+	);
 }
 
 function Settings() {
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	const globalSettings = JSON.parse(root.dataset.settings) // get the initial data from the root element
 	const globalData     = JSON.parse(root.dataset.entrypoint) // get global data from the backend
-	
+
 	if (root) {
 		createRoot(root).render(
 			<SettingsProvider globalSettings={globalSettings} globalData={globalData}>
