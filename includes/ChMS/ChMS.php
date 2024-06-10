@@ -355,7 +355,8 @@ abstract class ChMS {
 		$preview = [];
 
 		foreach ( $data['posts'] as $item ) {
-			$preview_item = [ 
+			$preview_item = [
+				'chmsID'    => $item['chms_id'] ?? '',
 				'title'     => $item['post_title'] ?? '',
 				'content'   => $item['post_content'] ?? '',
 				'thumbnail' => $item['thumbnail_url'] ?? '',

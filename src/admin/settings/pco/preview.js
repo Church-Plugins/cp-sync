@@ -4,6 +4,8 @@ import { useEffect, useState } from "@wordpress/element";
 import { __ } from "@wordpress/i18n";
 import apiFetch from "@wordpress/api-fetch";
 import { useSettings } from "../settingsProvider";
+import CircularProgress from '@mui/material/CircularProgress';
+import React from 'react';
 
 /**
  * Displays a preview of the PCO settings.
@@ -49,35 +51,46 @@ export default function Preview({ type }) {
 	}, [awaitingPreview, isDirty])
 
 	return (
-		<>
-		<Button onClick={generatePreview} disabled={loading}>{ __( 'Generate Preview', 'cp-sync' ) }</Button>
-		{
-			previewData &&
-			previewData.map((item) => (
-				<Box key={item.title} sx={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #ddd', padding: '1rem 0' }} gap={2}>
-					{
-						item.thumbnail &&
-						<img src={item.thumbnail} alt={item.title} style={{ maxWidth: '100px' }} />
-					}
-					<div>
-						<h3 style={{ marginTop: '0' }}>{item.title}</h3>
-						<p>{item.content}</p>
-						{
-							Object.entries(item.meta).map(([key, value]) => (
-								<p key={key}><strong>{key}:</strong> {value}</p>
-							))
-						}
-					</div>
-				</Box>
-			))
-		}
-		{
-			0 === totalCount ?
-			<p>{ __( 'No items found.', 'cp-sync' ) }</p> :
-			totalCount > 0 ?
-			<p>{ __( 'Total items: ', 'cp-sync' ) }{totalCount}</p> :
-			null
-		}
-		</>
+		<Box sx={{background: '#eee', position: 'relative', height: '100%'}}>
+			<Button variant="outlined" onClick={generatePreview} disabled={loading}>{ __( 'Generate Preview', 'cp-sync' ) }</Button>
+
+			<Box sx={{overflow: 'scroll', height: 'calc(100% - 5rem)', position: 'absolute', bottom: '0'}}>
+
+				{loading &&
+				 <CircularProgress/>
+				}
+
+				{
+					previewData &&
+					previewData.map((item) => (
+						<Box key={item.chmsID}
+						     sx={{display: 'flex', alignItems: 'center', borderBottom: '1px solid #ddd', padding: '1rem 0'}}
+						     gap={2}>
+							{
+								item.thumbnail &&
+								<img src={item.thumbnail} alt={item.title} style={{maxWidth: '100px'}}/>
+							}
+							<Box sx={{fontSize: '.75em'}}>
+								<h3 style={{marginTop: '0'}}>{item.title}</h3>
+								<div dangerouslySetInnerHTML={{ __html: item.content }}></div>
+								{
+									Object.entries(item.meta).map(([key, value]) => (
+										<p key={key}><strong>{key}:</strong> {value}</p>
+									))
+								}
+							</Box>
+						</Box>
+					))
+				}
+			</Box>
+
+			{
+				0 === totalCount ?
+				<p>{ __( 'No items found.', 'cp-sync' ) }</p> :
+				totalCount > 0 ?
+				<p>{ __( 'Total items: ', 'cp-sync' ) }{totalCount}</p> :
+				null
+			}
+		</Box>
 	)
 }

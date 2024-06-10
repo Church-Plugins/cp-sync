@@ -66,7 +66,7 @@ const numberUpdate = (value) => {
 const useFilters = (filter, currentPreFilters) => {
 	const { options, loading } = useSelect((select) => {
 		if(!filter) {
-			return { options: false, loading: false }
+			return { options: [], loading: false }
 		}
 
 		if(filter.options) { // if options are provided directly, use them
@@ -80,7 +80,7 @@ const useFilters = (filter, currentPreFilters) => {
 			}
 		}
 
-		return { options: false, loading: false }
+		return { options: [], loading: false }
 	}, [currentPreFilters])
 
 	return { options, loading, type: filter?.type || 'none' }

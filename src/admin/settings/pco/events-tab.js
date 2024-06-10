@@ -18,6 +18,7 @@ import Preview from './preview';
 import AsyncSelect from './async-select';
 import store from './store';
 import { useSettings } from '../settingsProvider';
+import { Divider } from '@mui/material';
 
 const EVENT_RECURRENCE_OPTIONS = [
 	{ value: 'None', label: __( 'None' ) },
@@ -92,7 +93,7 @@ export default function EventsTab({ data, updateField }) {
 	}
 
 	return (
-		<Box sx={{ display: 'flex' }} gap={2}>
+		<Box sx={{ display: 'flex', minHeight: '30rem' }} gap={2}>
 			<div style={{ flexGrow: '3' }}>
 				<FormControl>
 					<FormLabel id="enable-events-radio-group-label">{ __( 'Event source', 'cp-sync' ) }</FormLabel>
@@ -137,18 +138,20 @@ export default function EventsTab({ data, updateField }) {
 									<FormControlLabel value="public" control={<Radio />} label={__( 'Only Visible in Church Center' )} />
 								</RadioGroup>
 							</FormControl>
+
+							<Filters
+								label={__('Events', 'cp-sync')}
+								filterGroup='events'
+								filter={data.filter}
+								onChange={updateFilters}
+							/>
 						</> :
 						data.source === 'registrations' ?
 							false :
 							false
 				}
 
-				<Filters
-					label={__('Events', 'cp-sync')}
-					filterGroup='events'
-					filter={data.filter}
-					onChange={updateFilters}
-				/>
+				<Divider sx={{ my: 2 }} />
 
 				{
 					data.source !== 'none' &&
@@ -173,7 +176,7 @@ export default function EventsTab({ data, updateField }) {
 					}</Alert>
 				}
 			</div>
-			<Box sx={{ flexGrow: 2 }}>
+			<Box sx={{ flex: '2 1 50%', background: '#eee', p: 2 }}>
 				<Preview type="events" />
 			</Box>
 		</Box>

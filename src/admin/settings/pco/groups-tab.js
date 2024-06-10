@@ -64,7 +64,7 @@ export default function GroupsTab({ data, updateField }) {
 	}, [data.tag_groups])
 
 	return (
-		<Box sx={{ display: 'flex', gap: '4rem' }}>
+		<Box sx={{ display: 'flex', minHeight: '30rem' }} gap={2}>
 			<Box sx={{ flex: '3 1 auto' }}>
 				<Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
 					<CloudOutlined sx={{ mr: 1 }} />
@@ -156,6 +156,7 @@ export default function GroupsTab({ data, updateField }) {
 
 				<Button
 					variant="contained"
+					sx={{ mt: 2 }}
 					onClick={handlePull}
 					disabled={pulling}
 				>
@@ -174,7 +175,7 @@ export default function GroupsTab({ data, updateField }) {
 					</Alert>
 				}
 			</Box>
-			<Box sx={{ flex: '2 1 auto' }}>
+			<Box sx={{ flex: '2 1 50%', background: '#eee', p: 2 }}>
 				<Preview type="groups" optionGroup="groups" />
 			</Box>
 		</Box>
