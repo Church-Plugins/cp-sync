@@ -23,6 +23,11 @@ class _Init {
 	public $enqueue;
 
 	/**
+	 * @var \ChurchPlugins\Logging
+	 */
+	public $logging;
+
+	/**
 	 * Only make one instance of _Init
 	 *
 	 * @return _Init
@@ -104,6 +109,7 @@ class _Init {
 		ChMS\_Init::get_instance();
 		Integrations\_Init::get_instance();
 		$this->setup = Setup\_Init::get_instance();
+		$this->logging = new \ChurchPlugins\Logging( $this->get_id(), $this->is_debug_mode() );
 	}
 
 	protected function actions() {}
@@ -161,7 +167,7 @@ class _Init {
 	 * @return string the plugin name
 	 */
 	public function get_plugin_name() {
-		return __( 'Church Plugins - Sync', 'cp-sync' );
+		return __( 'CP Sync', 'cp-sync' );
 	}
 
 	/**
@@ -189,7 +195,7 @@ class _Init {
 	 * @return string
 	 */
 	public function get_version() {
-		return '0.0.1';
+		return CP_SYNC_PLUGIN_VERSION;
 	}
 
 	/**
@@ -206,6 +212,29 @@ class _Init {
 
 	public function enabled() {
 		return true;
+	}
+
+	/**
+	 * Return the debug mode
+	 *
+	 * @return mixed|null
+	 * @since  1.0.0
+	 *
+	 * @author Tanner Moushey, 6/9/24
+	 */
+	public function is_debug_mode() {
+		$debug_mode = false;
+		$settings = get_option( 'cp_sync_settings', [] );
+
+		if ( ! empty( $settings['debugMode'] ) ) {
+			$debug_mode = true;
+		}
+
+		if ( defined( 'CP_SYNC_DEBUG' ) && CP_SYNC_DEBUG ) {
+			$debug_mode = true;
+		}
+
+		return apply_filters( 'cp_sync_debug_mode', $debug_mode );
 	}
 
 }

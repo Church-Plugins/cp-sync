@@ -13,6 +13,7 @@ import platforms from './platforms';
 import { __ } from '@wordpress/i18n';
 import { chmsTab } from './chms-tab';
 import { licenseTab } from './license-tab';
+import { logTab } from './log-tab';
 import { useSelect } from '@wordpress/data'
 
 import '@fontsource/roboto/300.css';
@@ -149,7 +150,8 @@ function Settings() {
 							<Tab key={tab.group} label={tab.name} />
 						))
 					}
-					<Tab label={__( 'License', 'cp-sync' )} />
+					<Tab label={__( 'Log', 'cp-sync' )} key={logTab.group} />
+					<Tab label={__( 'License', 'cp-sync' )} key={licenseTab.group} />
 				</Tabs>
 				<Box sx={{ flexGrow: 1, minHeight: 0 }}>
 					<DynamicTab tab={chmsTab} value={currentTab} index={0} key={chmsTab.group} />
@@ -163,7 +165,8 @@ function Settings() {
 							/>
 						))
 					}
-					<DynamicTab tab={licenseTab} value={currentTab} index={tabs.length + 1} key={licenseTab.group} />
+					<DynamicTab tab={logTab} value={currentTab} index={tabs.length + 1} key={logTab.group} />
+					<DynamicTab tab={licenseTab} value={currentTab} index={tabs.length + 2} key={licenseTab.group} />
 				</Box>
 				{
 					error &&

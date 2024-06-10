@@ -116,6 +116,7 @@ abstract class ChMS {
 		$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( $_GET['refresh_token'] ) : '';
 
 		$this->save_token( sanitize_text_field( $_GET['token'] ), $refresh_token );
+		cp_sync()->logging->log( 'Token saved' );
 
 		wp_die( 'Authentication successful' );
 	}

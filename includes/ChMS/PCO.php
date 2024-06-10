@@ -121,7 +121,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 			if ( $this->get_token() ) {
 				$this->api->authorization = 'Authorization: Bearer ' . $this->get_token();
-			}	
+			}
 		}
 		
 		return $this->api;
@@ -135,16 +135,47 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		if ( time() - $last_refresh > HOUR_IN_SECONDS ) {
-			if ( $token = $this->refresh_token() ) {
-				$this->save_token( $token );
-			}
+			$this->refresh_token();
 		}
 
 		return $this->get_setting( 'token', '', 'auth' );
 	}
 
 	public function refresh_token() {
-		return '';
+		// Prepare the request parameters
+		$request_args = [
+			'body' => [
+				'client_id'     => '2660fafe9feebb72b523209fe5aca33173b07c20ddc36dea6897763f1164c131',
+				'client_secret' => '546f8e0d70c65acd3102de22f173c2bdde347abff144c75a486cd6bc3eb22505',
+				'refresh_token' => $this->get_setting( 'refresh_token', '', 'auth' ),
+				'grant_type'    => 'refresh_token',
+			],
+		];
+
+		// Make the request using the WordPress HTTP API
+		$response = wp_remote_post( 'https://api.planningcenteronline.com/oauth/token', $request_args );
+
+		// Check for errors
+		if ( is_wp_error( $response ) ) {
+			$error_message = $response->get_error_message();
+			cp_sync()->logging->log( "Error retrieving token: $error_message" );
+		} else {
+			$response_body = wp_remote_retrieve_body( $response );
+			$response_code = wp_remote_retrieve_response_code( $response );
+
+			if ( $response_code == 200 ) {
+				// Process the response
+				$token_data = json_decode( $response_body, true );
+				// Handle the token data (e.g., save it)
+
+				if ( isset( $token_data['access_token'], $token_data['refresh_token'] ) ) {
+					$this->save_token( $token_data['access_token'], $token_data['refresh_token'] );
+					cp_sync()->logging->log( 'PCO token refreshed' );
+				}
+			} else {
+				cp_sync()->logging->log( "Error retrieving token: HTTP $response_code" );
+			}
+		}
 	}
 
 	/**
@@ -372,9 +403,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get(1);
 
 		if ( isset( $response['data'] ) && ! empty( $response['data']['id'] ) ) {
+			cp_sync()->logging->log( 'PCO connection check successful' );
 			return [ 'status' => 'success', 'message' => 'Connection successful' ];
 		}
 
+		cp_sync()->logging->log( 'PCO connection check failed: ' . $this->api()->errorMessage() );
 		return false;
 	}
 
@@ -818,7 +851,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		if( !empty( $this->api()->errorMessage() ) ) {
-			error_log( var_export( $this->api()->errorMessage(), true ) );
+			cp_sync()->logging->log( var_export( $this->api()->errorMessage(), true ) );
 			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
 		}
 

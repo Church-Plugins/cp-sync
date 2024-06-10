@@ -99,5 +99,6 @@ function LicenseTab({ save }) {
 
 export const licenseTab = {
 	name: 'License',
+	group: 'license',
 	component: (props) => <LicenseTab {...props} />,
 }

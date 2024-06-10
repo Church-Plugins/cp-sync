@@ -21,6 +21,7 @@ import Filters from './filters';
 import AsyncSelect from './async-select';
 import Preview from './preview';
 import { useSettings } from '../settingsProvider';
+import { Divider } from '@mui/material';
 
 export default function GroupsTab({ data, updateField }) {
 	const [pulling, setPulling] = useState(false)
@@ -150,9 +151,11 @@ export default function GroupsTab({ data, updateField }) {
 					filter={data.filter}
 					onChange={updateFilters}
 				/>
+
+				<Divider sx={{ my: 2 }} />
+
 				<Button
 					variant="contained"
-					sx={{ mt: 2 }}
 					onClick={handlePull}
 					disabled={pulling}
 				>

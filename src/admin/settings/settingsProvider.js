@@ -5,6 +5,7 @@ import apiFetch from '@wordpress/api-fetch'
 
 const SettingsContext = createContext({
 	chms: null,
+	debugMode: null,
 	setChms: () => {},
 	isConnected: false,
 	isSaving: false,
@@ -20,6 +21,7 @@ const SettingsContext = createContext({
 
 const defaultGlobalSettings = {
 	chms: 'pco',
+	debugMode: 0,
 	license: '',
 	beta: false,
 	status: '',
