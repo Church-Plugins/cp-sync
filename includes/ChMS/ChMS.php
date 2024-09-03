@@ -387,13 +387,6 @@ abstract class ChMS {
 	public function setup() {}
 
 	/**
-	 * Auth schema properties
-	 *
-	 * @return array
-	 */
-	abstract public function get_auth_api_args();
-
-	/**
 	 * Check the connection to the ChMS
 	 *
 	 * @since  1.0.4

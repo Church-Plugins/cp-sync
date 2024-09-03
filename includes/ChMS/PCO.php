@@ -90,26 +90,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Get authentication API args for the rest API
-	 *
-	 * @return array
-	 */
-	public function get_auth_api_args() {
-		return [
-			'app_id' => [
-				'type'        => 'string',
-				'description' => 'The App ID for the PCO API',
-				'required'    => true,
-			],
-			'secret' => [
-				'type'        => 'string',
-				'description' => 'The Secret for the PCO API',
-				'required'    => true,
-			],
-		];
-	}
-
-	/**
 	 * Singleton instance of the third-party API client
 	 *
 	 * @return PlanningCenterAPI
@@ -145,15 +125,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		// Prepare the request parameters
 		$request_args = [
 			'body' => [
-				'client_id'     => '2660fafe9feebb72b523209fe5aca33173b07c20ddc36dea6897763f1164c131',
-				'client_secret' => '546f8e0d70c65acd3102de22f173c2bdde347abff144c75a486cd6bc3eb22505',
+				'action'        => 'refresh',
 				'refresh_token' => $this->get_setting( 'refresh_token', '', 'auth' ),
-				'grant_type'    => 'refresh_token',
 			],
 		];
 
 		// Make the request using the WordPress HTTP API
-		$response = wp_remote_post( 'https://api.planningcenteronline.com/oauth/token', $request_args );
+		$response = wp_remote_post( 'https://churchplugins.com/wp-content/themes/churchplugins/oauth/pco/', $request_args );
 
 		// Check for errors
 		if ( is_wp_error( $response ) ) {
