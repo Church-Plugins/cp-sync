@@ -1,19 +1,14 @@
 <?php
 namespace CP_Sync;
 
-use CP_Sync\Admin\Settings;
+require_once CP_SYNC_PLUGIN_DIR . 'includes/ChurchPlugins/Setup/Plugin.php';
 
 /**
  * Provides the global $cp_sync object
  *
  * @author costmo
  */
-class _Init {
-
-	/**
-	 * @var
-	 */
-	protected static $_instance;
+class _Init extends \ChurchPlugins\Setup\Plugin {
 
 	/**
 	 * @var Setup\_Init
@@ -28,16 +23,21 @@ class _Init {
 	public $logging;
 
 	/**
-	 * Only make one instance of _Init
+	 * Get plugin directory
 	 *
-	 * @return _Init
+	 * @return string
 	 */
-	public static function get_instance() {
-		if ( ! self::$_instance instanceof _Init ) {
-			self::$_instance = new self();
-		}
+	public function get_plugin_dir() {
+		return CP_SYNC_PLUGIN_DIR;
+	}
 
-		return self::$_instance;
+	/**
+	 * Get plugin URL
+	 *
+	 * @return string
+	 */
+	public function get_plugin_url() {
+		return CP_SYNC_PLUGIN_URL;
 	}
 
 	/**
@@ -45,9 +45,8 @@ class _Init {
 	 *
 	 */
 	protected function __construct() {
+		parent::__construct();
 		$this->enqueue = new \WPackio\Enqueue( 'cpSync', 'dist', $this->get_version(), 'plugin', CP_SYNC_PLUGIN_FILE );
-		add_action( 'cp_core_loaded', [ $this, 'maybe_setup' ], - 9999 );
-		add_action( 'init', [ $this, 'maybe_init' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue' ] );
 	}
 
@@ -60,23 +59,7 @@ class _Init {
 		if ( ! $this->check_required_plugins() ) {
 			return;
 		}
-
-		$this->includes();
-		$this->actions();
-	}
-
-	/**
-	 * Actions that must run through the `init` hook
-	 *
-	 * @return void
-	 * @author costmo
-	 */
-	public function maybe_init() {
-
-		if ( ! $this->check_required_plugins() ) {
-			return;
-		}
-
+		parent::maybe_setup();
 	}
 
 	/**
@@ -90,6 +73,11 @@ class _Init {
 		$this->enqueue->enqueue( 'scripts', 'main', [] );
 	}
 
+	/**
+	 * `admin_enqueue_scripts` actions for the app's compiled sources
+	 *
+	 * @return void
+	 */
 	public function admin_enqueue() {
 		$this->enqueue->enqueue( 'styles', 'admin', [] );
 		$assets = $this->enqueue->enqueue( 'scripts', 'admin', [ 'js_dep' => [ 'jquery' ] ] );
