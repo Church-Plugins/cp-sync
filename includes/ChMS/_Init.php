@@ -156,6 +156,13 @@ class _Init {
 			]
 		);
 
+		/**
+		 * Routes for getting/updating a specific ChMS's settings.
+		 * 
+		 * This is implemented here instead of the base ChMS class because
+		 * we may want to access settings for an inactive ChMS
+		 */
+
 		register_rest_route(
 			'cp-sync/v1',
 			'/(?P<chms>[a-zA-Z0-9-]+)/settings',
@@ -219,8 +226,6 @@ class _Init {
 	 */
 	public function includes() {
 		$this->register_chms( PCO::class );
-		$this->register_chms( ChurchCommunityBuilder::class );
-		$this->register_chms( MinistryPlatform::class );
 
 		$active_chms = $this->get_active_chms_class();
 		if ( $active_chms ) {

@@ -1,9 +1,6 @@
 <?php
 
 namespace CP_Sync\ChMS;
-
-use CP_Sync\Admin\Settings;
-use CP_Sync\Setup\DataFilter;
 use PlanningCenterAPI\PlanningCenterAPI;
 
 /**
