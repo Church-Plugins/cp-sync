@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import settingsStore from '../store/globalStore'
+import globalStore from '../store/globalStore'
 import { useDispatch, useSelect } from '@wordpress/data'
 import apiFetch from '@wordpress/api-fetch'
 
@@ -43,17 +43,17 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 
 	const { isConnected, isConnectionLoaded, isSaving, isDirty, settings, error } = useSelect((select) => {
 		return {
-			settings: select(settingsStore).getSettings(globalSettings.chms) || {},
-			isConnected: select(settingsStore).getIsConnected(globalSettings.chms),
-			isConnectionLoaded: select(settingsStore).hasFinishedResolution('getIsConnected', [globalSettings.chms]),
-			isLoading: select(settingsStore).getIsResolving('getSettings', [globalSettings.chms]),
-			isSaving: select(settingsStore).getIsSaving(),
-			isDirty: select(settingsStore).getIsDirty(),
-			error: select(settingsStore).getError(),
+			settings: select(globalStore).getSettings(globalSettings.chms) || {},
+			isConnected: select(globalStore).getIsConnected(globalSettings.chms),
+			isConnectionLoaded: select(globalStore).hasFinishedResolution('getIsConnected', [globalSettings.chms]),
+			isLoading: select(globalStore).getIsResolving('getSettings', [globalSettings.chms]),
+			isSaving: select(globalStore).getIsSaving(),
+			isDirty: select(globalStore).getIsDirty(),
+			error: select(globalStore).getError(),
 		}
 	})
 
-	const { persistSettings, setSettings } = useDispatch(settingsStore)
+	const { persistSettings, setSettings } = useDispatch(globalStore)
 
 	const saveGlobal = async (data = false) => {
 		if (!globalUnsavedChanges && !data) {

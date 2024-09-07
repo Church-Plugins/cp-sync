@@ -10,8 +10,8 @@
 		"build": "export NODE_OPTIONS=--openssl-legacy-provider && wpackio-scripts build",
 		"start": "export NODE_OPTIONS=--openssl-legacy-provider && wpackio-scripts start",
 		"archive": "wpackio-scripts pack",
-		"build:wp": "wp-scripts build",
-		"start:wp": "wp-scripts start",
+		"build:wp": "export NODE_ENV=production && wp-scripts build",
+		"start:wp": "export NODE_ENV=development && wp-scripts start",
 		"lint:wp": "wp-scripts lint",
 		"format:wp": "wp-scripts format",
 		"build:all" : "export NODE_OPTIONS=--openssl-legacy-provider && npm run build && npm run build:wp"

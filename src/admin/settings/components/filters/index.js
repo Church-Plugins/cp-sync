@@ -5,8 +5,9 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Typography from '@mui/material/Typography';
 import { __ } from '@wordpress/i18n';
-import { useSettings } from '../settingsProvider';
 import Condition from './condition';
+
+import { useSettings } from '../../contexts/settingsContext';
 
 /**
  * @typedef {Object} FilterData
@@ -29,10 +30,9 @@ const MATCH_TYPE_OPTIONS = [
  * @param {string} props.filterGroup - The filter group to use, e.g. 'groups' or 'events'
  * @param {Object} props.filter - The current filter settings
  * @param {Function} props.onChange - The change handler
- * @returns {JSX.Element}
- * @since 1.0.0
+ * @returns {React.ReactElement}
  */
-export default function Filters({ label, filterGroup, filter, onChange = () => {},  }) {
+function Filters({ label, filterGroup, filter, onChange = () => {},  }) {
 	const { globalData } = useSettings();
 	const { conditions = [], type = 'all' } = filter
 
@@ -103,3 +103,5 @@ export default function Filters({ label, filterGroup, filter, onChange = () => {
 		</div>
 	)
 }
+
+export default Filters;
