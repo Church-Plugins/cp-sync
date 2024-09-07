@@ -170,10 +170,9 @@ class Settings {
 			return;
 		}
 
-		\ChurchPlugins\Helpers::set_plugin_dir( CP_SYNC_PLUGIN_DIR );
-		\ChurchPlugins\Helpers::set_plugin_url( CP_SYNC_PLUGIN_URL );
+		global $cp_sync;
 
-		\ChurchPlugins\Helpers::enqueue_asset( 'admin-settings' );
-		\ChurchPlugins\Helpers::enqueue_asset( 'admin-settings', [], false, true );
+		$cp_sync->enqueue_asset( 'admin-settings' );
+		$cp_sync->enqueue_asset( 'admin-settings', [], false, true );
 	}
 }

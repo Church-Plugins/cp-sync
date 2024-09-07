@@ -189,6 +189,26 @@ class _Init {
 			},
 		] );
 
+		register_rest_route('cp-sync/v1', '/get-log', array(
+			'methods' => 'GET',
+			'callback' => function() {
+				return cp_sync()->logging->get_file_contents();
+			},
+			'permission_callback' => function() {
+				return current_user_can('manage_options');
+			}
+		));
+
+		register_rest_route('cp-sync/v1', '/clear-log', array(
+			'methods' => 'POST',
+			'callback' => function() {
+				return cp_sync()->logging->clear_log_file();
+			},
+			'permission_callback' => function() {
+				return current_user_can('manage_options');
+			}
+		));
+
 		foreach ( self::$supported_types as $type ) {
 			register_rest_route( 'cp-sync/v1', "/pull/{$type}", [
 				'methods'  => 'POST',

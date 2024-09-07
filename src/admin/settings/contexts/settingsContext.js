@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import settingsStore from './settingsStore'
+import settingsStore from '../store/globalStore'
 import { useDispatch, useSelect } from '@wordpress/data'
 import apiFetch from '@wordpress/api-fetch'
 
 const SettingsContext = createContext({
 	chms: null,
+	debugMode: null,
 	setChms: () => {},
 	isConnected: false,
 	isSaving: false,
@@ -20,6 +21,7 @@ const SettingsContext = createContext({
 
 const defaultGlobalSettings = {
 	chms: 'pco',
+	debugMode: 0,
 	license: '',
 	beta: false,
 	status: '',

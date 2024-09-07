@@ -1,19 +1,14 @@
 <?php
 namespace CP_Sync;
 
-use CP_Sync\Admin\Settings;
+require_once CP_SYNC_PLUGIN_DIR . 'includes/ChurchPlugins/Setup/Plugin.php';
 
 /**
  * Provides the global $cp_sync object
  *
  * @author costmo
  */
-class _Init {
-
-	/**
-	 * @var
-	 */
-	protected static $_instance;
+class _Init extends \ChurchPlugins\Setup\Plugin {
 
 	/**
 	 * @var Setup\_Init
@@ -23,16 +18,26 @@ class _Init {
 	public $enqueue;
 
 	/**
-	 * Only make one instance of _Init
-	 *
-	 * @return _Init
+	 * @var \ChurchPlugins\Logging
 	 */
-	public static function get_instance() {
-		if ( ! self::$_instance instanceof _Init ) {
-			self::$_instance = new self();
-		}
+	public $logging;
 
-		return self::$_instance;
+	/**
+	 * Get plugin directory
+	 *
+	 * @return string
+	 */
+	public function get_plugin_dir() {
+		return CP_SYNC_PLUGIN_DIR;
+	}
+
+	/**
+	 * Get plugin URL
+	 *
+	 * @return string
+	 */
+	public function get_plugin_url() {
+		return CP_SYNC_PLUGIN_URL;
 	}
 
 	/**
@@ -40,9 +45,8 @@ class _Init {
 	 *
 	 */
 	protected function __construct() {
+		parent::__construct();
 		$this->enqueue = new \WPackio\Enqueue( 'cpSync', 'dist', $this->get_version(), 'plugin', CP_SYNC_PLUGIN_FILE );
-		add_action( 'cp_core_loaded', [ $this, 'maybe_setup' ], - 9999 );
-		add_action( 'init', [ $this, 'maybe_init' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue' ] );
 	}
 
@@ -55,23 +59,7 @@ class _Init {
 		if ( ! $this->check_required_plugins() ) {
 			return;
 		}
-
-		$this->includes();
-		$this->actions();
-	}
-
-	/**
-	 * Actions that must run through the `init` hook
-	 *
-	 * @return void
-	 * @author costmo
-	 */
-	public function maybe_init() {
-
-		if ( ! $this->check_required_plugins() ) {
-			return;
-		}
-
+		parent::maybe_setup();
 	}
 
 	/**
@@ -85,6 +73,11 @@ class _Init {
 		$this->enqueue->enqueue( 'scripts', 'main', [] );
 	}
 
+	/**
+	 * `admin_enqueue_scripts` actions for the app's compiled sources
+	 *
+	 * @return void
+	 */
 	public function admin_enqueue() {
 		$this->enqueue->enqueue( 'styles', 'admin', [] );
 		$assets = $this->enqueue->enqueue( 'scripts', 'admin', [ 'js_dep' => [ 'jquery' ] ] );
@@ -104,6 +97,7 @@ class _Init {
 		ChMS\_Init::get_instance();
 		Integrations\_Init::get_instance();
 		$this->setup = Setup\_Init::get_instance();
+		$this->logging = new \ChurchPlugins\Logging( $this->get_id(), $this->is_debug_mode() );
 	}
 
 	protected function actions() {}
@@ -161,7 +155,7 @@ class _Init {
 	 * @return string the plugin name
 	 */
 	public function get_plugin_name() {
-		return __( 'Church Plugins - Sync', 'cp-sync' );
+		return __( 'CP Sync', 'cp-sync' );
 	}
 
 	/**
@@ -189,7 +183,7 @@ class _Init {
 	 * @return string
 	 */
 	public function get_version() {
-		return '0.0.1';
+		return CP_SYNC_PLUGIN_VERSION;
 	}
 
 	/**
@@ -206,6 +200,29 @@ class _Init {
 
 	public function enabled() {
 		return true;
+	}
+
+	/**
+	 * Return the debug mode
+	 *
+	 * @return mixed|null
+	 * @since  1.0.0
+	 *
+	 * @author Tanner Moushey, 6/9/24
+	 */
+	public function is_debug_mode() {
+		$debug_mode = false;
+		$settings = get_option( 'cp_sync_settings', [] );
+
+		if ( ! empty( $settings['debugMode'] ) ) {
+			$debug_mode = true;
+		}
+
+		if ( defined( 'CP_SYNC_DEBUG' ) && CP_SYNC_DEBUG ) {
+			$debug_mode = true;
+		}
+
+		return apply_filters( 'cp_sync_debug_mode', $debug_mode );
 	}
 
 }

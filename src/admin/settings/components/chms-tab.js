@@ -4,12 +4,12 @@ import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import { __ } from '@wordpress/i18n'
-import platforms from './platforms'
+import platforms from '../platforms'
 import Alert from '@mui/material/Alert';
-import { useSettings } from './settingsProvider'
+import { useSettings } from '../contexts/settingsContext'
 
 function ChMSTab() {
-	const { globalSettings, updateGlobalSettings, globalUnsavedChanges } = useSettings()
+	const { globalSettings, updateGlobalSettings } = useSettings()
 
 	return (
 		<Box>
@@ -25,7 +25,7 @@ function ChMSTab() {
 				>
 					<MenuItem value="" sx={{ opacity: 0.5 }} >{__( 'Select', 'cp-sync' )}</MenuItem>
 					{Object.keys(platforms).map((key) => (
-						<MenuItem disabled={'pco' !== key} key={key} value={key}>{platforms[key].name}</MenuItem>
+						<MenuItem disabled={'mp' === key} key={key} value={key}>{platforms[key].name}</MenuItem>
 					))}
 				</Select>
 			</FormControl>

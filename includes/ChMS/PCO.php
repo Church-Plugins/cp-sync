@@ -1,21 +1,12 @@
 <?php
 
 namespace CP_Sync\ChMS;
-
-use CP_Sync\Admin\Settings;
-use CP_Sync\Setup\DataFilter;
 use PlanningCenterAPI\PlanningCenterAPI;
 
 /**
  * Planning Center Online implementation
  */
 class PCO extends \CP_Sync\ChMS\ChMS {
-
-	/**
-	 * Class integrations
-	 */
-	public function integrations() {}
-
 	/**
 	 * Singleton instance of the third-party API client
 	 *
@@ -90,26 +81,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Get authentication API args for the rest API
-	 *
-	 * @return array
-	 */
-	public function get_auth_api_args() {
-		return [
-			'app_id' => [
-				'type'        => 'string',
-				'description' => 'The App ID for the PCO API',
-				'required'    => true,
-			],
-			'secret' => [
-				'type'        => 'string',
-				'description' => 'The Secret for the PCO API',
-				'required'    => true,
-			],
-		];
-	}
-
-	/**
 	 * Singleton instance of the third-party API client
 	 *
 	 * @return PlanningCenterAPI
@@ -121,7 +92,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 			if ( $this->get_token() ) {
 				$this->api->authorization = 'Authorization: Bearer ' . $this->get_token();
-			}	
+			}
 		}
 		
 		return $this->api;
@@ -135,16 +106,45 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		if ( time() - $last_refresh > HOUR_IN_SECONDS ) {
-			if ( $token = $this->refresh_token() ) {
-				$this->save_token( $token );
-			}
+			$this->refresh_token();
 		}
 
 		return $this->get_setting( 'token', '', 'auth' );
 	}
 
 	public function refresh_token() {
-		return '';
+		// Prepare the request parameters
+		$request_args = [
+			'body' => [
+				'action'        => 'refresh',
+				'refresh_token' => $this->get_setting( 'refresh_token', '', 'auth' ),
+			],
+		];
+
+		// Make the request using the WordPress HTTP API
+		$response = wp_remote_post( 'https://churchplugins.com/wp-content/themes/churchplugins/oauth/pco/', $request_args );
+
+		// Check for errors
+		if ( is_wp_error( $response ) ) {
+			$error_message = $response->get_error_message();
+			cp_sync()->logging->log( "Error retrieving token: $error_message" );
+		} else {
+			$response_body = wp_remote_retrieve_body( $response );
+			$response_code = wp_remote_retrieve_response_code( $response );
+
+			if ( $response_code == 200 ) {
+				// Process the response
+				$token_data = json_decode( $response_body, true );
+				// Handle the token data (e.g., save it)
+
+				if ( isset( $token_data['access_token'], $token_data['refresh_token'] ) ) {
+					$this->save_token( $token_data['access_token'], $token_data['refresh_token'] );
+					cp_sync()->logging->log( 'PCO token refreshed' );
+				}
+			} else {
+				cp_sync()->logging->log( "Error retrieving token: HTTP $response_code" );
+			}
+		}
 	}
 
 	/**
@@ -372,9 +372,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get(1);
 
 		if ( isset( $response['data'] ) && ! empty( $response['data']['id'] ) ) {
+			cp_sync()->logging->log( 'PCO connection check successful' );
 			return [ 'status' => 'success', 'message' => 'Connection successful' ];
 		}
 
+		cp_sync()->logging->log( 'PCO connection check failed: ' . $this->api()->errorMessage() );
 		return false;
 	}
 
@@ -818,7 +820,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		if( !empty( $this->api()->errorMessage() ) ) {
-			error_log( var_export( $this->api()->errorMessage(), true ) );
+			cp_sync()->logging->log( var_export( $this->api()->errorMessage(), true ) );
 			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
 		}
 

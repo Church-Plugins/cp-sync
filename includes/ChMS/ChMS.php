@@ -88,7 +88,6 @@ abstract class ChMS {
 	public function load() {
 		$this->setup();
 
-		add_action( 'init', [ $this, 'integrations' ], 500 );
 		add_action( 'cmb2_save_options-page_fields_cps_main_options_page', [ $this, 'maybe_add_connection_message' ] );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
 		add_action( 'admin_init', [ $this, 'maybe_save_token' ] );
@@ -116,6 +115,7 @@ abstract class ChMS {
 		$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( $_GET['refresh_token'] ) : '';
 
 		$this->save_token( sanitize_text_field( $_GET['token'] ), $refresh_token );
+		cp_sync()->logging->log( 'Token saved' );
 
 		wp_die( 'Authentication successful' );
 	}
@@ -279,15 +279,6 @@ abstract class ChMS {
 	}
 
 	/**
-	 * Add the hooks for the supported integrations
-	 *
-	 * @since  1.0.0
-	 *
-	 * @author Tanner Moushey
-	 */
-	abstract public function integrations();
-
-	/**
 	 * Return the associated location id for the congregation id
 	 *
 	 * @param int $congregation_id The congregation id from PCO.
@@ -354,7 +345,8 @@ abstract class ChMS {
 		$preview = [];
 
 		foreach ( $data['posts'] as $item ) {
-			$preview_item = [ 
+			$preview_item = [
+				'chmsID'    => $item['chms_id'] ?? '',
 				'title'     => $item['post_title'] ?? '',
 				'content'   => $item['post_content'] ?? '',
 				'thumbnail' => $item['thumbnail_url'] ?? '',
@@ -383,13 +375,6 @@ abstract class ChMS {
 	 * @since 1.0.0
 	 */
 	public function setup() {}
-
-	/**
-	 * Auth schema properties
-	 *
-	 * @return array
-	 */
-	abstract public function get_auth_api_args();
 
 	/**
 	 * Check the connection to the ChMS

@@ -21,7 +21,6 @@
   "autoload": {
     "psr-4": {
       "CP_Sync\\": "includes/",
-      "MinistryPlatform\\": "includes/Integrations/MinistryPlatform/",
       "PlanningCenterAPI\\": "includes/ChMS/planning-center-api/src/"
     }
   },

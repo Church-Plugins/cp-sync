@@ -11,16 +11,15 @@ import Skeleton from '@mui/material/Skeleton';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import platforms from './platforms';
 import { __ } from '@wordpress/i18n';
-import { chmsTab } from './chms-tab';
-import { licenseTab } from './license-tab';
-import { useSelect } from '@wordpress/data'
-
+import { chmsTab } from './components/chms-tab';
+import { licenseTab } from './components/license-tab';
+import { logTab } from './components/log-tab';
+import SettingsProvider, { useSettings } from './contexts/settingsContext';
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
-import SettingsProvider, { useSettings } from './settingsProvider';
-import settingsStore from './settingsStore';
+import SettingsProvider, { useSettings } from './contexts/settingsContext';
 
 const theme = createTheme({
 	palette: {
@@ -39,7 +38,7 @@ function DynamicTab({ tab, value, index }) {
 				e.preventDefault()
 				return false
 			}
-	
+
 			window.addEventListener('beforeunload', handleBeforeUnload)
 
 			return () => {
@@ -52,14 +51,14 @@ function DynamicTab({ tab, value, index }) {
 		<TabPanel value={value} index={index}>
 			<Box>
 				{
-					isHydrating && 
+					isHydrating &&
 					<>
-					<Skeleton variant="text" width={500} />
-					<Skeleton variant="text" width={200} />
-					<Skeleton variant="text" width={250} />
-					<Skeleton variant="text" width={300} height={40} />
-					<Skeleton variant="text" width={300} height={40} />
-					<Skeleton variant="text" width={300} height={40} />
+						<Skeleton variant="text" width={500} />
+						<Skeleton variant="text" width={200} />
+						<Skeleton variant="text" width={250} />
+						<Skeleton variant="text" width={300} height={40} />
+						<Skeleton variant="text" width={300} height={40} />
+						<Skeleton variant="text" width={300} height={40} />
 					</>
 				}
 				{
@@ -76,24 +75,24 @@ function DynamicTab({ tab, value, index }) {
 }
 
 function TabPanel(props) {
-  const { children, value, index, ...other } = props;
+	const { children, value, index, ...other } = props;
 
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`simple-tabpanel-${index}`}
-      aria-labelledby={`simple-tab-${index}`}
-      {...other}
+	return (
+		<div
+			role="tabpanel"
+			hidden={value !== index}
+			id={`simple-tabpanel-${index}`}
+			aria-labelledby={`simple-tab-${index}`}
+			{...other}
 			style={{ height: '100%' }}
-    >
-      {value === index && (
-        <Card sx={{ p: 4, overflowY: 'auto', maxHeight: '100%', boxSizing: 'border-box' }} variant="outlined">
-          <Typography component="div">{children}</Typography>
-        </Card>
-      )}
-    </div>
-  );
+		>
+			{value === index && (
+				<Card sx={{ p: 4, overflowY: 'auto', maxHeight: '100%', boxSizing: 'border-box' }} variant="outlined">
+					<Typography component="div">{children}</Typography>
+				</Card>
+			)}
+		</div>
+	);
 }
 
 function Settings() {
@@ -149,7 +148,8 @@ function Settings() {
 							<Tab key={tab.group} label={tab.name} />
 						))
 					}
-					<Tab label={__( 'License', 'cp-sync' )} />
+					<Tab label={__( 'Log', 'cp-sync' )} key={logTab.group} />
+					<Tab label={__( 'License', 'cp-sync' )} key={licenseTab.group} />
 				</Tabs>
 				<Box sx={{ flexGrow: 1, minHeight: 0 }}>
 					<DynamicTab tab={chmsTab} value={currentTab} index={0} key={chmsTab.group} />
@@ -163,7 +163,8 @@ function Settings() {
 							/>
 						))
 					}
-					<DynamicTab tab={licenseTab} value={currentTab} index={tabs.length + 1} key={licenseTab.group} />
+					<DynamicTab tab={logTab} value={currentTab} index={tabs.length + 1} key={logTab.group} />
+					<DynamicTab tab={licenseTab} value={currentTab} index={tabs.length + 2} key={licenseTab.group} />
 				</Box>
 				{
 					error &&
@@ -185,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	const globalSettings = JSON.parse(root.dataset.settings) // get the initial data from the root element
 	const globalData     = JSON.parse(root.dataset.entrypoint) // get global data from the backend
-	
+
 	if (root) {
 		createRoot(root).render(
 			<SettingsProvider globalSettings={globalSettings} globalData={globalData}>
