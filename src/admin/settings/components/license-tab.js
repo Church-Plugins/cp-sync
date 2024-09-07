@@ -7,7 +7,7 @@ import TextField from '@mui/material/TextField'
 import { __ } from '@wordpress/i18n'
 import apiFetch from '@wordpress/api-fetch'
 import { useState } from '@wordpress/element'
-import { useSettings } from './settingsProvider'
+import { useSettings } from '../contexts/settingsContext'
 
 function LicenseTab({ save }) {
 	const [pending, setPending] = useState(false)

@@ -3,7 +3,7 @@ import Button from "@mui/material/Button";
 import { useEffect, useState } from "@wordpress/element";
 import { __ } from "@wordpress/i18n";
 import apiFetch from "@wordpress/api-fetch";
-import { useSettings } from "../settingsProvider";
+import { useSettings } from "../contexts/settingsContext";
 import CircularProgress from '@mui/material/CircularProgress';
 import React from 'react';
 

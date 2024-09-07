@@ -5,9 +5,9 @@ import Typography from '@mui/material/Typography'
 import { useState } from '@wordpress/element'
 import apiFetch from '@wordpress/api-fetch'
 import CircularProgress from '@mui/material/CircularProgress'
-import { useSettings } from '../settingsProvider'
+import { useSettings } from '../../contexts/settingsContext'
 import { useDispatch } from '@wordpress/data'
-import settingsStore from '../store'
+import settingsStore from '../../store/globalStore'
 
 export default function ConnectTab() {
 	const { isConnected } = useSettings()

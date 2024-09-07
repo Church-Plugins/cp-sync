@@ -7,12 +7,6 @@ use PlanningCenterAPI\PlanningCenterAPI;
  * Planning Center Online implementation
  */
 class PCO extends \CP_Sync\ChMS\ChMS {
-
-	/**
-	 * Class integrations
-	 */
-	public function integrations() {}
-
 	/**
 	 * Singleton instance of the third-party API client
 	 *

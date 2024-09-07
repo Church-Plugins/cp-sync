@@ -11,15 +11,15 @@ import Select from '@mui/material/Select';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { __ } from '@wordpress/i18n';
-import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { useSelect } from '@wordpress/data';
 import { useMemo } from '@wordpress/element';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider/LocalizationProvider';
 import dayjs from 'dayjs';
 import { useEffect } from '@wordpress/element';
-import { useSettings } from '../settingsProvider';
-import store from './store';
+
+import { useSettings } from '../contexts/settingsContext';
+import store from '../store/settingsStore';
 
 /**
  * @typedef {Object} FilterData

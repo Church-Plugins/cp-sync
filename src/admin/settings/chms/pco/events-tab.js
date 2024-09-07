@@ -13,11 +13,11 @@ import FormHelperText from '@mui/material/FormHelperText';
 import { __ } from '@wordpress/i18n';
 import apiFetch from '@wordpress/api-fetch';
 import { useState } from '@wordpress/element';
-import Filters from './filters';
-import Preview from './preview';
-import AsyncSelect from './async-select';
-import store from './store';
-import { useSettings } from '../settingsProvider';
+import Filters from '../../components/filters';
+import Preview from '../../components/preview';
+import AsyncSelect from '../../components/async-select';
+import store from '../../store/settingsStore';
+import { useSettings } from '../../contexts/settingsContext';
 import { Divider } from '@mui/material';
 
 const EVENT_RECURRENCE_OPTIONS = [

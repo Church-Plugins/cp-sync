@@ -1,18 +1,21 @@
 import { __ } from '@wordpress/i18n';
 import ConnectTab from './connect-tab';
+import GroupsTab from './groups-tab';
 
 export default {
-	name: 'Church Community Builder (Coming Soon!)',
+	name: 'Church Community Builder',
 	tabs: [
 		{
 			name: __( 'Connect', 'cp-sync' ),
 			component: (props) => <ConnectTab {...props} />,
 			group: 'connect',
-			defaultData: {
-				api_prefix: '',
-				api_user: '',
-				api_pass: '',
-			}
+			defaultData: {}
+		},
+		{
+			name: __( 'Groups', 'cp-sync' ),
+			component: (props) => <GroupsTab {...props} />,
+			group: 'groups',
+			defaultData: {}
 		}
 	]
 }

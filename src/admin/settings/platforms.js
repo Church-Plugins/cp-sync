@@ -1,11 +1,11 @@
-import ccb from "./ccb";
-import ministryPlatform from "./ministry-platform";
-import pco from "./pco";
+import ccb from "./chms/ccb";
+import pco from "./chms/pco";
+import mp from "./chms/mp";
 
 const platforms = {
 	'pco': pco,
-	'mp': ministryPlatform,
 	'ccb': ccb,
-}
+	'mp':  mp,
+};
 
 export default platforms;

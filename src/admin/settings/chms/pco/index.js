@@ -1,6 +1,5 @@
 
 import { __ } from '@wordpress/i18n';
-import SettingsTab from './settings-tab';
 import ConnectTab from './connect-tab';
 import GroupsTab from './groups-tab';
 import EventsTab from './events-tab';
@@ -15,16 +14,6 @@ export default {
 			group: 'connect',
 			defaultData: {},
 		},
-		// {
-		// 	name: __( 'Settings', 'cp-sync' ),
-		// 	component: (props) => <SettingsTab {...props} />,
-		// 	group: 'settings',
-		// 	defaultData: {
-		// 		events_enabled: 0,
-		// 		events_register_button_enabled: 0,
-		// 		groups_enabled: 1
-		// 	}
-		// },
 		{
 			name: __( 'Groups', 'cp-sync' ),
 			component: (props) => <GroupsTab {...props} />,

@@ -11,17 +11,14 @@ import Skeleton from '@mui/material/Skeleton';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import platforms from './platforms';
 import { __ } from '@wordpress/i18n';
-import { chmsTab } from './chms-tab';
-import { licenseTab } from './license-tab';
-import { logTab } from './log-tab';
-import { useSelect } from '@wordpress/data'
-
+import { chmsTab } from './components/chms-tab';
+import { licenseTab } from './components/license-tab';
+import { logTab } from './components/log-tab';
+import SettingsProvider, { useSettings } from './contexts/settingsContext';
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
-import SettingsProvider, { useSettings } from './settingsProvider';
-import settingsStore from './store';
 
 const theme = createTheme({
 	palette: {

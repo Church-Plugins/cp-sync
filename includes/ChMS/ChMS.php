@@ -88,7 +88,6 @@ abstract class ChMS {
 	public function load() {
 		$this->setup();
 
-		add_action( 'init', [ $this, 'integrations' ], 500 );
 		add_action( 'cmb2_save_options-page_fields_cps_main_options_page', [ $this, 'maybe_add_connection_message' ] );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
 		add_action( 'admin_init', [ $this, 'maybe_save_token' ] );
@@ -278,15 +277,6 @@ abstract class ChMS {
 
 		return update_option( $this->settings_key, $existing );
 	}
-
-	/**
-	 * Add the hooks for the supported integrations
-	 *
-	 * @since  1.0.0
-	 *
-	 * @author Tanner Moushey
-	 */
-	abstract public function integrations();
 
 	/**
 	 * Return the associated location id for the congregation id

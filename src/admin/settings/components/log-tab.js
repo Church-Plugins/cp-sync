@@ -9,7 +9,7 @@ import FormLabel from '@mui/material/FormLabel';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import RadioGroup from '@mui/material/RadioGroup';
 import Radio from '@mui/material/Radio';
-import { useSettings } from './settingsProvider'
+import { useSettings } from '../contexts/settingsContext'
 import Button from '@mui/material/Button';
 
 function LogTab({ data, updateField }) {

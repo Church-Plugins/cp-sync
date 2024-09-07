@@ -1,7 +1,7 @@
 import { useState, useEffect } from '@wordpress/element'
 import { useSelect } from '@wordpress/data'
 import Api from './api'
-import optionsStore from '../store'
+import optionsStore from '../../store/globalStore'
 
 export default function useApi() {
 	const [api, setApi] = useState(null)

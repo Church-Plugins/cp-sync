@@ -226,6 +226,7 @@ class _Init {
 	 */
 	public function includes() {
 		$this->register_chms( PCO::class );
+		$this->register_chms( CCB::class );
 
 		$active_chms = $this->get_active_chms_class();
 		if ( $active_chms ) {
