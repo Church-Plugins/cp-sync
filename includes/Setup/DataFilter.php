@@ -85,12 +85,14 @@ class DataFilter {
 			'is' => [
 				'label'   => __( 'Is', 'cp-sync' ),
 				'compare' => fn( $data, $expected ) => $data === $expected,
-				'type'    => 'select',
+				'type'    => 'inherit',
+				'default' => 'select',
  			],
 			'is_not' => [
 				'label'  	=> __( 'Is Not', 'cp-sync' ),
 				'compare' => fn( $data, $expected ) => $data !== $expected,
-				'type'    => 'select',
+				'type'    => 'inherit',
+				'default' => 'select',
 			],
 			'contains' => [
 				'label'  	=> __( 'Contains', 'cp-sync' ),

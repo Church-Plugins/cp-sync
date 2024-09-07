@@ -17,7 +17,7 @@ import { __ } from '@wordpress/i18n';
 import { useEffect, useState } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 
-import Filters from './filters';
+import Filters from '../filters/filters';
 import AsyncSelect from './async-select';
 import Preview from './preview';
 import { useSettings } from '../settingsProvider';

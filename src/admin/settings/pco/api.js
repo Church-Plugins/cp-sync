@@ -1,6 +1,9 @@
-import optionsStore from "../store";
+import settingsStore from "../settingsStore";
 import { useSelect } from "@wordpress/data";
 
+/**
+ * Basic wrapper for the PCO API.
+ */
 class Api {
 	base_url = 'https://api.planningcenteronline.com';
 
@@ -37,10 +40,15 @@ class Api {
 
 export default Api;
 
-export function useApi(path) {
+/**
+ * React hook to get the PCO API instance.
+ *
+ * @returns {Api|null}
+ */
+export function useApi() {
 	const { authConfig } = useSelect((select) => {
 		return {
-			authConfig: select(optionsStore).getOptionGroup('pco_connect'),
+			authConfig: select(settingsStore).getOptionGroup('pco_connect'),
 		};
 	}, []);
 

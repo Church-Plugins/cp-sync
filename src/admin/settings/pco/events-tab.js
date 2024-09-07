@@ -13,24 +13,25 @@ import FormHelperText from '@mui/material/FormHelperText';
 import { __ } from '@wordpress/i18n';
 import apiFetch from '@wordpress/api-fetch';
 import { useState } from '@wordpress/element';
-import Filters from './filters';
+import Filters from '../filters/filters';
 import Preview from './preview';
 import AsyncSelect from './async-select';
-import store from './store';
-import { useSettings } from '../settingsProvider';
 
-const EVENT_RECURRENCE_OPTIONS = [
-	{ value: 'None', label: __( 'None' ) },
-	{ value: 'Daily', label: __( 'Daily' ) },
-	{ value: 'Weekly', label: __( 'Weekly' ) },
-	{ value: 'Monthly', label: __( 'Monthly' ) },
-]
-
+/**
+ * Events tab component.
+ * 
+ * Manages pulling and filtering events from PCO.
+ *
+ * @param {Object} props
+ * @param {Object} props.data the current settings data.
+ * @param {Function} props.updateField the function to call when a field is updated.
+ * @returns {JSX.Element}
+ * @since 1.0.0
+ */
 export default function EventsTab({ data, updateField }) {
 	const [pulling, setPulling] = useState(false)
 	const [pullSuccess, setPullSuccess] = useState(false)
 	const [error, setError] = useState(null)
-	const { globalData } = useSettings()
 
 	const updateFilters = (newData) => {
 		updateField('filter', {
@@ -53,42 +54,6 @@ export default function EventsTab({ data, updateField }) {
 		}).finally(() => {
 			setPulling(false)
 		})
-	}
-
-	const filterConfig = {
-		start_date: {
-			label: globalData.pco.event_filter_options.start_date,
-			type: 'date'
-		},
-		end_date: {
-			label: globalData.pco.event_filter_options.end_date,
-			type: 'date'
-		},
-	}
-
-	if(data.source === 'registrations') {
-		filterConfig.registration_category = {
-			label: __( 'Category', 'cp-sync' ),
-			type: 'select',
-			optionsSelector: (preFilters) => {
-				return {
-					store: store,
-					selector: 'getData',
-					args: [ '/cp-sync/v1/pco/events/registration_categories' ],
-					format: (data) => data.map(category => ({ value: category.id, label: category.name }))
-				}
-			}
-		}
-	} else if(data.source === 'calendar') {
-		filterConfig.recurrence = {
-			label: globalData.pco.event_filter_options.recurrence,
-			type: 'select',
-			options: EVENT_RECURRENCE_OPTIONS,
-		};
-		filterConfig.recurrence_description = {
-			label: globalData.pco.event_filter_options.recurrence_description,
-			type: 'text',
-		};
 	}
 
 	return (

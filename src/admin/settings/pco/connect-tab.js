@@ -7,8 +7,15 @@ import apiFetch from '@wordpress/api-fetch'
 import CircularProgress from '@mui/material/CircularProgress'
 import { useSettings } from '../settingsProvider'
 import { useDispatch } from '@wordpress/data'
-import settingsStore from '../store'
+import settingsStore from '../settingsStore'
 
+/**
+ * ConnectTab component.
+ * Displays the PCO API configuration and allows the user to connect or disconnect.
+ *
+ * @returns {JSX.Element}
+ * @since 1.0.0
+ */
 export default function ConnectTab() {
 	const { isConnected } = useSettings()
 	const [authLoading, setAuthLoading] = useState(false)

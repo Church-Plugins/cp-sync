@@ -20,7 +20,7 @@ import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
 import SettingsProvider, { useSettings } from './settingsProvider';
-import settingsStore from './store';
+import settingsStore from './settingsStore';
 
 const theme = createTheme({
 	palette: {

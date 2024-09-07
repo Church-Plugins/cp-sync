@@ -1,14 +1,14 @@
 import { useState, useEffect } from '@wordpress/element'
 import { useSelect } from '@wordpress/data'
 import Api from './api'
-import optionsStore from '../store'
+import settingsStore from '../settingsStore'
 
 export default function useApi() {
 	const [api, setApi] = useState(null)
 
 	const { authConfig } = useSelect((select) => {
 		return {
-			authConfig: select(optionsStore).getOptionGroup('mp_connect')
+			authConfig: select(settingsStore).getOptionGroup('mp_connect')
 		}
 	}, [])
 

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import settingsStore from './store'
+import settingsStore from './settingsStore'
 import { useDispatch, useSelect } from '@wordpress/data'
 import apiFetch from '@wordpress/api-fetch'
 

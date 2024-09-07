@@ -4,6 +4,18 @@ import { __ } from '@wordpress/i18n';
 import { useEffect, useState } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 
+/**
+ * AsyncSelect component.
+ * 
+ * A wrapper for the MUI multiselect Autocomplete component that fetches options from an API.
+ * @param {Object} props
+ * @param {string} props.apiPath the path to the API endpoint.
+ * @param {Object} props.value the current value of the select.
+ * @param {Function} props.onChange the function to call when the value changes.
+ * @param {string} props.label the label for the select.
+ *
+ * @returns {JSX.Element}
+ */
 export default function AsyncSelect({ apiPath, value, onChange, label, ...props }) {
 	const [data, setData] = useState([]);
 	const [error, setError] = useState(null);
