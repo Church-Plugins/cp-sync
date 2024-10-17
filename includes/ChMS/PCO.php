@@ -122,7 +122,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		];
 
 		// Make the request using the WordPress HTTP API
-		$response = wp_remote_post( 'https://churchplugins.com/wp-content/themes/churchplugins/oauth/pco/', $request_args );
+		$response = wp_remote_post( CP_SYNC_OAUTH_URL . '/wp-content/themes/churchplugins/oauth/pco/', $request_args );
 
 		// Check for errors
 		if ( is_wp_error( $response ) ) {

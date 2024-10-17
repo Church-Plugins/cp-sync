@@ -44,7 +44,7 @@ const actions = {
 			return { type: 'SETTINGS_UPDATE_SUCCESS' }
 		}
 
-		return { type: 'SETTINGS_UPDATE_ERROR', message: __( 'Settings were not saved.', 'cp-locations' ) }
+		return { type: 'SETTINGS_UPDATE_ERROR', message: __( 'Settings were not saved.', 'cp-sync' ) }
 	},
 	setIsConnected( chms, value ) {
 		return {
@@ -55,7 +55,7 @@ const actions = {
 	}
 }
 
-const settingsStore = createReduxStore( 'cp-locations/settings', {
+const settingsStore = createReduxStore( 'cp-sync/global-settings', {
 	reducer: ( state = INITIAL_STATE, action ) => {
 		switch ( action.type ) {
 			case 'SET_SETTINGS':

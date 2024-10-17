@@ -20,7 +20,7 @@ export default function ConnectTab() {
 		setAuthError(null);
 
 		const redirectUrl = encodeURIComponent(window.location.origin + '/wp-admin/');
-		const authUrl = `https://churchplugins.com/wp-content/themes/churchplugins/oauth/pco/?action=authorize&redirect_url=${redirectUrl}&_nonce=${cpSync.nonce}`;
+		const authUrl = `${cpSync.oauthURL}/wp-content/themes/churchplugins/oauth/pco/?action=authorize&redirect_url=${redirectUrl}&_nonce=${cpSync.nonce}`;
 
 		// Open OAuth login window
 		const authWindow = window.open(authUrl, '_blank', 'width=500,height=600');

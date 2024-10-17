@@ -69,3 +69,10 @@ if( !defined( 'CP_SYNC_ASSET_MANIFEST' ) ) {
 	 	plugin_dir_path( dirname( __FILE__ ) ) . 'app/build/asset-manifest.json'
 	);
 }
+
+/**
+ * OAuth URL
+ */
+if( !defined( 'CP_SYNC_OAUTH_URL' ) ) {
+	define ( 'CP_SYNC_OAUTH_URL', 'http://churchplugins.local' );
+}

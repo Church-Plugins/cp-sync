@@ -60,6 +60,7 @@ class _Init {
 	protected function actions() {
 		add_action( 'init', [ $this, 'includes' ], 5 );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+		add_action( 'template_redirect', [ $this, 'handle_oauth_redirect' ] );
 	}
 
 	/**
@@ -256,5 +257,34 @@ class _Init {
 		 * @return string
 		 */
 		return apply_filters( 'cp_sync_active_chms', Settings::get( 'chms', 'pco', 'cp_sync_settings' ) );
+	}
+
+	/**
+	 * Handle OAuth redirect
+	 */
+	public function handle_oauth_redirect() {
+		if ( ! isset( $_GET['cp_sync_oauth'] ) ) {
+			return;
+		}
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		add_action( 'admin_head', [ $this, 'add_oauth_script' ] );
+	}
+
+	/**
+	 * Add the OAuth script
+	 */
+	public function add_oauth_script() {
+		$target_origin = parse_url( home_url(), PHP_URL_SCHEME ) . '://' . parse_url( home_url(), PHP_URL_HOST );
+		?>
+		<script>
+			window.postMessage({
+				success: true,
+				type: 'cp_sync_oauth',
+			}, '<?php echo esc_url( $target_origin ); ?>');
+			window.close();
+		</script>
+		<?php
 	}
 }

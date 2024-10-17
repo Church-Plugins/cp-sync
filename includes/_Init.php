@@ -82,8 +82,9 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 		$this->enqueue->enqueue( 'styles', 'admin', [] );
 		$assets = $this->enqueue->enqueue( 'scripts', 'admin', [ 'js_dep' => [ 'jquery' ] ] );
 		wp_localize_script( $assets['js'][0]['handle'], 'cpSync', [
-			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-			'nonce'   => wp_create_nonce( 'cpSync' ),
+			'ajaxUrl'  => admin_url( 'admin-ajax.php' ),
+			'nonce'    => wp_create_nonce( 'cpSync' ),
+			'oauthURL' => CP_SYNC_OAUTH_URL,
 		] );
 	}
 
