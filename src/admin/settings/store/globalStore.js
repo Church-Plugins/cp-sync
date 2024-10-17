@@ -135,6 +135,6 @@ const settingsStore = createReduxStore( 'cp-sync/global-settings', {
 	}
 } )
 
-register( settingsStore )
+register( globalStore )
 
-export default settingsStore;
+export default globalStore;

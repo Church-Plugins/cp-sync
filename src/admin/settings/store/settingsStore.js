@@ -1,7 +1,9 @@
 import { createReduxStore, register } from '@wordpress/data';
 import apiFetch from '@wordpress/api-fetch';
 import { __ } from '@wordpress/i18n';
+
 const INITIAL_STATE = {}
+
 const actions = {
 	fetchData(endpoint, args = {}) {
 		return {
@@ -18,6 +20,7 @@ const actions = {
 		}
 	}
 }
+
 const settingsStore = createReduxStore( 'cp-sync/settings', {
 	reducer: ( state = INITIAL_STATE, action ) => {
 		switch ( action.type ) {
@@ -46,5 +49,7 @@ const settingsStore = createReduxStore( 'cp-sync/settings', {
 		}
 	}
 } )
+
 register( settingsStore )
+
 export default settingsStore;

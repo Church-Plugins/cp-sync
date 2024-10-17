@@ -39,15 +39,16 @@ const numberUpdate = (value) => {
  * @param {Object} props
  * @param {Object} props.condition - The current condition settings
  * @param {Function} props.onChange - The change handler
+ * @param {Function} props.onAdd - The add handler
  * @param {Function} props.onRemove - The remove handler
  * @param {Object} props.filterConfig - The global filter configuration
  * @param {Array} props.compareOptions - The possible comparison options
- * @returns {JSX.Element}
- * @since 1.0.0
+ * @returns {React.ReactElement}
  */
 export default function Condition({
 	condition = {},
 	onChange,
+	onAdd,
 	onRemove,
 	filterConfig,
 	compareOptions = [],
@@ -129,8 +130,6 @@ export default function Condition({
 
 		handleChange(updatedCondition)
 	}
-
-	console.log(valueType, compareOptions, supports, filterType, options, value)
 
 	const fieldType = (
 		valueType.type === 'inherit' ?
@@ -237,7 +236,6 @@ export default function Condition({
 					</Select>
 				</FormControl> :
 				fieldType === 'multi' ?
-				console.log(options, value) ||
 				<Autocomplete
 					value={value || []}
 					onChange={(e, newValue) => handleChange({ value: newValue })}

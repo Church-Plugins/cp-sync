@@ -7,13 +7,13 @@ import apiFetch from '@wordpress/api-fetch'
 import CircularProgress from '@mui/material/CircularProgress'
 import { useSettings } from '../../contexts/settingsContext'
 import { useDispatch } from '@wordpress/data'
-import settingsStore from '../../store/globalStore'
+import globalStore from '../../store/globalStore'
 
 export default function ConnectTab() {
 	const { isConnected } = useSettings()
 	const [authLoading, setAuthLoading] = useState(false)
 	const [authError, setAuthError] = useState(null)
-	const { invalidateResolutionForStoreSelector, setIsConnected } = useDispatch(settingsStore)
+	const { invalidateResolutionForStoreSelector, setIsConnected } = useDispatch(globalStore)
 
 	const initiateOAuth = () => {
 		setAuthLoading(true);
