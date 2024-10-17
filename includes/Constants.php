@@ -74,5 +74,5 @@ if( !defined( 'CP_SYNC_ASSET_MANIFEST' ) ) {
  * OAuth URL
  */
 if( !defined( 'CP_SYNC_OAUTH_URL' ) ) {
-	define ( 'CP_SYNC_OAUTH_URL', 'http://churchplugins.local' );
+	define ( 'CP_SYNC_OAUTH_URL', 'https://churchplugins.com' );
 }

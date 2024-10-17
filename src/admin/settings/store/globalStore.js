@@ -55,7 +55,7 @@ const actions = {
 	}
 }
 
-const settingsStore = createReduxStore( 'cp-sync/global-settings', {
+const globalStore = createReduxStore( 'cp-sync/global-settings', {
 	reducer: ( state = INITIAL_STATE, action ) => {
 		switch ( action.type ) {
 			case 'SET_SETTINGS':
