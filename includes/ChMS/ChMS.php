@@ -90,7 +90,7 @@ abstract class ChMS {
 
 		add_action( 'cmb2_save_options-page_fields_cps_main_options_page', [ $this, 'maybe_add_connection_message' ] );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
-		add_action( 'admin_init', [ $this, 'maybe_save_token' ] );
+		// add_action( 'admin_init', [ $this, 'maybe_save_token' ] );
 
 		if ( Settings::get( 'pull_now' ) ) {
 			add_action( 'admin_notices', [ $this, 'general_admin_notice' ] );
@@ -100,6 +100,7 @@ abstract class ChMS {
 			add_filter( "cp_sync_pull_$integration_type", [ $this, 'get_formatted_data' ], 10, 2 );
 		}
 	}
+
 	/**
 	 * Attempt to save the token
 	 */
@@ -119,7 +120,6 @@ abstract class ChMS {
 
 		wp_die( 'Authentication successful' );
 	}
-
 	
 	/**
 	 * Get group filter config for frontend.

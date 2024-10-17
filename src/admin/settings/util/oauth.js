@@ -11,7 +11,11 @@ export const launchOauth = (url, args = {}) => {
 	url = new URL(url)
 
 	// open auth window over the current window
-	const authWindow = window.open(url.toString(), '_blank', 'width=600,height=600,noreferrer')
+	const authWindow = window.open(url.toString(), '_blank', 'width=600,height=600,popup=1');
+
+	if(!authWindow) {
+		return Promise.reject('Failed to open authentication window. Make sure your browser allows popups.');
+	}
 
 	return new Promise((resolve, reject) => {
 		const onClosed = () => {
@@ -21,21 +25,20 @@ export const launchOauth = (url, args = {}) => {
 		authWindow.addEventListener('close', onClosed);
 
 		authWindow.addEventListener('message', (event) => {
-			if (event.origin !== url.origin) {
-				return;
+			if (event.origin !== window.location.origin) {
+				return reject('There was an error communicating with the authentication window');
 			}
 
 			if(event.data?.type !== 'cp_sync_oauth') {
-				return;
+				return reject('Unexpected message from authentication window');
 			}
 
 			authWindow.removeEventListener('close', onClosed);
-	
+			authWindow.close();
+
 			if (event.data?.success) {
-				authWindow.close();
 				resolve();
 			} else {
-				authWindow.close();
 				reject(event.data?.message || 'Failed to authenticate');
 			}
 		})

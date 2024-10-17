@@ -8,6 +8,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import { useSettings } from '../../contexts/settingsContext'
 import { useDispatch } from '@wordpress/data'
 import globalStore from '../../store/globalStore'
+import { launchOauth } from '../../util/oauth'
 
 export default function ConnectTab() {
 	const { isConnected } = useSettings()
@@ -19,31 +20,23 @@ export default function ConnectTab() {
 		setAuthLoading(true);
 		setAuthError(null);
 
-		const redirectUrl = encodeURIComponent(window.location.origin + '/wp-admin/');
-		const authUrl = `${cpSync.oauthURL}/wp-content/themes/churchplugins/oauth/pco/?action=authorize&redirect_url=${redirectUrl}&_nonce=${cpSync.nonce}`;
+		const oauthURL = new URL(window.cpSync.oauthURL);
+		oauthURL.pathname = `/wp-content/themes/churchplugins/oauth/pco/`;
+		oauthURL.searchParams.set('action', 'authorize');
+		oauthURL.searchParams.set('redirect_url', window.location.origin + '/wp-admin/?cp_sync_oauth=1')
+		oauthURL.searchParams.set('_nonce', window.cpSync.nonce);
 
-		// Open OAuth login window
-		const authWindow = window.open(authUrl, '_blank', 'width=500,height=600');
-
-		const checkAuthWindow = setInterval(() => {
-			apiFetch({
-				path: '/cp-sync/v1/pco/check-connection',
-				method: 'GET',
-			}).then((data) => {
-				console.log(data)
-				if (data.connected) {
-					authWindow.close();
-					setAuthLoading(false);
-					clearInterval(checkAuthWindow);
-					setIsConnected('pco', true);
-				}
-			}).catch((error) => {
-				console.log(error)
+		launchOauth(oauthURL.toString())
+			.then(() => {
+				setIsConnected('pco', true);
+			})
+			.catch(err => {
+				console.error('errolaunghing oauth', err);
+				setAuthError(err);
+			})
+			.finally(() => {
 				setAuthLoading(false);
-				setAuthError(error.message);
-				clearInterval(checkAuthWindow);
-			});
-		}, 500);
+			})
 	};
 
 	const disconnectOAuth = () => {
@@ -55,15 +48,15 @@ export default function ConnectTab() {
 			method: 'POST',
 		}).then((data) => {
 			if (data.success) {
-				setAuthLoading(false);
 				invalidateResolutionForStoreSelector('getIsConnected')
 			} else {
 				setAuthError(__('Failed to disconnect', 'cp-sync'));
 			}
 		}).catch((error) => {
-			setAuthLoading(false);
 			setAuthError(error.message);
-		});
+		}).finally(() => {
+			setAuthLoading(false);
+		})
 	};
 
 	return (

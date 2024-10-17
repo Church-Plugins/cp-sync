@@ -60,7 +60,7 @@ class _Init {
 	protected function actions() {
 		add_action( 'init', [ $this, 'includes' ], 5 );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
-		add_action( 'template_redirect', [ $this, 'handle_oauth_redirect' ] );
+		add_action( 'admin_init', [ $this, 'handle_oauth_redirect' ] );
 	}
 
 	/**
@@ -276,6 +276,34 @@ class _Init {
 	 * Add the OAuth script
 	 */
 	public function add_oauth_script() {
+		$active_chms = $this->get_active_chms_class();
+
+		if ( ! $active_chms ) {
+			return;
+		}
+
+		$token = $_GET[ 'token' ] ?? '';
+		/**
+		 * Filter the token
+		 *
+		 * @param string $token The token
+		 * @param ChMS $active_chms The active ChMS class
+		 * @return string
+		 */
+		$token = apply_filters( 'cp_sync_oauth_token', $token, $active_chms );
+
+		$refresh_token = $_GET[ 'refresh_token' ] ?? '';
+		/**
+		 * Filter the refresh token
+		 *
+		 * @param string $refresh_token The refresh token
+		 * @param ChMS $active_chms The active ChMS class
+		 * @return string
+		 */
+		$refresh_token = apply_filters( 'cp_sync_oauth_refresh_token', $refresh_token, $active_chms );
+
+		$active_chms->save_token( $token, $refresh_token );
+
 		$target_origin = parse_url( home_url(), PHP_URL_SCHEME ) . '://' . parse_url( home_url(), PHP_URL_HOST );
 		?>
 		<script>
