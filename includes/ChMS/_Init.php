@@ -218,6 +218,40 @@ class _Init {
 				],
 			]
 		);
+
+		register_rest_route(
+			'cp-sync/v1',
+			'/(?P<chms>[a-zA-Z0-9-]+)/filters',
+			[
+				'methods'  => 'GET',
+				'callback' => function( $request ) {
+					$chms       = $request->get_param( 'chms' );
+					$chms_class = self::get_chms( $chms );
+					$chms_class->setup(); // make sure the integrations are loaded
+					
+					$filter_config = $chms_class->get_formatted_filter_config();
+
+					return rest_ensure_response( $filter_config );
+				},
+				'permission_callback' => function() {
+					return current_user_can( 'manage_options' );
+				},
+			],
+		);
+
+		register_rest_route(
+			'cp-sync/v1',
+			'/(?P<chms>[a-zA-Z0-9-]+)/compare-options',
+			[
+				'methods'  => 'GET',
+				'callback' => function() {
+					return rest_ensure_response( \CP_Sync\Setup\DataFilter::get_compare_options() );
+				},
+				'permission_callback' => function() {
+					return current_user_can( 'manage_options' );
+				},
+			]
+		);
 	}
 
 	/**
@@ -311,7 +345,6 @@ class _Init {
 				success: true,
 				type: 'cp_sync_oauth',
 			}, '<?php echo esc_url( $target_origin ); ?>');
-			window.close();
 		</script>
 		<?php
 	}

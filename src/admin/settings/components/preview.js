@@ -46,7 +46,6 @@ export default function Preview({ type }) {
 		if(!isDirty && awaitingPreview) {
 			doFetch()
 			setAwaitingPreview(false)
-			console.log('preview awaited')
 		}
 	}, [awaitingPreview, isDirty])
 

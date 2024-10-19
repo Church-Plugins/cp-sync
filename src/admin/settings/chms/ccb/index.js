@@ -9,13 +9,22 @@ export default {
 			name: __( 'Connect', 'cp-sync' ),
 			component: (props) => <ConnectTab {...props} />,
 			group: 'connect',
-			defaultData: {}
+			defaultData: {
+				subdomain: '',
+				clientId: '',
+				clientSecret: ''
+			}
 		},
 		{
 			name: __( 'Groups', 'cp-sync' ),
 			component: (props) => <GroupsTab {...props} />,
 			group: 'groups',
-			defaultData: {}
+			defaultData: {
+				filter: {
+					type: 'all',
+					conditions: [],
+				}
+			}
 		}
 	]
 }

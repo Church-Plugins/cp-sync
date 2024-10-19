@@ -33,12 +33,15 @@ const MATCH_TYPE_OPTIONS = [
  * @returns {React.ReactElement}
  */
 function Filters({ label, filterGroup, filter, onChange = () => {},  }) {
-	const { globalData } = useSettings();
+	const { getFilterConfig, compareOptions } = useSettings();
+
+	const filterConfig = getFilterConfig(filterGroup);
+
+	if (!filterConfig) {
+		return null;
+	}
+
 	const { conditions = [], type = 'all' } = filter
-
-	const { compareOptions } = globalData
-
-	const filterConfig = globalData.filters[filterGroup]
 
 	const handleChange = (newData) => {
 		onChange({

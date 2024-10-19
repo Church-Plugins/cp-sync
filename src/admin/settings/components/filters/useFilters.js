@@ -24,7 +24,7 @@ const useFilters = (filter, currentPreFilters) => {
 		if(filter.optionsFetcher) {
 			return {
 				options: select(settingsStore).getData(filter.optionsFetcher.endpoint) || [],
-				loading: select(settingsStore).getIsResolving('getData', [filter.optionsFetcher.endpoint])
+				loading: select(settingsStore).getResolutionState('getData', [filter.optionsFetcher.endpoint])?.status === 'resolving'
 			}
 		}
 

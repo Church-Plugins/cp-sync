@@ -146,7 +146,7 @@ abstract class ChMS {
 						} else if ( is_callable( $filter['options'] ) ) {
 							// give path to REST endpoint
 							$config_item['optionsFetcher'] = [
-								'endpoint' => "/cp-sync/v1/selector/$integration_type/$key",
+								'endpoint' => "/cp-sync/v1/$this->id/selector/$integration_type/$key",
 								'args'     => $filter['args'] ?? [],
 							];
 						}
@@ -180,7 +180,7 @@ abstract class ChMS {
 	
 				register_rest_route(
 					'cp-sync/v1',
-					"/selector/$integration_type/$key",
+					"$this->id/selector/$integration_type/$key",
 					[
 						'methods'             => 'GET',
 						'callback'            => $filter['options'],

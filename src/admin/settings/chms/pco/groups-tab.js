@@ -20,14 +20,12 @@ import apiFetch from '@wordpress/api-fetch';
 import Filters from '../../components/filters';
 import AsyncSelect from '../../components/async-select';
 import Preview from '../../components/preview';
-import { useSettings } from '../../contexts/settingsContext';
 import { Divider } from '@mui/material';
 
 export default function GroupsTab({ data, updateField }) {
 	const [pulling, setPulling] = useState(false)
 	const [pullSuccess, setPullSuccess] = useState(false)
 	const [error, setError] = useState(null)
-	const { globalData } = useSettings()
 
 	const updateFilters = (newData) => {
 		updateField('filter', {

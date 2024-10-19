@@ -14,9 +14,11 @@ const SettingsContext = createContext({
 	updateSettings: () => {},
 	updateField: () => {},
 	getField: () => {},
+	getFilterConfig: (filterGroup) => {},
 	save: () => {},
 	globalSettings: {},
-	updateGlobalSettings: () => {}
+	updateGlobalSettings: () => {},
+	compareOptions: {},
 })
 
 const defaultGlobalSettings = {
@@ -35,21 +37,21 @@ export const useSettings = () => {
 	return context
 }
 
-export default function SettingsProvider({ globalSettings: initialGlobalSettings, globalData, children }) {
+export default function SettingsProvider({ globalSettings: initialGlobalSettings, children, compareOptions }) {
 	const [globalSettings, setGlobalSettings] = useState({ ...defaultGlobalSettings, ...initialGlobalSettings })
 	const [globalUnsavedChanges, setGlobalUnsavedChanges] = useState(false)
-	const [isSavingGlobal, setIsSavingGlobal] = useState(false)
 	const [isReady, setIsReady] = useState(false)
 
-	const { isConnected, isConnectionLoaded, isSaving, isDirty, settings, error } = useSelect((select) => {
+	const { isConnected, isConnectionLoaded, isSaving, isDirty, settings, error, filterConfig } = useSelect((select) => {
 		return {
 			settings: select(globalStore).getSettings(globalSettings.chms) || {},
 			isConnected: select(globalStore).getIsConnected(globalSettings.chms),
 			isConnectionLoaded: select(globalStore).hasFinishedResolution('getIsConnected', [globalSettings.chms]),
-			isLoading: select(globalStore).getIsResolving('getSettings', [globalSettings.chms]),
+			isLoading: select(globalStore).getResolutionState('getSettings', [globalSettings.chms])?.status === 'resolving',
 			isSaving: select(globalStore).getIsSaving(),
 			isDirty: select(globalStore).getIsDirty(),
 			error: select(globalStore).getError(),
+			filterConfig: select(globalStore).getFilters(globalSettings.chms) || {},
 		}
 	})
 
@@ -59,8 +61,6 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		if (!globalUnsavedChanges && !data) {
 			return
 		}
-
-		setIsSavingGlobal(true)
 
 		try {
 			await apiFetch({
@@ -72,7 +72,6 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		}catch(err) {
 			setError(err.message)
 		}
-		setIsSavingGlobal(false)
 	}
 
 	const save = () => {
@@ -116,8 +115,15 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		return settings[group][field]
 	}
 
+	/**
+	 * Gets the filter config for a filter group, e.g. 'groups' or 'events'
+	 * @param {*} filterGroup 
+	 */
+	const getFilterConfig = (filterGroup) => {
+		return filterConfig[filterGroup] || false
+	}
+
 	const value = {
-		globalData,
 		chms: globalSettings.chms,
 		error,
 		isConnected,
@@ -127,11 +133,13 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		updateSettings,
 		updateField,
 		getField,
+		getFilterConfig,
 		save,
 		saveGlobal,
 		globalUnsavedChanges,
 		globalSettings,
-		updateGlobalSettings
+		updateGlobalSettings,
+		compareOptions,
 	}
 
 	useEffect(() => {

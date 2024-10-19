@@ -40,7 +40,7 @@ const settingsStore = createReduxStore( 'cp-sync/settings', {
 		}
 	},
 	controls: {
-		FETCH: ( args ) => apiFetch( args )
+		FETCH: ( { type, ...args } ) => apiFetch( args )
 	},
 	resolvers: {
 		*getData( endpoint, args ) {

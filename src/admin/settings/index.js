@@ -184,11 +184,11 @@ document.addEventListener('DOMContentLoaded', function () {
 	const root = document.querySelector('.cp_settings_root.cp-sync')
 
 	const globalSettings = JSON.parse(root.dataset.settings) // get the initial data from the root element
-	const globalData     = JSON.parse(root.dataset.entrypoint) // get global data from the backend
+	const compareOptions = JSON.parse(root.dataset.compareOptions)
 
 	if (root) {
 		createRoot(root).render(
-			<SettingsProvider globalSettings={globalSettings} globalData={globalData}>
+			<SettingsProvider globalSettings={globalSettings} compareOptions={compareOptions}>
 				<Settings />
 			</SettingsProvider>
 		)

@@ -48,6 +48,7 @@ export default function ConnectTab() {
 			method: 'POST',
 		}).then((data) => {
 			if (data.success) {
+				setIsConnected('pco', false);
 				invalidateResolutionForStoreSelector('getIsConnected')
 			} else {
 				setAuthError(__('Failed to disconnect', 'cp-sync'));
@@ -95,7 +96,12 @@ export default function ConnectTab() {
 						variant="contained"
 						color="primary"
 						sx={{ mt: 4, alignSelf: 'flex-start' }}
-						onClick={disconnectOAuth}>
+						onClick={disconnectOAuth}
+						disabled={authLoading}>
+						{
+							authLoading &&
+							<CircularProgress size={20} color="info" />
+						}
 						{__('Disconnect', 'cp-sync')}
 					</Button>
 				</div>

@@ -11,7 +11,7 @@ export const launchOauth = (url, args = {}) => {
 	url = new URL(url)
 
 	// open auth window over the current window
-	const authWindow = window.open(url.toString(), '_blank', 'width=600,height=600,popup=1');
+	const authWindow = window.open(url.toString(), '_blank', 'width=600,height=600');
 
 	if(!authWindow) {
 		return Promise.reject('Failed to open authentication window. Make sure your browser allows popups.');
@@ -23,6 +23,7 @@ export const launchOauth = (url, args = {}) => {
 		}
 
 		authWindow.addEventListener('close', onClosed);
+		authWindow.addEventListener('beforeunload', onClosed);
 
 		authWindow.addEventListener('message', (event) => {
 			if (event.origin !== window.location.origin) {
@@ -34,6 +35,7 @@ export const launchOauth = (url, args = {}) => {
 			}
 
 			authWindow.removeEventListener('close', onClosed);
+			authWindow.removeEventListener('beforeunload', onClosed);
 			authWindow.close();
 
 			if (event.data?.success) {

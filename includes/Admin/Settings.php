@@ -124,37 +124,20 @@ class Settings {
 	 * Outputs the settings react entrypoint.
 	 */
 	public function settings_page_content() {
-		$global_settings = get_option( 'cp_sync_settings', [] );
-
-		$active_chms = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
-
 		/**
-		 * Filters the global settings sent to the settings page.
+		 * Filters the initial global settings sent to the settings page.
 		 *
 		 * @param array $global_settings The entrypoint data.
 		 * @return array
 		 * @since 1.0.0
 		 */
-		$global_settings = apply_filters( 'cp_sync_global_settings', $global_settings );
-
-		$global_data = [
-			'filters'         => $active_chms->get_formatted_filter_config(),
-			'compareOptions'  => DataFilter::get_formatted_compare_options(),
-		];
-
-		/**
-		 * Filter the global data set on the settings page.
-		 *
-		 * @param array $global_data The entrypoint data.
-		 * @return array
-		 */
-		$global_data = apply_filters( 'cp_sync_settings_entrypoint_data', $global_data );
-
+		$global_settings = apply_filters( 'cp_sync_global_settings', get_option( 'cp_sync_settings', [] ) );
+		$compare_options = DataFilter::get_formatted_compare_options();
 		?>
 		<div
 			class="cp_settings_root cp-sync"
 			data-settings='<?php echo wp_json_encode( $global_settings ); ?>'
-			data-entrypoint='<?php echo wp_json_encode( $global_data ); ?>'
+			data-compare-options='<?php echo wp_json_encode( $compare_options ); ?>'
 		></div>
 		<?php
 	}
