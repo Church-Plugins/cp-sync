@@ -101,25 +101,23 @@ abstract class ChMS {
 		}
 	}
 
-	/**
-	 * Attempt to save the token
-	 */
-	public function maybe_save_token() {
-		if ( empty( $_GET['token'] ) || empty( $_GET['_nonce'] ) ) {
-			return;
-		}
+	// /**
+	//  * Attempt to save the token
+	//  */
+	// public function maybe_save_token() {
+	// 	if ( empty( $_GET['token'] ) || empty( $_GET['_nonce'] ) ) {
+	// 		return;
+	// 	}
 
-		if ( ! wp_verify_nonce( $_GET['_nonce'], 'cpSync' ) ) {
-			return;
-		}
+	// 	if ( ! wp_verify_nonce( $_GET['_nonce'], 'cpSync' ) ) {
+	// 		return;
+	// 	}
 
-		$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( $_GET['refresh_token'] ) : '';
+	// 	$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( $_GET['refresh_token'] ) : '';
 
-		$this->save_token( sanitize_text_field( $_GET['token'] ), $refresh_token );
-		cp_sync()->logging->log( 'Token saved' );
-
-		wp_die( 'Authentication successful' );
-	}
+	// 	$this->save_token( sanitize_text_field( $_GET['token'] ), $refresh_token );
+	// 	cp_sync()->logging->log( 'Token saved' );
+	// }
 	
 	/**
 	 * Get group filter config for frontend.
@@ -184,7 +182,7 @@ abstract class ChMS {
 					[
 						'methods'             => 'GET',
 						'callback'            => $filter['options'],
-						'args'                => $filter['args'] ?? [],
+						'args'                => $filter['rest_args'] ?? [],
 						'permission_callback' => function () {
 							return current_user_can( 'manage_options' );
 						},
@@ -335,7 +333,7 @@ abstract class ChMS {
 			return new ChMSError( 'unsupported_integration_type', 'The integration type is not supported' );
 		}
 
-		$data = $this->get_formatted_data( null, $integration_type, 10 );
+		$data = $this->get_formatted_data( null, $integration_type, 100 );
 
 		if ( is_wp_error( $data ) ) {
 			return $data;
@@ -539,7 +537,7 @@ abstract class ChMS {
 			return new ChMSError( 'format_callback_not_set', 'The format callback is not set' );
 		}
 
-		$data = call_user_func( $integration_args['fetch_callback'] );
+		$data = call_user_func( $integration_args['fetch_callback'], $limit );
 
 		if ( is_wp_error( $data ) ) {
 			return $data;
@@ -556,7 +554,7 @@ abstract class ChMS {
 		for ( $i = 0; $i < $item_count; $i++ ) {
 			$item = $items[ $i ];
 
-			if ( count( $formatted_items ) >= $limit ) {
+			if ( $limit > 0 && count( $formatted_items ) >= $limit ) {
 				break;
 			}
 

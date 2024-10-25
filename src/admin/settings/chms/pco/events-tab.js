@@ -56,42 +56,6 @@ export default function EventsTab({ data, updateField }) {
 		})
 	}
 
-	const filterConfig = {
-		start_date: {
-			label: globalData.pco.event_filter_options.start_date,
-			type: 'date'
-		},
-		end_date: {
-			label: globalData.pco.event_filter_options.end_date,
-			type: 'date'
-		},
-	}
-
-	if(data.source === 'registrations') {
-		filterConfig.registration_category = {
-			label: __( 'Category', 'cp-sync' ),
-			type: 'select',
-			optionsSelector: (preFilters) => {
-				return {
-					store: store,
-					selector: 'getData',
-					args: [ '/cp-sync/v1/pco/events/registration_categories' ],
-					format: (data) => data.map(category => ({ value: category.id, label: category.name }))
-				}
-			}
-		}
-	} else if(data.source === 'calendar') {
-		filterConfig.recurrence = {
-			label: globalData.pco.event_filter_options.recurrence,
-			type: 'select',
-			options: EVENT_RECURRENCE_OPTIONS,
-		};
-		filterConfig.recurrence_description = {
-			label: globalData.pco.event_filter_options.recurrence_description,
-			type: 'text',
-		};
-	}
-
 	return (
 		<Box sx={{ display: 'flex', minHeight: '30rem' }} gap={2}>
 			<div style={{ flexGrow: '3' }}>

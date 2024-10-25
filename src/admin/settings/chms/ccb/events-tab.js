@@ -8,10 +8,9 @@ import { __ } from '@wordpress/i18n';
 import { useState } from '@wordpress/element';
 import Filters from '../../components/filters';
 import Preview from '../../components/preview';
-import Divider from '@mui/material/Divider';
 import apiFetch from '@wordpress/api-fetch';
 
-export default function GroupsTab({ data, updateField }) {
+export default function EventsTab({ data, updateField }) {
 	const [pulling, setPulling] = useState(false)
 	const [pullSuccess, setPullSuccess] = useState(false)
 	const [error, setError] = useState(null)
@@ -26,7 +25,7 @@ export default function GroupsTab({ data, updateField }) {
 	const handlePull = () => {
 		setPulling(true)
 		apiFetch({
-			path: '/cp-sync/v1/pull/groups',
+			path: '/cp-sync/v1/pull/events',
 			method: 'POST',
 		}).then(response => {
 			if(response.success) {
@@ -55,8 +54,8 @@ export default function GroupsTab({ data, updateField }) {
 				</Typography>
 
 				<Filters
-					label={__( 'Groups', 'cp-sync' )}
-					filterGroup="groups"
+					label={__( 'Events', 'cp-sync' )}
+					filterGroup="events"
 					filter={data.filter}
 					onChange={updateFilters}
 				/>
@@ -86,7 +85,7 @@ export default function GroupsTab({ data, updateField }) {
 
 			</Box>
 			<Box sx={{ flex: '2 1 50%', background: '#eee', p: 2 }}>
-				<Preview type="groups" optionGroup="groups" />
+				<Preview type="events" optionGroup="events" />
 			</Box>
 		</Box>
 	)

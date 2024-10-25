@@ -19,7 +19,7 @@ export default function Preview({ type }) {
 	const [totalCount, setTotalCount] = useState(null);
 	const [loading, setLoading] = useState(false);
 	const [awaitingPreview, setAwaitingPreview] = useState(false);
-	const { save, isDirty } = useSettings()
+	const { save, isDirty, chms } = useSettings()
 
 	const generatePreview = async () => {
 		setLoading(true);
@@ -33,7 +33,7 @@ export default function Preview({ type }) {
 
 	const doFetch = async () => {
 		const data = await apiFetch({
-			path: `/cp-sync/v1/pco/preview/${type}`,
+			path: `/cp-sync/v1/${chms}/preview/${type}`,
 			method: 'GET',
 		})
 
@@ -53,10 +53,18 @@ export default function Preview({ type }) {
 		<Box sx={{background: '#eee', position: 'relative', height: '100%'}}>
 			<Button variant="outlined" onClick={generatePreview} disabled={loading}>{ __( 'Generate Preview', 'cp-sync' ) }</Button>
 
-			<Box sx={{overflow: 'scroll', height: 'calc(100% - 5rem)', position: 'absolute', bottom: '0'}}>
+			{
+				0 === totalCount ?
+				<p>{ __( 'No items found.', 'cp-sync' ) }</p> :
+				totalCount > 0 ?
+				<p>{ __( 'Total items: ', 'cp-sync' ) }{totalCount}</p> :
+				null
+			}
+
+			<Box sx={{overflowY: 'auto', maxHeight: 'calc(100% - 5rem)', minHeight: 100, position: 'relative', mt: 1 }}>
 
 				{loading &&
-				 <CircularProgress/>
+				 <CircularProgress sx={{ position: 'absolute', top: 0, left: 0 }} />
 				}
 
 				{
@@ -82,14 +90,6 @@ export default function Preview({ type }) {
 					))
 				}
 			</Box>
-
-			{
-				0 === totalCount ?
-				<p>{ __( 'No items found.', 'cp-sync' ) }</p> :
-				totalCount > 0 ?
-				<p>{ __( 'Total items: ', 'cp-sync' ) }{totalCount}</p> :
-				null
-			}
 		</Box>
 	)
 }

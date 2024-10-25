@@ -39,18 +39,20 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			]
 		);
 
-		// $this->add_support(
-		// 	'events',
-		// 	[
-		// 		'fetch_callback'   => [ $this, 'fetch_events' ],
-		// 		'format_callback'  => [ $this, 'format_event' ],
-		// 		'filter_config'    => [ $this, 'get_event_filter_config' ],
-		// 	]
-		// );
+		$this->add_support(
+			'events',
+			[
+				'fetch_callback'   => [ $this, 'fetch_events' ],
+				'format_callback'  => [ $this, 'format_event' ],
+				'filter_config'    => [ $this, 'get_event_filter_config' ],
+			]
+		);
 	}
 
 	/**
 	 * Get the API instance
+	 *
+	 * @return API\CCB
 	 */
 	public function api() {
 		if ( ! $this->api ) {
@@ -70,17 +72,102 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Fetch groups
 	 *
-	 * @param array $args The arguments to fetch groups
+	 * @param int $limit The number of groups to fetch.
 	 * @return array
 	 */
-	public function fetch_groups( $args ) {
-		$access_token = $this->get_token();
-
-		if ( ! $access_token ) {
-			return [];
+	public function fetch_groups( $limit = 0 ) {
+		$groups    = [];
+		$page      = 1;
+		$page_size = $limit > 0 ? min( 100, $limit ) : 100;
+		while( true ) {
+			$data = $this->api()->get( 'groups', [ 'per_page' => $page_size, 'page' => $page ] );
+			$page++;
+			$groups = array_merge( $groups, $data );
+			if ( count( $data ) < 100 || ( $limit > 0 && count( $groups ) >= $limit ) ) {
+				break;
+			}
 		}
 
-		// make request to churchplugins endpoint to fetch groups
+		$taxonomies = [];
+
+		$taxonomies['cp_group_type'] = [
+			'plural_label' => __( 'Group Types', 'cp-sync' ),
+			'single_label' => __( 'Group Type', 'cp-sync' ),
+			'taxonomy'     => 'cp_group_type',
+			'terms'        => []
+		];
+
+		$group_types = $this->fetch_group_types();
+		foreach ( $group_types as $group_type ) {
+			$taxonomies['cp_group_type']['terms'][ $group_type['value'] ] = $group_type['label'];
+		}
+
+		$taxonomies['cps_department'] = [
+			'plural_label' => __( 'Departments', 'cp-sync' ),
+			'single_label' => __( 'Department', 'cp-sync' ),
+			'taxonomy'     => 'cps_department',
+			'terms'        => []
+		];
+
+		$departments = $this->fetch_departments();
+		foreach ( $departments as $department ) {
+			$taxonomies['cps_department']['terms'][ $department['value'] ] = $department['label'];
+		}
+
+		$filter_settings = $this->get_setting( 'filter', [], 'groups' );
+		$filter_type     = $filter_settings['type'] ?? 'all';
+		$conditions      = $filter_settings['conditions'] ?? [];
+		$relational_data = [];
+
+		$filter = new \CP_Sync\Setup\DataFilter(
+			$filter_type,
+			$conditions,
+			$this->get_group_filter_config(),
+			$relational_data
+		);
+
+		$filter->apply( $groups ); // Apply the filter to the items
+
+		return [
+			'items'      => $groups,
+			'taxonomies' => $taxonomies,
+			'context'    => [],
+		];
+	}
+
+	/**
+	 * Format group
+	 *
+	 * @param array $group The group data.
+	 * @param array $context The context data.
+	 * @return array
+	 */
+	public function format_group( $group, $context ) {
+		$args = [
+			'chms_id'          => $group['id'],
+			'post_status'      => 'publish',
+			'post_title'       => $group['name'] ?? '',
+			'post_content'     => $group['description'] ?? '',
+			'thumbnail_url'    => $group['images']['large'],
+			'tax_input'        => [],
+			'meta_input'       => [
+				'leaders'  => [ [
+					'name'  => $group['main_leader']['name'],
+					'email' => $group['main_leader']['email'],
+				] ],
+				'public_url'    => $group['public_signup_form']['url'] ?? '',
+			],
+		];
+
+		if ( isset( $group['group_type']['id'] ) && ! empty( $group['group_type']['id'] ) ) {
+			$args['tax_input']['cp_group_type'] = [ $group['group_type']['id'] ];
+		}
+
+		if ( isset( $group['department_id'] ) && ! empty( $group['department_id'] ) ) {
+			$args['tax_input']['cps_department'] = [ $group['department_id'] ];
+		}
+
+		return $args;
 	}
 
 	/**
@@ -113,108 +200,254 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 					'is_empty',
 					'is_not_empty',
 				],
-				'options'      => function() {
-					$group_types = $this->api()->get( 'group_types', [ 'per_page' => 100 ] );
-					$options = [];
-					foreach ( $group_types as $group_type ) {
-						$options[] = [
-							'value' => $group_type['id'],
-							'label' => $group_type['name'],
-						];
-					}
-					return wp_send_json_success( $options );
-				}
+				'options'      => fn() => wp_send_json_success( $this->fetch_group_types() ),
 			],
-			// 'group_tag' => [
-			// 	'label'         => __( 'Group Tag', 'cp-sync' ),
-			// 	'path'          => 'relationships.tags.data.id',
-			// 	'relation'      => 'Tag',
-			// 	'relation_path' => 'id',
-			// 	'type'          => 'select',
-			// 	'supports'      => [
-			// 		'is',
-			// 		'is_not',
-			// 		'is_in',
-			// 		'is_not_in',
-			// 		'is_empty',
-			// 		'is_not_empty',
-			// 	],
-			// 	'options' => function() {
-			// 		$tag_groups = $this->fetch_all_group_tags();
-
-			// 		$tags = [];
-
-			// 		foreach ( $tag_groups as $id => $tag_group ) {
-			// 			foreach ( $tag_group['tags'] as $tag ) {
-			// 				$tags[] = [
-			// 					'value' => $id . ':' . $tag['id'],
-			// 					'label' => $tag_group['name'] . ': ' . $tag['attributes']['name'],
-			// 				];
-			// 			}
-			// 		}
-
-			// 		return wp_send_json_success( $tags );
-			// 	}
-			// ],
-			// 'location' => [
-			// 	'label' => __( 'Location', 'cp-sync' ),
-			// 	'path'  => 'relationships.location.data.id',
-			// 	'type' => 'text',
+			'inactive' => [
+				'label'    => __( 'Inactive', 'cp-sync' ),
+				'path'     => 'inactive',
+				'type'     => 'select',
+				'options'  => [
+					[ 'value' => true, 'label' => __( 'Yes', 'cp-sync' ) ],
+					[ 'value' => false,'label' => __( 'No', 'cp-sync' ) ],
+				],
+				'supports' => [ 'is' ],
+			],
+			'full' => [
+				'label' => __( 'Group is full', 'cp-sync' ),
+				'path'  => 'full',
+				'type'  => 'select',
+				'options' => [
+					[ 'value' => true, 'label' => __( 'Yes', 'cp-sync' ) ],
+					[ 'value' => false,'label' => __( 'No', 'cp-sync' ) ],
+				],
+				'supports' => [ 'is' ],
+			],
+			'membership_type' => [
+				'label' 	=> __( 'Membership Type', 'cp-sync' ),
+				'path'  	=> 'membership_type',
+				'type'  	=> 'select',
+				'options' => [
+					[ 'value' => 'OPEN_TO_ALL', 'label' => __( 'Open to all', 'cp-sync' ) ],
+				]
+			],
+			'leader_name' => [
+				'label'    => __( 'Leader Name', 'cp-sync' ),
+				'path'     => 'main_leader.name',
+				'type'     => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+					'contains',
+					'does_not_contain',
+				],
+			],
+			'leader_email' => [
+				'label'    => __( 'Leader Email', 'cp-sync' ),
+				'path'     => 'main_leader.email',
+				'type'     => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+					'contains',
+					'does_not_contain',
+				],
+			],
+			// 'department' => [
+			// 	'label' => __( 'Department', 'cp-sync' ),
+			// 	'path' => 'department.id',
+			// 	'type' => 'select',
 			// 	'supports' => [
 			// 		'is',
 			// 		'is_not',
+			// 		'is_in',
+			// 		'is_not_in',
 			// 		'is_empty',
 			// 		'is_not_empty',
 			// 	],
-			// ],
-			// 'enrollment_status' => [
-			// 	'label'         => __( 'Enrollment Status', 'cp-sync' ),
-			// 	'path'          => 'relationships.enrollment.data.id',
-			// 	'relation'      => 'Enrollment',
-			// 	'relation_path' => 'attributes.status',
-			// 	'type'          => 'select',
-			// 	'supports'      => [
-			// 		'is',
-			// 		'is_not',
-			// 		'is_in',
-			// 		'is_not_in',
-			// 	],
-			// 	'options' => [
-			// 		[ 'value' => 'open', 'label' => 'Open' ],
-			// 		[ 'value' => 'closed', 'label' => 'Closed' ],
-			// 		[ 'value' => 'full', 'label' => 'Full' ],
-			// 		[ 'value' => 'private', 'label' => 'Private' ],
-			// 	],
-			// ],
-			// 'enrollment_strategy' => [
-			// 	'label'         => __( 'Enrollment Strategy', 'cp-sync' ),
-			// 	'path'          => 'relationships.enrollment.data.id',
-			// 	'relation'      => 'Enrollment',
-			// 	'relation_path' => 'attributes.strategy',
-			// 	'type'          => 'select',
-			// 	'supports'      => [
-			// 		'is',
-			// 		'is_not',
-			// 		'is_in',
-			// 		'is_not_in',
-			// 	],
-			// 	'options' => [
-			// 		[ 'value' => 'request_to_join', 'label' => 'Request to Join' ],
-			// 		[ 'value' => 'open_signup', 'label' => 'Open Signup' ],
-			// 	],
-			// ],
-			// 'visibility' => [
-			// 	'label' => __( 'Visibility', 'cp-sync' ),
-			// 	'path'  => 'attributes.public_church_center_web_url',
-			// 	'type'  => 'text',
-			// 	'supports' => [
-			// 		'is_empty',
-			// 		'is_not_empty',
-			// 	],
-			// ],
+			// 	'options' => fn() => wp_send_json_success( $this->fetch_departments() ),
+			// ]
 		];
 	}
 
+	/**
+	 * Fetch group types
+	 *
+	 * @return array
+	 */
+	public function fetch_group_types() {
+		$group_types = $this->api()->get( 'group_types', [ 'per_page' => 100 ] );
+		$options = [];
+		foreach ( $group_types as $group_type ) {
+			$options[] = [
+				'value' => $group_type['id'],
+				'label' => $group_type['name'],
+			];
+		}
+		return $options;
+	}
+
+	/**
+	 * Fetch departments
+	 *
+	 * @return array
+	 */
+	public function fetch_departments() {
+		$departments = $this->api()->get( 'departments', [ 'per_page' => 100 ] );
+		$options = [];
+		foreach ( $departments as $department ) {
+			$options[] = [
+				'value' => $department['id'],
+				'label' => $department['name'],
+			];
+		}
+		return $options;
+	}
+
+	/****************************************/
+	/************ Events Methods ************/
+	/****************************************/
+
+	/**
+	 * Fetch events from the ChMS
+	 *
+	 * @param int $limit The number of events to fetch.
+	 */
+	public function fetch_events( $limit = 0 ) {
+		$events    = [];
+		$page      = 1;
+		$page_size = $limit > 0 ? min( 100, $limit ) : 100;
+		while( true ) {
+			$data = $this->api()->get( 'events', [ 'per_page' => $page_size, 'page' => $page ] );
+			$page++;
+			$events = array_merge( $events, $data );
+			if ( count( $data ) < 100 || ( $limit > 0 && count( $events ) >= $limit ) ) {
+				break;
+			}
+		}
+
+		// setup filter & apply
+		$filter_settings = $this->get_setting( 'filter', [], 'events' );
+		$filter_type     = $filter_settings['type'] ?? 'all';
+		$conditions      = $filter_settings['conditions'] ?? [];
+		$relational_data = [];
+		$filter          = new \CP_Sync\Setup\DataFilter(
+			$filter_type,
+			$conditions,
+			$this->get_event_filter_config(),
+			$relational_data
+		);
+		$filter->apply( $events );
+		
+		return [
+			'items'      => $events,
+			'taxonomies' => [],
+			'context'    => [],
+		];
+	}
+
+	/**
+	 * Format event
+	 *
+	 * @param array $event The event data.
+	 * @param array $context The context data.
+	 * @return array
+	 */
+	public function format_event( $event, $context ) {
+		$start_date = new \DateTime( $event['event']['start'] );
+		$end_date   = new \DateTime( $event['event']['end'] );
+
+		$args = [
+			'chms_id'          => $event['event_id'],
+			'post_status'      => 'publish',
+			'post_title'       => $event['event']['name'] ?? '',
+			'post_content'     => $event['event']['description'] ?? '',
+			'EventStartDate'   => $start_date->format( 'Y-m-d' ),
+			'EventEndDate'     => $end_date->format( 'Y-m-d' ),
+			'EventStartHour'   => $start_date->format( 'G' ),
+			'EventStartMinute' => $start_date->format( 'i' ),
+			'EventEndHour'     => $end_date->format( 'G' ),
+			'EventEndMinute'   => $end_date->format( 'i' ),
+		];
+
+		$address = $event['event']['address'] ?? [];
+
+		if ( ! empty( $address ) ) {
+			$args['Venue'] = [
+				'Venue'    => '',
+				'Country'  => '',
+				'Address'  => $address['street'] ?? '',
+				'City'     => $address['city'] ?? '',
+				'State'    => $address['state'] ?? '',
+				'Zip'      => $address['zip'] ?? '',
+			];
+		}
+
+		return $args;
+	}
+
+	/**
+	 * Get the event filter configuration
+	 *
+	 * @return array
+	 */
+	public function get_event_filter_config() {
+		return [
+			[
+				'label' => __( 'Name', 'cp-sync' ),
+				'path'  => 'event.name',
+				'type'  => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+					'contains',
+					'does_not_contain',
+				],
+			],
+			[
+				'label' => __( 'Description', 'cp-sync' ),
+				'path'  => 'event.description',
+				'type'  => 'text',
+				'supports' => [
+					'contains',
+					'does_not_contain',
+				],
+			],
+			'start_date' => [
+				'label'    => __( 'Start Date', 'cp-sync' ),
+				'path'     => 'event.start',
+				'type'     => 'date',
+				'supports' => [
+					'is',
+					'is_not',
+					'is_less_than',
+					'is_greater_than',
+				],
+				'format' => 'strtotime'
+			],
+			'end_date' => [
+				'label'    => __( 'End Date', 'cp-sync' ),
+				'path'     => 'event.end',
+				'type'     => 'date',
+				'supports' => [
+					'is',
+					'is_not',
+					'is_less_than',
+					'is_greater_than',
+				],
+				'format' => 'strtotime'
+			],
+			'zip_code' => [
+				'label' => __( 'Zip Code', 'cp-sync' ),
+				'path'  => 'event.address.zip',
+				'type'  => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+				],
+			],
+		];
+	}
+	
 	/**
 	 * Get the settings entrypoint data
 	 *
@@ -249,6 +482,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			'body' => [
 				'action'        => 'refresh',
 				'refresh_token' => $this->get_setting( 'refresh_token', '', 'auth' ),
+				'subdomain'     => $this->get_setting( 'subdomain', '', 'connect' ),
 			],
 		];
 

@@ -212,8 +212,8 @@ export default function Condition({
 				<LocalizationProvider dateAdapter={AdapterDayjs}>
 					<DateTimePicker
 						label={__( 'Value' )}
-						value={value ? dayjs(value) : dayjs()}
-						onChange={(newValue) => handleChange({ value: dayjs(newValue).toISOString() })}
+						value={(typeof value === 'number') ? dayjs.unix(value) : dayjs()}
+						onChange={(newValue) => handleChange({ value: dayjs(newValue).unix() })}
 						viewRenderers={{
 							hours: null,
 							minutes: null,

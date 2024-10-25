@@ -198,6 +198,8 @@ class _Init {
 
 					$settings = get_option( $chms_class->settings_key, [] );
 
+					unset( $data['auth'] ); // this should never be updated from the client, only server side
+
 					foreach ( $data as $key => $value ) {
 						$settings[ $key ] = $value;
 					}
@@ -337,6 +339,8 @@ class _Init {
 		$refresh_token = apply_filters( 'cp_sync_oauth_refresh_token', $refresh_token, $active_chms );
 
 		$active_chms->save_token( $token, $refresh_token );
+
+		cp_sync()->logging->log( 'OAuth token saved' );
 
 		$target_origin = parse_url( home_url(), PHP_URL_SCHEME ) . '://' . parse_url( home_url(), PHP_URL_HOST );
 		?>

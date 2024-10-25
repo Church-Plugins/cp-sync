@@ -419,12 +419,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Fetch groups from PCO
 	 *
+	 * @param int $limit The number of groups to fetch.
 	 * @return array {
 	 * 	 @type array items   The raw groups from PCO
 	 * 	 @type array context The context for the data.
 	 * }
 	 */
-	public function fetch_groups() {
+	public function fetch_groups( $limit = 0 ) {
 		// Pull groups here
 		$raw = $this->api()
 			->module( 'groups' )
@@ -613,7 +614,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'group_life_stage' => [], // not used
 			'thumbnail_url'    => $group['attributes']['header_image']['original'] ?? '',
 			'meta_input'       => [
-				'leader_email'  => $group['attributes']['contact_email'] ?? '',
+				'leaders'       => [
+					[ 'name' => '', 'email' => $group['attributes']['contact_email'] ?? '', ]
+				],
 				'start_date'    => date( 'Y-m-d', $start_date ),
 				'end_date'      => ! empty( $end_date ) ? date( 'Y-m-d', $end_date ) : null,
 				'public_url'    => $group['attributes']['public_church_center_web_url'] ?? '',
