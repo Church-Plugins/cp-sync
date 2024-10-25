@@ -31,7 +31,7 @@ export const launchOauth = (url, args = {}) => {
 			}
 
 			if(event.data?.type !== 'cp_sync_oauth') {
-				return reject('Unexpected message from authentication window');
+				return;
 			}
 
 			authWindow.removeEventListener('close', onClosed);
