@@ -104,6 +104,7 @@ class _Init {
 	protected function actions() {
 		add_action( 'init', [ $this, 'schedule_cron' ], 999 );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+		add_action( 'cp_sync_global_settings_updated', [ $this, 'reschedule_cron' ], 10, 2 );
 		add_action( self::$_cron_hook, [ $this, 'pull_content' ] );
 	}
 
@@ -176,6 +177,8 @@ class _Init {
 		register_rest_route( 'cp-sync/v1', '/pull', [
 			'methods'  => 'POST',
 			'callback' => function() {
+				set_time_limit( 0 );
+
 				$result = $this->pull_content();
 
 				if ( is_wp_error( $result ) ) {
@@ -237,21 +240,28 @@ class _Init {
 	 * @author Tanner Moushey
 	 */
 	public function schedule_cron() {
-		if ( is_admin() && Settings::get( 'pull_now' ) ) {
-			Settings::set( 'pull_now', '' );
-			add_filter( 'cp_sync_process_hard_refresh', '__return_true' );
-			do_action( self::$_cron_hook );
-		}
-
 		if ( wp_next_scheduled( self::$_cron_hook ) ) {
 			return;
 		}
 
 		$args = apply_filters( 'cp_sync_cron_args', [
-			'timestamp' => time() + HOUR_IN_SECONDS, // schedule to run in the future to allow time for setting up configuration
-			'recurrence' => 'hourly',
+			'timestamp'  => time() + HOUR_IN_SECONDS, // schedule to run in the future to allow time for setting up configuration
+			'recurrence' => Settings::get( 'updateInterval', 'hourly', 'cp_sync_settings' ),
 		] );
 
 		wp_schedule_event( $args[ 'timestamp' ], $args['recurrence'], self::$_cron_hook );
+	}
+	
+	/**
+	 * Reschedule the cron to pull data from the ChMS
+	 *
+	 * @param array $settings The new settings
+	 * @param array $old_settings The old settings
+	 */
+	public function reschedule_cron( $settings, $old_settings ) {
+		if ( $settings['updateInterval'] !== $old_settings['updateInterval'] ) {
+			wp_clear_scheduled_hook( self::$_cron_hook );
+			$this->schedule_cron();
+		}
 	}
 }

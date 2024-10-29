@@ -90,34 +90,11 @@ abstract class ChMS {
 
 		add_action( 'cmb2_save_options-page_fields_cps_main_options_page', [ $this, 'maybe_add_connection_message' ] );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
-		// add_action( 'admin_init', [ $this, 'maybe_save_token' ] );
-
-		if ( Settings::get( 'pull_now' ) ) {
-			add_action( 'admin_notices', [ $this, 'general_admin_notice' ] );
-		}
 
 		foreach ( $this->supported_integrations as $integration_type => $_args ) {
 			add_filter( "cp_sync_pull_$integration_type", [ $this, 'get_formatted_data' ], 10, 2 );
 		}
 	}
-
-	// /**
-	//  * Attempt to save the token
-	//  */
-	// public function maybe_save_token() {
-	// 	if ( empty( $_GET['token'] ) || empty( $_GET['_nonce'] ) ) {
-	// 		return;
-	// 	}
-
-	// 	if ( ! wp_verify_nonce( $_GET['_nonce'], 'cpSync' ) ) {
-	// 		return;
-	// 	}
-
-	// 	$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( $_GET['refresh_token'] ) : '';
-
-	// 	$this->save_token( sanitize_text_field( $_GET['token'] ), $refresh_token );
-	// 	cp_sync()->logging->log( 'Token saved' );
-	// }
 	
 	/**
 	 * Get group filter config for frontend.
@@ -223,15 +200,6 @@ abstract class ChMS {
 	}
 
 	/**
-	 * Display primary admin notice
-	 */
-	public function general_admin_notice() {
-		echo '<div class="notice notice-success is-dismissible">
-             <p>Processing pull request.</p>
-         </div>';
-	}
-
-	/**
 	 * Get a single setting
 	 * 
 	 * @param string $key The key to get.
@@ -247,7 +215,6 @@ abstract class ChMS {
 
 		return isset( $data[$key] ) ? $data[$key] : $default; 
 	}
-
 
 	/**
 	 * Set the provided option
