@@ -207,7 +207,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			],
 			'group_type' => [
 				'label'         => __( 'Group Type', 'cp-sync' ),
-				'path'          => 'group_type.name',
+				'path'          => 'group_type.id',
 				'type'          => 'select',
 				'supports'      => [
 					'is',
@@ -245,6 +245,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 				'type'  	=> 'select',
 				'options' => [
 					[ 'value' => 'OPEN_TO_ALL', 'label' => __( 'Open to all', 'cp-sync' ) ],
+					[ 'value' => 'REQUEST_REQUIRED', 'label' => __( 'Request required', 'cp-sync' ) ],
 				]
 			],
 			'leader_name' => [
