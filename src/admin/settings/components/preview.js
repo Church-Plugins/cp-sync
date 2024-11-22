@@ -54,11 +54,8 @@ export default function Preview({ type }) {
 			<Button variant="outlined" onClick={generatePreview} disabled={loading}>{ __( 'Generate Preview', 'cp-sync' ) }</Button>
 
 			{
-				0 === totalCount ?
-				<p>{ __( 'No items found.', 'cp-sync' ) }</p> :
-				totalCount > 0 ?
-				<p>{ __( 'Total items: ', 'cp-sync' ) }{totalCount}</p> :
-				null
+				0 === totalCount &&
+				<p>{ __( 'No items found.', 'cp-sync' ) }</p>
 			}
 
 			<Box sx={{overflowY: 'auto', maxHeight: 'calc(100% - 5rem)', minHeight: 100, position: 'relative', mt: 1 }}>

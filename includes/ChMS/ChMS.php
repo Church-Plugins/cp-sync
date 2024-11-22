@@ -300,7 +300,7 @@ abstract class ChMS {
 			return new ChMSError( 'unsupported_integration_type', 'The integration type is not supported' );
 		}
 
-		$data = $this->get_formatted_data( null, $integration_type, 100 );
+		$data = $this->get_formatted_data( null, $integration_type, 10 );
 
 		if ( is_wp_error( $data ) ) {
 			return $data;

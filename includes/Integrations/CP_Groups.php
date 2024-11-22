@@ -12,6 +12,8 @@ class CP_Groups extends Integration {
 
 	public $label = 'Groups';
 
+	protected $post_type = 'cp_group';
+
 	public function update_item( $item ) {
 		if ( $id = $this->get_chms_item_id( $item['chms_id'] ) ) {
 			$item['ID'] = $id;

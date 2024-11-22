@@ -2,6 +2,8 @@
 
 namespace CP_Sync\ChMS;
 
+use CP_Sync_Dependencies\RRule\RRule;
+
 /**
  * Planning Center Online implementation
  */
@@ -76,14 +78,43 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @return array
 	 */
 	public function fetch_groups( $limit = 0 ) {
+		// setup filter
+		$filter_settings = $this->get_setting( 'filter', [], 'groups' );
+		$filter_type     = $filter_settings['type'] ?? 'all';
+		$conditions      = $filter_settings['conditions'] ?? [];
+		$relational_data = [];
+
+		$filter = new \CP_Sync\Setup\DataFilter(
+			$filter_type,
+			$conditions,
+			$this->get_group_filter_config(),
+			$relational_data
+		);
+
 		$groups    = [];
-		$page      = 1;
-		$page_size = $limit > 0 ? min( 100, $limit ) : 100;
+		$page      = 0;
+		$page_size = 100;
 		while( true ) {
-			$data = $this->api()->get( 'groups', [ 'per_page' => $page_size, 'page' => $page ] );
 			$page++;
+			$data = $this->api()->get( 'groups', [ 'per_page' => $page_size, 'page' => $page ] );
+			
+			if( is_wp_error( $data ) ) {
+				cp_sync()->logging->log( 'Error fetching groups: ' . $data->get_error_message() );
+				break;
+			}
+
+			// no more groups to fetch
+			if ( empty( $data ) ) {
+				break;
+			}
+
+			$filter->apply( $data );
+
 			$groups = array_merge( $groups, $data );
-			if ( count( $data ) < 100 || ( $limit > 0 && count( $groups ) >= $limit ) ) {
+
+			// handle limit
+			if ( $limit > 0 && count( $groups ) >= $limit ) {
+				$groups = array_slice( $groups, 0, $limit );
 				break;
 			}
 		}
@@ -114,20 +145,6 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			$taxonomies['cps_department']['terms'][ $department['value'] ] = $department['label'];
 		}
 
-		$filter_settings = $this->get_setting( 'filter', [], 'groups' );
-		$filter_type     = $filter_settings['type'] ?? 'all';
-		$conditions      = $filter_settings['conditions'] ?? [];
-		$relational_data = [];
-
-		$filter = new \CP_Sync\Setup\DataFilter(
-			$filter_type,
-			$conditions,
-			$this->get_group_filter_config(),
-			$relational_data
-		);
-
-		$filter->apply( $groups ); // Apply the filter to the items
-
 		return [
 			'items'      => $groups,
 			'taxonomies' => $taxonomies,
@@ -148,12 +165,12 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			'post_status'      => 'publish',
 			'post_title'       => $group['name'] ?? '',
 			'post_content'     => $group['description'] ?? '',
-			'thumbnail_url'    => $group['images']['large'],
+			'thumbnail_url'    => $group['images']['large'] ?? '',
 			'tax_input'        => [],
 			'meta_input'       => [
 				'leaders'  => [ [
-					'name'  => $group['main_leader']['name'],
-					'email' => $group['main_leader']['email'],
+					'name'  => $group['main_leader']['name'] ?? '',
+					'email' => $group['main_leader']['email'] ?? '',
 				] ],
 				'public_url'    => $group['public_signup_form']['url'] ?? '',
 			],
@@ -313,19 +330,6 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @param int $limit The number of events to fetch.
 	 */
 	public function fetch_events( $limit = 0 ) {
-		$events    = [];
-		$page      = 1;
-		$page_size = $limit > 0 ? min( 100, $limit ) : 100;
-		while( true ) {
-			$data = $this->api()->get( 'events', [ 'per_page' => $page_size, 'page' => $page ] );
-			$page++;
-			$events = array_merge( $events, $data );
-			if ( count( $data ) < 100 || ( $limit > 0 && count( $events ) >= $limit ) ) {
-				break;
-			}
-		}
-
-		// setup filter & apply
 		$filter_settings = $this->get_setting( 'filter', [], 'events' );
 		$filter_type     = $filter_settings['type'] ?? 'all';
 		$conditions      = $filter_settings['conditions'] ?? [];
@@ -336,8 +340,24 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			$this->get_event_filter_config(),
 			$relational_data
 		);
+
+		$events = $this->api()->get( 'calendar', [ 'type' => 'PUBLIC' ] );		
+
+		if ( is_wp_error( $events ) ) {
+			cp_sync()->logging->log( 'Error fetching events: ' . $events->get_error_message() );
+			return [
+				'items'      => [],
+				'taxonomies' => [],
+				'context'    => [],
+			];
+		}
+
 		$filter->apply( $events );
-		
+
+		if ( $limit > 0 ) {
+			$events = array_slice( $events, 0, $limit );
+		}
+
 		return [
 			'items'      => $events,
 			'taxonomies' => [],
@@ -353,33 +373,73 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @return array
 	 */
 	public function format_event( $event, $context ) {
-		$start_date = new \DateTime( $event['event']['start'] );
-		$end_date   = new \DateTime( $event['event']['end'] );
+		$initial_start_date = new \DateTime( $event['event']['start'] );
+		$initial_end_date   = new \DateTime( $event['event']['end'] );
+		$start_date         = new \DateTime( $event['start'] );
+		$end_date           = new \DateTime( $event['end'] );
+		$hashed_id          = md5( $event['event_id'] . $start_date->getTimestamp() );
 
 		$args = [
-			'chms_id'          => $event['event_id'],
-			'post_status'      => 'publish',
-			'post_title'       => $event['event']['name'] ?? '',
-			'post_content'     => $event['event']['description'] ?? '',
-			'EventStartDate'   => $start_date->format( 'Y-m-d' ),
-			'EventEndDate'     => $end_date->format( 'Y-m-d' ),
-			'EventStartHour'   => $start_date->format( 'G' ),
-			'EventStartMinute' => $start_date->format( 'i' ),
-			'EventEndHour'     => $end_date->format( 'G' ),
-			'EventEndMinute'   => $end_date->format( 'i' ),
+			'chms_id'               => $hashed_id,
+			'post_status'           => 'publish',
+			'post_title'            => $event['event']['name'] ?? '',
+			'post_content'          => $event['event']['description'] ?? '',
+			'thumbnail_url'         => $event['event']['images']['large'],
+			'EventInitialStartDate' => $initial_start_date->format( 'Y-m-d H:i:s' ),
+			'EventInitialEndDate'   => $initial_end_date->format( 'Y-m-d H:i:s' ),
+			'EventStartDate'        => $start_date->format( 'Y-m-d H:i:s' ),
+			'EventEndDate'          => $end_date->format( 'Y-m-d H:i:s' ),
+			'EventTimezone'         => $start_date->getTimezone()->getName(),
 		];
 
 		$address = $event['event']['address'] ?? [];
 
 		if ( ! empty( $address ) ) {
-			$args['Venue'] = [
-				'Venue'    => '',
-				'Country'  => '',
-				'Address'  => $address['street'] ?? '',
-				'City'     => $address['city'] ?? '',
-				'State'    => $address['state'] ?? '',
-				'Zip'      => $address['zip'] ?? '',
+			$full_address = $address['street'] . ', ' . $address['city'] . ', ' . $address['state'] . ' ' . $address['zip'];
+
+			$args['EventVenue'] = [
+				'venue'    => $address['street'],
+				'country'  => '',
+				'address'  => $full_address,
+				'street'   => $address['street'],
+				'city'     => $address['city'],
+				'state'    => $address['state'],
+				'zip'      => $address['zip'],
 			];
+		}
+
+		// TODO: Once ECP fixes some major bugs with event recurrence
+		// this can be re-implemented. This will require replacing the
+		// hashed ID/date with a single event per ID. For now we have 
+		// to create a custom series from the list of events.
+		if ( false && $event['event']['recurs'] ) {
+			// map CCB's recurrence to RRule
+			$recurrence_map = [
+				'D' => 'DAILY',
+				'W' => 'WEEKLY',
+				'M' => 'MONTHLY',
+				'Y' => 'YEARLY',
+			];
+
+			$rrule_args = [
+				'FREQ'     => $recurrence_map[ $event['event']['recurrence']['frequency'] ],
+				'INTERVAL' => $event['event']['recurrence']['interval'],
+				'DTSTART'  => $start_date->format( 'Y-m-d' ),
+			];
+
+			if ( ! empty( $event['event']['recur_end_date'] ) ) {
+				$recur_end_date = new \DateTime( $event['event']['recur_end_date'] );
+				$rrule_args['UNTIL'] = $recur_end_date->format( 'Y-m-d' );
+			} else {
+				$rrule_args['COUNT'] = 50; // don't schedule more than 50 events out for sanity
+			}
+
+			if ( ! empty( $event['event']['recurrence']['frequency_modifier'] ) ) {
+				$rrule_args['BYDAY'] = str_replace( ' ', ',', $event['event']['recurrence']['frequency_modifier'] );
+			}
+
+			$rrule = new RRule( $rrule_args );
+			$args['EventRecurrence'] = 'RRULE:' . $rrule->__toString();
 		}
 
 		return $args;
@@ -392,7 +452,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 */
 	public function get_event_filter_config() {
 		return [
-			[
+			'name' => [
 				'label' => __( 'Name', 'cp-sync' ),
 				'path'  => 'event.name',
 				'type'  => 'text',
@@ -403,7 +463,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 					'does_not_contain',
 				],
 			],
-			[
+			'description' => [
 				'label' => __( 'Description', 'cp-sync' ),
 				'path'  => 'event.description',
 				'type'  => 'text',

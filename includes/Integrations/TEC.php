@@ -3,6 +3,7 @@
 namespace CP_Sync\Integrations;
 
 use CP_Sync\Exception;
+use TEC\Events\Custom_Tables\V1\Models\Occurrence;
 
 class TEC extends Integration {
 
@@ -12,33 +13,103 @@ class TEC extends Integration {
 
 	public $label = 'Events';
 
+	protected $post_type = 'tribe_events';
+
 	public function actions() {
 		parent::actions();
-		add_action( 'tribe_events_single_event_before_the_content', [ $this, 'maybe_add_registration_button'] );
+		// add_action( 'tribe_events_single_event_before_the_content', [ $this, 'maybe_add_registration_button'] );
 	}
 
 	public function update_item( $item ) {
+		$existing = $this->get_chms_item_id( $item['chms_id'] );
+	
+		$event = [];
 
-		if ( $id = $this->get_chms_item_id( $item['chms_id'] ) ) {
-			$item['ID'] = $id;
-		}
+		// Organizer
+		if ( $organizer = $item['EventOrganizer'] ?? false ) {
+			$existing_organizer = get_posts(
+				[
+					'post_type'   => 'tribe_organizer',
+					'title'       => $organizer['organizer'],
+					'numberposts' => 1,
+				]
+			);
 
-		unset( $item['chms_id'] );
-
-		// Organizer does not ignore duplicates by default, so we are handling that
-		if ( isset( $item['Organizer'] ) ) {
-			$item['Organizer']['OrganizerID'] = \Tribe__Events__Organizer::instance()->create( $item['Organizer'], 'publish', true );
-
-			if ( is_wp_error( $item['Organizer']['OrganizerID'] ) ) {
-				unset( $item['Organizer'] );
-				error_log( $item['Organizer']['OrganizerID']->get_error_message() );
+			if ( ! empty( $existing_organizer) ) {
+				$organizer = $existing_organizer[0];
+			} else {
+				$organizer = tribe_organizers()
+					->set_args(
+						[
+							'organizer' => $organizer['organizer'],
+							'email'     => $organizer['email'],
+							'phone'     => $organizer['phone'],
+						]
+					)
+					->create();
+			}
+			
+			if ( $organizer ) {
+				$event['organizer'] = $organizer->ID;
+			} else {
+				cp_sync()->logging->log( 'Error assigning organizer to event: ' . $item['post_title'] );
 			}
 		}
 
-		$id = tribe_create_event( $item );
+		// Venue
+		if ( $venue = $item['EventVenue'] ?? false ) {
+			$existing_venue = get_posts(
+				[
+					'post_type'   => 'tribe_venue',
+					'title'       => $venue['venue'],
+					'numberposts' => 1,
+				]
+			);
 
-		if ( ! $id ) {
-			throw new Exception( 'Event could not be created' );
+			if ( $existing_venue ) {
+				$venue = $existing_venue[0];
+			} else {
+				$venue = tribe_venues()
+					->set_args(
+						[
+							'venue'   => $venue['venue'],
+							'status'  => 'publish',
+							'address' => $venue['address'],
+							'city'    => $venue['city'],
+							'state'   => $venue['state'],
+							'zip'     => $venue['zip'],
+						]
+					)
+					->create();
+			}
+
+			if ( $venue ) {
+				$event['venue'] = $venue->ID;
+			} else {
+				cp_sync()->logging->log( 'Error creating venue for post: ' . $item['post_title'] );
+			}
+		}
+
+		$event['post_status'] = 'publish';
+		$event['title'] = $item['post_title'] ?? '';
+		$event['image'] = $item['thumbnail_url'] ?? '';
+		$event['start_date'] = $item['EventStartDate'] ?? '';
+		$event['end_date'] = $item['EventStartDate'] ?? '';
+		$event['timezone'] = $item['EventTimezone'] ?? '';
+		$event['url'] = $item['EventURL'] ?? '';
+		$event['recurrence'] = $item['EventRecurrence'] ?? '';
+		$event = array_filter( $event );
+
+		if ( $existing ) {
+			tribe_events()->where( 'id', absint( $existing ) )->set_args( $event )->save();
+			$id = $existing;
+		} else {
+			$post = tribe_events()->set_args( $event )->create();
+			if ( $post ) {
+				$id = $post->ID;
+			} else {
+				throw new Exception( 'Event could not be created: ' . print_r( $event, true ) );
+			}
 		}
 
 		// TEC categories
