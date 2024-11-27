@@ -16,12 +16,14 @@
     "composer/installers": "*",
     "wpackio/enqueue": "^3.4",
     "deliciousbrains/wp-background-processing": "^1.0",
-    "smadeira/ministry-platform-api": "^5.1"
+    "smadeira/ministry-platform-api": "^5.1",
+    "rlanvin/php-rrule": "^2.5"
   },
   "autoload": {
     "psr-4": {
       "CP_Sync\\": "includes/",
-      "PlanningCenterAPI\\": "includes/ChMS/planning-center-api/src/"
+      "PlanningCenterAPI\\": "includes/ChMS/planning-center-api/src/",
+      "CP_Sync_Dependencies\\": "vendor/cp-sync/dependencies/"
     }
   },
   "config": {
@@ -29,5 +31,30 @@
       "composer/installers": true,
       "kylekatarnls/update-helper": false
     }
+  },
+  "require-dev": {
+    "coenjacobs/mozart": "^0.7.1"
+  },
+  "extra": {
+    "mozart": {
+      "dep_namespace": "CP_Sync_Dependencies\\",
+      "dep_directory": "/vendor/cp-sync/dependencies/",
+      "classmap_directory": "/classes/dependencies/",
+      "classmap_prefix": "CP_Sync_Dependencies\\",
+      "packages": [
+        "rlanvin/php-rrule"
+      ],
+      "delete_vendor_directories": true
+    }
+  },
+  "scripts": {
+    "post-install-cmd": [
+        "\"vendor/bin/mozart\" compose",
+        "composer dump-autoload"
+    ],
+    "post-update-cmd": [
+        "\"vendor/bin/mozart\" compose",
+        "composer dump-autoload"
+    ]
   }
 }

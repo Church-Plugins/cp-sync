@@ -21,6 +21,20 @@ abstract class Integration extends \WP_Background_Process {
 	public $label;
 
 	/**
+	 * The associated post type
+	 *
+	 * @var string
+	 */
+	protected $post_type;
+
+	/**
+	 * ChMS ID => Post ID cache
+	 *
+	 * @var array
+	 */
+	protected $chms_id_cache = null;
+
+	/**
 	 * Set the Action
 	 */
 	public function __construct() {
@@ -201,7 +215,7 @@ abstract class Integration extends \WP_Background_Process {
 	 * @author Tanner Moushey
 	 */
 	public function task( $item ) {
-		if ( $item['_is_term'] ) {
+		if ( isset( $item['_is_term'] ) ) {
 			return $this->process_term( $item );
 		}
 
@@ -211,6 +225,7 @@ abstract class Integration extends \WP_Background_Process {
 
 		try {
 			$id = $this->update_item( $item );
+			$this->update_chms_id_cache( $item['chms_id'], $id );
 		} catch ( Exception $e ) {
 			error_log( 'Could not import item: ' . json_encode( $item ) );
 			error_log( $e );
@@ -345,6 +360,43 @@ abstract class Integration extends \WP_Background_Process {
 	}
 
 	/**
+	 * Prime the ChMS ID => Post ID cache
+	 */
+	public function prime_cache() {
+		if ( null !== $this->chms_id_cache ) {
+			return;
+		}
+
+		$cache_key = 'chms_id_cache_' . $this->id;
+
+		if ( wp_cache_get( $cache_key, 'cp_sync' ) ) {
+			$this->chms_id_cache = wp_cache_get( $cache_key, 'cp_sync' );
+			return;
+		}
+
+		global $wpdb;
+
+		// get all chms_ids for this post type using a join
+		// this is so we only get the meta for the correct post type
+		$chms_ids = $wpdb->get_results( "
+			SELECT pm.meta_value AS chms_id, pm.post_id
+			FROM $wpdb->postmeta pm
+			JOIN $wpdb->posts p ON pm.post_id = p.ID
+			WHERE pm.meta_key = '_chms_id'
+			AND p.post_type = '{$this->post_type}'
+		" );
+
+		$this->chms_id_cache = [];
+
+		if ( is_array( $chms_ids ) ) {
+			foreach( $chms_ids as $chms_id ) {
+				$this->chms_id_cache[ $chms_id->chms_id ] = $chms_id->post_id;
+			}
+		}
+		wp_cache_set( $cache_key, $this->chms_id_cache, 'cp_sync' );
+	}
+
+	/**
 	 * Get the post associated with the provided item
 	 *
 	 * @param $chms_id
@@ -355,9 +407,19 @@ abstract class Integration extends \WP_Background_Process {
 	 * @author Tanner Moushey
 	 */
 	public function get_chms_item_id( $chms_id ) {
-		global $wpdb;
+		$this->prime_cache();
+		return $this->chms_id_cache[ $chms_id ] ?? null;
+	}
 
-		return $wpdb->get_var( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key = '_chms_id' AND meta_value = %s", $chms_id ) );
+	/**
+	 * Update the chms id cache
+	 *
+	 * @param $chms_id
+	 * @param $post_id
+	 */
+	public function update_chms_id_cache( $chms_id, $post_id ) {
+		$this->chms_id_cache[ $chms_id ] = $post_id;
+		wp_cache_set( 'chms_id_cache_' . $this->id, $this->chms_id_cache, 'cp_sync' );
 	}
 
 	/**

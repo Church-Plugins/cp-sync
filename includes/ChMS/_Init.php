@@ -11,7 +11,6 @@ use CP_Sync\Admin\Settings;
 use WP_Error;
 
 require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/PCO.php';
-require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/ccb-api/ccb-api.php';
 
 /**
  * Setup integration initialization
@@ -121,11 +120,19 @@ class _Init {
 						return new WP_Error( 'invalid_data', __( 'Invalid data', 'cp-sync' ), [ 'status' => 400 ] );
 					}
 
-					$settings = get_option( 'cp_sync_settings', [] );
+					$old_settings = $settings = get_option( 'cp_sync_settings', [] );
 
 					foreach ( $data as $key => $value ) {
 						$settings[ $key ] = $value;
 					}
+
+					/**
+					 * CP Sync global settings updated
+					 *
+					 * @param array $settings The updated settings
+					 * @param array $old_settings The old settings
+					 */
+					do_action( 'cp_sync_global_settings_updated', $settings, $old_settings );
 
 					update_option( 'cp_sync_settings', $settings );
 
@@ -197,6 +204,8 @@ class _Init {
 					}
 
 					$settings = get_option( $chms_class->settings_key, [] );
+
+					unset( $data['auth'] ); // this should never be updated from the client, only server side
 
 					foreach ( $data as $key => $value ) {
 						$settings[ $key ] = $value;
@@ -337,6 +346,8 @@ class _Init {
 		$refresh_token = apply_filters( 'cp_sync_oauth_refresh_token', $refresh_token, $active_chms );
 
 		$active_chms->save_token( $token, $refresh_token );
+
+		cp_sync()->logging->log( 'OAuth token saved' );
 
 		$target_origin = parse_url( home_url(), PHP_URL_SCHEME ) . '://' . parse_url( home_url(), PHP_URL_HOST );
 		?>

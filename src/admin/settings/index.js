@@ -14,6 +14,7 @@ import { __ } from '@wordpress/i18n';
 import { chmsTab } from './components/chms-tab';
 import { licenseTab } from './components/license-tab';
 import { logTab } from './components/log-tab';
+import { advancedTab } from './components/advanced-tab';
 import SettingsProvider, { useSettings } from './contexts/settingsContext';
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
@@ -104,7 +105,9 @@ function Settings() {
 	const tabNames = [
 		'select',
 		...tabs.map(tab => tab.group),
-		'license'
+		'log',
+		'license',
+		'advanced'
 	]
 
 	const openTab = (index) => {
@@ -149,6 +152,7 @@ function Settings() {
 					}
 					<Tab label={__( 'Log', 'cp-sync' )} key={logTab.group} />
 					<Tab label={__( 'License', 'cp-sync' )} key={licenseTab.group} />
+					<Tab label={__( 'Advanced', 'cp-sync' )} key={advancedTab.group} />
 				</Tabs>
 				<Box sx={{ flexGrow: 1, minHeight: 0 }}>
 					<DynamicTab tab={chmsTab} value={currentTab} index={0} key={chmsTab.group} />
@@ -164,6 +168,7 @@ function Settings() {
 					}
 					<DynamicTab tab={logTab} value={currentTab} index={tabs.length + 1} key={logTab.group} />
 					<DynamicTab tab={licenseTab} value={currentTab} index={tabs.length + 2} key={licenseTab.group} />
+					<DynamicTab tab={advancedTab} value={currentTab} index={tabs.length + 3} key={advancedTab.group} />
 				</Box>
 				{
 					error &&

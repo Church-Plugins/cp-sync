@@ -38,7 +38,7 @@ function Filters({ label, filterGroup, filter, onChange = () => {},  }) {
 	const filterConfig = getFilterConfig(filterGroup);
 
 	if (!filterConfig) {
-		return null;
+		return <div>Loading filters...</div>;
 	}
 
 	const { conditions = [], type = 'all' } = filter
