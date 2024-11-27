@@ -14,7 +14,8 @@
 		"start:wp": "export NODE_ENV=development && wp-scripts start",
 		"lint:wp": "wp-scripts lint",
 		"format:wp": "wp-scripts format",
-		"build:all" : "export NODE_OPTIONS=--openssl-legacy-provider && npm run build && npm run build:wp"
+		"build:all" : "export NODE_OPTIONS=--openssl-legacy-provider && npm run build && npm run build:wp",
+		"plugin-zip": "wp-scripts plugin-zip"
 	},
 	"dependencies": {
 		"@emotion/react": "^11.11.4",
@@ -34,5 +35,19 @@
 		"react-hot-loader": "^4.13.1",
 		"sass": "^1.42.1",
 		"url-loader": "^4.1.1"
-	}
+	},
+	"files": [
+		"assets/images/**",
+		"assets/js/**",
+		"includes/**",
+		"vendor/**",
+		"dist/**",
+		"build/**",
+		"*.php",
+		"*.md",
+		"readme.txt",
+		"languages/**",
+		"LICENSE",
+		"*.css"
+	]
 }

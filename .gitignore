@@ -10,3 +10,4 @@ package-lock.json
 app/templates/*.rt.js
 /package/
 /vendor/
+cp-sync.zip
