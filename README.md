@@ -19,6 +19,9 @@ npm run build
 
 ### Change Log
 
+#### 1.0.4
+* Re-build assets
+
 #### 1.0.3
 * Add more mapping fields for MinistryPlatform
 
