@@ -19,16 +19,19 @@ npm run build
 
 ### Change Log
 
-#### 1.0.4
+#### 0.1.5
 * Re-build assets
 
-#### 1.0.3
+#### 0.1.4
+* Re-build assets
+
+#### 0.1.3
 * Add more mapping fields for MinistryPlatform
 
-#### 1.0.2
+#### 0.1.2
 * Add CCB support
 
-#### 1.0.1
+#### 0.1.1
 * Better handling for location setting
 * Update post after initial save to handle duplicate slugs
 

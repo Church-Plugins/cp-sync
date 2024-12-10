@@ -3,7 +3,7 @@
  * Plugin Name: CP Sync
  * Plugin URL: https://churchplugins.com
  * Description: ChurchPlugins integration plugin for ChMS
- * Version: 0.1.4
+ * Version: 0.1.5
  * Author: Church Plugins
  * Author URI: https://churchplugins.com
  * Text Domain: cp-sync
@@ -12,7 +12,7 @@
 
 if( !defined( 'CP_SYNC_PLUGIN_VERSION' ) ) {
 	 define ( 'CP_SYNC_PLUGIN_VERSION',
-	 	'0.1.4'
+	 	'0.1.5'
 	);
 }
 
