@@ -19,6 +19,9 @@ npm run build
 
 ### Change Log
 
+#### 0.1.6
+* Enhancements to the CCB sync
+
 #### 0.1.5
 * Re-build assets
 

@@ -113,4 +113,5 @@ class CCB {
 	public function post( $path, $args = [] ) {
 		return $this->request( 'POST', $path, $args );
 	}
+
 }

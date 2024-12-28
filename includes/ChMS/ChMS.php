@@ -63,6 +63,13 @@ abstract class ChMS {
 	protected $supported_integrations = [];
 
 	/**
+	 * Image cache directory
+	 *
+	 * @var string
+	 */
+	protected $image_cache_dir = '';
+
+	/**
 	 * Only make one instance of PostType
 	 *
 	 * @return self

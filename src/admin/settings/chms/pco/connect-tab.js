@@ -11,12 +11,14 @@ import globalStore from '../../store/globalStore'
 import { launchOauth } from '../../util/oauth'
 
 export default function ConnectTab() {
-	const { isConnected } = useSettings()
+	const { isConnected, save } = useSettings()
 	const [authLoading, setAuthLoading] = useState(false)
 	const [authError, setAuthError] = useState(null)
 	const { invalidateResolutionForStoreSelector, setIsConnected } = useDispatch(globalStore)
 
 	const initiateOAuth = () => {
+		save();
+
 		setAuthLoading(true);
 		setAuthError(null);
 

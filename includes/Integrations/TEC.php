@@ -17,7 +17,7 @@ class TEC extends Integration {
 
 	public function actions() {
 		parent::actions();
-		// add_action( 'tribe_events_single_event_before_the_content', [ $this, 'maybe_add_registration_button'] );
+		 add_action( 'tribe_events_single_event_before_the_content', [ $this, 'maybe_add_registration_button'] );
 	}
 
 	public function update_item( $item ) {
@@ -92,6 +92,8 @@ class TEC extends Integration {
 
 		$event['post_status'] = 'publish';
 		$event['title'] = $item['post_title'] ?? '';
+		$event['content'] = $item['post_content'] ?? '';
+		$event['post_content'] = $item['post_content'] ?? '';
 		$event['image'] = $item['thumbnail_url'] ?? '';
 		$event['start_date'] = $item['EventStartDate'] ?? '';
 		$event['end_date'] = $item['EventStartDate'] ?? '';
@@ -101,7 +103,8 @@ class TEC extends Integration {
 		$event = array_filter( $event );
 
 		if ( $existing ) {
-			tribe_events()->where( 'id', absint( $existing ) )->set_args( $event )->save();
+			tribe_update_event( $existing, $item );
+//			tribe_events()->where( 'id', absint( $existing ) )->set_args( $event )->save();
 			$id = $existing;
 		} else {
 			$post = tribe_events()->set_args( $event )->create();

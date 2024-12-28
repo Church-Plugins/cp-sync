@@ -11,12 +11,14 @@ import globalStore from '../../store/globalStore'
 import { useDispatch } from '@wordpress/data'
 
 export default function ConnectTab({ data, updateField }) {
-	const { isConnected } = useSettings()
+	const { isConnected, save } = useSettings()
 	const [authLoading, setAuthLoading] = useState(false)
 	const [authError, setAuthError] = useState(null)
 	const { invalidateResolutionForStoreSelector, setIsConnected } = useDispatch(globalStore)
 
 	const initiateOAuth = () => {
+		save();
+
 		setAuthLoading(true);
 		setAuthError(null);
 

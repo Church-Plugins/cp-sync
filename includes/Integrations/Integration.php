@@ -35,10 +35,18 @@ abstract class Integration extends \WP_Background_Process {
 	protected $chms_id_cache = null;
 
 	/**
+	 * The image cache directory
+	 *
+	 * @var string
+	 */
+	protected $image_cache_dir = null;
+
+	/**
 	 * Set the Action
 	 */
 	public function __construct() {
 		$this->action = 'pull_' . $this->type;
+		$this->image_cache_dir = apply_filters( 'cp_sync_image_cache_dir', 'cp-sync' ) . '/' . $this->type;
 
 		$this->actions();
 		parent::__construct();
@@ -281,6 +289,19 @@ abstract class Integration extends \WP_Background_Process {
 	abstract function register_taxonomy( $taxonomy, $args );
 
 	/**
+	 * Return thumbnail url without url params to allow for AWS auth keys
+	 *
+	 * @param $url
+	 *
+	 * @return mixed|string
+	 *
+	 * @author Tanner Moushey, 12/27/24
+	 */
+	public function normalize_thumbnail_url( $url  ) {
+		return apply_filters( 'cp_sync_normalize_thumbnail_url', explode( '?', $url )[0], $url, $this );
+	}
+
+	/**
 	 * Import item thumbnail
 	 *
 	 * @param $item
@@ -291,20 +312,177 @@ abstract class Integration extends \WP_Background_Process {
 	 * @author Tanner Moushey
 	 */
 	public function maybe_sideload_thumb( $item, $id ) {
+
+		if ( empty( $item['thumbnail_url'] ) ) {
+			return;
+		}
+
+		// remove any query strings from the thumbnail URL
+		$thumbnail_url = $this->normalize_thumbnail_url( $item['thumbnail_url'] );
+
+		// import the image and set as the thumbnail
+		if ( get_post_meta( $id, '_thumbnail_url', true ) == $thumbnail_url ) {
+			return;
+		}
+
+		$thumb_id = $this->sideload_image( $item, $id );
+
+		if ( is_wp_error( $thumb_id ) ) {
+			cp_sync()->logging->log( 'Could not import image: ' . $thumb_id->get_error_message() );
+		} else if ( $thumb_id ) {
+			set_post_thumbnail( $id, $thumb_id );
+			update_post_meta( $id, '_thumbnail_url', $thumbnail_url );
+		}
+	}
+
+	public function sideload_image( $item, $id ) {
 		require_once( ABSPATH . 'wp-admin/includes/media.php' );
 		require_once( ABSPATH . 'wp-admin/includes/file.php' );
 		require_once( ABSPATH . 'wp-admin/includes/image.php' );
 
-		// import the image and set as the thumbnail
-		if ( ! empty( $item['thumbnail_url'] ) && get_post_meta( $id, '_thumbnail_url', true ) !== $item['thumbnail_url'] ) {
-			$thumb_id = media_sideload_image( $item['thumbnail_url'], $id, $item['post_title'] . ' Thumbnail', 'id' );
+		$thumbnail_url = $item['thumbnail_url'];
+		$file_name     = sanitize_title( $item['post_title'] ) . '-' . $id . '-' . md5( $thumbnail_url );
 
-			if ( ! is_wp_error( $thumb_id ) ) {
-				set_post_thumbnail( $id, $thumb_id );
-				update_post_meta( $id, '_thumbnail_url', $item['thumbnail_url'] );
+		// Validate URL
+		if ( ! filter_var( $thumbnail_url, FILTER_VALIDATE_URL ) ) {
+			return new \WP_Error( 'invalid_url', __( 'The provided thumbnail URL is invalid.', 'your-text-domain' ) );
+		}
+
+		$upload_dir = wp_upload_dir();
+		if ( ! empty( $upload_dir['error'] ) ) {
+			return new \WP_Error( 'upload_error', __( 'Unable to retrieve upload directory.', 'your-text-domain' ) );
+		}
+
+		// Ensure the directory exists
+		$image_cache_path = trailingslashit( $upload_dir['basedir'] ) . $this->image_cache_dir;
+		if ( ! file_exists( $image_cache_path ) && ! wp_mkdir_p( $image_cache_path ) ) {
+			return new \WP_Error( 'directory_creation_failed', __( 'Failed to create cache directory.', 'your-text-domain' ) );
+		}
+		chmod( $image_cache_path, 0755 );
+
+		// Retrieve the image from the URL
+		$response = wp_remote_get( $thumbnail_url, [
+			'timeout'   => 10,
+			'sslverify' => true,
+		] );
+
+		if ( is_wp_error( $response ) ) {
+			return new \WP_Error( 'http_request_failed', __( 'Failed to fetch the image from the URL.', 'your-text-domain' ) );
+		}
+
+		// Retrieve image content
+		$image_content = wp_remote_retrieve_body( $response );
+
+		// Save the image temporarily
+		$temp_file_name = sanitize_file_name( $file_name . '.tmp' );
+		$save_path     = trailingslashit( $image_cache_path ) . $temp_file_name;
+
+		if ( false === file_put_contents( $save_path, $image_content ) ) {
+			return new \WP_Error( 'file_save_failed', __( 'Failed to save the image locally.', 'your-text-domain' ) );
+		}
+
+		// Detect MIME type
+		$mime_type = wp_remote_retrieve_header( $response, 'content-type' );
+		if ( 'application/octet-stream' == $mime_type ) {
+			$mime_type = $this->detect_mime_type_with_fallback( $thumbnail_url, $save_path, $mime_type );
+		}
+
+		// Supported MIME types and corresponding extensions
+		$supported_mime_types = apply_filters( 'cp_sync_image_mime_types', [
+			'image/jpeg' => 'jpg',
+			'image/jpg'  => 'jpg',
+			'image/jpe'  => 'jpg',
+			'image/png'  => 'png',
+			'image/gif'  => 'gif',
+			'image/webp' => 'webp',
+		] );
+
+		if ( ! array_key_exists( $mime_type, $supported_mime_types ) ) {
+			unlink( $save_path );
+
+			return new \WP_Error( 'unsupported_mime_type', __( 'The MIME type is not supported.', 'your-text-domain' ) );
+		}
+
+		// Rename the file with the correct extension
+		$extension      = $supported_mime_types[ $mime_type ];
+		$final_file_name  = sanitize_file_name( $file_name . '.' . $extension );
+		$final_save_path = trailingslashit( $image_cache_path ) . $final_file_name;
+		rename( $save_path, $final_save_path );
+
+		// Validate saved file
+		if ( ! getimagesize( $final_save_path ) ) {
+			unlink( $final_save_path );
+
+			return new \WP_Error( 'invalid_image', __( 'The saved file is not a valid image.', 'your-text-domain' ) );
+		}
+
+		// Prepare attachment data
+		$attachment_data = [
+			'post_mime_type' => $mime_type,
+			'post_title'     => sanitize_text_field( $item['post_title'] . ' Thumbnail' ),
+			'post_content'   => '',
+			'post_status'    => 'inherit',
+		];
+
+		// Insert attachment into the WordPress Media Library
+		$attachment_id = wp_insert_attachment( $attachment_data, $final_save_path, $post_id );
+
+		if ( is_wp_error( $attachment_id ) ) {
+			unlink( $final_save_path );
+
+			return $attachment_id;
+		}
+
+		// Generate attachment metadata and update
+		$attachment_metadata = wp_generate_attachment_metadata( $attachment_id, $final_save_path );
+		wp_update_attachment_metadata( $attachment_id, $attachment_metadata );
+
+		return $attachment_id;
+
+	}
+
+	/**
+	 * Detect the MIME type of a file, prioritizing the Content-Type header.
+	 *
+	 * @param string $thumbnail_url The URL of the file.
+	 * @param string $file_path The local path to the downloaded file.
+	 * @param string $default_mime_type The default MIME type to return if detection fails.
+	 * @return string The detected MIME type.
+	 */
+	public function detect_mime_type_with_fallback($thumbnail_url, $file_path, $default_mime_type = 'application/octet-stream') {
+		// Check the Content-Type header from the URL
+		$response = wp_remote_head( $thumbnail_url, [
+			'timeout'   => 10,
+			'sslverify' => true,
+		] );
+
+		$fallback_mime_type = apply_filters( 'churchplugins_fallback_mime_type', [
+			'application/xml',
+			'application/octet-stream'
+		] );
+
+		if ( ! is_wp_error( $response ) ) {
+			$header_mime_type = wp_remote_retrieve_header( $response, 'content-type' );
+			if ( $header_mime_type && ! in_array( $header_mime_type, $fallback_mime_type ) ) {
+				return $header_mime_type;
 			}
 		}
+
+		// Fallback: Use finfo to detect MIME type from the local file
+		if ( function_exists( 'finfo_open' ) ) {
+			$finfo          = finfo_open( FILEINFO_MIME_TYPE );
+			$file_mime_type = finfo_file( $finfo, $file_path );
+			finfo_close( $finfo );
+
+			if ( $file_mime_type ) {
+				return $file_mime_type;
+			}
+		}
+
+		// Default to the specified MIME type
+		return $default_mime_type;
 	}
+
 
 	/**
 	 * @param $item
@@ -502,6 +680,10 @@ abstract class Integration extends \WP_Background_Process {
 	 * @author Tanner Moushey
 	 */
 	public function create_store_key( $item ) {
+		if ( ! empty( $item['thumbnail_url'] ) ) {
+			$item['thumbnail_url'] = $this->normalize_thumbnail_url( $item['thumbnail_url'] );
+		}
+
 		return md5( serialize( $item ) );
 	}
 

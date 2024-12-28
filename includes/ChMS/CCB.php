@@ -52,6 +52,21 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * Get the base URL for the ChMS
+	 *
+	 * @return false|string
+	 *
+	 * @author Tanner Moushey, 12/24/24
+	 */
+	public function get_base_url() {
+		if ( ! $subdomain = $this->get_setting( 'subdomain', '', 'connect' ) ) {
+			return false;
+		}
+
+		return "https://{$subdomain}.ccbchurch.com/";
+	}
+
+	/**
 	 * Get the API instance
 	 *
 	 * @return API\CCB
@@ -160,19 +175,29 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @return array
 	 */
 	public function format_group( $group, $context ) {
+//		$data = $this->api()->get( 'groups/' . $group['id'] );
+
+		$thumbnail = '';
+
+		if ( ! empty( $group['images'] ) ) {
+			$thumbnail = $group['images']['large'] ?? current( $group['images'] );
+		}
+
+		$base_url = $this->get_base_url();
+
 		$args = [
-			'chms_id'          => $group['id'],
-			'post_status'      => 'publish',
-			'post_title'       => $group['name'] ?? '',
-			'post_content'     => $group['description'] ?? '',
-			'thumbnail_url'    => $group['images']['large'] ?? '',
-			'tax_input'        => [],
-			'meta_input'       => [
-				'leaders'  => [ [
-					'name'  => $group['main_leader']['name'] ?? '',
-					'email' => $group['main_leader']['email'] ?? '',
-				] ],
-				'public_url'    => $group['public_signup_form']['url'] ?? '',
+			'chms_id'       => $group['id'],
+			'post_status'   => 'publish',
+			'post_title'    => $group['name'] ?? '',
+			'post_content'  => $group['description'] ?? '',
+			'thumbnail_url' => $thumbnail,
+			'tax_input'     => [],
+			'meta_input'    => [
+				'leader'           => $group['main_leader']['name'] ?? '',
+				'leader_email'     => $group['main_leader']['email'] ?? '',
+				'registration_url' => $group['public_signup_form']['url'] ?? '',
+				'public_url'       => $base_url ? $base_url . 'group_detail.php?group_id=' . $group['id'] : '',
+				'is_group_full'    => $group['full'] ? 'on' : 0,
 			],
 		];
 
@@ -380,17 +405,44 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		$end_date           = new \DateTime( $event['end'] );
 		$hashed_id          = md5( $event['event_id'] . $start_date->getTimestamp() );
 
+		$thumbnail = '';
+
+		if ( ! empty( $event['event']['images'] ) ) {
+			$thumbnail = $event['event']['images']['large'] ?? current( $event['event']['images'] );
+		}
+
+		if ( $event_url = $this->get_base_url() ) {
+			$event_url .= 'event_detail.php?event_id=' . $event['event_id'];
+
+			if ( $event['occurrence'] ) {
+				$event_url .= '&occurrence_id=' . $event['occurrence'];
+			}
+		}
+
 		$args = [
+			// post data
 			'chms_id'               => $hashed_id,
 			'post_status'           => 'publish',
 			'post_title'            => $event['event']['name'] ?? '',
 			'post_content'          => $event['event']['description'] ?? '',
-			'thumbnail_url'         => $event['event']['images']['large'],
+			'thumbnail_url'         => $thumbnail,
+
+			// Event Data
 			'EventInitialStartDate' => $initial_start_date->format( 'Y-m-d H:i:s' ),
 			'EventInitialEndDate'   => $initial_end_date->format( 'Y-m-d H:i:s' ),
 			'EventStartDate'        => $start_date->format( 'Y-m-d H:i:s' ),
 			'EventEndDate'          => $end_date->format( 'Y-m-d H:i:s' ),
 			'EventTimezone'         => $start_date->getTimezone()->getName(),
+			'EventURL'              => $event_url,
+			//			'FeaturedImage'         => $thumbnail,
+
+			'tax_input'             => [],
+			'event_category'        => [],
+
+			// extra meta
+			'meta_input' => [
+				'registration_url' => $event_url,
+			],
 		];
 
 		$address = $event['event']['address'] ?? [];

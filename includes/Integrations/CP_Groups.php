@@ -27,6 +27,19 @@ class CP_Groups extends Integration {
 			$item['post_content'] = '';
 		}
 
+		// If the plugin version is 1.2.0 or greater, we need to update the leader meta
+		if ( version_compare( CP_GROUPS_PLUGIN_VERSION, '1.2.0', '>=' ) ) {
+			$item['meta_input']['leaders'] = [
+				[
+					'name' => $item['meta_input']['leader'],
+					'email' => $item['meta_input']['leader_email']
+				]
+			];
+
+			unset( $item['meta_input']['leader'] );
+			unset( $item['meta_input']['leader_email'] );
+		}
+
 		$id = wp_insert_post( $item );
 
 		if ( ! $id ) {
