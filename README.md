@@ -20,7 +20,10 @@ npm run build
 ### Change Log
 
 #### 0.1.6
-* Enhancements to the CCB sync
+* Enhancement: to the CCB sync
+* Enhancement: better image importing
+* Enhancement: add security check to api endpoints
+* Bug Fix: Update api endpoints
 
 #### 0.1.5
 * Re-build assets
