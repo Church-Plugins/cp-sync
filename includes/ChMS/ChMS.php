@@ -390,7 +390,11 @@ abstract class ChMS {
 			[
 				'methods'  => 'GET',
 				'callback' => [ $this, 'get_data_preview' ],
-			]
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+			],
+
 		);
 
 		$this->add_rest_route(

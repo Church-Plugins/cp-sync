@@ -95,7 +95,7 @@ class _Init {
 	 */
 	public function register_rest_routes() {
 		register_rest_route(
-			'/cp-sync/v1',
+			'cp-sync/v1',
 			'settings',
 			[
 				'methods'  => 'GET',
@@ -109,7 +109,7 @@ class _Init {
 		);
 
 		register_rest_route(
-			'/cp-sync/v1',
+			'cp-sync/v1',
 			'settings',
 			[
 				'methods'  => 'POST',
