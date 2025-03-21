@@ -23,8 +23,6 @@ CP-Sync currently supports the following church management systems:
 CP-Sync is designed to work seamlessly with other Church Plugins products:
 
 - **CP Groups**: Display and manage groups on your WordPress site
-- **CP Events**: Create and manage church events
-- **CP Media**: Manage sermons and media content
 
 CP-Sync also integrates with popular third-party plugins like The Events Calendar.
 
