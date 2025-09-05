@@ -773,6 +773,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public function fetch_events() {
 		$source = $this->get_setting( 'source', 'calendar', 'ecp' );
 
+		cp_sync()->logging->log( 'Fetching events from ' . $source );
+
 		if ( 'calendar' === $source ) {
 			return $this->fetch_events_from_calendar();
 		} else if ( 'registrations' === $source ) {
@@ -921,6 +923,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * }
 	 */
 	public function fetch_events_from_registrations() {
+		cp_sync()->logging->log( 'Starting PCO registration events import' );
+		
 		$raw_events = $this->api()
 			->module( 'registrations' )
 			->table( 'events' )
@@ -930,6 +934,17 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		$items = $raw_events['data'] ?? [];
+		cp_sync()->logging->log( sprintf( 'PCO API returned %d registration events', count( $items ) ) );
+		
+		// Log API errors
+		if ( ! empty( $this->api()->errorMessage() ) ) {
+			cp_sync()->logging->log( 'PCO API Error: ' . $this->api()->errorMessage() );
+		}
+		
+		// Log if no events found
+		if ( empty( $items ) ) {
+			cp_sync()->logging->log( 'No registration events found in PCO (check if events are published and not archived)' );
+		}
 
 		$categories = [];
 
@@ -939,6 +954,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		$filter_settings = $this->get_setting( 'filter', [], 'ecp' );
+		cp_sync()->logging->log( sprintf( 'Filter settings: type=%s, conditions=%d', $filter_settings['type'] ?? 'all', count( $filter_settings['conditions'] ?? [] ) ) );
 
 		$filter_type = $filter_settings['type'] ?? 'all';
 		$conditions  = $filter_settings['conditions'] ?? [];
@@ -946,10 +962,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$public_events_only = 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
 
 		if ( $public_events_only ) {
+			cp_sync()->logging->log( 'Public events only filter enabled - events must be visible in Church Center' );
 			$conditions[] = [
 				'compare' => 'is_not_empty',
 				'type'    => 'visible_in_church_center',
 			];
+		} else {
+			cp_sync()->logging->log( 'Importing all events (public and private)' );
 		}
 
 		$filter = new \CP_Sync\Setup\DataFilter(
@@ -960,6 +979,16 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		);
 
 		$filter->apply( $items ); // Apply the filter to the items
+
+		// Log filtering results
+		$filtered_count = count( $items );
+		cp_sync()->logging->log( sprintf( 'After filtering: %d events remain for import', $filtered_count ) );
+		
+		if ( $filtered_count > 0 ) {
+			$event_names = wp_list_pluck( array_slice( $items, 0, 5 ), 'attributes' );
+			$event_names = wp_list_pluck( $event_names, 'name' );
+			cp_sync()->logging->log( 'Sample events to import: ' . implode( ', ', $event_names ) . ( $filtered_count > 5 ? '...' : '' ) );
+		}
 
 		return [
 			'items'      => $items,
@@ -1129,6 +1158,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * @return array|bool The formatted event or false if the event should be skipped.
 	 */
 	public function format_event_from_registrations( $event, $context ) {
+		$event_name = $event['attributes']['name'] ?? 'Unknown Event';
+		$event_id = $event['id'] ?? 'Unknown ID';
+		cp_sync()->logging->log( sprintf( 'Processing event: "%s" (ID: %s)', $event_name, $event_id ) );
+		
 		$relational_data = $context['relational_data'];
 
 		// Begin stuffing the output
@@ -1161,11 +1194,22 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			// 'FeaturedImage'         => $event['attributes']['image_url'] ?? '',
 		];
 
-		if ( 'none' !== $event['attributes']['registration_type'] ) {
-			$args['meta_input']['registration_url'] = trailingslashit( $event['attributes']['public_url'] ) . 'reservations/new/';
+		// Log registration details
+		$registration_type = $event['attributes']['registration_type'] ?? 'none';
+		$public_url = $event['attributes']['public_url'] ?? '';
+		$at_capacity = $event['attributes']['at_maximum_capacity'] ?? false;
+		
+		cp_sync()->logging->log( sprintf( 'Event registration type: %s, has public URL: %s, at capacity: %s', 
+			$registration_type, 
+			$public_url ? 'yes' : 'no', 
+			$at_capacity ? 'yes' : 'no' 
+		) );
+
+		if ( 'none' !== $registration_type ) {
+			$args['meta_input']['registration_url'] = trailingslashit( $public_url ) . 'reservations/new/';
 			$args['meta_input']['registration_sold_out'] = false;
 
-			if ( ! empty( $event['attributes']['at_maximum_capacity'] ) ) {
+			if ( ! empty( $at_capacity ) ) {
 				$args['meta_input']['registration_sold_out'] = true;
 			}
 		}

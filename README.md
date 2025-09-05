@@ -19,6 +19,12 @@ npm run build
 
 ### Change Log
 
+#### 0.1.7
+* Enhancement: Added comprehensive logging to PCO registration event import process
+* Enhancement: Improved debugging capabilities for troubleshooting import issues
+* Enhancement: Added detailed logging for API responses, filtering, and event processing
+* Bug Fix: Fixed OAuth redirect URL construction for admin pages
+
 #### 0.1.6
 * Enhancement: to the CCB sync
 * Enhancement: better image importing

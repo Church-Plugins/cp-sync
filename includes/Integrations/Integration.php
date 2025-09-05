@@ -81,6 +81,8 @@ abstract class Integration extends \WP_Background_Process {
 		 */
 		$items = apply_filters( 'cp_sync_process_items', $items, $this );
 
+		cp_sync()->logging->log( 'Processing ' . count( $items ) . ' items for ' . $this->label );
+
 		/**
 		 * Whether to do a hard refresh.
 		 *
@@ -124,6 +126,8 @@ abstract class Integration extends \WP_Background_Process {
 		$this->update_store( $items );
 
 		$this->save()->dispatch();
+
+		cp_sync()->logging->log( 'Process disbatched for ' . $this->label );
 	}
 
 	/**

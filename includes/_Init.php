@@ -85,6 +85,7 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 			'ajaxUrl'  => admin_url( 'admin-ajax.php' ),
 			'nonce'    => wp_create_nonce( 'cpSync' ),
 			'oauthURL' => CP_SYNC_OAUTH_URL,
+			'adminUrl' => admin_url(),
 		] );
 	}
 

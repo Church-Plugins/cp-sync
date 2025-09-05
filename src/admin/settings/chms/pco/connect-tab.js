@@ -25,7 +25,7 @@ export default function ConnectTab() {
 		const oauthURL = new URL(window.cpSync.oauthURL);
 		oauthURL.pathname = `/wp-content/themes/churchplugins/oauth/pco/`;
 		oauthURL.searchParams.set('action', 'authorize');
-		oauthURL.searchParams.set('redirect_url', window.location.origin + '/wp-admin/?cp_sync_oauth=1')
+		oauthURL.searchParams.set('redirect_url', window.cpSync.adminUrl + '?cp_sync_oauth=1');
 		oauthURL.searchParams.set('_nonce', window.cpSync.nonce);
 
 		launchOauth(oauthURL.toString())

@@ -22,7 +22,9 @@ class TEC extends Integration {
 
 	public function update_item( $item ) {
 		$existing = $this->get_chms_item_id( $item['chms_id'] );
-	
+
+		cp_sync()->logging->log( 'Updating event: ' . $item['post_title'] );
+
 		$event = [];
 
 		// Organizer
