@@ -1040,7 +1040,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		// Begin stuffing the output
 		$args = [
-			'chms_id'        => $event['id'],
+			'chms_id'        => $event_instance['id'],
 			'post_status'    => 'publish',
 			'post_title'     => $event['attributes']['name'] ?? '',
 			'post_content'   => $event['attributes']['description'] ?? '',
@@ -1065,13 +1065,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			// 'EventShowMap'          => $event[''],
 			// 'EventCost'             => $event[''],
 			'EventURL'              => $event['attributes']['registration_url'] ?? '',
-			'FeaturedImage'         => $event['attributes']['image_url'] ?? '',
 		];
 
 		// Featured image
 		if ( ! empty( $event['attributes']['image_url'] ) ) {
-			$url = explode( '?', $event['attributes']['image_url'], 2 );
-			$args['thumbnail_url'] = $url[0] . '?tecevent-' . sanitize_title( $args['post_title'] ) . '.jpeg&' . $url[1];
+			$args['thumbnail_url'] = $event['attributes']['image_url'];
 		}
 
 		// Generic location - a long string with an entire address

@@ -144,7 +144,7 @@ function Settings() {
 			<Box sx={{ height: '100%', p: 2, maxHeight: '100%', display: 'flex', flexDirection: 'column', gap: 0 }}>
 				<h1>CP Sync</h1>
 				<Tabs value={currentTab} onChange={(_, value) => openTab(value)} sx={{ px: 2, mb: '-2px', mt: 4 }}>
-					<Tab label={__( 'Select a ChMS', 'cp-sync' )} />
+					<Tab label={__( 'Select a ChMS', 'cp-sync' )} key="select" />
 					{
 						tabs.map((tab) => (
 							<Tab key={tab.group} label={tab.name} />

@@ -19,6 +19,16 @@ npm run build
 
 ### Change Log
 
+#### 0.1.7.2
+* Bug Fix: Fixed PCO event import to use event instance ID instead of event ID for chms_id
+* Bug Fix: Fixed thumbnail update logic to properly check for existing thumbnails
+* Enhancement: Added PCO-specific image URL normalization using unique 'key' parameter
+* Enhancement: Implemented image reuse system to avoid duplicate downloads from media library
+* Enhancement: Optimized image import by checking for existing attachments before sideloading
+* Bug Fix: Fixed wp_insert_attachment parameter to use correct post ID
+* Enhancement: Store normalized URL in attachment meta for efficient image reuse
+* Bug Fix: Fixed React console warnings by adding proper keys to components
+
 #### 0.1.7
 * Enhancement: Added comprehensive logging to PCO registration event import process
 * Enhancement: Improved debugging capabilities for troubleshooting import issues

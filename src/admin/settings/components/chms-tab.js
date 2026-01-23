@@ -23,10 +23,12 @@ function ChMSTab() {
 					placeholder={__( 'Select ChMS', 'cp-sync' )}
 					sx={{ minWidth: "300px" }}
 				>
-					<MenuItem value="" sx={{ opacity: 0.5 }} >{__( 'Select', 'cp-sync' )}</MenuItem>
-					{Object.keys(platforms).map((key) => (
-						<MenuItem disabled={'mp' === key} key={key} value={key}>{platforms[key].name}</MenuItem>
-					))}
+					{[
+						<MenuItem value="" sx={{ opacity: 0.5 }} key="empty">{__( 'Select', 'cp-sync' )}</MenuItem>,
+						...Object.keys(platforms).map((key) => (
+							<MenuItem disabled={'mp' === key} key={key} value={key}>{platforms[key].name}</MenuItem>
+						))
+					]}
 				</Select>
 			</FormControl>
 			<Alert sx={{ marginTop: '1rem' }} severity="info">{ __( 'More platforms coming soon!', 'cp-sync' ) }</Alert>

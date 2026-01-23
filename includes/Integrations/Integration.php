@@ -302,6 +302,19 @@ abstract class Integration extends \WP_Background_Process {
 	 * @author Tanner Moushey, 12/27/24
 	 */
 	public function normalize_thumbnail_url( $url  ) {
+		// Handle Planning Center URLs specially - use the 'key' parameter as the unique identifier
+		if ( strpos( $url, 'planningcenterusercontent.com' ) !== false ) {
+			$parsed = parse_url( $url );
+			if ( isset( $parsed['query'] ) ) {
+				parse_str( $parsed['query'], $params );
+
+				// Use the 'key' parameter which is the unique identifier for PCO images
+				if ( isset( $params['key'] ) ) {
+					return $parsed['scheme'] . '://' . $parsed['host'] . $parsed['path'] . '?key=' . $params['key'];
+				}
+			}
+		}
+
 		return apply_filters( 'cp_sync_normalize_thumbnail_url', explode( '?', $url )[0], $url, $this );
 	}
 
@@ -325,7 +338,7 @@ abstract class Integration extends \WP_Background_Process {
 		$thumbnail_url = $this->normalize_thumbnail_url( $item['thumbnail_url'] );
 
 		// import the image and set as the thumbnail
-		if ( get_post_meta( $id, '_thumbnail_url', true ) == $thumbnail_url ) {
+		if ( get_post_thumbnail_id( $id ) && get_post_meta( $id, '_thumbnail_url', true ) == $thumbnail_url ) {
 			return;
 		}
 
@@ -339,13 +352,49 @@ abstract class Integration extends \WP_Background_Process {
 		}
 	}
 
+	/**
+	 * Check if an attachment with this normalized URL already exists
+	 *
+	 * @param string $normalized_url The normalized thumbnail URL
+	 * @return int|false The attachment ID if found, false otherwise
+	 * @since  1.2.0
+	 * @author Tanner Moushey
+	 */
+	public function get_existing_attachment( $normalized_url ) {
+		global $wpdb;
+
+		// Query for attachments with this normalized URL
+		$attachment_id = $wpdb->get_var( $wpdb->prepare(
+			"SELECT post_id FROM $wpdb->postmeta
+			WHERE meta_key = '_cp_sync_normalized_url'
+			AND meta_value = %s
+			LIMIT 1",
+			$normalized_url
+		) );
+
+		// Verify the attachment still exists
+		if ( $attachment_id && get_post( $attachment_id ) ) {
+			return (int) $attachment_id;
+		}
+
+		return false;
+	}
+
 	public function sideload_image( $item, $id ) {
 		require_once( ABSPATH . 'wp-admin/includes/media.php' );
 		require_once( ABSPATH . 'wp-admin/includes/file.php' );
 		require_once( ABSPATH . 'wp-admin/includes/image.php' );
 
 		$thumbnail_url = $item['thumbnail_url'];
-		$file_name     = sanitize_title( $item['post_title'] ) . '-' . $id . '-' . md5( $thumbnail_url );
+		$normalized_url = $this->normalize_thumbnail_url( $thumbnail_url );
+
+		// Check if we already have this image in the media library
+		$existing_attachment = $this->get_existing_attachment( $normalized_url );
+		if ( $existing_attachment ) {
+			return $existing_attachment;
+		}
+
+		$file_name     = sanitize_title( $item['post_title'] ) . '-' . $id . '-' . md5( $normalized_url );
 
 		// Validate URL
 		if ( ! filter_var( $thumbnail_url, FILTER_VALIDATE_URL ) ) {
@@ -429,7 +478,7 @@ abstract class Integration extends \WP_Background_Process {
 		];
 
 		// Insert attachment into the WordPress Media Library
-		$attachment_id = wp_insert_attachment( $attachment_data, $final_save_path, $post_id );
+		$attachment_id = wp_insert_attachment( $attachment_data, $final_save_path, $id );
 
 		if ( is_wp_error( $attachment_id ) ) {
 			unlink( $final_save_path );
@@ -440,6 +489,9 @@ abstract class Integration extends \WP_Background_Process {
 		// Generate attachment metadata and update
 		$attachment_metadata = wp_generate_attachment_metadata( $attachment_id, $final_save_path );
 		wp_update_attachment_metadata( $attachment_id, $attachment_metadata );
+
+		// Store the normalized URL so we can reuse this image for other posts
+		update_post_meta( $attachment_id, '_cp_sync_normalized_url', $normalized_url );
 
 		return $attachment_id;
 
