@@ -747,10 +747,15 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * Normalize CCB event data structure
 	 *
 	 * Moves XML attributes from @attributes to top level and
-	 * standardizes public_calendar_listing structure
+	 * standardizes event structure from different CCB endpoints
+	 *
+	 * CCB API Location Formats:
+	 * - public_calendar_listing: string (e.g. "LC 200 - The Cafe") - venue name only
+	 * - event_profiles: object with name, street_address, city, state, zip - full details
+	 * - Flattens to: location_name, location_street_address, location_city, location_state, location_zip
 	 *
 	 * @param array $event The raw event data from CCB API
-	 * @return array Normalized event data
+	 * @return array Normalized event data with flattened location fields
 	 */
 	private function normalize_ccb_event( $event ) {
 		// Move @attributes to top level if present
@@ -786,6 +791,33 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		// Map group_name if present
 		if ( isset( $event['group_name'] ) ) {
 			$event['group'] = $event['group_name'];
+		}
+
+		// Normalize location field
+		// CCB API returns location in two different formats depending on endpoint:
+		// - public_calendar_listing: simple string (e.g. "LC 200 - The Cafe")
+		// - event_profiles: nested object with name, street_address, city, state, zip
+		if ( isset( $event['location'] ) ) {
+			if ( is_string( $event['location'] ) && ! empty( $event['location'] ) ) {
+				// Handle string location (public_calendar_listing)
+				$event['location_name'] = trim( $event['location'] );
+			} elseif ( is_array( $event['location'] ) && ! empty( $event['location'] ) ) {
+				// Handle nested location object (event_profiles)
+				$location_mapping = [
+					'name'           => 'location_name',
+					'street_address' => 'location_street_address',
+					'city'           => 'location_city',
+					'state'          => 'location_state',
+					'zip'            => 'location_zip',
+				];
+
+				foreach ( $location_mapping as $ccb_key => $flat_key ) {
+					if ( isset( $event['location'][$ccb_key] ) && ! empty( $event['location'][$ccb_key] ) ) {
+						$event[$flat_key] = $event['location'][$ccb_key];
+					}
+				}
+			}
+			// Empty array means no location - leave it as is
 		}
 
 		return $event;
@@ -842,17 +874,37 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		];
 
 		// Add location as venue if present
-		// public_calendar_listing has location_street_address, location_city, etc.
-		if ( ! empty( $event['location_name'] ) || ! empty( $event['location_street_address'] ) ) {
-			$full_address = trim(
-				( $event['location_street_address'] ?? '' ) . ', ' .
-				( $event['location_city'] ?? '' ) . ', ' .
-				( $event['location_state'] ?? '' ) . ' ' .
-				( $event['location_zip'] ?? '' )
+		// CCB provides location in different formats:
+		// - public_calendar_listing: only venue name
+		// - event_profiles: full address details
+		if ( ! empty( $event['location_name'] ) ) {
+			// Build full address if components are available
+			$address_parts = array_filter( [
+				$event['location_street_address'] ?? '',
+				$event['location_city'] ?? '',
+				$event['location_state'] ?? '',
+				$event['location_zip'] ?? '',
+			] );
+
+			$full_address = ! empty( $address_parts )
+				? implode( ', ', array_filter( [
+					$event['location_street_address'] ?? '',
+					trim( ( $event['location_city'] ?? '' ) . ', ' . ( $event['location_state'] ?? '' ) . ' ' . ( $event['location_zip'] ?? '' ) ),
+				] ) )
+				: '';
+
+			$log_msg = sprintf(
+				'Creating venue for event "%s": %s',
+				$event['name'] ?? 'Unknown',
+				$event['location_name']
 			);
+			if ( ! empty( $full_address ) ) {
+				$log_msg .= ' at ' . $full_address;
+			}
+			cp_sync()->logging->log( $log_msg );
 
 			$args['EventVenue'] = [
-				'venue'   => $event['location_name'] ?? '',
+				'venue'   => $event['location_name'],
 				'country' => '',
 				'address' => $full_address,
 				'street'  => $event['location_street_address'] ?? '',
@@ -860,6 +912,13 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 				'state'   => $event['location_state'] ?? '',
 				'zip'     => $event['location_zip'] ?? '',
 			];
+		} else {
+			cp_sync()->logging->log(
+				sprintf(
+					'No venue data for event "%s"',
+					$event['name'] ?? 'Unknown'
+				)
+			);
 		}
 
 		// Note: public_calendar_listing returns individual occurrences, not recurring definitions

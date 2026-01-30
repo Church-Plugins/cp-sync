@@ -244,27 +244,57 @@ class CCB_CLI {
 		// Display events in table format
 		$table_data = [];
 		foreach ( $events as $event ) {
-			$location_name = '';
-			if ( isset( $event['location']['name'] ) ) {
-				$location_name = $event['location']['name'];
-			}
+			// CCB returns location as a simple string (venue name only, no address)
+			$venue_display = ! empty( $event['location_name'] ) ? $event['location_name'] : '(no venue)';
 
 			$table_data[] = [
 				'ID'       => $event['id'] ?? '',
 				'Date'     => $event['start_date'] ?? '',
 				'Name'     => $event['name'] ?? '',
-				'Location' => $location_name,
+				'Venue'    => $venue_display,
 				'Image'    => ! empty( $event['image'] ) && is_string( $event['image'] ) ? 'Yes' : 'No',
 			];
 		}
 
-		\WP_CLI\Utils\format_items( 'table', $table_data, [ 'ID', 'Date', 'Name', 'Location', 'Image' ] );
+		\WP_CLI\Utils\format_items( 'table', $table_data, [ 'ID', 'Date', 'Name', 'Venue', 'Image' ] );
 
 		// Show detailed view of first event
 		if ( ! empty( $events[0] ) ) {
 			\WP_CLI::line( '' );
 			\WP_CLI::line( 'Detailed view of first event:' );
 			\WP_CLI::line( str_repeat( '-', 50 ) );
+
+			if ( ! empty( $events[0]['location_name'] ) ) {
+				\WP_CLI::line( '' );
+				\WP_CLI::line( 'VENUE DATA:' );
+				\WP_CLI::line( str_repeat( '=', 50 ) );
+				\WP_CLI::line( 'Location Name: ' . $events[0]['location_name'] );
+
+				// Show address if available (from event_profiles endpoint)
+				if ( ! empty( $events[0]['location_street_address'] ) || ! empty( $events[0]['location_city'] ) ) {
+					if ( ! empty( $events[0]['location_street_address'] ) ) {
+						\WP_CLI::line( 'Street: ' . $events[0]['location_street_address'] );
+					}
+					if ( ! empty( $events[0]['location_city'] ) ) {
+						\WP_CLI::line( 'City: ' . $events[0]['location_city'] );
+					}
+					if ( ! empty( $events[0]['location_state'] ) ) {
+						\WP_CLI::line( 'State: ' . $events[0]['location_state'] );
+					}
+					if ( ! empty( $events[0]['location_zip'] ) ) {
+						\WP_CLI::line( 'Zip: ' . $events[0]['location_zip'] );
+					}
+				} else {
+					\WP_CLI::line( 'Note: Only venue name available (full address requires event_profiles endpoint)' );
+				}
+			} else {
+				\WP_CLI::line( '' );
+				\WP_CLI::line( 'No venue data available for this event' );
+			}
+
+			\WP_CLI::line( '' );
+			\WP_CLI::line( 'FULL EVENT DATA:' );
+			\WP_CLI::line( str_repeat( '=', 50 ) );
 			$this->print_data( $events[0] );
 		}
 	}
@@ -377,6 +407,31 @@ class CCB_CLI {
 
 		if ( isset( $event['date'] ) && isset( $event['end_time'] ) ) {
 			$event['end_datetime'] = $event['date'] . ' ' . $event['end_time'];
+		}
+
+		// Normalize location field
+		// CCB API returns location in two different formats:
+		// - public_calendar_listing: simple string
+		// - event_profiles: nested object with full address
+		if ( isset( $event['location'] ) ) {
+			if ( is_string( $event['location'] ) && ! empty( $event['location'] ) ) {
+				$event['location_name'] = trim( $event['location'] );
+			} elseif ( is_array( $event['location'] ) && ! empty( $event['location'] ) ) {
+				// Handle nested location object
+				$location_mapping = [
+					'name'           => 'location_name',
+					'street_address' => 'location_street_address',
+					'city'           => 'location_city',
+					'state'          => 'location_state',
+					'zip'            => 'location_zip',
+				];
+
+				foreach ( $location_mapping as $ccb_key => $flat_key ) {
+					if ( isset( $event['location'][$ccb_key] ) && ! empty( $event['location'][$ccb_key] ) ) {
+						$event[$flat_key] = $event['location'][$ccb_key];
+					}
+				}
+			}
 		}
 
 		return $event;
