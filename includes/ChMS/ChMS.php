@@ -192,7 +192,7 @@ abstract class ChMS {
 	 * Get the token
 	 */
 	public function get_token() {
-		$this->get_setting( 'token', '', 'auth' );
+		return $this->get_setting( 'token', '', 'auth' );
 	}
 
 	/**
@@ -322,9 +322,11 @@ abstract class ChMS {
 				'title'     => $item['post_title'] ?? '',
 				'content'   => $item['post_content'] ?? '',
 				'thumbnail' => $item['thumbnail_url'] ?? '',
-				'meta'      => []
+				'meta'      => [],
+				'fields'    => []
 			];
 
+			// Add taxonomy terms
 			foreach ( $item['tax_input'] as $taxonomy => $term_ids ) {
 				$tax_label = $data['taxonomies'][ $taxonomy ]['plural_label'];
 				$tax_terms = $data['taxonomies'][ $taxonomy ]['terms'];
@@ -332,13 +334,114 @@ abstract class ChMS {
 				$preview_item['meta'][ $tax_label ] = array_map( fn( $term_id ) => $tax_terms[ $term_id ], $term_ids );
 			}
 
+			// Add relevant meta fields based on integration type
+			if ( 'groups' === $integration_type ) {
+				// Groups: show leader, meeting info, capacity, childcare
+				$meta_input = $item['meta_input'] ?? [];
+
+				if ( ! empty( $meta_input['leader'] ) ) {
+					$preview_item['fields']['Leader'] = $meta_input['leader'];
+				}
+
+				if ( ! empty( $meta_input['leader_email'] ) ) {
+					$preview_item['fields']['Email'] = $meta_input['leader_email'];
+				}
+
+				if ( ! empty( $meta_input['time_desc'] ) ) {
+					$preview_item['fields']['Meeting Time'] = $meta_input['time_desc'];
+				}
+
+				if ( ! empty( $meta_input['meeting_day'] ) ) {
+					$preview_item['fields']['Meeting Day'] = $meta_input['meeting_day'];
+				}
+
+				// Childcare indicator
+				if ( isset( $meta_input['kid_friendly'] ) && 'on' === $meta_input['kid_friendly'] ) {
+					$preview_item['fields']['Childcare'] = '✓ Available';
+				}
+
+				// Group full indicator
+				if ( isset( $meta_input['is_group_full'] ) && 'on' === $meta_input['is_group_full'] ) {
+					$preview_item['fields']['Status'] = '🔒 Full';
+				}
+
+			} elseif ( 'events' === $integration_type ) {
+				// Events: show date, time, location, duration
+				if ( ! empty( $item['EventStartDate'] ) ) {
+					$start_date = strtotime( $item['EventStartDate'] );
+					$start_date_formatted = date( 'D, M j, Y', $start_date );
+
+					// Check if we have an end date
+					if ( ! empty( $item['EventEndDate'] ) ) {
+						$end_date = strtotime( $item['EventEndDate'] );
+						$end_date_formatted = date( 'D, M j, Y', $end_date );
+
+						// Check if it's a multi-day event
+						if ( date( 'Y-m-d', $start_date ) !== date( 'Y-m-d', $end_date ) ) {
+							// Multi-day event: show date range
+							$preview_item['fields']['Dates'] = $start_date_formatted . ' - ' . $end_date_formatted;
+						} else {
+							// Single-day event: just show start date
+							$preview_item['fields']['Date'] = $start_date_formatted;
+						}
+
+						// Show time range
+						$preview_item['fields']['Time'] = date( 'g:i A', $start_date ) . ' - ' . date( 'g:i A', $end_date );
+
+						// Calculate duration
+						$duration = ( $end_date - $start_date ) / 60; // minutes
+						if ( $duration >= 60 ) {
+							$hours = floor( $duration / 60 );
+							$mins = $duration % 60;
+							$duration_str = $hours . 'h';
+							if ( $mins > 0 ) {
+								$duration_str .= ' ' . $mins . 'm';
+							}
+							$preview_item['fields']['Duration'] = $duration_str;
+						} else {
+							$preview_item['fields']['Duration'] = $duration . ' min';
+						}
+					} else {
+						// No end date, just show start
+						$preview_item['fields']['Date'] = $start_date_formatted;
+						$preview_item['fields']['Time'] = date( 'g:i A', $start_date );
+					}
+				}
+
+				// Event venue
+				if ( ! empty( $item['EventVenue']['venue'] ) ) {
+					$preview_item['fields']['Location'] = $item['EventVenue']['venue'];
+				}
+
+				// Event organizer
+				if ( ! empty( $item['EventOrganizer']['organizer'] ) ) {
+					$preview_item['fields']['Organizer'] = $item['EventOrganizer']['organizer'];
+				}
+
+				// Registration URL
+				$meta_input = $item['meta_input'] ?? [];
+				if ( ! empty( $meta_input['registration_url'] ) ) {
+					$preview_item['fields']['Registration'] = '✓ Required';
+				}
+			}
+
 			$preview[] = $preview_item;
 		}
 
-		return rest_ensure_response( [
+		$response = [
 			'items' => $preview,
 			'count' => $data['count'] ?? 0,
-		] );	
+		];
+
+		// Add date range info for events
+		if ( 'events' === $integration_type && method_exists( $this, 'get_active_date_range' ) ) {
+			$date_range = $this->get_active_date_range();
+			$response['date_start'] = $date_range['start'];
+			$response['date_end'] = $date_range['end'];
+			$response['date_mode'] = $date_range['mode'];
+		}
+
+		return rest_ensure_response( $response );
 	}
 
 	/**
@@ -438,6 +541,85 @@ abstract class ChMS {
 				}
 			]
 		);
+
+		$this->add_rest_route(
+			'sync-status',
+			[
+				'methods'  => 'GET',
+				'callback' => function ( $request ) {
+					$type = $request->get_param( 'type' );
+					$is_syncing = $this->is_sync_in_progress( $type );
+
+					$response = [
+						'is_syncing' => $is_syncing,
+						'type'       => $type,
+					];
+
+					// If checking specific type and it's syncing, add more details
+					if ( $is_syncing && $type ) {
+						$response['message'] = sprintf(
+							__( '%s sync is currently in progress', 'cp-sync' ),
+							ucfirst( $type )
+						);
+					} elseif ( $is_syncing ) {
+						$response['message'] = __( 'A sync is currently in progress', 'cp-sync' );
+					}
+
+					return rest_ensure_response( $response );
+				},
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+				'args' => [
+					'type' => [
+						'description' => __( 'The integration type to check (groups, events, etc.)', 'cp-sync' ),
+						'type'        => 'string',
+						'required'    => false,
+					],
+				],
+			]
+		);
+
+		$this->add_rest_route(
+			'cancel-sync',
+			[
+				'methods'  => 'POST',
+				'callback' => function ( $request ) {
+					$type = $request->get_param( 'type' );
+					$cancelled = $this->cancel_sync( $type );
+
+					$response = [
+						'success'   => $cancelled,
+						'type'      => $type,
+					];
+
+					if ( $cancelled ) {
+						if ( $type ) {
+							$response['message'] = sprintf(
+								__( '%s sync has been cancelled', 'cp-sync' ),
+								ucfirst( $type )
+							);
+						} else {
+							$response['message'] = __( 'All syncs have been cancelled', 'cp-sync' );
+						}
+					} else {
+						$response['message'] = __( 'No sync found to cancel', 'cp-sync' );
+					}
+
+					return rest_ensure_response( $response );
+				},
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+				'args' => [
+					'type' => [
+						'description' => __( 'The integration type to cancel (groups, events, etc.)', 'cp-sync' ),
+						'type'        => 'string',
+						'required'    => false,
+					],
+				],
+			]
+		);
 	}
 
 	/**
@@ -464,6 +646,151 @@ abstract class ChMS {
 		update_option( "cp_sync_{$this->id}_settings", $settings );
 
 		return rest_ensure_response( $settings );
+	}
+
+	/**
+	 * Check if a sync is currently in progress
+	 *
+	 * @param string|null $integration_type Optional. Check specific integration type (groups, events). If null, checks all.
+	 * @return bool True if sync is in progress, false otherwise
+	 */
+	public function is_sync_in_progress( $integration_type = null ) {
+		global $wpdb;
+
+		if ( $integration_type ) {
+			$action = "pull_{$integration_type}";
+			$identifier = "wp_{$action}";
+
+			// Check for background process batches first (most reliable indicator)
+			// Format: wp_pull_{type}_batch_{id}
+			$key = $wpdb->esc_like( "{$identifier}_batch_" ) . '%';
+			$count = $wpdb->get_var( $wpdb->prepare(
+				"SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE %s",
+				$key
+			) );
+
+			if ( $count > 0 ) {
+				return true;
+			}
+
+			// Check for process lock transient (indicates active processing)
+			if ( get_site_transient( "{$identifier}_process_lock" ) ) {
+				return true;
+			}
+
+			// Check if cron job is scheduled (indicates queued sync)
+			$cron_hook = "{$identifier}_cron";
+			if ( wp_next_scheduled( $cron_hook ) !== false ) {
+				return true;
+			}
+
+			return false;
+		} else {
+			// Check all supported integration types
+			$types = array_keys( $this->supported_integrations );
+
+			if ( empty( $types ) ) {
+				return false;
+			}
+
+			// First check for any batch jobs (most reliable)
+			$patterns = [];
+			foreach ( $types as $type ) {
+				$action = "pull_{$type}";
+				$patterns[] = $wpdb->esc_like( "wp_{$action}_batch_" ) . '%';
+			}
+
+			$where_clauses = array_fill( 0, count( $patterns ), 'option_name LIKE %s' );
+			$where = implode( ' OR ', $where_clauses );
+
+			$count = $wpdb->get_var( $wpdb->prepare(
+				"SELECT COUNT(*) FROM {$wpdb->options} WHERE {$where}",
+				...$patterns
+			) );
+
+			if ( $count > 0 ) {
+				return true;
+			}
+
+			// Check for any process lock transients
+			foreach ( $types as $type ) {
+				$action = "pull_{$type}";
+				if ( get_site_transient( "wp_{$action}_process_lock" ) ) {
+					return true;
+				}
+			}
+
+			// Check for any scheduled cron jobs
+			foreach ( $types as $type ) {
+				$action = "pull_{$type}";
+				$cron_hook = "wp_{$action}_cron";
+				if ( wp_next_scheduled( $cron_hook ) !== false ) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+	}
+
+	/**
+	 * Cancel a sync in progress
+	 *
+	 * @param string|null $integration_type Optional. Cancel specific integration type (groups, events). If null, cancels all.
+	 * @return bool True if sync was cancelled, false otherwise
+	 */
+	public function cancel_sync( $integration_type = null ) {
+		global $wpdb;
+
+		// Delete batch jobs from wp_options
+		// Format: wp_pull_{type}_batch_{id}
+		if ( $integration_type ) {
+			$action = "pull_{$integration_type}";
+			$identifier = "wp_{$action}";
+			$key = $wpdb->esc_like( "{$identifier}_batch_" ) . '%';
+
+			$deleted = $wpdb->query( $wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+				$key
+			) );
+
+			// Delete the process lock transient
+			delete_site_transient( "{$identifier}_process_lock" );
+
+			// Clear the cron healthcheck to stop processing
+			$cron_hook = "{$identifier}_cron";
+			wp_clear_scheduled_hook( $cron_hook );
+
+			return $deleted > 0 || wp_next_scheduled( $cron_hook ) === false;
+		} else {
+			// Cancel all integration types
+			$deleted = 0;
+			$cancelled = false;
+
+			foreach ( array_keys( $this->supported_integrations ) as $type ) {
+				$action = "pull_{$type}";
+				$identifier = "wp_{$action}";
+				$key = $wpdb->esc_like( "{$identifier}_batch_" ) . '%';
+
+				$deleted += $wpdb->query( $wpdb->prepare(
+					"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+					$key
+				) );
+
+				// Delete the process lock transient
+				delete_site_transient( "{$identifier}_process_lock" );
+
+				// Clear the cron healthcheck to stop processing
+				$cron_hook = "{$identifier}_cron";
+				wp_clear_scheduled_hook( $cron_hook );
+
+				if ( wp_next_scheduled( $cron_hook ) === false ) {
+					$cancelled = true;
+				}
+			}
+
+			return $deleted > 0 || $cancelled;
+		}
 	}
 
 	/**

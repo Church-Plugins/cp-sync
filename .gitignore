@@ -1,6 +1,7 @@
 .DS_STORE
 composer.lock
 package-lock.json
+ai
 /dist/
 /build/
 /node_modules/

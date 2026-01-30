@@ -11,6 +11,8 @@ use CP_Sync\Admin\Settings;
 use WP_Error;
 
 require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/PCO.php';
+require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/CCB.php';
+require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/Tests.php';
 
 /**
  * Setup integration initialization

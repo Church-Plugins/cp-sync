@@ -98,27 +98,45 @@ class TEC extends Integration {
 		$event['post_content'] = $item['post_content'] ?? '';
 		$event['image'] = $item['thumbnail_url'] ?? '';
 		$event['start_date'] = $item['EventStartDate'] ?? '';
-		$event['end_date'] = $item['EventStartDate'] ?? '';
+		$event['end_date'] = $item['EventEndDate'] ?? '';
 		$event['timezone'] = $item['EventTimezone'] ?? '';
 		$event['url'] = $item['EventURL'] ?? '';
 		$event['recurrence'] = $item['EventRecurrence'] ?? '';
 		$event = array_filter( $event );
 
 		if ( $existing ) {
-			tribe_update_event( $existing, $item );
-//			tribe_events()->where( 'id', absint( $existing ) )->set_args( $event )->save();
-			$id = $existing;
+			cp_sync()->logging->log( 'Updating existing event ID: ' . $existing );
+			try {
+				tribe_update_event( $existing, $event );
+				$id = $existing;
+				cp_sync()->logging->log( 'Successfully updated event ID: ' . $id );
+			} catch ( \Exception $e ) {
+				cp_sync()->logging->log( 'ERROR updating event: ' . $e->getMessage() );
+				throw $e;
+			}
 		} else {
-			$post = tribe_events()->set_args( $event )->create();
-			if ( $post ) {
-				$id = $post->ID;
-			} else {
-				throw new Exception( 'Event could not be created: ' . print_r( $event, true ) );
+			cp_sync()->logging->log( 'Creating new event with args: ' . json_encode( array_keys( $event ) ) );
+			try {
+				$post = tribe_events()->set_args( $event )->create();
+				if ( $post ) {
+					$id = $post->ID;
+					cp_sync()->logging->log( 'Successfully created event ID: ' . $id );
+				} else {
+					cp_sync()->logging->log( 'ERROR: tribe_events()->create() returned null/false' );
+					throw new Exception( 'Event could not be created: ' . print_r( $event, true ) );
+				}
+			} catch ( \Exception $e ) {
+				cp_sync()->logging->log( 'ERROR creating event: ' . $e->getMessage() );
+				throw $e;
 			}
 		}
 
 		// TEC categories
 		$categories = [];
+		if ( empty( $item['event_category'] ) || ! is_array( $item['event_category'] ) ) {
+			cp_sync()->logging->log( 'No event categories to process' );
+			$item['event_category'] = [];
+		}
 		foreach( $item['event_category'] as $slug => $name ) {
 			if ( is_int( $slug ) ) {
 				$slug = sanitize_title( $name );

@@ -98,7 +98,7 @@ abstract class Integration extends \WP_Background_Process {
 
 		foreach( $items as $item ) {
 			$store = $item_store[ $item['chms_id'] ] ?? false;
-			
+
 			if ( $hard_refresh ) {
 				$item[ md5( time() ) ] = time(); // add a random key to force an update
 			}
@@ -120,7 +120,19 @@ abstract class Integration extends \WP_Background_Process {
 		}
 
 		foreach( $item_store as $chms_id => $hash ) {
-			$this->remove_item( $chms_id );
+			/**
+			 * Filter whether an item should be removed.
+			 *
+			 * @param bool $should_remove Whether to remove the item. Default true.
+			 * @param string $chms_id The ChMS ID of the item.
+			 * @param Integration $integration The integration instance.
+			 * @return bool
+			 */
+			$should_remove = apply_filters( "cp_sync_{$this->type}_should_remove_item", true, $chms_id, $this );
+
+			if ( $should_remove ) {
+				$this->remove_item( $chms_id );
+			}
 		}
 
 		$this->update_store( $items );
@@ -139,12 +151,16 @@ abstract class Integration extends \WP_Background_Process {
 		$saved_taxonomies = $this->get_store( 'taxonomies' );
 
 		$hard_refresh = apply_filters( 'cp_sync_process_hard_refresh', true, $taxonomies, $this );
+		cp_sync()->logging->log( 'Processing taxonomies with hard_refresh: ' . ( $hard_refresh ? 'true' : 'false' ) );
 
+		$total_terms_queued = 0;
 		foreach( $taxonomies as $taxonomy => $data ) {
 			$saved_terms = $this->get_store( $taxonomy );
 
 			$terms     = $data['terms'] ?? [];
 			$formatted = [];
+
+			cp_sync()->logging->log( "Processing {$taxonomy} with " . count( $terms ) . " terms" );
 
 			foreach ( $terms as $chms_id => $name ) {
 				$hashed_data = $saved_terms[ $chms_id ] ?? false;
@@ -162,6 +178,7 @@ abstract class Integration extends \WP_Background_Process {
 
 				if ( $this->create_store_key( $term_data ) !== $hashed_data ) {
 					$this->push_to_queue( $term_data );
+					$total_terms_queued++;
 				}
 
 				unset( $saved_terms[ $chms_id ] );
@@ -178,6 +195,8 @@ abstract class Integration extends \WP_Background_Process {
 
 			unset( $saved_taxonomies[ $taxonomy ] );
 		}
+
+		cp_sync()->logging->log( "Total terms queued: {$total_terms_queued}" );
 
 		// delete any taxonomies that are no longer in the ChMS results
 		foreach ( $saved_taxonomies as $taxonomy => $_ ) {
@@ -228,8 +247,15 @@ abstract class Integration extends \WP_Background_Process {
 	 */
 	public function task( $item ) {
 		if ( isset( $item['_is_term'] ) ) {
-			return $this->process_term( $item );
+			cp_sync()->logging->log( 'Processing term: ' . $item['name'] );
+			$result = $this->process_term( $item );
+			cp_sync()->logging->log( 'Term processed: ' . ( $result === false ? 'success' : 'failed' ) );
+			return $result;
 		}
+
+		$chms_id = $item['chms_id'] ?? 'unknown';
+		$title = $item['post_title'] ?? 'unknown';
+		cp_sync()->logging->log( "Processing group {$chms_id}: {$title}" );
 
 		$tax_input = $item['tax_input'] ?? [];
 
@@ -237,15 +263,30 @@ abstract class Integration extends \WP_Background_Process {
 
 		try {
 			$id = $this->update_item( $item );
+
+			if ( ! $id || is_wp_error( $id ) ) {
+				$error_msg = is_wp_error( $id ) ? $id->get_error_message() : 'update_item returned false/null';
+				cp_sync()->logging->log( "ERROR: Could not import {$chms_id}: {$error_msg}" );
+				error_log( "CP-Sync: Could not import item {$chms_id}: {$error_msg}" );
+				error_log( 'Item data: ' . json_encode( $item ) );
+				// Skip this item instead of retrying forever
+				return false;
+			}
+
+			cp_sync()->logging->log( "Group {$chms_id} created with ID: {$id}" );
 			$this->update_chms_id_cache( $item['chms_id'], $id );
-		} catch ( Exception $e ) {
-			error_log( 'Could not import item: ' . json_encode( $item ) );
-			error_log( $e );
+		} catch ( \Throwable $e ) {
+			cp_sync()->logging->log( 'ERROR: Could not import group: ' . $e->getMessage() );
+			cp_sync()->logging->log( 'Error in file: ' . $e->getFile() . ' on line ' . $e->getLine() );
+			error_log( 'CP-Sync: Could not import item: ' . json_encode( $item ) );
+			error_log( 'CP-Sync Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
+			// Skip this item instead of retrying forever
 			return false;
 		}
 
 		foreach ( $tax_input as $taxonomy => $terms ) {
 			$term_ids = $this->get_chms_term_ids( ...array_map( fn( $term ) => $taxonomy . '_' . $term, $terms ) );
+			cp_sync()->logging->log( "Setting {$taxonomy} terms: " . implode( ', ', $term_ids ) );
 			wp_set_post_terms( $id, $term_ids, $taxonomy );
 		}
 

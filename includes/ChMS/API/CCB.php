@@ -17,14 +17,21 @@ class CCB {
 	 *
 	 * @var string
 	 */
-	protected $base_url = 'https://api.ccbchurch.com/';
+	public $base_url = '';
 
 	/**
-	 * Access token
+	 * Username for Basic Authentication
 	 *
 	 * @var string
 	 */
-	private $access_token = '';
+	private $username = '';
+
+	/**
+	 * Password for Basic Authentication
+	 *
+	 * @var string
+	 */
+	private $password = '';
 	
 	/**
 	 * Error
@@ -50,34 +57,44 @@ class CCB {
 	}
 
 	/**
-	 * Set the access token
+	 * Set the API credentials
 	 *
-	 * @param string $access_token The access token
+	 * @param string $username The API username
+	 * @param string $password The API password
+	 * @param string $subdomain The CCB subdomain
 	 * @return void
 	 */
-	public function set_access_token( $access_token ) {
-		$this->access_token = $access_token;
+	public function set_credentials( $username, $password, $subdomain ) {
+		$this->username = $username;
+		$this->password = $password;
+		$this->base_url = "https://{$subdomain}.ccbchurch.com/api.php";
 	}
 
 	/**
 	 * Make a request to the CCB API
 	 *
 	 * @param string $method The request method
-	 * @param string $path The path to request
+	 * @param string $service The service name (maps to 'srv' parameter)
 	 * @param array $args The arguments to pass to the request
 	 * @return array|WP_Error
 	 */
-	public function request( $method, $path, $args = [] ) {
-		$url = $this->base_url . $path;
+	public function request( $method, $service, $args = [] ) {
+		// CCB API uses query parameters with 'srv' for the service
+		if ( ! empty( $service ) ) {
+			$args['srv'] = $service;
+		}
+
+		// Build URL with query parameters
+		$url = add_query_arg( $args, $this->base_url );
 
 		$this->error = null;
 
 		$response = wp_remote_request( $url, [
 			'method'  => $method,
+			'timeout' => 30, // Increase timeout for large event lists
 			'headers' => [
-				'Authorization' => 'Bearer ' . $this->access_token,
+				'Authorization' => 'Basic ' . base64_encode( $this->username . ':' . $this->password ),
 			],
-			'body'    => $args,
 		] );
 
 		$this->response = $response;
@@ -87,9 +104,29 @@ class CCB {
 			return $response;
 		}
 
+		$response_code = wp_remote_retrieve_response_code( $response );
+		if ( $response_code !== 200 ) {
+			$error_message = "CCB API request failed with status code: {$response_code}";
+			$this->error = new \WP_Error( 'ccb_api_error', $error_message );
+			return $this->error;
+		}
+
 		$body = wp_remote_retrieve_body( $response );
 
-		return json_decode( $body, true );
+		// CCB API returns XML, not JSON
+		libxml_use_internal_errors( true );
+		$xml = simplexml_load_string( $body );
+
+		if ( false === $xml ) {
+			$this->error = new \WP_Error( 'ccb_xml_parse_error', 'Failed to parse CCB API XML response' );
+			return $this->error;
+		}
+
+		// Convert XML to array for easier handling
+		$json = json_encode( $xml );
+		$data = json_decode( $json, true );
+
+		return $data;
 	}	
 
 	/**

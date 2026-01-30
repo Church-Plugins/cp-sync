@@ -23,16 +23,17 @@ class CP_Groups extends Integration {
 
 		$item['post_type'] = 'cp_group';
 
-		if ( is_object( $item['post_content'] ) ) {
+		// Ensure post_content is a string
+		if ( is_object( $item['post_content'] ) || is_array( $item['post_content'] ) ) {
 			$item['post_content'] = '';
 		}
 
 		// If the plugin version is 1.2.0 or greater, we need to update the leader meta
-		if ( version_compare( CP_GROUPS_PLUGIN_VERSION, '1.2.0', '>=' ) ) {
+		if ( defined( 'CP_GROUPS_PLUGIN_VERSION' ) && version_compare( CP_GROUPS_PLUGIN_VERSION, '1.2.0', '>=' ) ) {
 			$item['meta_input']['leaders'] = [
 				[
-					'name' => $item['meta_input']['leader'],
-					'email' => $item['meta_input']['leader_email']
+					'name' => $item['meta_input']['leader'] ?? '',
+					'email' => $item['meta_input']['leader_email'] ?? ''
 				]
 			];
 
@@ -42,8 +43,11 @@ class CP_Groups extends Integration {
 
 		$id = wp_insert_post( $item );
 
-		if ( ! $id ) {
-			throw new Exception( 'Group could not be created' );
+		if ( ! $id || is_wp_error( $id ) ) {
+			$error_message = is_wp_error( $id ) ? $id->get_error_message() : 'wp_insert_post returned 0';
+			cp_sync()->logging->log( 'ERROR: Group could not be created: ' . $error_message );
+			cp_sync()->logging->log( 'Item data: ' . json_encode( $item, JSON_PRETTY_PRINT ) );
+			throw new Exception( 'Group could not be created: ' . $error_message );
 		}
 
 		$taxonomies = [ 'group_category', 'group_type', 'group_life_stage' ];

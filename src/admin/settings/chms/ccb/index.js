@@ -12,8 +12,8 @@ export default {
 			group: 'connect',
 			defaultData: {
 				subdomain: '',
-				clientId: '',
-				clientSecret: ''
+				username: '',
+				password: ''
 			}
 		},
 		{

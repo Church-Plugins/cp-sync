@@ -3,11 +3,16 @@ import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import CloudOutlined from '@mui/icons-material/CloudOutlined';
 import FilterAltOutlined from '@mui/icons-material/FilterAltOutlined';
+import DateRangeOutlined from '@mui/icons-material/DateRangeOutlined';
+import DeleteOutlined from '@mui/icons-material/DeleteOutlined';
 import Box from '@mui/material/Box';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Checkbox from '@mui/material/Checkbox';
 import { __ } from '@wordpress/i18n';
 import { useState } from '@wordpress/element';
 import Filters from '../../components/filters';
 import Preview from '../../components/preview';
+import DateRange from '../../components/date-range';
 import apiFetch from '@wordpress/api-fetch';
 
 export default function EventsTab({ data, updateField }) {
@@ -20,6 +25,18 @@ export default function EventsTab({ data, updateField }) {
 			...data.filter,
 			...newData
 		})
+	}
+
+	const updateDateRange = (newData) => {
+		if (newData.mode !== undefined) {
+			updateField('date_range_mode', newData.mode);
+		}
+		if (newData.startDate !== undefined) {
+			updateField('date_start', newData.startDate);
+		}
+		if (newData.endDate !== undefined) {
+			updateField('date_end', newData.endDate);
+		}
 	}
 
 	const handlePull = () => {
@@ -47,6 +64,39 @@ export default function EventsTab({ data, updateField }) {
 					<CloudOutlined sx={{ mr: 1 }} />
 					{ __( 'Select data to pull from Church Community Builder', 'cp-sync' ) }
 				</Typography>
+
+				<Typography variant="h6" sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
+					<DateRangeOutlined sx={{ mr: 1 }} />
+					{ __( 'Date Range', 'cp-sync' ) }
+				</Typography>
+
+				<DateRange
+					mode={data.date_range_mode}
+					startDate={data.date_start}
+					endDate={data.date_end}
+					onChange={updateDateRange}
+				/>
+
+				<Typography variant="h6" sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
+					<DeleteOutlined sx={{ mr: 1 }} />
+					{ __( 'Cleanup Options', 'cp-sync' ) }
+				</Typography>
+
+				<Box sx={{ mb: 3 }}>
+					<Alert severity="info" sx={{ mb: 2 }}>
+						{__('By default, events outside the configured date range are preserved. Enable this option to remove events that fall outside the date range.', 'cp-sync')}
+					</Alert>
+
+					<FormControlLabel
+						control={
+							<Checkbox
+								checked={data.remove_events_outside_range || false}
+								onChange={(e) => updateField('remove_events_outside_range', e.target.checked)}
+							/>
+						}
+						label={__('Remove events outside the date range', 'cp-sync')}
+					/>
+				</Box>
 
 				<Typography variant="h6" sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
 					<FilterAltOutlined sx={{ mr: 1 }} />

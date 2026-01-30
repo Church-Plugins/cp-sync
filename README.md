@@ -19,6 +19,26 @@ npm run build
 
 ### Change Log
 
+#### 0.2.0
+* **Breaking Change**: CCB now uses Basic Authentication (username/password) instead of OAuth. Existing users will need to reconnect with API credentials.
+* **New Feature**: Added WP-CLI commands for CCB debugging (`wp cp-sync ccb test-connection`)
+* **New Feature**: Added configurable date range for CCB event sync with multiple preset options
+* **New Feature**: Added option to remove events outside the configured date range
+* **New Feature**: Added `cp_sync_{type}_should_remove_item` filter for custom removal logic
+* Enhancement: Completely redesigned CCB connection interface with improved user experience
+* Enhancement: Added migration notice for users upgrading from OAuth to Basic Auth
+* Enhancement: Enhanced preview component with better content display and date range information
+* Enhancement: Comprehensive logging improvements throughout sync process for better debugging
+* Enhancement: Better error handling and reporting during sync operations
+* Bug Fix: Fixed CCB authentication issue that prevented connections from working properly
+* Bug Fix: Fixed plugin crash when CP Groups plugin is not active
+* Bug Fix: Fixed PHP 8 compatibility warnings when syncing groups without leader information
+* Bug Fix: Fixed events being updated with incorrect venue and organizer information
+* Bug Fix: Fixed issue where meeting times with invalid formats would cause PHP warnings
+* Enhancement: Refactored date range logic to eliminate code duplication and improve maintainability
+* Enhancement: Enhanced sync status indicator to update more reliably in real-time
+* Enhancement: Added date validation in admin interface to prevent selecting invalid date ranges
+
 #### 0.1.7.2
 * Bug Fix: Fixed PCO event import to use event instance ID instead of event ID for chms_id
 * Bug Fix: Fixed thumbnail update logic to properly check for existing thumbnails

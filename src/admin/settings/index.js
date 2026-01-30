@@ -15,6 +15,7 @@ import { chmsTab } from './components/chms-tab';
 import { licenseTab } from './components/license-tab';
 import { logTab } from './components/log-tab';
 import { advancedTab } from './components/advanced-tab';
+import { SyncStatusIndicator } from './components/sync-status';
 import SettingsProvider, { useSettings } from './contexts/settingsContext';
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
@@ -143,6 +144,7 @@ function Settings() {
 		<ThemeProvider theme={theme}>
 			<Box sx={{ height: '100%', p: 2, maxHeight: '100%', display: 'flex', flexDirection: 'column', gap: 0 }}>
 				<h1>CP Sync</h1>
+				<SyncStatusIndicator chms={globalSettings.chms} />
 				<Tabs value={currentTab} onChange={(_, value) => openTab(value)} sx={{ px: 2, mb: '-2px', mt: 4 }}>
 					<Tab label={__( 'Select a ChMS', 'cp-sync' )} key="select" />
 					{

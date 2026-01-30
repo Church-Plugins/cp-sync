@@ -23,3 +23,17 @@ body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-sync {
   box-sizing: border-box;
   line-height: 23px;
 }
+
+// Sync status indicator animation
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.rotating-icon {
+  animation: rotate 2s linear infinite;
+}
