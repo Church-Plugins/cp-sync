@@ -380,61 +380,14 @@ class CCB_CLI {
 	/**
 	 * Helper to normalize event data
 	 *
+	 * Delegates to the main CCB class to avoid code duplication.
+	 *
 	 * @param array $event Raw event data
 	 * @return array Normalized event data
 	 */
 	private function normalize_event( $event ) {
-		// Move @attributes to top level if present
-		if ( isset( $event['@attributes'] ) && is_array( $event['@attributes'] ) ) {
-			$event = array_merge( $event['@attributes'], $event );
-			unset( $event['@attributes'] );
-		}
-
-		// public_calendar_listing returns different field names
-		// Normalize the structure for display
-		if ( isset( $event['event_name'] ) ) {
-			$event['name'] = $event['event_name'];
-		}
-
-		if ( isset( $event['event_description'] ) ) {
-			$event['description'] = $event['event_description'];
-		}
-
-		// Combine date and time fields into datetime
-		if ( isset( $event['date'] ) && isset( $event['start_time'] ) ) {
-			$event['start_datetime'] = $event['date'] . ' ' . $event['start_time'];
-		}
-
-		if ( isset( $event['date'] ) && isset( $event['end_time'] ) ) {
-			$event['end_datetime'] = $event['date'] . ' ' . $event['end_time'];
-		}
-
-		// Normalize location field
-		// CCB API returns location in two different formats:
-		// - public_calendar_listing: simple string
-		// - event_profiles: nested object with full address
-		if ( isset( $event['location'] ) ) {
-			if ( is_string( $event['location'] ) && ! empty( $event['location'] ) ) {
-				$event['location_name'] = trim( $event['location'] );
-			} elseif ( is_array( $event['location'] ) && ! empty( $event['location'] ) ) {
-				// Handle nested location object
-				$location_mapping = [
-					'name'           => 'location_name',
-					'street_address' => 'location_street_address',
-					'city'           => 'location_city',
-					'state'          => 'location_state',
-					'zip'            => 'location_zip',
-				];
-
-				foreach ( $location_mapping as $ccb_key => $flat_key ) {
-					if ( isset( $event['location'][$ccb_key] ) && ! empty( $event['location'][$ccb_key] ) ) {
-						$event[$flat_key] = $event['location'][$ccb_key];
-					}
-				}
-			}
-		}
-
-		return $event;
+		$ccb = CCB::get_instance();
+		return $ccb->normalize_ccb_event( $event );
 	}
 
 	/**

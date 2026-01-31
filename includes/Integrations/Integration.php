@@ -302,6 +302,7 @@ abstract class Integration extends \WP_Background_Process {
 		}
 
 		do_action( 'cp_update_item_after', $item, $id, $this );
+		do_action( "cp_sync_{$this->type}_update_item_after", $item, $id );
 		do_action( 'cp_' . $this->id . '_update_item_after', $item, $id );
 		return false;
 	}
