@@ -23,6 +23,14 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	protected $api;
 
 	/**
+	 * Track venues enriched during current import session
+	 * Prevents redundant updates when multiple events share a venue
+	 *
+	 * @var array venue_id => true
+	 */
+	private $enriched_venues_session = [];
+
+	/**
 	 * @var string The settings key for this integration
 	 */
 	public $settings_key = 'cp_sync_ccb_settings';
@@ -1086,7 +1094,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		}
 
 		// Check if enrichment is needed
-		if ( ! $this->should_enrich_event( $post_id, $chms_modified ) ) {
+		if ( ! $this->should_enrich_event( $post_id, $event_id ) ) {
 			cp_sync()->logging->log( "Skipping enrichment for event {$event_id}: Already enriched with current modified timestamp" );
 			return;
 		}
@@ -1106,7 +1114,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		$this->update_event_with_enriched_data( $post_id, $enriched_data );
 
 		// Save enrichment state
-		$this->save_enrichment_state( $post_id, $chms_modified );
+		$this->save_enrichment_state( $post_id, $enriched_data );
 
 		cp_sync()->logging->log( "Successfully enriched event {$event_id}" );
 	}
@@ -1114,29 +1122,58 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Check if event needs enrichment
 	 *
-	 * Compares CCB's modified timestamp with our last enriched timestamp.
-	 * Returns true if never enriched or if CCB modified timestamp has changed.
+	 * Two-phase strategy:
+	 * - Phase 1: Never enriched before → always enrich
+	 * - Phase 2: Already enriched → fetch current modified timestamp and compare
 	 *
 	 * @param int $post_id WordPress post ID
-	 * @param string $chms_modified CCB modified timestamp
+	 * @param string $event_id CCB event ID (numeric)
 	 * @return bool True if enrichment needed
 	 */
-	private function should_enrich_event( $post_id, $chms_modified ) {
-		// Get last enriched state
+	private function should_enrich_event( $post_id, $event_id ) {
+		// Phase 1: First-time enrichment
 		$last_enriched_at = get_post_meta( $post_id, '_chms_enriched_at', true );
+
+		if ( empty( $last_enriched_at ) ) {
+			cp_sync()->logging->log( "Event {$event_id}: Never enriched, needs enrichment" );
+			return true;
+		}
+
+		// Phase 2: Update detection
 		$stored_modified = get_post_meta( $post_id, '_chms_modified', true );
 
-		// If never enriched, need enrichment
-		if ( empty( $last_enriched_at ) ) {
+		cp_sync()->logging->log( "Event {$event_id}: Checking for updates (last enriched: {$last_enriched_at})" );
+
+		// Fetch current modified timestamp from event_profile
+		$profile_data = $this->api()->get( 'event_profile', [
+			'id' => $event_id,
+			'include_image_link' => 'false',  // Don't need image for timestamp check
+		] );
+
+		if ( is_wp_error( $profile_data ) ) {
+			cp_sync()->logging->log( "WARNING: Failed to check modified timestamp for event {$event_id}: " . $profile_data->get_error_message() );
+			return false;  // Fail safe: skip enrichment if we can't check
+		}
+
+		// Extract current modified timestamp
+		$current_modified = '';
+		if ( ! empty( $profile_data['response']['events']['event'] ) ) {
+			$profile = $this->normalize_ccb_event( $profile_data['response']['events']['event'] );
+			$current_modified = $profile['modified'] ?? '';
+		}
+
+		// Compare timestamps
+		if ( empty( $current_modified ) ) {
+			cp_sync()->logging->log( "Event {$event_id}: No modified timestamp available, skipping enrichment" );
+			return false;
+		}
+
+		if ( $current_modified !== $stored_modified ) {
+			cp_sync()->logging->log( "Event {$event_id}: Modified timestamp changed ({$stored_modified} → {$current_modified}), needs re-enrichment" );
 			return true;
 		}
 
-		// If modified timestamp changed, need re-enrichment
-		if ( $chms_modified !== $stored_modified ) {
-			return true;
-		}
-
-		// Already enriched with current data
+		cp_sync()->logging->log( "Event {$event_id}: Already up to date, skipping enrichment" );
 		return false;
 	}
 
@@ -1173,6 +1210,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		$enriched = [
 			'location' => [],
 			'image' => '',
+			'modified' => $profile['modified'] ?? '',
 		];
 
 		// Location data (full address from event_profile)
@@ -1225,26 +1263,37 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			if ( ! empty( $existing_venue ) ) {
 				$venue_id = $existing_venue[0]->ID;
 
-				// Update venue with enriched address data
-				$venue_args = [
-					'address' => $full_address,
-					'city' => $location['city'] ?? '',
-					'state' => $location['state'] ?? '',
-					'zip' => $location['zip'] ?? '',
-					'country' => '',
-				];
+				// Check if this venue was already enriched in this session
+				if ( isset( $this->enriched_venues_session[ $venue_id ] ) ) {
+					cp_sync()->logging->log( "Venue {$venue_id} ({$location['name']}) already enriched this session, skipping redundant update" );
 
-				// Update venue meta
-				foreach ( $venue_args as $meta_key => $meta_value ) {
-					if ( $meta_key === 'address' ) {
-						update_post_meta( $venue_id, '_VenueAddress', $meta_value );
-					} else {
-						update_post_meta( $venue_id, '_Venue' . ucfirst( $meta_key ), $meta_value );
+					// Still link venue to event (event might be different)
+					update_post_meta( $post_id, '_EventVenueID', $venue_id );
+				} else {
+					// Update venue with enriched address data
+					$venue_args = [
+						'address' => $full_address,
+						'city' => $location['city'] ?? '',
+						'state' => $location['state'] ?? '',
+						'zip' => $location['zip'] ?? '',
+						'country' => '',
+					];
+
+					// Update venue meta
+					foreach ( $venue_args as $meta_key => $meta_value ) {
+						if ( $meta_key === 'address' ) {
+							update_post_meta( $venue_id, '_VenueAddress', $meta_value );
+						} else {
+							update_post_meta( $venue_id, '_Venue' . ucfirst( $meta_key ), $meta_value );
+						}
 					}
-				}
 
-				// Link venue to event
-				update_post_meta( $post_id, '_EventVenueID', $venue_id );
+					// Mark this venue as enriched for this session
+					$this->enriched_venues_session[ $venue_id ] = true;
+
+					// Link venue to event
+					update_post_meta( $post_id, '_EventVenueID', $venue_id );
+				}
 			} else {
 				// Create new venue with full address
 				$venue = tribe_venues()->set_args( [
@@ -1259,6 +1308,10 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 
 				if ( $venue ) {
 					$venue_id = $venue->ID;
+
+					// Mark as enriched immediately (in case other events reference it)
+					$this->enriched_venues_session[ $venue_id ] = true;
+
 					// Link venue to event
 					update_post_meta( $post_id, '_EventVenueID', $venue_id );
 				}
@@ -1287,15 +1340,15 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * Save enrichment state after successful enrichment
 	 *
 	 * @param int $post_id WordPress post ID
-	 * @param string $chms_modified CCB modified timestamp
+	 * @param array $enriched_data Enriched data from event_profile (must include 'modified' key)
 	 */
-	private function save_enrichment_state( $post_id, $chms_modified ) {
+	private function save_enrichment_state( $post_id, $enriched_data ) {
 		update_post_meta( $post_id, '_chms_enriched_at', current_time( 'mysql' ) );
 
-		// Also update the stored modified timestamp to match
-		// (in case it wasn't saved properly during initial import)
-		if ( ! empty( $chms_modified ) ) {
-			update_post_meta( $post_id, '_chms_modified', $chms_modified );
+		// Store the modified timestamp from event_profile response
+		if ( ! empty( $enriched_data['modified'] ) ) {
+			update_post_meta( $post_id, '_chms_modified', $enriched_data['modified'] );
+			cp_sync()->logging->log( "Saved modified timestamp for post {$post_id}: {$enriched_data['modified']}" );
 		}
 	}
 
