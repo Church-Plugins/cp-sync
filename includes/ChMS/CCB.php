@@ -840,7 +840,18 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 
 				foreach ( $location_mapping as $ccb_key => $flat_key ) {
 					if ( isset( $event['location'][$ccb_key] ) && ! empty( $event['location'][$ccb_key] ) ) {
-						$event[$flat_key] = $event['location'][$ccb_key];
+						$value = $event['location'][$ccb_key];
+
+						// Handle CCB XML elements with attributes
+						// e.g. <name ccb_id="123">Building</name> parses to
+						// ['@attributes' => [...], '@value' => 'Building']
+						if ( is_array( $value ) ) {
+							$value = $value['@value'] ?? '';
+						}
+
+						if ( ! empty( $value ) ) {
+							$event[$flat_key] = $value;
+						}
 					}
 				}
 			}
@@ -907,43 +918,17 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			],
 		];
 
-		// Add location as venue if present
-		// CCB provides location in different formats:
-		// - public_calendar_listing: only venue name
-		// - event_profiles: full address details
+		// Skip venue creation during initial import for CCB events.
+		// public_calendar_listing only provides a venue name (no address), so creating
+		// a venue here would produce an incomplete record. The enrichment process
+		// (maybe_enrich_event_after_update) handles venue creation with full address
+		// data from event_profile, preventing duplicate venue posts from name mismatches.
 		if ( ! empty( $event['location_name'] ) ) {
-			// Build full address from components
-			$full_address = $this->build_full_address( [
-				'street_address' => $event['location_street_address'] ?? '',
-				'city'           => $event['location_city'] ?? '',
-				'state'          => $event['location_state'] ?? '',
-				'zip'            => $event['location_zip'] ?? '',
-			] );
-
-			$log_msg = sprintf(
-				'Creating venue for event "%s": %s',
-				$event['name'] ?? 'Unknown',
-				$event['location_name']
-			);
-			if ( ! empty( $full_address ) ) {
-				$log_msg .= ' at ' . $full_address;
-			}
-			cp_sync()->logging->log( $log_msg );
-
-			$args['EventVenue'] = [
-				'venue'   => $event['location_name'],
-				'country' => '',
-				'address' => $full_address,
-				'street'  => $event['location_street_address'] ?? '',
-				'city'    => $event['location_city'] ?? '',
-				'state'   => $event['location_state'] ?? '',
-				'zip'     => $event['location_zip'] ?? '',
-			];
-		} else {
 			cp_sync()->logging->log(
 				sprintf(
-					'No venue data for event "%s"',
-					$event['name'] ?? 'Unknown'
+					'Deferring venue creation for event "%s" (venue: %s) to enrichment phase',
+					$event['name'] ?? 'Unknown',
+					$event['location_name']
 				)
 			);
 		}
@@ -1080,7 +1065,6 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	public function maybe_enrich_event_after_update( $item, $post_id ) {
 		// Extract event ID and modified timestamp
 		$event_id = $item['chms_id'] ?? null;
-		$chms_modified = $item['meta_input']['_chms_modified'] ?? '';
 
 		if ( ! $event_id ) {
 			cp_sync()->logging->log( "Skipping enrichment: No event ID found for post {$post_id}" );
@@ -1093,22 +1077,17 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			return;
 		}
 
-		// Check if enrichment is needed
-		if ( ! $this->should_enrich_event( $post_id, $event_id ) ) {
-			cp_sync()->logging->log( "Skipping enrichment for event {$event_id}: Already enriched with current modified timestamp" );
+		// Single API call: check if enrichment is needed and fetch profile data
+		$profile = $this->check_and_fetch_event_profile( $post_id, $event_id );
+
+		if ( null === $profile ) {
 			return;
 		}
 
 		cp_sync()->logging->log( "Enriching event {$event_id} (post {$post_id}) with full location and image data" );
 
-		// Fetch enriched details from event_profile endpoint
-		$enriched_data = $this->enrich_event_details( $event_id );
-
-		if ( is_wp_error( $enriched_data ) ) {
-			cp_sync()->logging->log( "ERROR: Failed to enrich event {$event_id}: " . $enriched_data->get_error_message() );
-			// Don't update enrichment state - allow retry on next sync
-			return;
-		}
+		// Extract enriched fields from the already-fetched profile
+		$enriched_data = $this->extract_enriched_data( $profile );
 
 		// Update event with enriched data
 		$this->update_event_with_enriched_data( $post_id, $enriched_data );
@@ -1120,107 +1099,91 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Check if event needs enrichment
+	 * Check if event needs enrichment and fetch profile data in a single API call
 	 *
 	 * Two-phase strategy:
-	 * - Phase 1: Never enriched before → always enrich
-	 * - Phase 2: Already enriched → fetch current modified timestamp and compare
+	 * - Phase 1: Never enriched before → fetch profile (single call serves both check and enrichment)
+	 * - Phase 2: Already enriched → fetch profile, compare modified timestamp
+	 *
+	 * Returns the profile data when enrichment is needed, avoiding a separate
+	 * enrich_event_details() call. Returns null when enrichment is not needed.
 	 *
 	 * @param int $post_id WordPress post ID
 	 * @param string $event_id CCB event ID (numeric)
-	 * @return bool True if enrichment needed
+	 * @return array|null Normalized profile data if enrichment needed, null otherwise
 	 */
-	private function should_enrich_event( $post_id, $event_id ) {
-		// Phase 1: First-time enrichment
+	private function check_and_fetch_event_profile( $post_id, $event_id ) {
 		$last_enriched_at = get_post_meta( $post_id, '_chms_enriched_at', true );
+		$is_first_enrichment = empty( $last_enriched_at );
 
-		if ( empty( $last_enriched_at ) ) {
+		if ( $is_first_enrichment ) {
 			cp_sync()->logging->log( "Event {$event_id}: Never enriched, needs enrichment" );
-			return true;
+		} else {
+			cp_sync()->logging->log( "Event {$event_id}: Checking for updates (last enriched: {$last_enriched_at})" );
 		}
 
-		// Phase 2: Update detection
-		$stored_modified = get_post_meta( $post_id, '_chms_modified', true );
-
-		cp_sync()->logging->log( "Event {$event_id}: Checking for updates (last enriched: {$last_enriched_at})" );
-
-		// Fetch current modified timestamp from event_profile
+		// Single API call with include_image_link=true so data can be reused for enrichment
 		$profile_data = $this->api()->get( 'event_profile', [
-			'id' => $event_id,
-			'include_image_link' => 'false',  // Don't need image for timestamp check
-		] );
-
-		if ( is_wp_error( $profile_data ) ) {
-			cp_sync()->logging->log( "WARNING: Failed to check modified timestamp for event {$event_id}: " . $profile_data->get_error_message() );
-			return false;  // Fail safe: skip enrichment if we can't check
-		}
-
-		// Extract current modified timestamp
-		$current_modified = '';
-		if ( ! empty( $profile_data['response']['events']['event'] ) ) {
-			$profile = $this->normalize_ccb_event( $profile_data['response']['events']['event'] );
-			$current_modified = $profile['modified'] ?? '';
-		}
-
-		// Compare timestamps
-		if ( empty( $current_modified ) ) {
-			cp_sync()->logging->log( "Event {$event_id}: No modified timestamp available, skipping enrichment" );
-			return false;
-		}
-
-		if ( $current_modified !== $stored_modified ) {
-			cp_sync()->logging->log( "Event {$event_id}: Modified timestamp changed ({$stored_modified} → {$current_modified}), needs re-enrichment" );
-			return true;
-		}
-
-		cp_sync()->logging->log( "Event {$event_id}: Already up to date, skipping enrichment" );
-		return false;
-	}
-
-	/**
-	 * Fetch enriched event details from event_profile endpoint
-	 *
-	 * @param string $event_id CCB event ID
-	 * @return array|WP_Error Array with enriched data or WP_Error on failure
-	 */
-	private function enrich_event_details( $event_id ) {
-		cp_sync()->logging->log( "Fetching event_profile for event {$event_id}" );
-
-		// Call event_profile API endpoint with image link parameter
-		$data = $this->api()->get( 'event_profile', [
 			'id' => $event_id,
 			'include_image_link' => 'true',
 		] );
 
-		if ( is_wp_error( $data ) ) {
-			return $data;
+		if ( is_wp_error( $profile_data ) ) {
+			cp_sync()->logging->log( "WARNING: Failed to fetch event_profile for event {$event_id}: " . $profile_data->get_error_message() );
+			return null;
 		}
 
-		// Extract event from response
-		if ( empty( $data['response']['events']['event'] ) ) {
-			return new \WP_Error( 'ccb_no_event', 'No event found in event_profile response' );
+		if ( empty( $profile_data['response']['events']['event'] ) ) {
+			cp_sync()->logging->log( "WARNING: No event found in event_profile response for event {$event_id}" );
+			return null;
 		}
 
-		$profile = $data['response']['events']['event'];
+		$profile = $this->normalize_ccb_event( $profile_data['response']['events']['event'] );
 
-		// Normalize structure (handles @attributes, etc.)
-		$profile = $this->normalize_ccb_event( $profile );
+		// Phase 1: First-time enrichment — always proceed
+		if ( $is_first_enrichment ) {
+			return $profile;
+		}
 
-		// Extract enriched fields
+		// Phase 2: Compare modified timestamps
+		$current_modified = $profile['modified'] ?? '';
+		$stored_modified = get_post_meta( $post_id, '_chms_modified', true );
+
+		if ( empty( $current_modified ) ) {
+			cp_sync()->logging->log( "Event {$event_id}: No modified timestamp available, skipping enrichment" );
+			return null;
+		}
+
+		if ( $current_modified !== $stored_modified ) {
+			cp_sync()->logging->log( "Event {$event_id}: Modified timestamp changed ({$stored_modified} → {$current_modified}), needs re-enrichment" );
+			return $profile;
+		}
+
+		cp_sync()->logging->log( "Event {$event_id}: Already up to date, skipping enrichment" );
+		return null;
+	}
+
+	/**
+	 * Extract enriched fields from a normalized event profile
+	 *
+	 * @param array $profile Normalized profile data from check_and_fetch_event_profile()
+	 * @return array Enriched data with location, image, and modified keys
+	 */
+	private function extract_enriched_data( $profile ) {
 		$enriched = [
 			'location' => [],
-			'image' => '',
+			'image'    => '',
 			'modified' => $profile['modified'] ?? '',
 		];
 
 		// Location data (full address from event_profile)
 		if ( ! empty( $profile['location_name'] ) ) {
 			$enriched['location'] = [
-				'name' => $profile['location_name'],
+				'name'           => $profile['location_name'],
 				'street_address' => $profile['location_street_address'] ?? '',
-				'city' => $profile['location_city'] ?? '',
-				'state' => $profile['location_state'] ?? '',
-				'zip' => $profile['location_zip'] ?? '',
+				'city'           => $profile['location_city'] ?? '',
+				'state'          => $profile['location_state'] ?? '',
+				'zip'            => $profile['location_zip'] ?? '',
 			];
 		}
 
@@ -1316,6 +1279,13 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 					update_post_meta( $post_id, '_EventVenueID', $venue_id );
 				}
 			}
+		} else {
+			// Location was removed in CCB — clear stale venue association
+			$existing_venue_id = get_post_meta( $post_id, '_EventVenueID', true );
+			if ( ! empty( $existing_venue_id ) ) {
+				cp_sync()->logging->log( "Clearing stale venue association for post {$post_id} (venue {$existing_venue_id})" );
+				delete_post_meta( $post_id, '_EventVenueID' );
+			}
 		}
 
 		// Update image if enriched
@@ -1361,7 +1331,8 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		static $integration = null;
 
 		if ( null === $integration ) {
-			$integration = \CP_Sync\Integrations\_Init::get_instance()->get_integration( 'tec' );
+			$integrations = \CP_Sync\Integrations\_Init::get_instance()->get_integrations();
+			$integration = $integrations['tec'] ?? null;
 		}
 
 		return $integration;

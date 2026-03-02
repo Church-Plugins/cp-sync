@@ -134,11 +134,55 @@ class Settings {
 		$global_settings = apply_filters( 'cp_sync_global_settings', get_option( 'cp_sync_settings', [] ) );
 		$compare_options = DataFilter::get_formatted_compare_options();
 		?>
+		<style>
+			.cp-sync-loading {
+				padding: 32px;
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+			}
+			.cp-sync-loading h1 {
+				font-size: 24px;
+				font-weight: 400;
+				margin: 0 0 24px;
+				color: #1d2327;
+			}
+			.cp-sync-loading__skeleton {
+				display: flex;
+				flex-direction: column;
+				gap: 12px;
+				margin-bottom: 24px;
+			}
+			.cp-sync-loading__bar {
+				height: 16px;
+				border-radius: 4px;
+				background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+				background-size: 200% 100%;
+				animation: cp-sync-shimmer 1.5s infinite ease-in-out;
+			}
+			.cp-sync-loading__text {
+				color: #787c82;
+				font-size: 14px;
+				margin: 0;
+			}
+			@keyframes cp-sync-shimmer {
+				0% { background-position: 200% 0; }
+				100% { background-position: -200% 0; }
+			}
+		</style>
 		<div
 			class="cp_settings_root cp-sync"
 			data-settings='<?php echo wp_json_encode( $global_settings ); ?>'
 			data-compare-options='<?php echo wp_json_encode( $compare_options ); ?>'
-		></div>
+		>
+			<div class="cp-sync-loading">
+				<h1><?php esc_html_e( 'CP Sync', 'cp-sync' ); ?></h1>
+				<div class="cp-sync-loading__skeleton">
+					<div class="cp-sync-loading__bar" style="width: 40%;"></div>
+					<div class="cp-sync-loading__bar" style="width: 70%;"></div>
+					<div class="cp-sync-loading__bar" style="width: 55%;"></div>
+				</div>
+				<p class="cp-sync-loading__text"><?php esc_html_e( 'Loading settings...', 'cp-sync' ); ?></p>
+			</div>
+		</div>
 		<?php
 	}
 
