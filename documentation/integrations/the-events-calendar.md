@@ -50,6 +50,8 @@ Map fields from your ChMS to The Events Calendar fields:
    - Location → Event Venue
    - Categories → Event Categories
 
+For CCB, venue records are populated with the full address (street, city, state, zip) and event images via a follow-up call to the event profile after import. See the [CCB Event Enrichment](../chms/church-community-builder.md#event-enrichment) section for details and limitations.
+
 ### Advanced Configuration
 
 For advanced users, additional settings are available:

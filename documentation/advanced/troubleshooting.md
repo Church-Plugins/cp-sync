@@ -92,7 +92,7 @@ This guide provides solutions for common issues you might encounter when using C
 
 2. **Venue and Organizer Settings**:
    - Check how venues and organizers are being mapped
-   - Configure default venue if locations aren't importing correctly
+   - For CCB: venue addresses and event images are populated via an enrichment step that runs after each event imports. If venues are missing addresses, enable Debug logging and look for `Skipping enrichment` or `Failed to fetch event_profile` messages — recurring event occurrences without a numeric event ID cannot be enriched and will only have a venue name.
 
 ## Error Messages
 

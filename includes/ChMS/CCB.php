@@ -23,6 +23,14 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	protected $api;
 
 	/**
+	 * Track venues enriched during current import session
+	 * Prevents redundant updates when multiple events share a venue
+	 *
+	 * @var array venue_id => true
+	 */
+	private $enriched_venues_session = [];
+
+	/**
 	 * @var string The settings key for this integration
 	 */
 	public $settings_key = 'cp_sync_ccb_settings';
@@ -52,6 +60,9 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 
 		// Add filter to handle past event removal
 		add_filter( 'cp_sync_events_should_remove_item', [ $this, 'should_remove_event' ], 10, 3 );
+
+		// Hook enrichment after event updates to fetch full location and images
+		add_action( 'cp_sync_events_update_item_after', [ $this, 'maybe_enrich_event_after_update' ], 10, 2 );
 	}
 
 	/**
@@ -757,17 +768,33 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @param array $event The raw event data from CCB API
 	 * @return array Normalized event data with flattened location fields
 	 */
-	private function normalize_ccb_event( $event ) {
+	public function normalize_ccb_event( $event ) {
 		// Move @attributes to top level if present
 		if ( isset( $event['@attributes'] ) && is_array( $event['@attributes'] ) ) {
 			$event = array_merge( $event['@attributes'], $event );
 			unset( $event['@attributes'] );
 		}
 
-		// public_calendar_listing returns different field names than event_profiles
-		// Normalize the structure to match what format_event expects
+		// Extract event ID from event_name ccb_id attribute (public_calendar_listing)
+		// XML: <event_name ccb_id="586">Event Name</event_name>
+		// Our xml_to_array converts to: ['@attributes' => ['ccb_id' => '586'], '@value' => 'Event Name']
 		if ( isset( $event['event_name'] ) ) {
-			$event['name'] = $event['event_name'];
+			if ( is_array( $event['event_name'] ) ) {
+				// Extract event ID from ccb_id attribute
+				if ( isset( $event['event_name']['@attributes']['ccb_id'] ) ) {
+					$event['event_id'] = $event['event_name']['@attributes']['ccb_id'];
+				}
+				// Extract the actual name value
+				$event['name'] = $event['event_name']['@value'] ?? $event['event_name'][0] ?? '';
+			} elseif ( is_string( $event['event_name'] ) ) {
+				// Simple string value (no attributes)
+				$event['name'] = $event['event_name'];
+			}
+		}
+
+		// Fallback: if we still don't have a name but have event_name, use it
+		if ( empty( $event['name'] ) && ! empty( $event['event_name'] ) ) {
+			$event['name'] = is_string( $event['event_name'] ) ? $event['event_name'] : '';
 		}
 
 		if ( isset( $event['event_description'] ) ) {
@@ -813,11 +840,28 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 
 				foreach ( $location_mapping as $ccb_key => $flat_key ) {
 					if ( isset( $event['location'][$ccb_key] ) && ! empty( $event['location'][$ccb_key] ) ) {
-						$event[$flat_key] = $event['location'][$ccb_key];
+						$value = $event['location'][$ccb_key];
+
+						// Handle CCB XML elements with attributes
+						// e.g. <name ccb_id="123">Building</name> parses to
+						// ['@attributes' => [...], '@value' => 'Building']
+						if ( is_array( $value ) ) {
+							$value = $value['@value'] ?? '';
+						}
+
+						if ( ! empty( $value ) ) {
+							$event[$flat_key] = $value;
+						}
 					}
 				}
 			}
 			// Empty array means no location - leave it as is
+		}
+
+		// Preserve modified timestamp for enrichment change detection
+		// Used across all ChMS integrations (CCB, PCO, etc.)
+		if ( isset( $event['modified'] ) ) {
+			$event['_chms_modified'] = $event['modified'];
 		}
 
 		return $event;
@@ -870,53 +914,21 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 				'group_name'       => $event['group'] ?? '',
 				'organizer_name'   => $event['organizer'] ?? '',
 				'approval_status'  => $event['approval_status'] ?? '',
+				'_chms_modified'   => $event['_chms_modified'] ?? '',
 			],
 		];
 
-		// Add location as venue if present
-		// CCB provides location in different formats:
-		// - public_calendar_listing: only venue name
-		// - event_profiles: full address details
+		// Skip venue creation during initial import for CCB events.
+		// public_calendar_listing only provides a venue name (no address), so creating
+		// a venue here would produce an incomplete record. The enrichment process
+		// (maybe_enrich_event_after_update) handles venue creation with full address
+		// data from event_profile, preventing duplicate venue posts from name mismatches.
 		if ( ! empty( $event['location_name'] ) ) {
-			// Build full address if components are available
-			$address_parts = array_filter( [
-				$event['location_street_address'] ?? '',
-				$event['location_city'] ?? '',
-				$event['location_state'] ?? '',
-				$event['location_zip'] ?? '',
-			] );
-
-			$full_address = ! empty( $address_parts )
-				? implode( ', ', array_filter( [
-					$event['location_street_address'] ?? '',
-					trim( ( $event['location_city'] ?? '' ) . ', ' . ( $event['location_state'] ?? '' ) . ' ' . ( $event['location_zip'] ?? '' ) ),
-				] ) )
-				: '';
-
-			$log_msg = sprintf(
-				'Creating venue for event "%s": %s',
-				$event['name'] ?? 'Unknown',
-				$event['location_name']
-			);
-			if ( ! empty( $full_address ) ) {
-				$log_msg .= ' at ' . $full_address;
-			}
-			cp_sync()->logging->log( $log_msg );
-
-			$args['EventVenue'] = [
-				'venue'   => $event['location_name'],
-				'country' => '',
-				'address' => $full_address,
-				'street'  => $event['location_street_address'] ?? '',
-				'city'    => $event['location_city'] ?? '',
-				'state'   => $event['location_state'] ?? '',
-				'zip'     => $event['location_zip'] ?? '',
-			];
-		} else {
 			cp_sync()->logging->log(
 				sprintf(
-					'No venue data for event "%s"',
-					$event['name'] ?? 'Unknown'
+					'Deferring venue creation for event "%s" (venue: %s) to enrichment phase',
+					$event['name'] ?? 'Unknown',
+					$event['location_name']
 				)
 			);
 		}
@@ -1033,5 +1045,315 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 
 		cp_sync()->logging->log( 'CCB connection check successful' );
 		return [ 'status' => 'success', 'message' => 'Connection successful' ];
+	}
+
+	/**
+	 * Maybe enrich event with full location and image data after update
+	 *
+	 * Triggered by action hook after event is created/updated.
+	 * Checks if enrichment is needed based on modified timestamp,
+	 * then fetches full details from event_profile endpoint.
+	 *
+	 * IMPORTANT LIMITATION: public_calendar_listing returns event occurrences without
+	 * master event IDs, making enrichment impossible for those events. The chms_id
+	 * will be an MD5 hash in those cases. Only events with numeric CCB event IDs
+	 * can be enriched.
+	 *
+	 * @param array $item Formatted event data
+	 * @param int $post_id WordPress post ID
+	 */
+	public function maybe_enrich_event_after_update( $item, $post_id ) {
+		// Extract event ID and modified timestamp
+		$event_id = $item['chms_id'] ?? null;
+
+		if ( ! $event_id ) {
+			cp_sync()->logging->log( "Skipping enrichment: No event ID found for post {$post_id}" );
+			return;
+		}
+
+		// Check if this is a valid numeric CCB event ID (not an MD5 hash fallback)
+		if ( ! is_numeric( $event_id ) ) {
+			cp_sync()->logging->log( "Skipping enrichment for post {$post_id}: Event ID is not numeric (chms_id: {$event_id}), likely a fallback hash" );
+			return;
+		}
+
+		// Single API call: check if enrichment is needed and fetch profile data
+		$profile = $this->check_and_fetch_event_profile( $post_id, $event_id );
+
+		if ( null === $profile ) {
+			return;
+		}
+
+		cp_sync()->logging->log( "Enriching event {$event_id} (post {$post_id}) with full location and image data" );
+
+		// Extract enriched fields from the already-fetched profile
+		$enriched_data = $this->extract_enriched_data( $profile );
+
+		// Update event with enriched data
+		$this->update_event_with_enriched_data( $post_id, $enriched_data );
+
+		// Save enrichment state
+		$this->save_enrichment_state( $post_id, $enriched_data );
+
+		cp_sync()->logging->log( "Successfully enriched event {$event_id}" );
+	}
+
+	/**
+	 * Check if event needs enrichment and fetch profile data in a single API call
+	 *
+	 * Two-phase strategy:
+	 * - Phase 1: Never enriched before → fetch profile (single call serves both check and enrichment)
+	 * - Phase 2: Already enriched → fetch profile, compare modified timestamp
+	 *
+	 * Returns the profile data when enrichment is needed, avoiding a separate
+	 * enrich_event_details() call. Returns null when enrichment is not needed.
+	 *
+	 * @param int $post_id WordPress post ID
+	 * @param string $event_id CCB event ID (numeric)
+	 * @return array|null Normalized profile data if enrichment needed, null otherwise
+	 */
+	private function check_and_fetch_event_profile( $post_id, $event_id ) {
+		$last_enriched_at = get_post_meta( $post_id, '_chms_enriched_at', true );
+		$is_first_enrichment = empty( $last_enriched_at );
+
+		if ( $is_first_enrichment ) {
+			cp_sync()->logging->log( "Event {$event_id}: Never enriched, needs enrichment" );
+		} else {
+			cp_sync()->logging->log( "Event {$event_id}: Checking for updates (last enriched: {$last_enriched_at})" );
+		}
+
+		// Single API call with include_image_link=true so data can be reused for enrichment
+		$profile_data = $this->api()->get( 'event_profile', [
+			'id' => $event_id,
+			'include_image_link' => 'true',
+		] );
+
+		if ( is_wp_error( $profile_data ) ) {
+			cp_sync()->logging->log( "WARNING: Failed to fetch event_profile for event {$event_id}: " . $profile_data->get_error_message() );
+			return null;
+		}
+
+		if ( empty( $profile_data['response']['events']['event'] ) ) {
+			cp_sync()->logging->log( "WARNING: No event found in event_profile response for event {$event_id}" );
+			return null;
+		}
+
+		$profile = $this->normalize_ccb_event( $profile_data['response']['events']['event'] );
+
+		// Phase 1: First-time enrichment — always proceed
+		if ( $is_first_enrichment ) {
+			return $profile;
+		}
+
+		// Phase 2: Compare modified timestamps
+		$current_modified = $profile['modified'] ?? '';
+		$stored_modified = get_post_meta( $post_id, '_chms_modified', true );
+
+		if ( empty( $current_modified ) ) {
+			cp_sync()->logging->log( "Event {$event_id}: No modified timestamp available, skipping enrichment" );
+			return null;
+		}
+
+		if ( $current_modified !== $stored_modified ) {
+			cp_sync()->logging->log( "Event {$event_id}: Modified timestamp changed ({$stored_modified} → {$current_modified}), needs re-enrichment" );
+			return $profile;
+		}
+
+		cp_sync()->logging->log( "Event {$event_id}: Already up to date, skipping enrichment" );
+		return null;
+	}
+
+	/**
+	 * Extract enriched fields from a normalized event profile
+	 *
+	 * @param array $profile Normalized profile data from check_and_fetch_event_profile()
+	 * @return array Enriched data with location, image, and modified keys
+	 */
+	private function extract_enriched_data( $profile ) {
+		$enriched = [
+			'location' => [],
+			'image'    => '',
+			'modified' => $profile['modified'] ?? '',
+		];
+
+		// Location data (full address from event_profile)
+		if ( ! empty( $profile['location_name'] ) ) {
+			$enriched['location'] = [
+				'name'           => $profile['location_name'],
+				'street_address' => $profile['location_street_address'] ?? '',
+				'city'           => $profile['location_city'] ?? '',
+				'state'          => $profile['location_state'] ?? '',
+				'zip'            => $profile['location_zip'] ?? '',
+			];
+		}
+
+		// Image data
+		if ( ! empty( $profile['image'] ) ) {
+			// Handle both string and array image formats
+			if ( is_string( $profile['image'] ) ) {
+				$enriched['image'] = $profile['image'];
+			} elseif ( is_array( $profile['image'] ) && ! empty( $profile['image'][0] ) ) {
+				$enriched['image'] = $profile['image'][0];
+			}
+		}
+
+		return $enriched;
+	}
+
+	/**
+	 * Update event with enriched location and image data
+	 *
+	 * @param int $post_id WordPress post ID
+	 * @param array $enriched_data Enriched data from event_profile
+	 */
+	private function update_event_with_enriched_data( $post_id, $enriched_data ) {
+		// Update venue if location data is enriched
+		if ( ! empty( $enriched_data['location']['name'] ) ) {
+			$location = $enriched_data['location'];
+
+			// Build full address using helper
+			$full_address = $this->build_full_address( $location );
+
+			cp_sync()->logging->log( "Updating venue for post {$post_id}: {$location['name']} at {$full_address}" );
+
+			// Check for existing venue by name
+			$existing_venue = get_posts( [
+				'post_type' => 'tribe_venue',
+				'title' => $location['name'],
+				'numberposts' => 1,
+			] );
+
+			if ( ! empty( $existing_venue ) ) {
+				$venue_id = $existing_venue[0]->ID;
+
+				// Check if this venue was already enriched in this session
+				if ( isset( $this->enriched_venues_session[ $venue_id ] ) ) {
+					cp_sync()->logging->log( "Venue {$venue_id} ({$location['name']}) already enriched this session, skipping redundant update" );
+
+					// Still link venue to event (event might be different)
+					update_post_meta( $post_id, '_EventVenueID', $venue_id );
+				} else {
+					// Update venue with enriched address data
+					$venue_args = [
+						'address' => $full_address,
+						'city' => $location['city'] ?? '',
+						'state' => $location['state'] ?? '',
+						'zip' => $location['zip'] ?? '',
+						'country' => '',
+					];
+
+					// Update venue meta
+					foreach ( $venue_args as $meta_key => $meta_value ) {
+						if ( $meta_key === 'address' ) {
+							update_post_meta( $venue_id, '_VenueAddress', $meta_value );
+						} else {
+							update_post_meta( $venue_id, '_Venue' . ucfirst( $meta_key ), $meta_value );
+						}
+					}
+
+					// Mark this venue as enriched for this session
+					$this->enriched_venues_session[ $venue_id ] = true;
+
+					// Link venue to event
+					update_post_meta( $post_id, '_EventVenueID', $venue_id );
+				}
+			} else {
+				// Create new venue with full address
+				$venue = tribe_venues()->set_args( [
+					'venue' => $location['name'],
+					'status' => 'publish',
+					'address' => $full_address,
+					'city' => $location['city'] ?? '',
+					'state' => $location['state'] ?? '',
+					'zip' => $location['zip'] ?? '',
+					'country' => '',
+				] )->create();
+
+				if ( $venue ) {
+					$venue_id = $venue->ID;
+
+					// Mark as enriched immediately (in case other events reference it)
+					$this->enriched_venues_session[ $venue_id ] = true;
+
+					// Link venue to event
+					update_post_meta( $post_id, '_EventVenueID', $venue_id );
+				}
+			}
+		} else {
+			// Location was removed in CCB — clear stale venue association
+			$existing_venue_id = get_post_meta( $post_id, '_EventVenueID', true );
+			if ( ! empty( $existing_venue_id ) ) {
+				cp_sync()->logging->log( "Clearing stale venue association for post {$post_id} (venue {$existing_venue_id})" );
+				delete_post_meta( $post_id, '_EventVenueID' );
+			}
+		}
+
+		// Update image if enriched
+		if ( ! empty( $enriched_data['image'] ) ) {
+			$image_url = $enriched_data['image'];
+			cp_sync()->logging->log( "Updating image for post {$post_id}: {$image_url}" );
+
+			// Use existing Integration::maybe_sideload_thumb method
+			// Method expects ($item, $id) where item has 'thumbnail_url' key
+			$integration = $this->get_tec_integration();
+			if ( $integration ) {
+				$item_data = [
+					'thumbnail_url' => $image_url,
+					'post_title'    => get_the_title( $post_id ),
+				];
+				$integration->maybe_sideload_thumb( $item_data, $post_id );
+			}
+		}
+	}
+
+	/**
+	 * Save enrichment state after successful enrichment
+	 *
+	 * @param int $post_id WordPress post ID
+	 * @param array $enriched_data Enriched data from event_profile (must include 'modified' key)
+	 */
+	private function save_enrichment_state( $post_id, $enriched_data ) {
+		update_post_meta( $post_id, '_chms_enriched_at', current_time( 'mysql' ) );
+
+		// Store the modified timestamp from event_profile response
+		if ( ! empty( $enriched_data['modified'] ) ) {
+			update_post_meta( $post_id, '_chms_modified', $enriched_data['modified'] );
+			cp_sync()->logging->log( "Saved modified timestamp for post {$post_id}: {$enriched_data['modified']}" );
+		}
+	}
+
+	/**
+	 * Get TEC integration instance (cached)
+	 *
+	 * @return \CP_Sync\Integrations\Integration|null
+	 */
+	private function get_tec_integration() {
+		static $integration = null;
+
+		if ( null === $integration ) {
+			$integrations = \CP_Sync\Integrations\_Init::get_instance()->get_integrations();
+			$integration = $integrations['tec'] ?? null;
+		}
+
+		return $integration;
+	}
+
+	/**
+	 * Build full address string from location components
+	 *
+	 * @param array $location Location data with street_address, city, state, zip keys
+	 * @return string Formatted address
+	 */
+	private function build_full_address( $location ) {
+		$parts = array_filter( [
+			$location['street_address'] ?? '',
+			trim(
+				( $location['city'] ?? '' ) . ', ' .
+				( $location['state'] ?? '' ) . ' ' .
+				( $location['zip'] ?? '' )
+			),
+		] );
+
+		return implode( ', ', $parts );
 	}
 }

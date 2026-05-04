@@ -115,18 +115,73 @@ class CCB {
 
 		// CCB API returns XML, not JSON
 		libxml_use_internal_errors( true );
-		$xml = simplexml_load_string( $body );
+		$xml = simplexml_load_string( $body, 'SimpleXMLElement', LIBXML_NOCDATA );
 
 		if ( false === $xml ) {
 			$this->error = new \WP_Error( 'ccb_xml_parse_error', 'Failed to parse CCB API XML response' );
 			return $this->error;
 		}
 
-		// Convert XML to array for easier handling
-		$json = json_encode( $xml );
-		$data = json_decode( $json, true );
+		// Convert XML to array, preserving attributes
+		// json_encode on SimpleXML loses attributes, so we need custom conversion
+		$data = $this->simplexml_to_array( $xml );
 
 		return $data;
+	}
+
+	/**
+	 * Convert SimpleXMLElement to array, preserving attributes
+	 *
+	 * @param \SimpleXMLElement $xml The SimpleXML element
+	 * @return array|string
+	 */
+	private function simplexml_to_array( $xml ) {
+		$array = [];
+
+		// Get attributes
+		$attr_obj = $xml->attributes();
+		if ( $attr_obj && count( $attr_obj ) > 0 ) {
+			$array['@attributes'] = [];
+			foreach ( $attr_obj as $key => $value ) {
+				$array['@attributes'][ (string) $key ] = (string) $value;
+			}
+		}
+
+		// Get child elements - iterate through actual SimpleXML children
+		foreach ( $xml->children() as $child_name => $child_node ) {
+			$child_array = $this->simplexml_to_array( $child_node );
+
+			// Handle multiple children with the same name
+			if ( isset( $array[ $child_name ] ) ) {
+				// Already exists - convert to numeric array if not already
+				if ( ! isset( $array[ $child_name ][0] ) ) {
+					$array[ $child_name ] = [ $array[ $child_name ] ];
+				}
+				$array[ $child_name ][] = $child_array;
+			} else {
+				$array[ $child_name ] = $child_array;
+			}
+		}
+
+		// Handle text content
+		$text = trim( (string) $xml );
+		$has_attributes = isset( $array['@attributes'] );
+		$has_children = count( $array ) > ( $has_attributes ? 1 : 0 );
+
+		// Element with no children and no attributes - return plain text
+		if ( ! $has_children && ! $has_attributes ) {
+			return ! empty( $text ) ? $text : '';
+		}
+
+		// Element with text and attributes but no child elements
+		if ( ! $has_children && $has_attributes && ! empty( $text ) ) {
+			$array['@value'] = $text;
+		}
+
+		// Element with only attributes and no text - just return array with attributes
+		// Element with children - return array as-is
+
+		return $array;
 	}	
 
 	/**

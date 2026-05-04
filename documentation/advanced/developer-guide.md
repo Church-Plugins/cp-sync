@@ -30,6 +30,13 @@ do_action('cp_sync_group_imported', $group_id, $chms_data, $chms_type);
 
 // Fires when an event is imported/updated
 do_action('cp_sync_event_imported', $event_id, $chms_data, $chms_type);
+
+// Fires after any item of a given type is created or updated.
+// $type matches the integration type (e.g. 'events', 'groups').
+// Useful for type-specific post-processing such as fetching additional
+// data from the source API. CCB uses this hook to enrich events with
+// full venue addresses and images from the event_profile endpoint.
+do_action("cp_sync_{$type}_update_item_after", $item, $post_id);
 ```
 
 ### Filter Hooks

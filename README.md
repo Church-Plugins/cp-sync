@@ -19,6 +19,21 @@ npm run build
 
 ### Change Log
 
+#### 0.3.1
+* Bug Fix: Fixed incomplete venues created during initial import — venue creation now deferred to enrichment phase where full address data is available
+* Bug Fix: Fixed stale venue associations persisting when a location is removed in CCB
+* Enhancement: Two-phase enrichment strategy for CCB events — always enriches new events, then uses modified timestamps to detect changes on subsequent syncs
+* Enhancement: Eliminated duplicate API calls during CCB event re-enrichment (single `event_profile` call instead of two)
+* Enhancement: Added session-based venue deduplication to prevent redundant updates when multiple events share a venue
+* Enhancement: Added shimmer loading skeleton to settings page while JS bundle loads
+* Documentation: Documented CCB event enrichment behavior, the new `cp_sync_{$type}_update_item_after` action hook, and updated venue/location guidance in the troubleshooting and TEC integration guides
+
+#### 0.3.0
+* **New Feature**: CCB event enrichment — automatically fetches full venue addresses and event images from the `event_profile` endpoint after initial import
+* Enhancement: CCB venue import now supports full location data (street address, city, state, zip)
+* Enhancement: Custom XML parser preserves CCB API attributes for reliable event ID extraction
+* Enhancement: Graceful enrichment failure handling — errors don't block event import
+
 #### 0.2.0
 * **Breaking Change**: CCB now uses Basic Authentication (username/password) instead of OAuth. Existing users will need to reconnect with API credentials.
 * **New Feature**: Added WP-CLI commands for CCB debugging (`wp cp-sync ccb test-connection`)
