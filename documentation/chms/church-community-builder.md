@@ -47,6 +47,19 @@ CP-Sync provides integration with Church Community Builder (CCB), allowing you t
 4. Set the sync frequency
 5. Save your settings
 
+### Event Enrichment
+
+CCB exposes event data through two endpoints with different levels of detail. CP-Sync uses both: the calendar listing for the initial import, then the event profile to fill in details that the listing omits.
+
+After each event is imported or updated, CP-Sync automatically fetches the event profile to populate:
+
+- **Full venue address** — street, city, state, and zip (the calendar listing only provides a venue name)
+- **Event image** — the featured image from the event's profile
+
+Enrichment runs once per event on first import, then re-runs only when CCB reports the event has been modified, so subsequent syncs stay fast. Venues are deduplicated within a sync so events sharing a location don't trigger redundant updates.
+
+**Limitation:** Recurring event occurrences from the calendar listing don't include a numeric event ID and can't be enriched. These events will import with the venue name only. Master events with a numeric ID enrich normally.
+
 ## Advanced Settings
 
 - **Filter Data**: Apply advanced filters to control which data is imported
