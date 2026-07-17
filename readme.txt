@@ -4,7 +4,7 @@ Tags: church, ccb, planning-center, sync, events
 Requires at least: 6.0
 Tested up to: 6.7.1
 Requires PHP: 7.4
-Stable tag: 0.3.1
+Stable tag: 0.3.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -90,6 +90,13 @@ At **Settings → CP Sync → Logs**. Increase verbosity by setting Log Level to
 Yes. CP Sync exposes action and filter hooks for developers — see the Developer Guide in the plugin's `/documentation/` directory. The new `cp_sync_{$type}_update_item_after` hook in 0.3.0 enables type-specific post-processing for custom integrations.
 
 == Changelog ==
+
+= 0.3.2 =
+* Bug Fix: Fixed syncs that completed successfully but imported nothing on databases that are not utf8mb4. The queue is now encoded before it is stored, so characters the database cannot represent can no longer corrupt it.
+* Bug Fix: Sync failures are no longer silent — an unreadable queue is now reported in the logs instead of being discarded as though it had been processed.
+* Bug Fix: The queue column charset is now reported in the logs, with a warning when the database is not utf8mb4 and content will be imported with `?` substitutions.
+* Bug Fix: `wp cp-sync ccb process_queue` now clears processed batches correctly on multisite, counts items rather than batches, and no longer stops the run when a single item throws.
+* Documentation: Documented the utf8mb4 database requirement and added troubleshooting steps for syncs that report success but import nothing.
 
 = 0.3.1 =
 * Bug Fix: Fixed incomplete venues created during initial import — venue creation now deferred to enrichment phase where full address data is available.

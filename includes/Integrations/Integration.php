@@ -312,6 +312,269 @@ abstract class Integration extends \WP_Background_Process {
 	}
 
 	/**
+	 * Keys already reported as unreadable, to keep the log to one entry per batch.
+	 *
+	 * @var array
+	 */
+	protected $reported_corrupt_batches = [];
+
+	/**
+	 * Whether the queue column charset has been reported yet this run.
+	 *
+	 * @var bool
+	 */
+	protected $charset_logged = false;
+
+	/**
+	 * Encode a batch into a form that survives any column charset.
+	 *
+	 * A serialized array records the byte length of every string it contains. If MySQL
+	 * converts the value on the way in, because the column charset cannot represent a
+	 * character, those lengths no longer match their strings and the batch can never be
+	 * unserialized again. handle() then treats the unreadable batch as an empty one and
+	 * deletes it without calling task(), so the sync reports success and imports nothing.
+	 *
+	 * Base64 output is plain ASCII, which every charset stores identically, so the value
+	 * read back is byte for byte the value written.
+	 *
+	 * @param array $data The batch.
+	 * @return string
+	 */
+	protected function encode_batch( $data ) {
+		return base64_encode( serialize( $data ) );
+	}
+
+	/**
+	 * Decode a batch, accepting batches queued before encoding was introduced.
+	 *
+	 * @param mixed $data The stored batch.
+	 * @return mixed The batch, or the raw value when it cannot be read.
+	 */
+	protected function decode_batch( $data ) {
+		// Batches queued by an older version were stored as arrays.
+		if ( is_array( $data ) || ! is_string( $data ) ) {
+			return $data;
+		}
+
+		$decoded = base64_decode( $data, true );
+
+		if ( false === $decoded ) {
+			return $data;
+		}
+
+		$unserialized = @unserialize( $decoded ); // phpcs:ignore
+
+		return false === $unserialized ? $data : $unserialized;
+	}
+
+	/**
+	 * Report the charset of the column the queue is stored in.
+	 *
+	 * Anything other than utf8mb4 means MySQL will replace characters it cannot represent
+	 * when items are written to wp_posts, so titles and content import with substitutions.
+	 * The queue itself is protected by encode_batch(), but the database still needs
+	 * converting for the content to arrive intact.
+	 *
+	 * @return void
+	 */
+	protected function log_queue_charset() {
+		global $wpdb;
+
+		if ( $this->charset_logged ) {
+			return;
+		}
+
+		$this->charset_logged = true;
+
+		list( $table, $key_column, $value_column ) = $this->get_batch_table();
+
+		// Reads the collation of the column itself, not DB_CHARSET.
+		$charset = $wpdb->get_col_charset( $table, $value_column );
+
+		if ( is_wp_error( $charset ) || empty( $charset ) ) {
+			return;
+		}
+
+		cp_sync()->logging->log( "Queue column {$table}.{$value_column} charset: {$charset}" );
+
+		if ( 'utf8mb4' !== $charset ) {
+			cp_sync()->logging->log( "WARNING: The database is {$charset} rather than utf8mb4. Characters it cannot represent, such as bullets and curly quotes, will be replaced with '?' when content is imported. Converting the database to utf8mb4 will preserve them." );
+		}
+	}
+
+	/**
+	 * Save the queue, encoded, and confirm it actually reached the database.
+	 *
+	 * Mirrors WP_Background_Process::save() so that the batch can be encoded on the way in
+	 * and the key kept for verification. The parent ignores the result of
+	 * update_site_option(), so a write that never lands leaves the queue silently empty.
+	 *
+	 * @return $this
+	 */
+	public function save() {
+		$count = count( $this->data );
+
+		$this->log_queue_charset();
+
+		if ( ! $count ) {
+			cp_sync()->logging->log( "WARNING: Nothing was queued for {$this->label}, so there is nothing to import." );
+			$this->data = [];
+			return $this;
+		}
+
+		$key = $this->generate_key();
+
+		update_site_option( $key, $this->encode_batch( $this->data ) );
+
+		$this->data = [];
+
+		$this->verify_batch_persisted( $key, $count );
+
+		return $this;
+	}
+
+	/**
+	 * Keep the stored batch encoded as handle() works through it.
+	 *
+	 * @param string $key  The batch key.
+	 * @param array  $data The remaining items.
+	 * @return $this
+	 */
+	public function update( $key, $data ) {
+		if ( ! empty( $data ) ) {
+			update_site_option( $key, $this->encode_batch( $data ) );
+		}
+
+		return $this;
+	}
+
+	/**
+	 * Read a freshly saved batch back out of the database and confirm it survived.
+	 *
+	 * @param string|null $key            The batch key.
+	 * @param int         $expected_count Number of items handed to save().
+	 * @return void
+	 */
+	protected function verify_batch_persisted( $key, $expected_count ) {
+		global $wpdb;
+
+		if ( empty( $key ) ) {
+			return;
+		}
+
+		list( $table, $column, $value_column ) = $this->get_batch_table();
+
+		// Query the database directly. get_site_option() would return the value from
+		// the object cache even when the write never reached MySQL.
+		$raw = $wpdb->get_var(
+			$wpdb->prepare( "SELECT {$value_column} FROM {$table} WHERE {$column} = %s", $key ) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		);
+
+		if ( null === $raw ) {
+			cp_sync()->logging->log( "ERROR: Queued {$expected_count} items for {$this->label} but batch {$key} was not saved to the database. Nothing will be imported." );
+
+			if ( ! empty( $wpdb->last_error ) ) {
+				cp_sync()->logging->log( "ERROR: Database reported: {$wpdb->last_error}" );
+			}
+
+			return;
+		}
+
+		$decoded = $this->decode_batch( $raw );
+
+		if ( ! is_array( $decoded ) ) {
+			cp_sync()->logging->log( "ERROR: Batch {$key} for {$this->label} was saved but cannot be read back. Nothing will be imported." );
+			$this->report_corrupt_batch( $key, $raw );
+			return;
+		}
+
+		if ( count( $decoded ) !== $expected_count ) {
+			cp_sync()->logging->log( "WARNING: Queued {$expected_count} items for {$this->label} but only " . count( $decoded ) . " were saved." );
+		}
+	}
+
+	/**
+	 * Report batches that cannot be unserialized.
+	 *
+	 * handle() treats a batch whose data fails to unserialize as an empty, fully
+	 * processed batch and deletes it without ever calling task(). Log it on the way
+	 * past so the failure is visible rather than silent.
+	 *
+	 * @param int $limit Number of batches to return.
+	 * @return array
+	 */
+	public function get_batches( $limit = 0 ) {
+		$batches = parent::get_batches( $limit );
+
+		foreach ( $batches as $batch ) {
+			$batch->data = $this->decode_batch( $batch->data );
+
+			if ( is_array( $batch->data ) ) {
+				continue;
+			}
+
+			cp_sync()->logging->log( "ERROR: Batch {$batch->key} for {$this->label} is unreadable and will be discarded without importing. This usually means the queue was corrupted when it was written to the database." );
+			$this->report_corrupt_batch( $batch->key );
+		}
+
+		return $batches;
+	}
+
+	/**
+	 * Log diagnostics for an unreadable batch and keep a copy of the raw value.
+	 *
+	 * The batch is left for handle() to delete. Retaining it in the queue would
+	 * stall every future sync behind data that can never be unserialized.
+	 *
+	 * @param string      $key The batch key.
+	 * @param string|null $raw The raw value, looked up when not supplied.
+	 * @return void
+	 */
+	protected function report_corrupt_batch( $key, $raw = null ) {
+		global $wpdb;
+
+		if ( isset( $this->reported_corrupt_batches[ $key ] ) ) {
+			return;
+		}
+
+		$this->reported_corrupt_batches[ $key ] = true;
+
+		if ( null === $raw ) {
+			list( $table, $column, $value_column ) = $this->get_batch_table();
+
+			$raw = $wpdb->get_var(
+				$wpdb->prepare( "SELECT {$value_column} FROM {$table} WHERE {$column} = %s", $key ) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			);
+		}
+
+		if ( null === $raw ) {
+			return;
+		}
+
+		cp_sync()->logging->log( 'Corrupt batch is ' . strlen( $raw ) . ' bytes, is_serialized: ' . ( is_serialized( $raw ) ? 'true' : 'false' ) );
+		cp_sync()->logging->log( 'Corrupt batch starts: ' . substr( $raw, 0, 200 ) );
+
+		// Keep the most recent corrupt batch for inspection. One option per integration
+		// so repeated failures cannot grow unbounded.
+		update_option( "cp_sync_corrupt_batch_{$this->action}", $raw, false );
+	}
+
+	/**
+	 * The table and columns the queue is stored in, matching WP_Background_Process.
+	 *
+	 * @return array [ table, key column, value column ]
+	 */
+	protected function get_batch_table() {
+		global $wpdb;
+
+		if ( is_multisite() ) {
+			return [ $wpdb->sitemeta, 'meta_key', 'meta_value' ];
+		}
+
+		return [ $wpdb->options, 'option_name', 'option_value' ];
+	}
+
+	/**
 	 * Update the post with the associated data
 	 *
 	 * @param $item
