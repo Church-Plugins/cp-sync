@@ -138,8 +138,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				// Handle the token data (e.g., save it)
 
 				if ( isset( $token_data['access_token'], $token_data['refresh_token'] ) ) {
-					$this->save_token( $token_data['access_token'], $token_data['refresh_token'] );
-					cp_sync()->logging->log( 'PCO token refreshed' );
+					if ( $this->save_token( $token_data['access_token'], $token_data['refresh_token'] ) ) {
+						cp_sync()->logging->log( 'PCO token refreshed' );
+					} else {
+						cp_sync()->logging->log( 'Error retrieving token: response contained an empty access token' );
+					}
+				} else {
+					cp_sync()->logging->log( 'Error retrieving token: response contained no token data' );
 				}
 			} else {
 				cp_sync()->logging->log( "Error retrieving token: HTTP $response_code" );

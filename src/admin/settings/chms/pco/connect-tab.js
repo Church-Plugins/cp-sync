@@ -11,14 +11,12 @@ import globalStore from '../../store/globalStore'
 import { launchOauth } from '../../util/oauth'
 
 export default function ConnectTab() {
-	const { isConnected, save } = useSettings()
+	const { isConnected } = useSettings()
 	const [authLoading, setAuthLoading] = useState(false)
 	const [authError, setAuthError] = useState(null)
 	const { invalidateResolutionForStoreSelector, setIsConnected } = useDispatch(globalStore)
 
 	const initiateOAuth = () => {
-		save();
-
 		setAuthLoading(true);
 		setAuthError(null);
 
@@ -28,12 +26,15 @@ export default function ConnectTab() {
 		oauthURL.searchParams.set('redirect_url', window.cpSync.adminUrl + '?cp_sync_oauth=1');
 		oauthURL.searchParams.set('_nonce', window.cpSync.nonce);
 
-		launchOauth(oauthURL.toString())
+		launchOauth(oauthURL.toString(), { chms: 'pco' })
 			.then(() => {
+				// The token is already stored, so show the connected UI now. The
+				// re-check reconciles with the server without stranding the user on
+				// the Connect tab while a live PCO round-trip finishes.
 				setIsConnected('pco', true);
+				invalidateResolutionForStoreSelector('getIsConnected');
 			})
 			.catch(err => {
-				console.error('errolaunghing oauth', err);
 				setAuthError(err);
 			})
 			.finally(() => {
@@ -66,13 +67,13 @@ export default function ConnectTab() {
 		<div>
 			<Typography variant="h5">{__('PCO API Configuration', 'cp-sync')}</Typography>
 			{
+				authError &&
+				<Alert severity="error" sx={{ mt: 2 }}>{authError}</Alert>
+			}
+			{
 				!isConnected &&
 				<>
 					{__('Click the button below to initiate the OAuth flow and connect to Planning Center Online.', 'cp-sync')}
-					{
-						authError &&
-						<Alert severity="error" sx={{ mt: 2 }}>{authError}</Alert>
-					}
 					<div style={{ marginTop: '1rem' }}>
 						<Button
 							variant="contained"
