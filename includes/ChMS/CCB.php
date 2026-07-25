@@ -36,6 +36,114 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	public $settings_key = 'cp_sync_ccb_settings';
 
 	/**
+	 * Whether the option encrypt/decrypt filters have been registered.
+	 *
+	 * Guards against double-registration ( which would double-decrypt and corrupt
+	 * credentials ) if the singleton is ever constructed more than once.
+	 *
+	 * @var bool
+	 */
+	private static $option_filters_registered = false;
+
+	/**
+	 * Class constructor.
+	 *
+	 * Registers the at-rest encryption filters on this integration's settings
+	 * option. They are attached here — rather than in setup()/load() — because the
+	 * CCB settings can be read and written even when CCB is not the active ChMS
+	 * ( see the settings REST routes in ChMS\_Init ), so encryption must be applied
+	 * on every request regardless of active state.
+	 */
+	protected function __construct() {
+		parent::__construct();
+
+		if ( ! self::$option_filters_registered ) {
+			// Encrypt credentials just before they are written to wp_options, and
+			// validate the subdomain at the same point ( defence in depth ).
+			add_filter( 'pre_update_option_' . $this->settings_key, [ __CLASS__, 'pre_update_settings' ], 10, 2 );
+
+			// Transparently decrypt credentials whenever the option is read.
+			add_filter( 'option_' . $this->settings_key, [ __CLASS__, 'decrypt_settings' ] );
+
+			self::$option_filters_registered = true;
+		}
+	}
+
+	/**
+	 * Filter: sanitize and encrypt the CCB settings before they are persisted.
+	 *
+	 * - Validates the connect subdomain and strips a malformed value so it never
+	 *   lands in the database ( SSRF defence-in-depth; the user-facing error is
+	 *   surfaced by check_connection() ).
+	 * - Encrypts the API username/password at rest.
+	 *
+	 * @param mixed $value     The settings array about to be saved.
+	 * @param mixed $old_value The previously stored ( already decrypted ) settings.
+	 * @return mixed
+	 */
+	public static function pre_update_settings( $value, $old_value ) {
+		if ( ! is_array( $value ) || empty( $value['connect'] ) || ! is_array( $value['connect'] ) ) {
+			return $value;
+		}
+
+		// --- Subdomain validation (SSRF) ---
+		if ( isset( $value['connect']['subdomain'] ) ) {
+			$subdomain = $value['connect']['subdomain'];
+
+			if ( '' !== $subdomain && ! API\CCB::is_valid_subdomain( $subdomain ) ) {
+				// Reject the malformed value: keep the prior valid subdomain, or blank.
+				$prior = ( is_array( $old_value ) && isset( $old_value['connect']['subdomain'] ) )
+					? $old_value['connect']['subdomain']
+					: '';
+
+				$value['connect']['subdomain'] = API\CCB::is_valid_subdomain( $prior ) ? $prior : '';
+
+				// Fallback notice for non-React consumers ( legacy admin ).
+				update_option(
+					'cp_settings_message',
+					[
+						'message' => esc_html__( 'Invalid CCB subdomain. Subdomains may contain only letters, numbers, and hyphens.', 'cp-sync' ),
+						'type'    => 'error',
+					]
+				);
+			}
+		}
+
+		// --- Encrypt credentials at rest ---
+		foreach ( [ 'username', 'password' ] as $field ) {
+			if ( isset( $value['connect'][ $field ] ) && is_string( $value['connect'][ $field ] ) && '' !== $value['connect'][ $field ] ) {
+				$value['connect'][ $field ] = Encryption::encrypt( $value['connect'][ $field ] );
+			}
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Filter: transparently decrypt the CCB credentials on read.
+	 *
+	 * Legacy plaintext values ( stored before encryption existed ) are detected by
+	 * Encryption::decrypt() and returned unchanged, then re-encrypted on the next
+	 * save, so existing installs are never locked out.
+	 *
+	 * @param mixed $value The raw stored settings array.
+	 * @return mixed
+	 */
+	public static function decrypt_settings( $value ) {
+		if ( ! is_array( $value ) || empty( $value['connect'] ) || ! is_array( $value['connect'] ) ) {
+			return $value;
+		}
+
+		foreach ( [ 'username', 'password' ] as $field ) {
+			if ( isset( $value['connect'][ $field ] ) && is_string( $value['connect'][ $field ] ) ) {
+				$value['connect'][ $field ] = Encryption::decrypt( $value['connect'][ $field ] );
+			}
+		}
+
+		return $value;
+	}
+
+	/**
 	 * Setup
 	 */
 	public function setup() {
@@ -1033,6 +1141,16 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 
 		if ( empty( $username ) || empty( $password ) || empty( $subdomain ) ) {
 			return [ 'status' => 'error', 'message' => 'Missing credentials' ];
+		}
+
+		// Validate the subdomain format before it is ever used to build a URL.
+		// This is the primary user-facing surface for the validation error: the
+		// message is rendered ( escaped ) in the React connect tab's alert.
+		if ( ! API\CCB::is_valid_subdomain( $subdomain ) ) {
+			return [
+				'status'  => 'error',
+				'message' => __( 'Invalid subdomain. Subdomains may contain only letters, numbers, and hyphens.', 'cp-sync' ),
+			];
 		}
 
 		// Test the connection by making a simple API call

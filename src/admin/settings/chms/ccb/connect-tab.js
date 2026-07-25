@@ -45,6 +45,14 @@ export default function ConnectTab({ data, updateField }) {
 			return
 		}
 
+		// Subdomains are simple labels. Validate before saving so a malformed
+		// value (which the server rejects for SSRF safety) surfaces a clear
+		// message here instead of a generic connection failure.
+		if (!/^[a-zA-Z0-9-]+$/.test(data.subdomain)) {
+			setAuthError(__('Invalid subdomain. Subdomains may contain only letters, numbers, and hyphens.', 'cp-sync'))
+			return
+		}
+
 		setAuthLoading(true)
 		setAuthError(null)
 
