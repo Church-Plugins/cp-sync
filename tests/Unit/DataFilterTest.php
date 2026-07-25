@@ -29,6 +29,14 @@ class DataFilterTest extends TestCase {
 		Functions\when( 'is_wp_error' )->alias(
 			static fn( $thing ) => $thing instanceof \WP_Error
 		);
+		Functions\when( 'wp_list_pluck' )->alias(
+			static function ( $list, $field ) {
+				return array_map(
+					static fn( $row ) => is_array( $row ) ? ( $row[ $field ] ?? null ) : ( $row->$field ?? null ),
+					$list
+				);
+			}
+		);
 	}
 
 	protected function tearDown(): void {
@@ -37,7 +45,7 @@ class DataFilterTest extends TestCase {
 	}
 
 	/** Build a filter over a single selector mapped to a dot-path. */
-	private function filter( string $type, array $conditions, array $config = null ): DataFilter {
+	private function filter( string $type, array $conditions, ?array $config = null ): DataFilter {
 		$config = $config ?? [ 'field' => [ 'path' => 'field' ] ];
 		return new DataFilter( $type, $conditions, $config );
 	}
@@ -218,5 +226,125 @@ class DataFilterTest extends TestCase {
 		// 'default' falls back to 'type' when a compare option declares no explicit default.
 		$by_value = array_column( $options, null, 'value' );
 		$this->assertSame( 'text', $by_value['contains']['default'] ); // contains has no explicit default
+	}
+
+	/* ------------------------------------------------------------- apply() (in place) */
+
+	public function test_apply_all_keeps_only_items_passing_the_condition() {
+		$f     = $this->filter( 'all', [ $this->cond( 'field', 'is', 'x' ) ] );
+		$items = [ [ 'field' => 'x' ], [ 'field' => 'y' ], [ 'field' => 'x' ] ];
+
+		$result = $f->apply( $items );
+
+		$this->assertNull( $result ); // no return value on success
+		$this->assertSame( [ [ 'field' => 'x' ], [ 'field' => 'x' ] ], array_values( $items ) );
+	}
+
+	public function test_apply_all_handles_consecutive_leading_removals_without_index_skew() {
+		// Two leading items fail back-to-back — the case most likely to expose an
+		// off-by-one in the array_splice( $items, $i--, 1 ) reindexing.
+		$f     = $this->filter( 'all', [ $this->cond( 'field', 'is', 'x' ) ] );
+		$items = [ [ 'field' => 'no' ], [ 'field' => 'no' ], [ 'field' => 'x' ], [ 'field' => 'no' ] ];
+
+		$f->apply( $items );
+
+		$this->assertSame( [ [ 'field' => 'x' ] ], array_values( $items ) );
+	}
+
+	public function test_apply_all_requires_every_condition() {
+		$config = [ 'a' => [ 'path' => 'a' ], 'b' => [ 'path' => 'b' ] ];
+		$f      = new DataFilter( 'all', [ $this->cond( 'a', 'is', 'x' ), $this->cond( 'b', 'is', 'y' ) ], $config );
+		$items  = [
+			[ 'a' => 'x', 'b' => 'y' ],  // passes both
+			[ 'a' => 'x', 'b' => 'no' ], // fails b
+			[ 'a' => 'no', 'b' => 'y' ], // fails a
+		];
+
+		$f->apply( $items );
+
+		$this->assertSame( [ [ 'a' => 'x', 'b' => 'y' ] ], array_values( $items ) );
+	}
+
+	public function test_apply_any_keeps_items_passing_at_least_one_condition() {
+		$config = [ 'a' => [ 'path' => 'a' ], 'b' => [ 'path' => 'b' ] ];
+		$f      = new DataFilter( 'any', [ $this->cond( 'a', 'is', 'x' ), $this->cond( 'b', 'is', 'y' ) ], $config );
+		$items  = [
+			[ 'a' => 'x', 'b' => 'no' ],  // passes a
+			[ 'a' => 'no', 'b' => 'no' ], // passes neither
+			[ 'a' => 'no', 'b' => 'y' ],  // passes b
+		];
+
+		$f->apply( $items );
+
+		$this->assertSame(
+			[ [ 'a' => 'x', 'b' => 'no' ], [ 'a' => 'no', 'b' => 'y' ] ],
+			array_values( $items )
+		);
+	}
+
+	public function test_apply_returns_wp_error_on_invalid_condition() {
+		$f     = new DataFilter( 'all', [ $this->cond( 'field', 'is', 'x' ) ], [ 'field' => [ 'label' => 'no path' ] ] );
+		$items = [ [ 'field' => 'x' ] ];
+
+		$this->assertInstanceOf( \WP_Error::class, $f->apply( $items ) );
+	}
+
+	/* ------------------------------------------------- remaining compare operators */
+
+	public function test_numeric_comparison_operators() {
+		$gt = $this->filter( 'all', [ $this->cond( 'field', 'is_greater_than', 5 ) ] );
+		$this->assertTrue( $gt->check( [ 'field' => 10 ] ) );
+		$this->assertFalse( $gt->check( [ 'field' => 5 ] ) );
+
+		$lt = $this->filter( 'all', [ $this->cond( 'field', 'is_less_than', 5 ) ] );
+		$this->assertTrue( $lt->check( [ 'field' => 3 ] ) );
+		$this->assertFalse( $lt->check( [ 'field' => 5 ] ) );
+	}
+
+	public function test_does_not_contain_operator() {
+		$f = $this->filter( 'all', [ $this->cond( 'field', 'does_not_contain', 'x' ) ] );
+		$this->assertTrue( $f->check( [ 'field' => 'hello' ] ) );
+		$this->assertFalse( $f->check( [ 'field' => 'xenon' ] ) );
+	}
+
+	public function test_is_in_and_is_not_in_operators() {
+		$expected = [ [ 'value' => 'a' ], [ 'value' => 'b' ] ];
+
+		$in = $this->filter( 'all', [ $this->cond( 'field', 'is_in', $expected ) ] );
+		$this->assertTrue( $in->check( [ 'field' => 'a' ] ) );
+		$this->assertFalse( $in->check( [ 'field' => 'z' ] ) );
+
+		$not_in = $this->filter( 'all', [ $this->cond( 'field', 'is_not_in', $expected ) ] );
+		$this->assertTrue( $not_in->check( [ 'field' => 'z' ] ) );
+		$this->assertFalse( $not_in->check( [ 'field' => 'a' ] ) );
+	}
+
+	/* ----------------------------------------------------- format callback + relations */
+
+	public function test_format_callback_transforms_value_before_compare() {
+		$config = [ 'field' => [ 'path' => 'field', 'format' => static fn( $v ) => strtoupper( (string) $v ) ] ];
+		$f      = new DataFilter( 'all', [ $this->cond( 'field', 'is', 'X' ) ], $config );
+
+		$this->assertTrue( $f->check( [ 'field' => 'x' ] ) );
+		$this->assertFalse( $f->check( [ 'field' => 'y' ] ) );
+	}
+
+	public function test_relational_data_resolves_through_related_record() {
+		$config     = [ 'group' => [ 'path' => 'group_id', 'relation' => 'groups', 'relation_path' => 'name' ] ];
+		$relational = [ 'groups' => [ 'g1' => [ 'name' => 'Youth' ], 'g2' => [ 'name' => 'Adults' ] ] ];
+		$f          = new DataFilter( 'all', [ $this->cond( 'group', 'is', 'Youth' ) ], $config, $relational );
+
+		$this->assertTrue( $f->check( [ 'group_id' => 'g1' ] ) );
+		$this->assertFalse( $f->check( [ 'group_id' => 'g2' ] ) );
+	}
+
+	public function test_relational_data_missing_record_yields_wp_error() {
+		$config     = [ 'group' => [ 'path' => 'group_id', 'relation' => 'groups', 'relation_path' => 'name' ] ];
+		$relational = [ 'groups' => [ 'g1' => [ 'name' => 'Youth' ] ] ];
+		$f          = new DataFilter( 'all', [ $this->cond( 'group', 'is', 'Youth' ) ], $config, $relational );
+
+		$result = $f->check( [ 'group_id' => 'nonexistent' ] );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'invalid_filter_config', $result->get_error_code() );
 	}
 }
