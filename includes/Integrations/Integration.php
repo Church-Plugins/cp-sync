@@ -703,18 +703,18 @@ abstract class Integration extends \WP_Background_Process {
 
 		// Validate URL
 		if ( ! filter_var( $thumbnail_url, FILTER_VALIDATE_URL ) ) {
-			return new \WP_Error( 'invalid_url', __( 'The provided thumbnail URL is invalid.', 'your-text-domain' ) );
+			return new \WP_Error( 'invalid_url', __( 'The provided thumbnail URL is invalid.', 'cp-sync' ) );
 		}
 
 		$upload_dir = wp_upload_dir();
 		if ( ! empty( $upload_dir['error'] ) ) {
-			return new \WP_Error( 'upload_error', __( 'Unable to retrieve upload directory.', 'your-text-domain' ) );
+			return new \WP_Error( 'upload_error', __( 'Unable to retrieve upload directory.', 'cp-sync' ) );
 		}
 
 		// Ensure the directory exists
 		$image_cache_path = trailingslashit( $upload_dir['basedir'] ) . $this->image_cache_dir;
 		if ( ! file_exists( $image_cache_path ) && ! wp_mkdir_p( $image_cache_path ) ) {
-			return new \WP_Error( 'directory_creation_failed', __( 'Failed to create cache directory.', 'your-text-domain' ) );
+			return new \WP_Error( 'directory_creation_failed', __( 'Failed to create cache directory.', 'cp-sync' ) );
 		}
 		chmod( $image_cache_path, 0755 );
 
@@ -725,7 +725,7 @@ abstract class Integration extends \WP_Background_Process {
 		] );
 
 		if ( is_wp_error( $response ) ) {
-			return new \WP_Error( 'http_request_failed', __( 'Failed to fetch the image from the URL.', 'your-text-domain' ) );
+			return new \WP_Error( 'http_request_failed', __( 'Failed to fetch the image from the URL.', 'cp-sync' ) );
 		}
 
 		// Retrieve image content
@@ -736,7 +736,7 @@ abstract class Integration extends \WP_Background_Process {
 		$save_path     = trailingslashit( $image_cache_path ) . $temp_file_name;
 
 		if ( false === file_put_contents( $save_path, $image_content ) ) {
-			return new \WP_Error( 'file_save_failed', __( 'Failed to save the image locally.', 'your-text-domain' ) );
+			return new \WP_Error( 'file_save_failed', __( 'Failed to save the image locally.', 'cp-sync' ) );
 		}
 
 		// Detect MIME type
@@ -758,7 +758,7 @@ abstract class Integration extends \WP_Background_Process {
 		if ( ! array_key_exists( $mime_type, $supported_mime_types ) ) {
 			unlink( $save_path );
 
-			return new \WP_Error( 'unsupported_mime_type', __( 'The MIME type is not supported.', 'your-text-domain' ) );
+			return new \WP_Error( 'unsupported_mime_type', __( 'The MIME type is not supported.', 'cp-sync' ) );
 		}
 
 		// Rename the file with the correct extension
@@ -771,7 +771,7 @@ abstract class Integration extends \WP_Background_Process {
 		if ( ! getimagesize( $final_save_path ) ) {
 			unlink( $final_save_path );
 
-			return new \WP_Error( 'invalid_image', __( 'The saved file is not a valid image.', 'your-text-domain' ) );
+			return new \WP_Error( 'invalid_image', __( 'The saved file is not a valid image.', 'cp-sync' ) );
 		}
 
 		// Prepare attachment data
