@@ -32,3 +32,28 @@
 // phpunit loads the autoloader, so it can't be done from here). Run the suite
 // with `composer test`, not a bare `vendor/bin/phpunit`, to get clean output.
 require_once dirname( __DIR__ ) . '/vendor/autoload.php';
+
+// Minimal WP_Error stand-in for units that construct/return WP_Error without a
+// running WordPress. Pair it in tests with:
+//   Brain\Monkey\Functions\when('is_wp_error')->alias(fn($t) => $t instanceof \WP_Error);
+if ( ! class_exists( 'WP_Error' ) ) {
+	class WP_Error {
+		/** @var string */ public $code;
+		/** @var string */ public $message;
+		/** @var mixed */  public $data;
+
+		public function __construct( $code = '', $message = '', $data = '' ) {
+			$this->code    = $code;
+			$this->message = $message;
+			$this->data    = $data;
+		}
+
+		public function get_error_code() {
+			return $this->code;
+		}
+
+		public function get_error_message() {
+			return $this->message;
+		}
+	}
+}
