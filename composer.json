@@ -29,13 +29,18 @@
   "config": {
     "allow-plugins": {
       "composer/installers": true,
-      "kylekatarnls/update-helper": false
+      "kylekatarnls/update-helper": false,
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "phpcsstandards/phpcodesniffer-composer-installer": true
     }
   },
   "require-dev": {
     "coenjacobs/mozart": "^0.7.1",
     "brain/monkey": "^2.6",
-    "phpunit/phpunit": "^9.6"
+    "phpunit/phpunit": "^9.6",
+    "squizlabs/php_codesniffer": "^3.9",
+    "wp-coding-standards/wpcs": "^3.1",
+    "phpcompatibility/phpcompatibility-wp": "^2.1"
   },
   "extra": {
     "mozart": {
@@ -59,6 +64,12 @@
         "composer dump-autoload"
     ],
     "test": "@php -d error_reporting=22527 vendor/bin/phpunit",
-    "test:unit": "@php -d error_reporting=22527 vendor/bin/phpunit --testsuite unit"
+    "test:unit": "@php -d error_reporting=22527 vendor/bin/phpunit --testsuite unit",
+    "lint": "@php -d error_reporting=22527 vendor/bin/phpcs",
+    "lint:fix": "@php -d error_reporting=22527 vendor/bin/phpcbf",
+    "verify": [
+        "@test",
+        "@lint"
+    ]
   }
 }
