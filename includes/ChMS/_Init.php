@@ -88,6 +88,42 @@ class _Init {
 		return false;
 	}
 
+	/**
+	 * Recursively sanitize a settings data array before persisting.
+	 *
+	 * Walks nested arrays and applies sanitize_text_field() to string leaf values.
+	 * Non-string scalars (bool, int, float) and null are preserved untouched so
+	 * that legitimately typed settings values are not corrupted.
+	 *
+	 * Note: REST request params are not slash-escaped (unlike $_POST), so no
+	 * wp_unslash() is applied here. sanitize_text_field() strips tags and collapses
+	 * whitespace/newlines; none of the stored settings (ChMS slug, license, beta/status
+	 * flags, feed types, post statuses, filter field paths, comparison operators and
+	 * match values) legitimately require HTML or multi-line content, so this is safe
+	 * for every current field.
+	 *
+	 * @param mixed $value The value to sanitize.
+	 * @return mixed The sanitized value.
+	 */
+	protected static function sanitize_settings_data( $value ) {
+		if ( is_array( $value ) ) {
+			$sanitized = [];
+			foreach ( $value as $key => $item ) {
+				// Preserve integer (list) keys; sanitize string keys defensively.
+				$clean_key = is_string( $key ) ? sanitize_text_field( $key ) : $key;
+				$sanitized[ $clean_key ] = self::sanitize_settings_data( $item );
+			}
+			return $sanitized;
+		}
+
+		if ( is_string( $value ) ) {
+			return sanitize_text_field( $value );
+		}
+
+		// Preserve bools, ints, floats and null as-is.
+		return $value;
+	}
+
 	/** Actions ***************************************************/
 
 	/**
@@ -120,6 +156,14 @@ class _Init {
 
 					if ( ! is_array( $data ) ) {
 						return new WP_Error( 'invalid_data', __( 'Invalid data', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
+					// Sanitize every leaf value before persisting.
+					$data = self::sanitize_settings_data( $data );
+
+					// The `chms` field selects a ChMS class, so it must be a safe slug.
+					if ( isset( $data['chms'] ) ) {
+						$data['chms'] = sanitize_key( $data['chms'] );
 					}
 
 					$old_settings = $settings = get_option( 'cp_sync_settings', [] );
@@ -197,12 +241,37 @@ class _Init {
 			[
 				'methods'  => 'POST',
 				'callback' => function( $request ) {
-					$chms       = $request->get_param( 'chms' );
+					$chms       = sanitize_key( $request->get_param( 'chms' ) ); // selects a ChMS class; must be a safe slug.
 					$chms_class = self::get_chms( $chms );
 					$data       = $request->get_param( 'data' );
 
 					if ( ! is_array( $data ) ) {
 						return new WP_Error( 'invalid_data', __( 'Invalid data', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
+					if ( ! $chms_class ) {
+						return new WP_Error( 'invalid_chms', __( 'Invalid ChMS', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
+					// Capture raw credentials before the generic sanitizer runs: API
+					// passwords legitimately contain characters that sanitize_text_field()
+					// strips (tags, %-encoded octets, collapsed whitespace), which would
+					// silently corrupt them.
+					$raw_connect = ( isset( $data['connect'] ) && is_array( $data['connect'] ) ) ? $data['connect'] : null;
+
+					// Sanitize every leaf value before persisting.
+					$data = self::sanitize_settings_data( $data );
+
+					// Restore credential fields from the raw input. They are stored
+					// encrypted (see ChMS\CCB) and only used as a base64 HTTP Basic auth
+					// header, so they need no HTML sanitization — strip only control
+					// characters (defence against header/CRLF injection).
+					if ( is_array( $raw_connect ) ) {
+						foreach ( [ 'username', 'password' ] as $cred_field ) {
+							if ( isset( $raw_connect[ $cred_field ] ) && is_string( $raw_connect[ $cred_field ] ) ) {
+								$data['connect'][ $cred_field ] = preg_replace( '/[\x00-\x1F\x7F]/', '', $raw_connect[ $cred_field ] );
+							}
+						}
 					}
 
 					$settings = get_option( $chms_class->settings_key, [] );
@@ -308,7 +377,11 @@ class _Init {
 	 * Handle OAuth redirect
 	 */
 	public function handle_oauth_redirect() {
-		if ( ! isset( $_GET['cp_sync_oauth'] ) ) {
+		// This is an OAuth callback *return* from an external bridge (the churchplugins theme
+		// bridge), so it cannot carry a standard WP nonce. Access is gated by the
+		// current_user_can( 'manage_options' ) capability check below. The real CSRF fix
+		// (OAuth `state` param + host allowlist) lives in the bridge and is tracked separately.
+		if ( ! isset( $_GET['cp_sync_oauth'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- OAuth callback return, guarded by the capability check below.
 			return;
 		}
 		if ( ! current_user_can( 'manage_options' ) ) {
@@ -327,7 +400,9 @@ class _Init {
 			return;
 		}
 
-		$token = $_GET[ 'token' ] ?? '';
+		// OAuth callback return from the external bridge; cannot carry a WP nonce. Guarded by the
+		// current_user_can( 'manage_options' ) check in handle_oauth_redirect(). See note there.
+		$token = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- OAuth callback return, guarded by capability check in handle_oauth_redirect().
 		/**
 		 * Filter the token
 		 *
@@ -337,7 +412,7 @@ class _Init {
 		 */
 		$token = apply_filters( 'cp_sync_oauth_token', $token, $active_chms );
 
-		$refresh_token = $_GET[ 'refresh_token' ] ?? '';
+		$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( wp_unslash( $_GET['refresh_token'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- OAuth callback return, guarded by capability check in handle_oauth_redirect().
 		/**
 		 * Filter the refresh token
 		 *
