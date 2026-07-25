@@ -33,7 +33,9 @@
     }
   },
   "require-dev": {
-    "coenjacobs/mozart": "^0.7.1"
+    "coenjacobs/mozart": "^0.7.1",
+    "brain/monkey": "^2.6",
+    "phpunit/phpunit": "^9.6"
   },
   "extra": {
     "mozart": {
@@ -55,6 +57,8 @@
     "post-update-cmd": [
         "\"vendor/bin/mozart\" compose",
         "composer dump-autoload"
-    ]
+    ],
+    "test": "@php -d error_reporting=22527 vendor/bin/phpunit",
+    "test:unit": "@php -d error_reporting=22527 vendor/bin/phpunit --testsuite unit"
   }
 }

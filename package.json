@@ -12,7 +12,7 @@
 		"archive": "wpackio-scripts pack",
 		"build:wp": "export NODE_ENV=production && wp-scripts build",
 		"start:wp": "export NODE_ENV=development && wp-scripts start",
-		"lint:wp": "wp-scripts lint",
+		"lint:wp": "wp-scripts lint-js",
 		"format:wp": "wp-scripts format",
 		"build:all" : "export NODE_OPTIONS=--openssl-legacy-provider && npm run build && npm run build:wp",
 		"plugin-zip": "wp-scripts plugin-zip"
