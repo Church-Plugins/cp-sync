@@ -110,7 +110,7 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 	 * @return void
 	 */
 	public function required_plugins() {
-		printf( '<div class="error"><p>%s</p></div>', __( 'Your system does not meet the requirements for Church Plugins - Staff', 'cp-sync' ) );
+		printf( '<div class="error"><p>%s</p></div>', esc_html__( 'Your system does not meet the requirements for Church Plugins - Staff', 'cp-sync' ) );
 	}
 
 	/** Helper Methods **************************************/

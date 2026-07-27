@@ -47,6 +47,7 @@ class CP_Groups extends Integration {
 			$error_message = is_wp_error( $id ) ? $id->get_error_message() : 'wp_insert_post returned 0';
 			cp_sync()->logging->log( 'ERROR: Group could not be created: ' . $error_message );
 			cp_sync()->logging->log( 'Item data: ' . json_encode( $item, JSON_PRETTY_PRINT ) );
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Always caught in Integration::process_item() and only written to the log (never echoed to the browser); HTML-escaping would corrupt the log output.
 			throw new Exception( 'Group could not be created: ' . $error_message );
 		}
 

@@ -579,6 +579,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		if ( $this->api()->errorMessage() ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Always caught in ChMS::get_formatted_data() and only written to the log via error_log() (never echoed to the browser); HTML-escaping would corrupt the log output.
 			throw new ChMSException( 'pco_fetch_error', $this->api()->errorMessage() );
 		}
 
