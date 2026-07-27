@@ -558,6 +558,7 @@ abstract class ChMS {
 					// If checking specific type and it's syncing, add more details
 					if ( $is_syncing && $type ) {
 						$response['message'] = sprintf(
+							/* translators: %s: the integration type being synced (e.g. Groups, Events) */
 							__( '%s sync is currently in progress', 'cp-sync' ),
 							ucfirst( $type )
 						);
@@ -596,6 +597,7 @@ abstract class ChMS {
 					if ( $cancelled ) {
 						if ( $type ) {
 							$response['message'] = sprintf(
+								/* translators: %s: the integration type being synced (e.g. Groups, Events) */
 								__( '%s sync has been cancelled', 'cp-sync' ),
 								ucfirst( $type )
 							);
@@ -704,6 +706,7 @@ abstract class ChMS {
 			$where = implode( ' OR ', $where_clauses );
 
 			$count = $wpdb->get_var( $wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $where is a constructed fragment of hardcoded "option_name LIKE %s" placeholders (no user input); actual LIKE values are passed as $patterns to prepare(). $wpdb->options is a WP core table property.
 				"SELECT COUNT(*) FROM {$wpdb->options} WHERE {$where}",
 				...$patterns
 			) );

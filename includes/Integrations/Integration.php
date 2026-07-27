@@ -917,13 +917,14 @@ abstract class Integration extends \WP_Background_Process {
 
 		// get all chms_ids for this post type using a join
 		// this is so we only get the meta for the correct post type
-		$chms_ids = $wpdb->get_results( "
-			SELECT pm.meta_value AS chms_id, pm.post_id
+		$chms_ids = $wpdb->get_results( $wpdb->prepare(
+			"SELECT pm.meta_value AS chms_id, pm.post_id
 			FROM $wpdb->postmeta pm
 			JOIN $wpdb->posts p ON pm.post_id = p.ID
 			WHERE pm.meta_key = '_chms_id'
-			AND p.post_type = '{$this->post_type}'
-		" );
+			AND p.post_type = %s",
+			$this->post_type
+		) );
 
 		$this->chms_id_cache = [];
 
