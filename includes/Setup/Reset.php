@@ -294,10 +294,16 @@ class Reset {
 			'content'    => $this->reset_content(),
 			'connection' => $this->reset_connection(),
 			'settings'   => false,
+			'log'        => false,
 			'cron'       => 0,
 		];
 
 		$summary['settings'] = delete_option( 'cp_sync_settings' );
+
+		// The debug log file ( {uploads}/{hash}-cp-sync.log, ChurchPlugins\Logging ).
+		if ( function_exists( 'cp_sync' ) && ! empty( cp_sync()->logging ) ) {
+			$summary['log'] = (bool) cp_sync()->logging->clear_log_file();
+		}
 
 		// Recurring content pull.
 		if ( wp_next_scheduled( Integrations_Init::$_cron_hook ) ) {

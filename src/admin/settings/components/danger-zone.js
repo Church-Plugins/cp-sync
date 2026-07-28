@@ -56,7 +56,7 @@ const RESET_LEVELS = [
 		value: 'all',
 		title: __( 'Everything', 'cp-sync' ),
 		description: __(
-			'Full reset of everything CP Sync has stored — sync state, imported content, ChMS connection, and plugin settings; uninstalling the plugin only deletes this data if the "Delete all data on uninstall" toggle above is enabled.',
+			'Full reset of everything CP Sync has stored — sync state, imported content, ChMS connection, plugin settings, and the debug log; uninstalling the plugin only deletes this data if the "Delete all data on uninstall" toggle above is enabled.',
 			'cp-sync'
 		),
 		destructive: true,

@@ -302,6 +302,19 @@ function cp_sync_uninstall_current_site() {
 	cp_sync_uninstall_delete_sideloaded_attachments( $wpdb );
 	cp_sync_uninstall_remove_image_cache_dir();
 
+	// 4b. The debug log file. ChurchPlugins\Logging writes it to the uploads
+	// basedir as {wp_hash(home_url('/'))}-cp-sync.log — reproduced here because
+	// the plugin (and its Logging instance) is not booted during uninstall.
+	// home_url() varies per site, so this is correctly per-site under
+	// switch_to_blog().
+	$cp_sync_uploads = wp_upload_dir();
+	if ( empty( $cp_sync_uploads['error'] ) && ! empty( $cp_sync_uploads['basedir'] ) ) {
+		$cp_sync_log_file = trailingslashit( $cp_sync_uploads['basedir'] ) . wp_hash( home_url( '/' ) ) . '-cp-sync.log';
+		if ( file_exists( $cp_sync_log_file ) ) {
+			wp_delete_file( $cp_sync_log_file );
+		}
+	}
+
 	// 5. Scheduled events ( WP-Cron is per-site ).
 	foreach ( array( 'cp_sync_pull', 'wp_pull_groups_cron', 'wp_pull_events_cron' ) as $hook ) {
 		wp_clear_scheduled_hook( $hook );
