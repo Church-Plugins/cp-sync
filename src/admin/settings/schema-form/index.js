@@ -7,6 +7,7 @@
  */
 
 import './fields'; // registers text/select/radio/toggle/checkbox
+import './complex-fields'; // registers filter-builder/async-multiselect/multiselect
 
 export { default as SchemaForm } from './SchemaForm';
 export { registerFieldType, getFieldType } from './registry';

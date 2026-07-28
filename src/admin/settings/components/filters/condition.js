@@ -1,258 +1,310 @@
-import { useEffect, useMemo } from '@wordpress/element'
-import Autocomplete from '@mui/material/Autocomplete'
-import Box from '@mui/material/Box'
-import FormControl from '@mui/material/FormControl'
-import InputLabel from '@mui/material/InputLabel'
-import Select from '@mui/material/Select'
-import MenuItem from '@mui/material/MenuItem'
-import TextField from '@mui/material/TextField'
-import IconButton from '@mui/material/IconButton'
-import RemoveIcon from '@mui/icons-material/Remove'
-import { __ } from '@wordpress/i18n'
-import useFilters from './useFilters'
-import dayjs from 'dayjs'
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider/LocalizationProvider';
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { useEffect } from '@wordpress/element';
+import {
+	Button,
+	SelectControl,
+	TextControl,
+	Dropdown,
+	DateTimePicker,
+} from '@wordpress/components';
+import { __ } from '@wordpress/i18n';
+import useFilters from './useFilters';
+import MultiTokenField from '../multi-token-field';
 
 /**
  * Sanitizes a value to be a number, specifically for an input[type="number"]
  *
- * @param {any} value 
- * @return {number}
+ * @param {*} value The raw input value.
+ * @return {number} The sanitized number.
  */
-const numberUpdate = (value) => {
-	if(typeof value === 'string') {
-		value = value.replace(/[^\d\.]/g, '').replace(/^0(?!\.)+/, '')
+const numberUpdate = ( value ) => {
+	if ( typeof value === 'string' ) {
+		value = value.replace( /[^\d.]/g, '' ).replace( /^0(?!\.)+/, '' );
 	}
 
-	if (isNaN(value)) {
-		return 0
+	if ( isNaN( value ) ) {
+		return 0;
 	}
 
-	return Number(value)
-}
+	return Number( value );
+};
+
+// The empty/default value to write when the compare option's underlying VALUE
+// TYPE changes (so a stale value of the wrong shape isn't left behind).
+const emptyValueForType = ( fieldType ) => {
+	if ( fieldType === 'multi' ) {
+		return [];
+	}
+	if ( fieldType === 'number' ) {
+		return 0;
+	}
+	return '';
+};
 
 /**
- * React component for rendering a single condition
+ * React component for rendering a single condition.
  *
- * @param {Object} props
- * @param {Object} props.condition - The current condition settings
- * @param {Function} props.onChange - The change handler
- * @param {Function} props.onAdd - The add handler
- * @param {Function} props.onRemove - The remove handler
- * @param {Object} props.filterConfig - The global filter configuration
- * @param {Array} props.compareOptions - The possible comparison options
- * @returns {React.ReactElement}
+ * Ported off MUI / MUI-X to `@wordpress/components`. The STORED condition shape
+ * is unchanged: `{ id, selector, compare, value, preFilters }`. In particular a
+ * `date` value is still serialized as an integer Unix timestamp (seconds), and a
+ * `multi` value is still an array of `{ value, label }` option objects.
+ *
+ * @param {Object}   props
+ * @param {Object}   props.condition      - The current condition settings.
+ * @param {Function} props.onChange       - The change handler.
+ * @param {Function} props.onRemove       - The remove handler.
+ * @param {Object}   props.filterConfig   - The global filter configuration.
+ * @param {Array}    props.compareOptions - The possible comparison options.
+ * @return {React.ReactElement} The condition row.
  */
-export default function Condition({
+export default function Condition( {
 	condition = {},
 	onChange,
-	onAdd,
 	onRemove,
 	filterConfig,
 	compareOptions = [],
-}) {
+} ) {
+	// Guard: `compareOptions` may be empty on first paint; never destructure
+	// `compareOptions[0].value` directly (that crashed the old component).
+	const defaultCompare = compareOptions[ 0 ]?.value;
+
 	const {
-		selector   = Object.keys(filterConfig)[0],
-		compare    = compareOptions[0].value,
-		value      = '',
+		selector = Object.keys( filterConfig )[ 0 ],
+		compare = defaultCompare,
+		value = '',
 		preFilters = {},
-	} = condition
+	} = condition;
 
-	useEffect(() => {
-		const populate = {}
+	useEffect( () => {
+		const populate = {};
 
-		if(!condition.compare) {
-			populate.compare = compareOptions[0].value
+		if ( ! condition.compare ) {
+			populate.compare = defaultCompare;
 		}
 
-		if(condition.value === undefined) {
-			populate.value = ''
+		if ( condition.value === undefined ) {
+			populate.value = '';
 		}
 
-		if(!condition.selector) {
-			populate.selector = Object.keys(filterConfig)[0]
+		if ( ! condition.selector ) {
+			populate.selector = Object.keys( filterConfig )[ 0 ];
 		}
 
-		handleChange(populate) // populate the condition with defaults
-	}, [])
+		handleChange( populate ); // populate the condition with defaults
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [] );
 
-	const config = filterConfig[selector]
-	
-	const { options, type: filterType } = useFilters(config, preFilters)
+	const config = filterConfig[ selector ];
 
-	const { supports = [] } = config
+	const { options, type: filterType } = useFilters( config, preFilters );
 
-	const valueType = useMemo(() => {
-		const typeConfig = compareOptions.find(({ value }) => value === compare)
+	const { supports = [] } = config;
 
-		if(typeConfig) {
-			return typeConfig
-		}else {
-			return { type: 'text' }
+	/**
+	 * Resolve the rendered value TYPE (text/number/date/select/multi/bool) for a
+	 * given compare option value. Handles the `inherit` indirection (a compare of
+	 * type `inherit` takes the filter's own type, falling back to the option's
+	 * declared `default`).
+	 *
+	 * @param {string} compareValue The compare option key.
+	 * @return {string} The resolved field type.
+	 */
+	const resolveValueType = ( compareValue ) => {
+		const opt = compareOptions.find(
+			( o ) => o.value === compareValue
+		) || {
+			type: 'text',
+		};
+
+		return opt.type === 'inherit' ? filterType || opt.default : opt.type;
+	};
+
+	const fieldType = resolveValueType( compare );
+
+	const handleChange = ( newData ) => {
+		if ( Object.keys( newData ).length === 0 ) {
+			return; // prevent empty updates
 		}
-	}, [compare])
 
-	const handleChange = (newData) => {
-		if(Object.keys(newData).length === 0) return; // prevent empty updates
-
-		onChange({
+		onChange( {
 			...condition,
-			...newData
-		})
-	}
+			...newData,
+		} );
+	};
 
-	const updateSelector = (newSelector) => {
+	const updateSelector = ( newSelector ) => {
 		const updatedCondition = {
 			...condition,
 			selector: newSelector,
-		}
+		};
 
 		// reset preFilters when the selector changes
-		delete updatedCondition.preFilters
+		delete updatedCondition.preFilters;
 
-		onChange(updatedCondition)
-	}
+		onChange( updatedCondition );
+	};
 
-	const updateCompare = (newCompare) => {
-		const updatedCondition = {
-			compare: newCompare
+	const updateCompare = ( newCompare ) => {
+		const updatedCondition = { compare: newCompare };
+
+		// Only clear the value when the underlying VALUE TYPE actually changes.
+		// (The old code compared a string against a useMemo OBJECT, so this reset
+		// never behaved correctly — it cleared on every compare change.)
+		const prevType = resolveValueType( compare );
+		const nextType = resolveValueType( newCompare );
+
+		if ( prevType !== nextType ) {
+			updatedCondition.value = emptyValueForType( nextType );
 		}
 
-		const newData = compareOptions.find(({ value }) => value === newCompare)
+		handleChange( updatedCondition );
+	};
 
-		const { type = 'select' } = newData
+	const selectorOptions = Object.keys( filterConfig ).map( ( key ) => ( {
+		value: key,
+		label: filterConfig[ key ].label,
+	} ) );
 
-		if (type !== valueType) {
-			updatedCondition.value = '' // clear the value when the comparison changes
-		}
+	const compareControlOptions = compareOptions
+		.filter( ( option ) =>
+			supports.length ? supports.includes( option.value ) : true
+		)
+		.map( ( option ) => ( { value: option.value, label: option.label } ) );
 
-		handleChange(updatedCondition)
-	}
-
-	const fieldType = (
-		valueType.type === 'inherit' ?
-		(filterType || valueType.default) :
-		valueType.type
-	)
+	const dateLabel =
+		typeof value === 'number'
+			? new Date( value * 1000 ).toLocaleString()
+			: __( 'Select date…', 'cp-sync' );
 
 	return (
-		<Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
-			<FormControl>
-				<InputLabel id="filter-selector-label" htmlFor="filter-selector">{ __( 'Selector' ) }</InputLabel>
-				<Select
-					value={selector}
-					onChange={(e) => updateSelector(e.target.value)}
-					sx={{ width: 200 }}
-					defaultValue={Object.keys(filterConfig)[0]}
-					id="filter-selector"
-				>
-					{Object.keys(filterConfig).map(key => (
-						<MenuItem key={key} value={key}>{filterConfig[key].label}</MenuItem>
-					))}
-				</Select>
-			</FormControl>
-			{
-				Object.entries(config.preFilters || {}).map(([key, preFilter]) => (
-					<FormControl key={key}>
-						<InputLabel id={`filter-sub-option-label-${key}`}>{ preFilter.label }</InputLabel>
-						<Select
-							value={preFilters[key]}
-							onChange={(e) => handleChange({ preFilters: { ...preFilters, [key]: e.target.value } })}
-							sx={{ width: 200 }}
-						>
-							{preFilter.options.map(option => (
-								<MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
-							))}
-						</Select>
-					</FormControl>
-				))
-			}
-			<FormControl>
-				<InputLabel id="filter-compare-label">{ __( 'Compare' ) }</InputLabel>
-				<Select
-					value={compare}
-					onChange={(e) => updateCompare(e.target.value)}
-					sx={{ width: 200 }}
-					defaultValue='is'
-				>
-					{compareOptions.filter(option => supports.length ? supports.includes(option.value) : true).map(option => (
-						<MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
-					))}
-				</Select>
-			</FormControl>
-			{
-				fieldType === 'bool' ?
-				null : // no value input
-				fieldType === 'number' ?
-				<TextField
-					value={numberUpdate(value).toString()}
-					onChange={(e) => handleChange({ value: !e.target.value ? 0 : numberUpdate(e.target.value) })}
-					sx={{
-						width: 200,
-						height: '56px',
-						display: 'flex',
-						alignSelf: 'stretch',
-						'& .MuiOutlinedInput-root, & input': {
-							height: '100%',
-							border: 'none'
-						},
-					}}
-					type="number"
-				/> :
-				fieldType === 'text' ?
-				<TextField
-					label={__( 'Value' )}
-					value={value}
-					onChange={(e) => handleChange({ value: e.target.value })}
-					sx={{ width: 200 }}
-				/> :
-				fieldType === 'date' ?
-				<LocalizationProvider dateAdapter={AdapterDayjs}>
-					<DateTimePicker
-						label={__( 'Value' )}
-						value={(typeof value === 'number') ? dayjs.unix(value) : dayjs()}
-						onChange={(newValue) => handleChange({ value: dayjs(newValue).unix() })}
-						viewRenderers={{
-							hours: null,
-							minutes: null,
-							seconds: null,
-						}}
+		<div className="cps-filters__condition">
+			<SelectControl
+				className="cps-filters__field"
+				label={ __( 'Selector' ) }
+				value={ selector }
+				options={ selectorOptions }
+				onChange={ updateSelector }
+				__nextHasNoMarginBottom
+				__next40pxDefaultSize
+			/>
+			{ Object.entries( config.preFilters || {} ).map(
+				( [ key, preFilter ] ) => (
+					<SelectControl
+						key={ key }
+						className="cps-filters__field"
+						label={ preFilter.label }
+						value={ preFilters[ key ] }
+						options={ ( preFilter.options || [] ).map(
+							( option ) => ( {
+								value: option.value,
+								label: option.label,
+							} )
+						) }
+						onChange={ ( newValue ) =>
+							handleChange( {
+								preFilters: {
+									...preFilters,
+									[ key ]: newValue,
+								},
+							} )
+						}
+						__nextHasNoMarginBottom
+						__next40pxDefaultSize
 					/>
-				</LocalizationProvider> :
-				fieldType === 'select' ?
-				<FormControl>
-					<InputLabel id="filter-value-label">{ __( 'Value' ) }</InputLabel>
-					<Select
-						value={value}
-						onChange={(e) => handleChange({ value: e.target.value })}
-						sx={{ width: 200 }}
-						defaultValue='is'
-					>
-						{(options || []).map(option => (
-							<MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
-						))}
-					</Select>
-				</FormControl> :
-				fieldType === 'multi' ?
-				<Autocomplete
-					value={value || []}
-					onChange={(e, newValue) => handleChange({ value: newValue })}
-					sx={{ width: 200 }}
-					multiple
-					options={options || []}
-					getOptionLabel={(option) => option.label}
-					renderInput={(params) => <TextField {...params} label={__( 'Value' )} />}
-					isOptionEqualToValue={(option, item) => (
-						!options ? true : option.value === item.value
-					)}
-				/> :
-				null
-			}
-			<IconButton aria-label="remove" onClick={onRemove}>
-				<RemoveIcon />
-			</IconButton>
-		</Box>
-	)
+				)
+			) }
+			<SelectControl
+				className="cps-filters__field"
+				label={ __( 'Compare' ) }
+				value={ compare }
+				options={ compareControlOptions }
+				onChange={ updateCompare }
+				__nextHasNoMarginBottom
+				__next40pxDefaultSize
+			/>
+			{ fieldType === 'bool' ? null : fieldType === 'number' ? (
+				<TextControl
+					className="cps-filters__field"
+					label={ __( 'Value' ) }
+					type="number"
+					value={ numberUpdate( value ).toString() }
+					onChange={ ( val ) =>
+						handleChange( {
+							value: ! val ? 0 : numberUpdate( val ),
+						} )
+					}
+					__nextHasNoMarginBottom
+					__next40pxDefaultSize
+				/>
+			) : fieldType === 'text' ? (
+				<TextControl
+					className="cps-filters__field"
+					label={ __( 'Value' ) }
+					value={ value }
+					onChange={ ( val ) => handleChange( { value: val } ) }
+					__nextHasNoMarginBottom
+					__next40pxDefaultSize
+				/>
+			) : fieldType === 'date' ? (
+				<div className="cps-filters__field">
+					<Dropdown
+						renderToggle={ ( { isOpen, onToggle } ) => (
+							<Button
+								variant="secondary"
+								onClick={ onToggle }
+								aria-expanded={ isOpen }
+								__next40pxDefaultSize
+							>
+								{ dateLabel }
+							</Button>
+						) }
+						renderContent={ () => (
+							<DateTimePicker
+								currentDate={
+									typeof value === 'number'
+										? new Date( value * 1000 )
+										: new Date()
+								}
+								onChange={ ( newDate ) =>
+									handleChange( {
+										value: Math.floor(
+											new Date( newDate ).getTime() / 1000
+										),
+									} )
+								}
+							/>
+						) }
+					/>
+				</div>
+			) : fieldType === 'select' ? (
+				<SelectControl
+					className="cps-filters__field"
+					label={ __( 'Value' ) }
+					value={ value }
+					options={ ( options || [] ).map( ( option ) => ( {
+						value: option.value,
+						label: option.label,
+					} ) ) }
+					onChange={ ( val ) => handleChange( { value: val } ) }
+					__nextHasNoMarginBottom
+					__next40pxDefaultSize
+				/>
+			) : fieldType === 'multi' ? (
+				<MultiTokenField
+					className="cps-filters__field"
+					label={ __( 'Value' ) }
+					value={ value || [] }
+					options={ options || [] }
+					onChange={ ( val ) => handleChange( { value: val } ) }
+					valueKey="value"
+					labelKey="label"
+				/>
+			) : null }
+			<Button
+				className="cps-filters__remove"
+				icon="trash"
+				label={ __( 'Remove' ) }
+				onClick={ onRemove }
+			/>
+		</div>
+	);
 }
