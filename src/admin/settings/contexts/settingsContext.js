@@ -1,7 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import globalStore from '../store/globalStore'
 import { useDispatch, useSelect } from '@wordpress/data'
-import apiFetch from '@wordpress/api-fetch'
 
 const SettingsContext = createContext({
 	chms: null,
@@ -37,62 +36,80 @@ export const useSettings = () => {
 	return context
 }
 
+/**
+ * Thin wrapper over the single `cp-sync/global-settings` store.
+ *
+ * This provider no longer holds any settings state of its own — everything
+ * (global + per-ChMS values, dirty/saving/error, connection, filters) lives in
+ * the store. It just seeds the store's global slice from the localized page data
+ * and re-exposes the same `useSettings()` API the tab components already consume.
+ */
 export default function SettingsProvider({ globalSettings: initialGlobalSettings, children, compareOptions }) {
-	const [globalSettings, setGlobalSettings] = useState({ ...defaultGlobalSettings, ...initialGlobalSettings })
-	const [globalUnsavedChanges, setGlobalUnsavedChanges] = useState(false)
-	const [isReady, setIsReady] = useState(false)
+	const [seeded, setSeeded] = useState(false)
 
-	const { isConnected, isConnectionLoaded, isSaving, isDirty, settings, error, filterConfig } = useSelect((select) => {
+	const {
+		setGlobalSettings,
+		setGlobalField,
+		setSettings,
+		persistGlobalSettings,
+		save: saveSettings,
+	} = useDispatch(globalStore)
+
+	// Seed the store's global slice once from the localized data. Everything that
+	// reads `globalSettings.chms` (connection resolver, per-ChMS settings) keys off
+	// this, so children are gated until it has run.
+	useEffect(() => {
+		setGlobalSettings({ ...defaultGlobalSettings, ...initialGlobalSettings })
+		setSeeded(true)
+	}, [])
+
+	const {
+		globalSettings,
+		settings,
+		isConnected,
+		isConnectionLoaded,
+		isSaving,
+		isDirty,
+		error,
+		filterConfig,
+	} = useSelect((select) => {
+		const store = select(globalStore)
+		const global = store.getGlobalSettings() || {}
+		const chms = global.chms
+
 		return {
-			settings: select(globalStore).getSettings(globalSettings.chms) || {},
-			isConnected: select(globalStore).getIsConnected(globalSettings.chms),
-			isConnectionLoaded: select(globalStore).hasFinishedResolution('getIsConnected', [globalSettings.chms]),
-			isLoading: select(globalStore).getResolutionState('getSettings', [globalSettings.chms])?.status === 'resolving',
-			isSaving: select(globalStore).getIsSaving(),
-			isDirty: select(globalStore).getIsDirty(),
-			error: select(globalStore).getError(),
-			filterConfig: select(globalStore).getFilters(globalSettings.chms) || {},
+			globalSettings: global,
+			settings: chms ? (store.getSettings(chms) || {}) : {},
+			isConnected: chms ? store.getIsConnected(chms) : false,
+			isConnectionLoaded: chms ? store.hasFinishedResolution('getIsConnected', [chms]) : false,
+			isSaving: store.getIsSaving(),
+			isDirty: store.getIsDirty(),
+			error: store.getError(),
+			filterConfig: chms ? (store.getFilters(chms) || {}) : {},
 		}
-	})
+	}, [seeded])
 
-	const { persistSettings, setSettings } = useDispatch(globalStore)
-
-	const saveGlobal = async (data = false) => {
-		if (!globalUnsavedChanges && !data) {
-			return
-		}
-
-		try {
-			await apiFetch({
-				path: '/cp-sync/v1/settings',
-				method: 'POST',
-				data: { data: data || globalSettings }
-			})
-			setGlobalUnsavedChanges(false)
-		}catch(err) {
-			setError(err.message)
-		}
-	}
-
+	// Persist the global slice and the active ChMS slice through the store's single
+	// save action. Request bodies match the legacy per-ChMS/global POSTs exactly.
 	const save = () => {
-		if(globalSettings.chms) {
-			persistSettings(globalSettings.chms, settings)
-		}
-		saveGlobal()
+		saveSettings(globalSettings, globalSettings.chms, settings)
 	}
 
-	const updateGlobalSettings = async (field, value) => {
-		// when switching ChMS, we want to re-save immediately
-		if(field === 'chms' && value !== globalSettings.chms) {
-			await saveGlobal({ ...globalSettings, [field]: value })
-		} else {
-			setGlobalUnsavedChanges(true)
-		}
+	// Kept for API-surface compatibility; delegates to the store.
+	const saveGlobal = (data = false) => {
+		persistGlobalSettings(data || globalSettings)
+	}
 
-		setGlobalSettings({
-			...globalSettings,
-			[field]: value
-		})
+	const updateGlobalSettings = (field, value) => {
+		// Update the store's global slice. Switching ChMS re-persists immediately
+		// via a single deliberate save (the old double-save — an inline saveGlobal
+		// plus a redundant useEffect on chms change — is gone).
+		if (field === 'chms' && value !== globalSettings.chms) {
+			setGlobalField(field, value)
+			persistGlobalSettings({ ...globalSettings, [field]: value })
+		} else {
+			setGlobalField(field, value)
+		}
 	}
 
 	const updateSettings = (newSettings) => {
@@ -112,12 +129,13 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 	}
 
 	const getField = (group, field) => {
-		return settings[group][field]
+		// Guarded: return undefined instead of throwing when the group is absent.
+		return settings?.[group]?.[field]
 	}
 
 	/**
 	 * Gets the filter config for a filter group, e.g. 'groups' or 'events'
-	 * @param {*} filterGroup 
+	 * @param {*} filterGroup
 	 */
 	const getFilterConfig = (filterGroup) => {
 		return filterConfig[filterGroup] || false
@@ -128,7 +146,7 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		error,
 		isConnected,
 		isSaving,
-		isDirty: isDirty || globalUnsavedChanges,
+		isDirty,
 		settings,
 		updateSettings,
 		updateField,
@@ -136,25 +154,15 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		getFilterConfig,
 		save,
 		saveGlobal,
-		globalUnsavedChanges,
+		globalUnsavedChanges: isDirty,
 		globalSettings,
 		updateGlobalSettings,
 		compareOptions,
 	}
 
-	useEffect(() => {
-		saveGlobal()
-	}, [globalSettings.chms])
-
-	useEffect(() => {
-		if(isConnectionLoaded) {
-			setIsReady(true)
-		}
-	}, [isConnectionLoaded])
-
 	return (
 		<SettingsContext.Provider value={value}>
-			{isReady && children}
+			{seeded && isConnectionLoaded && children}
 		</SettingsContext.Provider>
 	)
 }

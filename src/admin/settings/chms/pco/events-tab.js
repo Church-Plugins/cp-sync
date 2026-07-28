@@ -16,7 +16,6 @@ import { useState } from '@wordpress/element';
 import Filters from '../../components/filters';
 import Preview from '../../components/preview';
 import AsyncSelect from '../../components/async-select';
-import store from '../../store/settingsStore';
 import { useSettings } from '../../contexts/settingsContext';
 import { Divider } from '@mui/material';
 
