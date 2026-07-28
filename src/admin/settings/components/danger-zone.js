@@ -105,9 +105,13 @@ function DangerZone() {
 	const selected = RESET_LEVELS.find( ( l ) => l.value === level );
 	const isDestructive = selected.destructive;
 
-	// Destructive levels unlock only on an exact retype; non-destructive levels
-	// are gated by a window.confirm inside the handler instead.
-	const confirmMatches = confirmText === level;
+	// Destructive levels unlock only on retyping the keyword; non-destructive
+	// levels are gated by a window.confirm inside the handler instead. The match
+	// is trimmed + case-insensitive: wp-components styles control labels
+	// uppercase, so users reasonably type what they see ("ALL"). The server-side
+	// confirm gate is unaffected — the request always sends the canonical
+	// lowercase level string, not this typed text.
+	const confirmMatches = confirmText.trim().toLowerCase() === level;
 	const canRun =
 		! isRunning && ( ! isDestructive || confirmMatches );
 

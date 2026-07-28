@@ -179,6 +179,12 @@ body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-sync {
   border-radius: 4px;
   background: #fcf0f1;
 
+  // wp-components uppercases control labels; the confirm field's label quotes
+  // the exact keyword to retype, so it must display in its true (lower) case.
+  .components-base-control__label {
+    text-transform: none;
+  }
+
   &__title {
     margin: 0;
     color: #d63638;
