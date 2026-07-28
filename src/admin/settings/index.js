@@ -3,7 +3,7 @@ import { Button, Card, CardBody, Notice } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import './index.scss';
 import platforms from './platforms';
-import { chmsTab } from './components/chms-tab';
+import { connectTab } from './components/connect-tab';
 import { licenseTab } from './components/license-tab';
 import { logTab } from './components/log-tab';
 import { advancedTab } from './components/advanced-tab';
@@ -15,10 +15,11 @@ import SettingsProvider, { useSettings } from './contexts/settingsContext';
  *
  * The DynamicTab contract is unchanged: the registered `component` receives
  * `{ data, updateField, save }` scoped to the tab's `group`. Tabs without a
- * settings slice (chmsTab has no `group`; logTab's `logTab` group has no
- * slice) are handled gracefully — spreading `settings[undefined]` /
- * `settings.logTab` is a harmless no-op and those tabs read the global
- * store directly via `useSettings()`.
+ * settings slice (the merged connectTab has no `group` and derives its own
+ * scoping from the active ChMS; logTab's `logTab` group has no slice) are
+ * handled gracefully — spreading `settings[undefined]` / `settings.logTab` is
+ * a harmless no-op and those tabs read the global store directly via
+ * `useSettings()`.
  *
  * @param {Object} props
  * @param {Object} props.tab The tab registration.
@@ -67,20 +68,24 @@ function Settings() {
 
 	const chmsData = platforms[ globalSettings.chms ] || { tabs: [] };
 
-	// When not connected, only the ChMS's `connect`-group tabs are offered.
-	const platformTabs = chmsData.tabs.filter( ( tab ) =>
-		isConnected ? true : tab.group === 'connect'
-	);
+	// The merged Connect tab owns the picker + the active platform's connect
+	// screen, so the platform's own `connect` tab is never surfaced separately.
+	// The remaining per-feed tabs (groups, events, …) only appear once
+	// connected.
+	const platformTabs = isConnected
+		? chmsData.tabs.filter( ( tab ) => tab.group !== 'connect' )
+		: [];
 
 	// SLUG-KEYED tab list. A tab's identity is a stable slug (not its numeric
 	// array position), so `?tab=` URLs round-trip correctly and stay valid even
-	// if tabs are reordered. The ChMS picker keeps the historical `select` slug;
-	// logTab keeps the historical `log` slug (its `group` is `logTab`).
+	// if tabs are reordered. The merged Connect tab takes the `connect` slug
+	// (legacy `?tab=select` aliases to it — see getInitialSlug); logTab keeps
+	// the historical `log` slug (its `group` is `logTab`).
 	const allTabs = [
 		{
-			slug: 'select',
-			label: __( 'Select a ChMS', 'cp-sync' ),
-			tab: chmsTab,
+			slug: 'connect',
+			label: __( 'Connect', 'cp-sync' ),
+			tab: connectTab,
 		},
 		...platformTabs.map( ( tab ) => ( {
 			slug: tab.group,
@@ -100,8 +105,13 @@ function Settings() {
 
 	const getInitialSlug = () => {
 		const url = new URL( window.location.href );
-		const tab = url.searchParams.get( 'tab' );
-		return tab && slugs.includes( tab ) ? tab : 'select';
+		let tab = url.searchParams.get( 'tab' );
+		// Legacy bookmarks used the standalone picker slug; it now lives inside
+		// the merged Connect tab.
+		if ( tab === 'select' ) {
+			tab = 'connect';
+		}
+		return tab && slugs.includes( tab ) ? tab : 'connect';
 	};
 
 	const [ currentTab, setCurrentTab ] = useState( getInitialSlug );

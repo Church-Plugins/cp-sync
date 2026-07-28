@@ -92,7 +92,13 @@ body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-sync {
 	align-self: flex-start;
 }
 
-// --- ChMS picker -----------------------------------------------------------
+// --- Merged Connect tab ----------------------------------------------------
+.cps-chms-picker {
+	margin: 0 0 2rem;
+	padding: 0 0 2rem;
+	border-bottom: 1px solid #e0e0e0;
+}
+
 .cps-chms-select {
 	min-width: 300px;
 	max-width: 300px;
@@ -100,6 +106,12 @@ body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-sync {
 
 .cps-chms-notice {
 	margin: 1rem 0 0;
+}
+
+.cps-chms-hint {
+	margin: 1rem 0 0;
+	color: #757575;
+	font-style: italic;
 }
 
 // --- Sync status indicator -------------------------------------------------
