@@ -27,6 +27,7 @@ const INITIAL_STATE = {
 	values: { global: {} },
 	connection: {},
 	filters: {},
+	schemas: {},
 	optionsCache: {},
 	ui: {
 		isSaving: false,
@@ -78,6 +79,13 @@ const actions = {
 			type: 'SET_FILTERS',
 			chms,
 			filters
+		}
+	},
+	setSchema( chms, schema ) {
+		return {
+			type: 'SET_SCHEMA',
+			chms,
+			schema
 		}
 	},
 	setOptions( endpoint, data ) {
@@ -181,6 +189,16 @@ const resolvers = {
 			return actions.setError( e.message )
 		}
 	},
+	// The formatted settings schema declared in PHP (ChMS::get_settings_schema()),
+	// served by GET /{chms}/schema. Keyed by screen (settings group).
+	*getSchema( chms ) {
+		try {
+			const response = yield actions.fetch( `/cp-sync/v1/${chms}/schema` )
+			return actions.setSchema( chms, response )
+		} catch ( e ) {
+			return actions.setError( e.message )
+		}
+	},
 	// Folds in the retired settingsStore.getData resolver: fetch an arbitrary
 	// endpoint and cache `response.data` keyed by endpoint.
 	*getOptions( endpoint ) {
@@ -198,6 +216,7 @@ const selectors = {
 	getIsLoading: state => state.ui.isLoading,
 	getIsConnected: (state, chms) => !!state.connection[chms],
 	getFilters: (state, chms) => state.filters[chms],
+	getSchema: (state, chms) => state.schemas[chms],
 	getOptions: (state, endpoint) => state.optionsCache[endpoint],
 }
 
@@ -282,6 +301,14 @@ const reducer = ( state = INITIAL_STATE, action ) => {
 				filters: {
 					...state.filters,
 					[action.chms]: action.filters
+				}
+			}
+		case 'SET_SCHEMA':
+			return {
+				...state,
+				schemas: {
+					...state.schemas,
+					[action.chms]: action.schema
 				}
 			}
 		case 'SET_OPTIONS':
