@@ -106,22 +106,9 @@ class _Init {
 	 * @return mixed The sanitized value.
 	 */
 	protected static function sanitize_settings_data( $value ) {
-		if ( is_array( $value ) ) {
-			$sanitized = [];
-			foreach ( $value as $key => $item ) {
-				// Preserve integer (list) keys; sanitize string keys defensively.
-				$clean_key = is_string( $key ) ? sanitize_text_field( $key ) : $key;
-				$sanitized[ $clean_key ] = self::sanitize_settings_data( $item );
-			}
-			return $sanitized;
-		}
-
-		if ( is_string( $value ) ) {
-			return sanitize_text_field( $value );
-		}
-
-		// Preserve bools, ints, floats and null as-is.
-		return $value;
+		// Canonical implementation lives on the base ChMS class so the per-ChMS
+		// schema walk and the global route share one generic sanitizer.
+		return ChMS::sanitize_settings_recursive( $value );
 	}
 
 	/** Actions ***************************************************/
@@ -253,25 +240,18 @@ class _Init {
 						return new WP_Error( 'invalid_chms', __( 'Invalid ChMS', 'cp-sync' ), [ 'status' => 400 ] );
 					}
 
-					// Capture raw credentials before the generic sanitizer runs: API
-					// passwords legitimately contain characters that sanitize_text_field()
-					// strips (tags, %-encoded octets, collapsed whitespace), which would
-					// silently corrupt them.
-					$raw_connect = ( isset( $data['connect'] ) && is_array( $data['connect'] ) ) ? $data['connect'] : null;
+					// Schema-driven sanitize + validate walk. The ChMS schema is the single
+					// declaration of per-field server behavior: declared fields dispatch on
+					// their `sanitize`/`validate` rules ( so credentials are control-strip
+					// only, not HTML-sanitized, and a bad subdomain becomes a real 400 ),
+					// while undeclared custom-widget keys fall back to the generic recursive
+					// sanitizer and are never dropped. At-rest encryption stays at the option
+					// layer ( see ChMS::register_schema_option_filters ) so non-REST writers
+					// cannot store plaintext.
+					$data = ChMS::sanitize_settings_by_schema( $chms_class->get_settings_schema(), $data );
 
-					// Sanitize every leaf value before persisting.
-					$data = self::sanitize_settings_data( $data );
-
-					// Restore credential fields from the raw input. They are stored
-					// encrypted (see ChMS\CCB) and only used as a base64 HTTP Basic auth
-					// header, so they need no HTML sanitization — strip only control
-					// characters (defence against header/CRLF injection).
-					if ( is_array( $raw_connect ) ) {
-						foreach ( [ 'username', 'password' ] as $cred_field ) {
-							if ( isset( $raw_connect[ $cred_field ] ) && is_string( $raw_connect[ $cred_field ] ) ) {
-								$data['connect'][ $cred_field ] = preg_replace( '/[\x00-\x1F\x7F]/', '', $raw_connect[ $cred_field ] );
-							}
-						}
+					if ( is_wp_error( $data ) ) {
+						return $data;
 					}
 
 					$settings = get_option( $chms_class->settings_key, [] );

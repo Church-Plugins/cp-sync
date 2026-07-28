@@ -85,9 +85,16 @@ abstract class ChMS {
 	}
 
 	/**
-	 * Class constructor
+	 * Class constructor.
+	 *
+	 * Registers the schema-driven at-rest encryption filters. They attach here —
+	 * rather than in setup()/load() — because a ChMS's settings can be read and
+	 * written even when it is not the active ChMS ( see the settings REST routes in
+	 * ChMS\_Init ), so encryption must apply on every request regardless of state.
 	 */
-	protected function __construct() {}
+	protected function __construct() {
+		$this->register_schema_option_filters();
+	}
 
 	/**
 	 * Invoke the ChMS
@@ -262,6 +269,441 @@ abstract class ChMS {
 		}
 
 		return $formatted;
+	}
+
+	/* ------------------------------------------------------------------ *
+	 * Schema-driven save handling ( Increment 3 )                        *
+	 *                                                                    *
+	 * The settings schema ( get_settings_schema() ) is the single        *
+	 * declaration of per-field server behavior via three server-only      *
+	 * attributes:                                                         *
+	 *   - `sanitize` : named cleaning rule applied on the REST save walk. *
+	 *   - `validate` : named validation rule ( REST walk returns a 400,   *
+	 *                  option layer strips as defence in depth ).         *
+	 *   - `encrypt`  : at-rest encryption, enforced at the option layer   *
+	 *                  ( so non-REST writers — WP-CLI, update_setting() —  *
+	 *                  never store plaintext ).                           *
+	 * ------------------------------------------------------------------ */
+
+	/**
+	 * Generic recursive sanitizer for settings data.
+	 *
+	 * Walks nested arrays and applies sanitize_text_field() to string leaf values.
+	 * Non-string scalars ( bool, int, float ) and null are preserved untouched so
+	 * legitimately typed values are not corrupted. This is the fallback used for
+	 * settings the schema deliberately does not declare ( custom-widget keys such as
+	 * `facets`, `date_range_mode`, `date_start`, `date_end`, `enrollment_*` ) — such
+	 * keys are never dropped or rejected.
+	 *
+	 * REST request params are not slash-escaped ( unlike $_POST ), so no wp_unslash()
+	 * is applied here.
+	 *
+	 * @since 0.4.0
+	 * @param mixed $value The value to sanitize.
+	 * @return mixed The sanitized value.
+	 */
+	public static function sanitize_settings_recursive( $value ) {
+		if ( is_array( $value ) ) {
+			$sanitized = [];
+			foreach ( $value as $key => $item ) {
+				// Preserve integer ( list ) keys; sanitize string keys defensively.
+				$clean_key             = is_string( $key ) ? sanitize_text_field( $key ) : $key;
+				$sanitized[ $clean_key ] = self::sanitize_settings_recursive( $item );
+			}
+			return $sanitized;
+		}
+
+		if ( is_string( $value ) ) {
+			return sanitize_text_field( $value );
+		}
+
+		// Preserve bools, ints, floats and null as-is.
+		return $value;
+	}
+
+	/**
+	 * Flatten a settings schema into a `screenKey => fieldKey => FieldDef` index.
+	 *
+	 * @since 0.4.0
+	 * @param array $schema The schema returned by get_settings_schema().
+	 * @return array
+	 */
+	public static function index_schema_fields( $schema ) {
+		$index = [];
+
+		if ( ! is_array( $schema ) ) {
+			return $index;
+		}
+
+		foreach ( $schema as $screen_key => $screen ) {
+			foreach ( ( $screen['sections'] ?? [] ) as $section ) {
+				foreach ( ( $section['fields'] ?? [] ) as $field_key => $field ) {
+					$index[ $screen_key ][ $field_key ] = $field;
+				}
+			}
+		}
+
+		return $index;
+	}
+
+	/**
+	 * Schema-driven sanitize + validate walk for an incoming settings payload.
+	 *
+	 * For every top-level group ( screen key ) and field:
+	 *   - If the field IS declared in the schema, dispatch on its `sanitize` attribute
+	 *     ( or a type-inferred default ) and then run its `validate` rule. A validation
+	 *     failure returns a WP_Error ( HTTP 400 ) so the caller can surface a real,
+	 *     field-specific server error.
+	 *   - If the field is NOT declared ( custom-widget keys ), fall back to the generic
+	 *     recursive sanitizer. Unknown keys are never dropped.
+	 *   - Top-level groups that are not schema screens ( or non-array group values ) are
+	 *     passed through the generic recursive sanitizer.
+	 *
+	 * Pure logic ( only WP helpers sanitize_text_field / sanitize_key are touched ), so
+	 * it is unit-testable without booting WordPress.
+	 *
+	 * @since 0.4.0
+	 * @param array $schema The schema returned by get_settings_schema().
+	 * @param array $data   The incoming settings payload.
+	 * @return array|\WP_Error The sanitized payload, or a WP_Error on validation failure.
+	 */
+	public static function sanitize_settings_by_schema( $schema, $data ) {
+		$index  = self::index_schema_fields( $schema );
+		$result = [];
+
+		foreach ( $data as $group_key => $group_value ) {
+			$clean_group = is_string( $group_key ) ? sanitize_text_field( $group_key ) : $group_key;
+
+			// Not a declared screen, or a non-array group: generic fallback.
+			if ( ! isset( $index[ $group_key ] ) || ! is_array( $group_value ) ) {
+				$result[ $clean_group ] = self::sanitize_settings_recursive( $group_value );
+				continue;
+			}
+
+			$sanitized_group = [];
+
+			foreach ( $group_value as $field_key => $field_value ) {
+				$clean_field = is_string( $field_key ) ? sanitize_text_field( $field_key ) : $field_key;
+
+				// Undeclared custom-widget key — generic fallback, never dropped.
+				if ( ! isset( $index[ $group_key ][ $field_key ] ) ) {
+					$sanitized_group[ $clean_field ] = self::sanitize_settings_recursive( $field_value );
+					continue;
+				}
+
+				$field           = $index[ $group_key ][ $field_key ];
+				$sanitized_value = self::sanitize_field_value( $field, $field_value );
+
+				$validation = self::validate_field_value( $field, $field_key, $sanitized_value );
+				if ( is_wp_error( $validation ) ) {
+					return $validation;
+				}
+
+				$sanitized_group[ $clean_field ] = $sanitized_value;
+			}
+
+			$result[ $clean_group ] = $sanitized_group;
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Sanitize a single field value according to its declared ( or inferred ) rule.
+	 *
+	 * @since 0.4.0
+	 * @param array $field The declared FieldDef.
+	 * @param mixed $value The incoming value.
+	 * @return mixed
+	 */
+	public static function sanitize_field_value( $field, $value ) {
+		$rule = isset( $field['sanitize'] )
+			? $field['sanitize']
+			: self::default_sanitize_for_type( $field['type'] ?? 'text' );
+
+		return self::apply_sanitize_rule( $rule, $value );
+	}
+
+	/**
+	 * The default sanitize rule inferred from a field `type` when none is declared.
+	 *
+	 * @since 0.4.0
+	 * @param string $type The field type.
+	 * @return string A named sanitize rule.
+	 */
+	public static function default_sanitize_for_type( $type ) {
+		switch ( $type ) {
+			case 'checkbox':
+			case 'toggle':
+				return 'bool';
+
+			case 'number':
+				return 'int';
+
+			case 'filter-builder':
+			case 'async-multiselect':
+			case 'multiselect':
+				return 'recurse';
+
+			default:
+				return 'text';
+		}
+	}
+
+	/**
+	 * Apply a named sanitize rule to a value.
+	 *
+	 * Rule table:
+	 *   - `text`           : sanitize_text_field() ( arrays fall back to the recursive
+	 *                        sanitizer ). The default for text-ish fields.
+	 *   - `raw_credential` : strip only control characters ( \x00-\x1F, \x7F ). Preserves
+	 *                        every printable character so API passwords ( tags, %-octets,
+	 *                        whitespace ) survive intact. The Phase-1 credential carve-out.
+	 *   - `key`            : sanitize_key().
+	 *   - `bool`           : cast to bool.
+	 *   - `int`            : cast to int.
+	 *   - `recurse`        : the generic recursive sanitizer ( nested structures ).
+	 *
+	 * @since 0.4.0
+	 * @param string $rule  The named rule.
+	 * @param mixed  $value The value to clean.
+	 * @return mixed
+	 */
+	public static function apply_sanitize_rule( $rule, $value ) {
+		switch ( $rule ) {
+			case 'raw_credential':
+				// Control-char strip only — defence against header/CRLF injection while
+				// preserving every printable character of a credential.
+				return is_string( $value ) ? preg_replace( '/[\x00-\x1F\x7F]/', '', $value ) : $value;
+
+			case 'key':
+				return is_string( $value ) ? sanitize_key( $value ) : $value;
+
+			case 'bool':
+				return (bool) $value;
+
+			case 'int':
+				return (int) $value;
+
+			case 'recurse':
+				return self::sanitize_settings_recursive( $value );
+
+			case 'text':
+			default:
+				return is_string( $value )
+					? sanitize_text_field( $value )
+					: self::sanitize_settings_recursive( $value );
+		}
+	}
+
+	/**
+	 * Validate a single ( already sanitized ) field value against its declared rule.
+	 *
+	 * @since 0.4.0
+	 * @param array  $field     The declared FieldDef.
+	 * @param string $field_key The field key ( included in the error data ).
+	 * @param mixed  $value     The sanitized value to validate.
+	 * @return true|\WP_Error True when valid, WP_Error ( status 400 ) otherwise.
+	 */
+	public static function validate_field_value( $field, $field_key, $value ) {
+		if ( empty( $field['validate'] ) ) {
+			return true;
+		}
+
+		switch ( $field['validate'] ) {
+			case 'subdomain':
+				// Empty is allowed ( not-yet-configured ); any non-empty value must be a
+				// bare DNS label. Upgrades the Phase-1 silent-strip into a real 400 error.
+				if ( is_string( $value ) && '' !== $value && ! preg_match( '/^[a-zA-Z0-9-]+$/', $value ) ) {
+					return new \WP_Error(
+						'invalid_subdomain',
+						__( 'Invalid subdomain. Subdomains may contain only letters, numbers, and hyphens.', 'cp-sync' ),
+						[ 'status' => 400, 'field' => $field_key ]
+					);
+				}
+				return true;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Collect the schema fields matching a predicate, with their group/field paths.
+	 *
+	 * @since 0.4.0
+	 * @param callable $predicate Receives a FieldDef, returns bool.
+	 * @return array List of [ 'group' => screenKey, 'field' => fieldKey, 'def' => FieldDef ].
+	 */
+	protected function collect_schema_fields( callable $predicate ) {
+		$out = [];
+
+		foreach ( $this->get_settings_schema() as $screen_key => $screen ) {
+			foreach ( ( $screen['sections'] ?? [] ) as $section ) {
+				foreach ( ( $section['fields'] ?? [] ) as $field_key => $field ) {
+					if ( $predicate( $field ) ) {
+						$out[] = [ 'group' => $screen_key, 'field' => $field_key, 'def' => $field ];
+					}
+				}
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Registered settings keys, guarding against double-registration of the option
+	 * encrypt/decrypt filters ( which would double-decrypt and corrupt credentials ).
+	 *
+	 * Keyed by settings_key so distinct ChMS integrations never clash while the same
+	 * one cannot register twice.
+	 *
+	 * @var array<string,bool>
+	 */
+	private static $schema_option_filters_registered = [];
+
+	/**
+	 * Register schema-driven at-rest encryption ( and option-layer validation ) filters.
+	 *
+	 * Reads get_settings_schema(), finds every `encrypt: true` field, and registers the
+	 * `pre_update_option_{settings_key}` / `option_{settings_key}` pair so credentials are
+	 * encrypted on write and transparently decrypted on read — at the OPTION layer, so
+	 * non-REST writers ( WP-CLI Tests, update_setting() ) cannot store plaintext. Fields
+	 * carrying a `validate` rule are also stripped ( keep-prior-valid-or-blank ) at the
+	 * same point as defence in depth.
+	 *
+	 * Called from the base constructor so the filters attach on every request regardless
+	 * of which ChMS is active ( the settings routes read/write inactive ChMS options ).
+	 *
+	 * @since 0.4.0
+	 * @return void
+	 */
+	public function register_schema_option_filters() {
+		if ( empty( $this->settings_key ) || ! empty( self::$schema_option_filters_registered[ $this->settings_key ] ) ) {
+			return;
+		}
+
+		// Mark before wiring so a re-entrant construction can never double-register.
+		self::$schema_option_filters_registered[ $this->settings_key ] = true;
+
+		$has_encrypt  = ! empty( $this->collect_schema_fields( static fn( $f ) => ! empty( $f['encrypt'] ) ) );
+		$has_validate = ! empty( $this->collect_schema_fields( static fn( $f ) => ! empty( $f['validate'] ) ) );
+
+		if ( $has_encrypt || $has_validate ) {
+			add_filter( 'pre_update_option_' . $this->settings_key, [ $this, 'pre_update_settings' ], 10, 2 );
+		}
+
+		if ( $has_encrypt ) {
+			add_filter( 'option_' . $this->settings_key, [ $this, 'decrypt_settings' ] );
+		}
+	}
+
+	/**
+	 * Filter: validate-strip and encrypt the settings before they are persisted.
+	 *
+	 * Generic replacement for CCB's bespoke pre_update_settings(): drives both steps
+	 * from the schema's `validate` / `encrypt` attributes.
+	 *
+	 * @since 0.4.0
+	 * @param mixed $value     The settings array about to be saved.
+	 * @param mixed $old_value The previously stored ( already decrypted ) settings.
+	 * @return mixed
+	 */
+	public function pre_update_settings( $value, $old_value = false ) {
+		if ( ! is_array( $value ) ) {
+			return $value;
+		}
+
+		// Validation ( defence in depth ): strip a malformed value so it never lands in
+		// the database, keeping the prior valid value or blank. The user-facing error is
+		// surfaced by the REST save walk / check_connection().
+		foreach ( $this->collect_schema_fields( static fn( $f ) => ! empty( $f['validate'] ) ) as $f ) {
+			$group = $f['group'];
+			$field = $f['field'];
+
+			if ( ! isset( $value[ $group ][ $field ] ) ) {
+				continue;
+			}
+
+			$prior = ( is_array( $old_value ) && isset( $old_value[ $group ][ $field ] ) )
+				? $old_value[ $group ][ $field ]
+				: null;
+
+			$value[ $group ][ $field ] = $this->validate_strip_at_option(
+				$f['def']['validate'],
+				$value[ $group ][ $field ],
+				$prior
+			);
+		}
+
+		// Encrypt marked credentials at rest.
+		foreach ( $this->collect_schema_fields( static fn( $f ) => ! empty( $f['encrypt'] ) ) as $f ) {
+			$group = $f['group'];
+			$field = $f['field'];
+
+			if ( isset( $value[ $group ][ $field ] ) && is_string( $value[ $group ][ $field ] ) && '' !== $value[ $group ][ $field ] ) {
+				$value[ $group ][ $field ] = Encryption::encrypt( $value[ $group ][ $field ] );
+			}
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Filter: transparently decrypt the encrypted settings on read.
+	 *
+	 * Legacy plaintext values ( stored before encryption existed ) are detected by
+	 * Encryption::decrypt() and returned unchanged, then re-encrypted on the next save,
+	 * so existing installs are never locked out.
+	 *
+	 * @since 0.4.0
+	 * @param mixed $value The raw stored settings array.
+	 * @return mixed
+	 */
+	public function decrypt_settings( $value ) {
+		if ( ! is_array( $value ) ) {
+			return $value;
+		}
+
+		foreach ( $this->collect_schema_fields( static fn( $f ) => ! empty( $f['encrypt'] ) ) as $f ) {
+			$group = $f['group'];
+			$field = $f['field'];
+
+			if ( isset( $value[ $group ][ $field ] ) && is_string( $value[ $group ][ $field ] ) ) {
+				$value[ $group ][ $field ] = Encryption::decrypt( $value[ $group ][ $field ] );
+			}
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Apply an option-layer validation strip for a single field value.
+	 *
+	 * @since 0.4.0
+	 * @param string $rule  The named validate rule.
+	 * @param mixed  $value The value about to be saved.
+	 * @param mixed  $prior The previously stored value for the same field.
+	 * @return mixed The kept value ( original when valid, prior-valid or blank otherwise ).
+	 */
+	protected function validate_strip_at_option( $rule, $value, $prior ) {
+		switch ( $rule ) {
+			case 'subdomain':
+				if ( is_string( $value ) && '' !== $value && ! preg_match( '/^[a-zA-Z0-9-]+$/', $value ) ) {
+					// Fallback notice for non-React consumers ( legacy admin ).
+					update_option(
+						'cp_settings_message',
+						[
+							'message' => esc_html__( 'Invalid subdomain. Subdomains may contain only letters, numbers, and hyphens.', 'cp-sync' ),
+							'type'    => 'error',
+						]
+					);
+
+					return ( is_string( $prior ) && preg_match( '/^[a-zA-Z0-9-]+$/', $prior ) ) ? $prior : '';
+				}
+				return $value;
+		}
+
+		return $value;
 	}
 
 	/**
