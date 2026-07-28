@@ -167,3 +167,57 @@ body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-sync {
     white-space: pre;
   }
 }
+
+// --- Danger Zone (destructive reset action widget) -------------------------
+.cps-danger-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border: 1px solid #d63638;
+  border-radius: 4px;
+  background: #fcf0f1;
+
+  &__title {
+    margin: 0;
+    color: #d63638;
+  }
+
+  &__option {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__option-title {
+    font-weight: 600;
+  }
+
+  &__option-desc {
+    color: #50575e;
+    font-size: 0.9em;
+  }
+
+  &__summary {
+    margin: 0.5rem 0 0;
+
+    div {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.15rem 0;
+    }
+
+    dt {
+      font-weight: 600;
+      margin: 0;
+    }
+
+    dd {
+      margin: 0;
+    }
+  }
+
+  &__actions {
+    display: flex;
+  }
+}

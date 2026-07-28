@@ -880,6 +880,65 @@ abstract class Integration extends \WP_Background_Process {
 	}
 
 	/**
+	 * Remove every piece of content this integration has imported.
+	 *
+	 * Deletes all posts of this integration's post type that carry a `_chms_id`
+	 * (via the existing public remove_item() helper) and every taxonomy this
+	 * integration registered (via remove_taxonomy(), which also deletes the
+	 * taxonomy's terms and its stored definition).
+	 *
+	 * This lives on the Integration rather than in the Reset service because the
+	 * post type ( protected $post_type ) and the taxonomy definitions
+	 * ( cp_sync_taxonomies_{id} ) are the integration's own encapsulated state.
+	 * Exposing a single thin wrapper keeps that knowledge here and avoids widening
+	 * the public surface of the lower-level helpers.
+	 *
+	 * @since 1.0.0
+	 * @return array{items:int,terms:int,taxonomies:int} Counts of what was removed.
+	 */
+	public function remove_all_content() {
+		global $wpdb;
+
+		$summary = [
+			'items'      => 0,
+			'terms'      => 0,
+			'taxonomies' => 0,
+		];
+
+		$chms_ids = $wpdb->get_col( $wpdb->prepare(
+			"SELECT pm.meta_value
+			FROM $wpdb->postmeta pm
+			JOIN $wpdb->posts p ON pm.post_id = p.ID
+			WHERE pm.meta_key = '_chms_id'
+			AND p.post_type = %s",
+			$this->post_type
+		) );
+
+		foreach ( array_unique( $chms_ids ) as $chms_id ) {
+			$this->remove_item( $chms_id );
+			$summary['items']++;
+		}
+
+		$taxonomies = get_option( "cp_sync_taxonomies_{$this->id}", [] );
+
+		foreach ( array_keys( (array) $taxonomies ) as $taxonomy ) {
+			if ( taxonomy_exists( $taxonomy ) ) {
+				$terms = get_terms( [ 'taxonomy' => $taxonomy, 'hide_empty' => false ] );
+
+				if ( ! is_wp_error( $terms ) ) {
+					$summary['terms'] += count( $terms );
+				}
+			}
+
+			// remove_taxonomy() deletes the terms, the stored definition, and unregisters it.
+			$this->remove_taxonomy( $taxonomy );
+			$summary['taxonomies']++;
+		}
+
+		return $summary;
+	}
+
+	/**
 	 * Remove all posts associated with this chms_id, there should only be one
 	 *
 	 * @param $chms_id

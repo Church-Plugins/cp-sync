@@ -13,6 +13,7 @@ use WP_Error;
 require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/PCO.php';
 require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/CCB.php';
 require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/Tests.php';
+require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/Reset.php';
 
 /**
  * Setup integration initialization

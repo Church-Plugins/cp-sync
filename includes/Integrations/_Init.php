@@ -4,6 +4,7 @@ namespace CP_Sync\Integrations;
 
 use CP_Sync\Admin\Settings;
 use CP_Sync\ChMS\ChMSError;
+use CP_Sync\Setup\Reset;
 use WP_Error;
 
 /**
@@ -212,6 +213,17 @@ class _Init {
 			}
 		));
 
+		// Reset / clear install data. Lives alongside the other cross-cutting
+		// operational routes ( /pull, /get-log, /clear-log ) rather than in the
+		// per-ChMS routes because a reset spans every integration and every ChMS.
+		register_rest_route( 'cp-sync/v1', '/reset', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'handle_reset_request' ],
+			'permission_callback' => function() {
+				return current_user_can( 'manage_options' );
+			},
+		] );
+
 		foreach ( self::$supported_types as $type ) {
 			register_rest_route( 'cp-sync/v1', "/pull/{$type}", [
 				'methods'  => 'POST',
@@ -231,6 +243,51 @@ class _Init {
 		}		
 	}
 
+
+	/**
+	 * Handle a POST /cp-sync/v1/reset request.
+	 *
+	 * Contract:
+	 *   body: { level: 'queue'|'state'|'content'|'connection'|'all',
+	 *           confirm: '<the level string, retyped>' }
+	 *   - unknown level      -> WP_Error( 'invalid_level', 400 )
+	 *   - confirm !== level   -> WP_Error( 'confirm_mismatch', 400 )
+	 *   - success            -> { success: true, level, summary: {...} }
+	 *
+	 * @param \WP_REST_Request $request The request.
+	 * @return \WP_REST_Response|WP_Error
+	 */
+	public function handle_reset_request( $request ) {
+		$level   = sanitize_key( $request->get_param( 'level' ) );
+		$confirm = $request->get_param( 'confirm' );
+
+		if ( ! Reset::is_valid_level( $level ) ) {
+			return new WP_Error(
+				'invalid_level',
+				__( 'Invalid reset level.', 'cp-sync' ),
+				[ 'status' => 400 ]
+			);
+		}
+
+		if ( ! Reset::confirm_matches( $level, $confirm ) ) {
+			return new WP_Error(
+				'confirm_mismatch',
+				__( 'The confirmation does not match the requested level.', 'cp-sync' ),
+				[ 'status' => 400 ]
+			);
+		}
+
+		set_time_limit( 0 );
+
+		$reset   = new Reset();
+		$summary = $reset->run( $level );
+
+		return rest_ensure_response( [
+			'success' => true,
+			'level'   => $level,
+			'summary' => $summary,
+		] );
+	}
 
 	/**
 	 * Schedule the cron to pull data from the ChMS

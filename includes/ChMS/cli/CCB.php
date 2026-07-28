@@ -391,7 +391,12 @@ class CCB_CLI {
 	}
 
 	/**
-	 * Clear the groups store to force re-import
+	 * Clear the sync state to force a full re-import.
+	 *
+	 * Deprecated: delegates to `wp cp-sync reset --level=state`, which clears the
+	 * store options for every type and taxonomy ( not just the four hardcoded
+	 * groups options this used to touch ) plus the queue, charset- and
+	 * multisite-safely.
 	 *
 	 * ## EXAMPLES
 	 *
@@ -400,17 +405,12 @@ class CCB_CLI {
 	 * @when after_wp_load
 	 */
 	public function clear_store( $args, $assoc_args ) {
-		\WP_CLI::line( 'Clearing groups store...' );
+		\WP_CLI::warning( 'clear-store is deprecated. Use: wp cp-sync reset --level=state' );
 
-		// Clear all group-related stores
-		delete_option( 'cp_sync_store_groups' );
-		delete_option( 'cp_sync_store_groups_cp_group_type' );
-		delete_option( 'cp_sync_store_groups_cps_department' );
-		delete_option( 'cp_sync_store_groups_taxonomies' );
+		$summary = ( new \CP_Sync\Setup\Reset() )->reset_sync_state();
 
-		\WP_CLI::success( 'Groups store cleared!' );
-		\WP_CLI::line( '' );
-		\WP_CLI::line( 'Now run: wp cp-sync ccb pull_groups' );
+		\WP_CLI::success( 'Sync state cleared!' );
+		\WP_CLI::line( wp_json_encode( $summary, JSON_PRETTY_PRINT ) );
 	}
 
 	/**
