@@ -322,19 +322,6 @@ class _Init {
 			],
 		);
 
-		register_rest_route(
-			'cp-sync/v1',
-			'/(?P<chms>[a-zA-Z0-9-]+)/compare-options',
-			[
-				'methods'  => 'GET',
-				'callback' => function() {
-					return rest_ensure_response( \CP_Sync\Setup\DataFilter::get_compare_options() );
-				},
-				'permission_callback' => function() {
-					return current_user_can( 'manage_options' );
-				},
-			]
-		);
 	}
 
 	/**

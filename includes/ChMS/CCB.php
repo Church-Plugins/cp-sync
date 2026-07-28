@@ -1107,17 +1107,6 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	}
 	
 	/**
-	 * Get the settings entrypoint data
-	 *
-	 * @param array $entrypoint_data The entrypoint data.
-	 * @return array
-	 */
-	public function settings_entrypoint_data( $entrypoint_data ) {
-		return $entrypoint_data;
-	}
-
-
-	/**
 	 * Register rest API routes
 	 */
 	public function register_rest_routes() {

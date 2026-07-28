@@ -49,35 +49,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			]
 		);
 
-		add_filter( 'cp_sync_settings_entrypoint_data', [ $this, 'settings_entrypoint_data' ] );
-	}
-
-	/**
-	 * Get the settings entrypoint data
-	 *
-	 * @param array $entrypoint_data The entrypoint data.
-	 * @return array
-	 */
-	public function settings_entrypoint_data( $entrypoint_data ) {
-		$group_filter_options = $this->get_group_filter_config();
-		$event_filter_options = $this->get_event_filter_config();
-
-		$entrypoint_group_filter_options = []; // Format the group filter config for the entrypoint
-		foreach ( $group_filter_options as $key => $config ) {
-			$entrypoint_group_filter_options[ $key ] = $config['label'];
-		}
-
-		$entrypoint_event_filter_options = []; // Format the event filter config for the entrypoint
-		foreach ( $event_filter_options as $key => $config ) {
-			$entrypoint_event_filter_options[ $key ] = $config['label'];
-		}
-		
-		$entrypoint_data['pco'] = [
-			'group_filter_options' => $entrypoint_group_filter_options,
-			'event_filter_options' => $entrypoint_event_filter_options,
-		];
-
-		return $entrypoint_data;
 	}
 
 	/**

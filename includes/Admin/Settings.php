@@ -78,21 +78,6 @@ class Settings {
 	}
 
 	/**
-	 * Get advanced options
-	 *
-	 * @param string $key Option key.
-	 * @param mixed  $default Default value.
-	 *
-	 * @return mixed|void
-	 * @since  1.0.0
-	 *
-	 * @author Tanner Moushey
-	 */
-	public static function get_advanced( $key, $default = '' ) {
-		return self::get( $key, $default, 'cps_advanced_options' );
-	}
-
-	/**
 	 * Class constructor. Add admin hooks and actions
 	 */
 	protected function __construct() {

@@ -102,7 +102,6 @@ abstract class ChMS {
 	public function load() {
 		$this->setup();
 
-		add_action( 'cmb2_save_options-page_fields_cps_main_options_page', [ $this, 'maybe_add_connection_message' ] );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
 
 		foreach ( $this->supported_integrations as $integration_type => $_args ) {
@@ -1018,24 +1017,6 @@ abstract class ChMS {
 	 *
 	 * @since  1.0.4
 	 *
-	 * @return null
-	 */
-	public function maybe_add_connection_message() {
-		$response = $this->check_connection();
-
-		if ( ! $response ) {
-			return;
-		}
-
-		$response['type'] = 'success' === $response['status'] ? 'updated' : 'error';
-		update_option( 'cp_settings_message', $response );
-	}
-
-	/**
-	 * Check the connection to the ChMS
-	 *
-	 * @since  1.0.4
-	 *
 	 * @return bool | array
 	 */
 	public function check_connection() {
@@ -1184,32 +1165,6 @@ abstract class ChMS {
 				],
 			]
 		);
-	}
-
-	/**
-	 * Get the settings for the ChMS
-	 *
-	 * @param \WP_REST_Request $request The request object.
-	 * @return \WP_REST_Response
-	 */
-	public function get_settings( $request ) {
-		$settings = get_option( "cp_sync_{$this->id}_settings", [] );
-
-		return rest_ensure_response( $settings );
-	}
-
-	/**
-	 * Save the settings for the ChMS
-	 *
-	 * @param \WP_REST_Request $request The request object.
-	 * @return \WP_REST_Response
-	 */
-	public function save_settings( $request ) {
-		$settings = $request->get_param( 'data' );
-
-		update_option( "cp_sync_{$this->id}_settings", $settings );
-
-		return rest_ensure_response( $settings );
 	}
 
 	/**

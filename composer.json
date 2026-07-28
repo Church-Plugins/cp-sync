@@ -14,7 +14,6 @@
   "require": {
     "php": ">=7.0.0",
     "composer/installers": "*",
-    "wpackio/enqueue": "^3.4",
     "deliciousbrains/wp-background-processing": "^1.0",
     "smadeira/ministry-platform-api": "^5.1",
     "rlanvin/php-rrule": "^2.5"
