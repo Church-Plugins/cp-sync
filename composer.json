@@ -16,7 +16,10 @@
     "composer/installers": "*",
     "deliciousbrains/wp-background-processing": "^1.0",
     "smadeira/ministry-platform-api": "^5.1",
-    "rlanvin/php-rrule": "^2.5"
+    "rlanvin/php-rrule": "^2.5",
+    "guzzlehttp/guzzle": "^7.15.1",
+    "guzzlehttp/psr7": "^2.13",
+    "nesbot/carbon": "^2.73"
   },
   "autoload": {
     "psr-4": {
