@@ -1,27 +1,27 @@
-import Alert from '@mui/material/Alert';
-import Button from '@mui/material/Button';
-import Typography from '@mui/material/Typography';
-import CloudOutlined from '@mui/icons-material/CloudOutlined';
-import FilterAltOutlined from '@mui/icons-material/FilterAltOutlined';
-import Box from '@mui/material/Box';
-import { __ } from '@wordpress/i18n';
-import { useState } from '@wordpress/element';
-import Filters from '../../components/filters';
-import Preview from '../../components/preview';
-import Divider from '@mui/material/Divider';
-import apiFetch from '@wordpress/api-fetch';
+import { Button, Notice, Spinner } from '@wordpress/components'
+import { __ } from '@wordpress/i18n'
+import { useState } from '@wordpress/element'
+import { useSelect } from '@wordpress/data'
+import apiFetch from '@wordpress/api-fetch'
+import globalStore from '../../store/globalStore'
+import { SchemaForm } from '../../schema-form'
+import Preview from '../../components/preview'
 
+/**
+ * CCB Groups tab.
+ *
+ * The `filter` setting renders through <SchemaForm> using the PHP-declared
+ * `groups` screen (a single `filter-builder` field). The pull action and the
+ * <Preview> panel stay custom, composed on `@wordpress/components`.
+ */
 export default function GroupsTab({ data, updateField }) {
+	const groupsSchema = useSelect(
+		(select) => select(globalStore).getSchema('ccb')?.groups,
+		[]
+	)
 	const [pulling, setPulling] = useState(false)
 	const [pullSuccess, setPullSuccess] = useState(false)
 	const [error, setError] = useState(null)
-
-	const updateFilters = (newData) => {
-		updateField('filter', {
-			...data.filter,
-			...newData
-		})
-	}
 
 	const handlePull = () => {
 		setPulling(true)
@@ -29,7 +29,7 @@ export default function GroupsTab({ data, updateField }) {
 			path: '/cp-sync/v1/pull/groups',
 			method: 'POST',
 		}).then(response => {
-			if(response.success) {
+			if (response.success) {
 				setPullSuccess(true)
 			} else {
 				setError(response.message)
@@ -42,52 +42,45 @@ export default function GroupsTab({ data, updateField }) {
 	}
 
 	return (
-		<Box sx={{ display: 'flex', minHeight: '30rem' }} gap={2}>
-			<Box sx={{ flex: '3 1 auto' }}>
-				<Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
-					<CloudOutlined sx={{ mr: 1 }} />
-					{ __( 'Select data to pull from Church Community Builder', 'cp-sync' ) }
-				</Typography>
+		<div className="cps-feed-tab" style={{ display: 'flex', gap: '16px', minHeight: '30rem' }}>
+			<div className="cps-settings-screen" style={{ flex: '3 1 auto' }}>
+				<h3>{__('Select data to pull from Church Community Builder', 'cp-sync')}</h3>
 
-				<Typography variant="h6" sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
-					<FilterAltOutlined sx={{ mr: 1 }} />
-					{ __( 'Filters', 'cp-sync' ) }
-				</Typography>
+				{groupsSchema ? (
+					<SchemaForm
+						schema={groupsSchema}
+						values={data}
+						onChange={updateField}
+					/>
+				) : (
+					<Spinner />
+				)}
 
-				<Filters
-					label={__( 'Groups', 'cp-sync' )}
-					filterGroup="groups"
-					filter={data.filter}
-					onChange={updateFilters}
-				/>
+				<div className="cps-feed-tab__actions">
+					<Button
+						variant="primary"
+						onClick={handlePull}
+						disabled={pulling}
+					>
+						{pulling ? __('Starting import', 'cp-sync') : __('Pull Now', 'cp-sync')}
+					</Button>
+				</div>
 
-				<Button
-					variant="contained"
-					sx={{ mt: 2 }}
-					onClick={handlePull}
-					disabled={pulling}
-				>
-					{ pulling ? __( 'Starting import', 'cp-sync' ) : __( 'Pull Now', 'cp-sync' ) }
-				</Button>
+				{pullSuccess && (
+					<Notice status="success" isDismissible={false}>
+						{__('Import started', 'cp-sync')}
+					</Notice>
+				)}
 
-				{
-					pullSuccess &&
-					<Alert severity='success' sx={{ mt: 2 }}>
-						{ __( 'Import started', 'cp-sync' ) }
-					</Alert>
-				}
-
-				{
-					error &&
-					<Alert severity='error' sx={{ mt: 2 }}>
+				{error && (
+					<Notice status="error" isDismissible={false}>
 						<div dangerouslySetInnerHTML={{ __html: error }} />
-					</Alert>
-				}
-
-			</Box>
-			<Box sx={{ flex: '2 1 50%', background: '#eee', p: 2 }}>
+					</Notice>
+				)}
+			</div>
+			<div style={{ flex: '2 1 50%', background: '#eee', padding: '16px' }}>
 				<Preview type="groups" optionGroup="groups" />
-			</Box>
-		</Box>
+			</div>
+		</div>
 	)
 }
