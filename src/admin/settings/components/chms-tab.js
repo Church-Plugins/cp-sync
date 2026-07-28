@@ -1,42 +1,41 @@
-import Box from '@mui/material/Box'
-import FormControl from '@mui/material/FormControl'
-import InputLabel from '@mui/material/InputLabel'
-import Select from '@mui/material/Select'
-import MenuItem from '@mui/material/MenuItem'
-import { __ } from '@wordpress/i18n'
-import platforms from '../platforms'
-import Alert from '@mui/material/Alert';
-import { useSettings } from '../contexts/settingsContext'
+import { __ } from '@wordpress/i18n';
+import { SelectControl, Notice } from '@wordpress/components';
+import platforms from '../platforms';
+import { useSettings } from '../contexts/settingsContext';
 
 function ChMSTab() {
-	const { globalSettings, updateGlobalSettings } = useSettings()
+	const { globalSettings, updateGlobalSettings } = useSettings();
+
+	const options = [
+		{ label: __( 'Select', 'cp-sync' ), value: '' },
+		...Object.keys( platforms ).map( ( key ) => ( {
+			label: platforms[ key ].name,
+			value: key,
+		} ) ),
+	];
 
 	return (
-		<Box>
-			<FormControl>
-				<InputLabel id="chms-select-label">ChMS</InputLabel>
-				<Select
-					labelId="chms-select-label"
-					label={__( 'ChMS', 'cp-sync' )}
-					value={globalSettings.chms}
-					onChange={(e) => updateGlobalSettings('chms', e.target.value)}
-					placeholder={__( 'Select ChMS', 'cp-sync' )}
-					sx={{ minWidth: "300px" }}
-				>
-					{[
-						<MenuItem value="" sx={{ opacity: 0.5 }} key="empty">{__( 'Select', 'cp-sync' )}</MenuItem>,
-						...Object.keys(platforms).map((key) => (
-							<MenuItem disabled={'mp' === key} key={key} value={key}>{platforms[key].name}</MenuItem>
-						))
-					]}
-				</Select>
-			</FormControl>
-			<Alert sx={{ marginTop: '1rem' }} severity="info">{ __( 'More platforms coming soon!', 'cp-sync' ) }</Alert>
-		</Box>
-	)
+		<div className="cps-chms-tab">
+			<SelectControl
+				className="cps-chms-select"
+				label={ __( 'ChMS', 'cp-sync' ) }
+				value={ globalSettings.chms }
+				options={ options }
+				onChange={ ( value ) => updateGlobalSettings( 'chms', value ) }
+				__nextHasNoMarginBottom
+			/>
+			<Notice
+				status="info"
+				isDismissible={ false }
+				className="cps-chms-notice"
+			>
+				{ __( 'More platforms coming soon!', 'cp-sync' ) }
+			</Notice>
+		</div>
+	);
 }
 
 export const chmsTab = {
 	name: __( 'ChMS', 'cp-sync' ),
-	component: (props) => <ChMSTab {...props} />,
-}
+	component: ( props ) => <ChMSTab { ...props } />,
+};

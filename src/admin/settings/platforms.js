@@ -1,11 +1,9 @@
-import ccb from "./chms/ccb";
-import pco from "./chms/pco";
-import mp from "./chms/mp";
+import ccb from './chms/ccb';
+import pco from './chms/pco';
 
 const platforms = {
-	'pco': pco,
-	'ccb': ccb,
-	'mp':  mp,
+	pco,
+	ccb,
 };
 
 export default platforms;
