@@ -4,7 +4,7 @@ Tags: church, ccb, planning-center, sync, events
 Requires at least: 6.0
 Tested up to: 6.7.1
 Requires PHP: 7.4
-Stable tag: 0.3.2
+Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -90,6 +90,22 @@ At **Settings → CP Sync → Logs**. Increase verbosity by setting Log Level to
 Yes. CP Sync exposes action and filter hooks for developers — see the Developer Guide in the plugin's `/documentation/` directory. The new `cp_sync_{$type}_update_item_after` hook in 0.3.0 enables type-specific post-processing for custom integrations.
 
 == Changelog ==
+
+= 1.0.0 =
+* Security: CCB API credentials are now encrypted at rest (libsodium with OpenSSL fallback, keyed from your site's WordPress salts). Existing plain-text credentials keep working and are re-encrypted on the next save.
+* Security: The CCB subdomain is validated everywhere it is used — malformed values are rejected with a clear error instead of being built into API URLs.
+* Security: OAuth callback tokens and all settings saved over the REST API are now sanitized per field, driven by the new settings schema.
+* Security: Added missing permission checks to the PCO option-lookup REST endpoints (they now require an administrator, matching every other settings route).
+* Security: Raised minimum versions of bundled HTTP libraries past known advisories (Guzzle 7.15.1+).
+* Enhancement: The settings screen was rebuilt on the WordPress component library for a native wp-admin look and feel, dramatically smaller page weight, and reliable browser-tab URLs for each settings tab.
+* Enhancement: Settings screens are now declared in PHP as a schema and rendered by a single form engine — new integrations and fields no longer require custom UI code.
+* Enhancement: Sync filter conditions no longer crash when no comparison options are available, correctly reset their value when switching between comparison types, and use collision-proof identifiers.
+* Bug Fix: Fixed a crash when reading a settings field from a group that had not been saved yet.
+* Bug Fix: Fixed duplicate saves when switching the active ChMS.
+* Bug Fix: Image-cache error messages were never translatable due to a placeholder text domain.
+* Removed: The unfinished Ministry Platform settings UI has been removed while MP support is completed; PCO and CCB are unaffected.
+* Developer: New fast unit-test suite (`composer test`, 83 tests) and security-focused PHPCS gate (`composer lint`); `composer verify` runs both.
+* Developer: The legacy secondary build system (wpackio) was removed — `npm run build:wp` is now the only build.
 
 = 0.3.2 =
 * Bug Fix: Fixed syncs that completed successfully but imported nothing on databases that are not utf8mb4. The queue is now encoded before it is stored, so characters the database cannot represent can no longer corrupt it.
