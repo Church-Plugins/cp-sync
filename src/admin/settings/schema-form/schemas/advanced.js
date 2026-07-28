@@ -1,10 +1,13 @@
 import { __ } from '@wordpress/i18n';
 
 /**
- * Advanced screen schema (plain JSON-serializable data).
+ * Advanced screen schemas (plain JSON-serializable data).
  *
- * The `updateInterval` select is the only pure setting. The manual pull/import
- * action button stays a custom component in `components/advanced-tab.js`.
+ * Split into TWO schema slices so the tab can interleave its action widgets in
+ * the intended visual order: interval select → Pull Now button → uninstall
+ * toggle → Danger Zone (see `components/advanced-tab.js`). Both slices render
+ * through the same `<SchemaForm values={globalSettings}>`, so they share one
+ * values object and save path.
  *
  * The `updateInterval` key maps 1:1 to the stored global settings key — do not
  * rename. Values (`hourly`/`daily`/`weekly`) match the previous MUI menu items.
@@ -29,6 +32,16 @@ const advancedSchema = {
 						{ value: 'weekly', label: __( 'Weekly', 'cp-sync' ) },
 					],
 				},
+			},
+		},
+	],
+};
+
+export const advancedUninstallSchema = {
+	label: __( 'Uninstall', 'cp-sync' ),
+	sections: [
+		{
+			fields: {
 				deleteDataOnUninstall: {
 					type: 'toggle',
 					label: __(
