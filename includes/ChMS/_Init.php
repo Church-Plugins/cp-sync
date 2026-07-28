@@ -321,6 +321,29 @@ class _Init {
 
 		register_rest_route(
 			'cp-sync/v1',
+			'/(?P<chms>[a-zA-Z0-9-]+)/schema',
+			[
+				'methods'  => 'GET',
+				'callback' => function( $request ) {
+					$chms       = $request->get_param( 'chms' );
+					$chms_class = self::get_chms( $chms );
+
+					if ( ! $chms_class ) {
+						return new WP_Error( 'invalid_chms', __( 'Invalid ChMS', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
+					$chms_class->setup(); // make sure the integrations are loaded ( filter-builder configs )
+
+					return rest_ensure_response( $chms_class->get_formatted_settings_schema() );
+				},
+				'permission_callback' => function() {
+					return current_user_can( 'manage_options' );
+				},
+			],
+		);
+
+		register_rest_route(
+			'cp-sync/v1',
 			'/(?P<chms>[a-zA-Z0-9-]+)/compare-options',
 			[
 				'methods'  => 'GET',

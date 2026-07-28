@@ -557,6 +557,97 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * Declare the CCB settings screens as schema data.
+	 *
+	 * Screen keys equal the stored settings groups the current tabs write to
+	 * ( `connect`, `groups`, `events` ); field keys equal the exact stored setting
+	 * keys ( verified against the tab `updateField()` calls ). Additive only —
+	 * nothing consumes this yet.
+	 *
+	 * Credential fields carry inert server-side metadata ( `sanitize`, `encrypt`,
+	 * `validate` ) for Increment 3's schema-driven save handling. The serializer
+	 * strips those before the schema reaches the client.
+	 *
+	 * The events date-range controls ( `date_range_mode` / `date_start` / `date_end` )
+	 * are driven by a custom DateRange widget and are intentionally NOT declared here
+	 * ( see the report / tab-migration batch ).
+	 *
+	 * @since 0.4.0
+	 * @return array
+	 */
+	public function get_settings_schema() {
+		return [
+			'connect' => [
+				'label'    => __( 'Connect', 'cp-sync' ),
+				'sections' => [
+					[
+						'fields' => [
+							'subdomain' => [
+								'type'     => 'text',
+								'label'    => __( 'Subdomain', 'cp-sync' ),
+								'help'     => __( 'Your CCB subdomain (the part before .ccbchurch.com).', 'cp-sync' ),
+								'default'  => '',
+								'validate' => 'subdomain',
+							],
+							'username' => [
+								'type'     => 'text',
+								'label'    => __( 'API Username', 'cp-sync' ),
+								'help'     => __( 'Your CCB API user username', 'cp-sync' ),
+								'default'  => '',
+								'sanitize' => 'raw_credential',
+								'encrypt'  => true,
+							],
+							'password' => [
+								'type'      => 'text',
+								'inputType' => 'password',
+								'label'     => __( 'API Password', 'cp-sync' ),
+								'help'      => __( 'Your CCB API user password', 'cp-sync' ),
+								'default'   => '',
+								'sanitize'  => 'raw_credential',
+								'encrypt'   => true,
+							],
+						],
+					],
+				],
+			],
+			'groups' => [
+				'label'    => __( 'Groups', 'cp-sync' ),
+				'sections' => [
+					[
+						'fields' => [
+							'filter' => [
+								'type'        => 'filter-builder',
+								'label'       => __( 'Groups', 'cp-sync' ),
+								'filterGroup' => 'groups',
+							],
+						],
+					],
+				],
+			],
+			'events' => [
+				'label'    => __( 'Events', 'cp-sync' ),
+				'sections' => [
+					[
+						'fields' => [
+							'remove_events_outside_range' => [
+								'type'    => 'checkbox',
+								'label'   => __( 'Remove events outside the date range', 'cp-sync' ),
+								'help'    => __( 'By default, events outside the configured date range are preserved. Enable this option to remove events that fall outside the date range.', 'cp-sync' ),
+								'default' => false,
+							],
+							'filter' => [
+								'type'        => 'filter-builder',
+								'label'       => __( 'Events', 'cp-sync' ),
+								'filterGroup' => 'events',
+							],
+						],
+					],
+				],
+			],
+		];
+	}
+
+	/**
 	 * Get the group filter configuration
 	 *
 	 * @return array

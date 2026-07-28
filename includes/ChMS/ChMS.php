@@ -145,6 +145,126 @@ abstract class ChMS {
 	}
 
 	/**
+	 * Declare the per-ChMS settings screens as PHP schema data.
+	 *
+	 * Returns a map of `screenKey => screen`, where a screen is:
+	 *   [ 'label' => string, 'sections' => [ [ 'title'?, 'description'?, 'fields' => [ fieldKey => FieldDef ] ] ] ]
+	 *
+	 * A FieldDef is `[ 'type', 'label', 'help'?, 'default'?, 'options'?, 'show_if'?, ...typeSpecific ]`.
+	 * Every `fieldKey` MUST equal the exact stored settings key the corresponding
+	 * screen persists ( screens are keyed by the settings group the tab writes to ).
+	 *
+	 * Screens/sections/fields must be pure, JSON-serializable data. The ONLY closure
+	 * permitted anywhere in the tree is a field's `options` value ( a dynamic option
+	 * list ); the serializer ( get_formatted_settings_schema() ) converts it into a
+	 * REST `optionsFetcher` descriptor and never lets it escape to the client.
+	 *
+	 * The base returns an empty map; concrete integrations ( PCO, CCB ) override this.
+	 *
+	 * @since 0.4.0
+	 * @return array
+	 */
+	public function get_settings_schema() {
+		return [];
+	}
+
+	/**
+	 * Serialize the declared settings schema into the client-safe JSON projection.
+	 *
+	 * Generalizes get_formatted_filter_config(): walks the schema declared by
+	 * get_settings_schema() and, for every field, strips server-only attributes
+	 * ( `sanitize`, `validate`, `encrypt` — the client never needs them ), converts a
+	 * callable `options` into an `optionsFetcher` REST descriptor, passes plain
+	 * arrays/scalars through, and guarantees the output contains no closures ( so it
+	 * is always json_encode-able ).
+	 *
+	 * @since 0.4.0
+	 * @return array
+	 */
+	public function get_formatted_settings_schema() {
+		$output = [];
+
+		foreach ( $this->get_settings_schema() as $screen_key => $screen ) {
+			$formatted_screen = [
+				'label'    => $screen['label'] ?? '',
+				'sections' => [],
+			];
+
+			foreach ( $screen['sections'] ?? [] as $section ) {
+				$formatted_section = [];
+
+				if ( isset( $section['title'] ) ) {
+					$formatted_section['title'] = $section['title'];
+				}
+
+				if ( isset( $section['description'] ) ) {
+					$formatted_section['description'] = $section['description'];
+				}
+
+				$formatted_fields = [];
+
+				foreach ( $section['fields'] ?? [] as $field_key => $field ) {
+					$formatted_fields[ $field_key ] = $this->format_schema_field( $screen_key, $field_key, $field );
+				}
+
+				$formatted_section['fields'] = $formatted_fields;
+
+				$formatted_screen['sections'][] = $formatted_section;
+			}
+
+			$output[ $screen_key ] = $formatted_screen;
+		}
+
+		return $output;
+	}
+
+	/**
+	 * Project a single schema field into its client-safe form.
+	 *
+	 * @since 0.4.0
+	 * @param string $screen_key The screen ( settings group ) the field belongs to.
+	 * @param string $field_key  The stored settings key for the field.
+	 * @param array  $field      The declared FieldDef.
+	 * @return array
+	 */
+	protected function format_schema_field( $screen_key, $field_key, $field ) {
+		// Attributes that exist only to drive server-side save handling ( Increment 3 ).
+		$server_only = [ 'sanitize', 'validate', 'encrypt' ];
+
+		$formatted = [];
+
+		foreach ( $field as $attr => $value ) {
+			if ( in_array( $attr, $server_only, true ) ) {
+				continue;
+			}
+
+			if ( 'options' === $attr ) {
+				if ( is_array( $value ) ) {
+					// Static option list — passes straight through.
+					$formatted['options'] = $value;
+				} elseif ( is_callable( $value ) ) {
+					// Dynamic option list — hand the client a REST descriptor and
+					// drop the closure ( it is served by register_filter_endpoints() ).
+					$formatted['optionsFetcher'] = [
+						'endpoint' => "/cp-sync/v1/{$this->id}/selector/{$screen_key}/{$field_key}",
+						'args'     => $field['args'] ?? [],
+					];
+				}
+				continue;
+			}
+
+			// Defence in depth: never allow a closure to reach json_encode().
+			if ( $value instanceof \Closure ) {
+				continue;
+			}
+
+			$formatted[ $attr ] = $value;
+		}
+
+		return $formatted;
+	}
+
+	/**
 	 * Build REST endpoints based on filter configs
 	 */
 	public function register_filter_endpoints() {

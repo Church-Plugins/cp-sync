@@ -153,53 +153,170 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public function register_rest_routes() {
 		parent::register_rest_routes();
 
+		// These routes feed admin-only option selectors; gate them behind the same
+		// capability check the rest of the ChMS routes use.
+		$options_permission = function () {
+			return current_user_can( 'manage_options' );
+		};
+
 		$this->add_rest_route(
 			'groups/types',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_group_types' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_group_types' ],
+				'permission_callback' => $options_permission,
 			]
 		);
 
 		$this->add_rest_route(
 			'groups/tag_groups',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_group_tag_groups' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_group_tag_groups' ],
+				'permission_callback' => $options_permission,
 			]
 		);
 
 		$this->add_rest_route(
 			'groups/tag_groups/(?P<tag_group>\d+)/tags',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_group_tags' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_group_tags' ],
+				'permission_callback' => $options_permission,
 			]
 		);
 
 		$this->add_rest_route(
 			'events/tag_groups',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_event_tag_groups' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_event_tag_groups' ],
+				'permission_callback' => $options_permission,
 			]
 		);
 
 		$this->add_rest_route(
 			'events/tag_groups/(?P<tag_group>\d+)/tags',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_event_tags' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_event_tags' ],
+				'permission_callback' => $options_permission,
 			]
 		);
 
 		$this->add_rest_route(
 			'events/registration_categories',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_event_registration_categories' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_event_registration_categories' ],
+				'permission_callback' => $options_permission,
 			]
 		);
+	}
+
+	/**
+	 * Declare the PCO settings screens as schema data.
+	 *
+	 * Screen keys equal the stored settings groups the current tabs write to:
+	 *   - `connect`  → OAuth-only ( no persisted form fields; the connect/disconnect
+	 *                  flow is an action widget composed by the tab ).
+	 *   - `cp_groups`→ the Groups tab.
+	 *   - `ecp`      → the Events tab.
+	 *
+	 * Field keys equal the exact stored setting keys ( verified against the tab
+	 * `updateField()` calls ). Additive only — nothing consumes this yet.
+	 *
+	 * @since 0.4.0
+	 * @return array
+	 */
+	public function get_settings_schema() {
+		return [
+			// OAuth-only screen: connect/disconnect is an action widget, so there
+			// are no persisted schema fields. Declared ( with empty sections ) so the
+			// screen is still addressable by the tab-migration batch.
+			'connect' => [
+				'label'    => __( 'Connect', 'cp-sync' ),
+				'sections' => [],
+			],
+			'cp_groups' => [
+				'label'    => __( 'Groups', 'cp-sync' ),
+				'sections' => [
+					[
+						'fields' => [
+							'types' => [
+								'type'     => 'async-multiselect',
+								'label'    => __( 'Group Types', 'cp-sync' ),
+								'endpoint' => '/cp-sync/v1/pco/groups/types',
+							],
+							'tag_groups' => [
+								'type'     => 'async-multiselect',
+								'label'    => __( 'Relevant Tag Groups to Include', 'cp-sync' ),
+								'help'     => __( 'Pull these tag groups as separate taxonomies for CP Groups.', 'cp-sync' ),
+								'endpoint' => '/cp-sync/v1/pco/groups/tag_groups',
+							],
+							'visibility' => [
+								'type'    => 'radio',
+								'label'   => __( 'Visibility', 'cp-sync' ),
+								'default' => 'public',
+								'options' => [
+									[ 'value' => 'all', 'label' => __( 'Show All', 'cp-sync' ) ],
+									[ 'value' => 'public', 'label' => __( 'Only Visible in Church Center', 'cp-sync' ) ],
+								],
+							],
+							'filter' => [
+								'type'        => 'filter-builder',
+								'label'       => __( 'Groups', 'cp-sync' ),
+								'filterGroup' => 'groups',
+							],
+						],
+					],
+				],
+			],
+			'ecp' => [
+				'label'    => __( 'Events', 'cp-sync' ),
+				'sections' => [
+					[
+						'fields' => [
+							'source' => [
+								'type'    => 'radio',
+								'label'   => __( 'Event source', 'cp-sync' ),
+								'default' => 'calendar',
+								'options' => [
+									[ 'value' => 'calendar', 'label' => __( 'Pull from Calendar', 'cp-sync' ) ],
+									[ 'value' => 'registrations', 'label' => __( 'Pull from Registrations (beta)', 'cp-sync' ) ],
+									[ 'value' => 'none', 'label' => __( 'Do not pull', 'cp-sync' ) ],
+								],
+							],
+							// The calendar-only controls below mirror the tab, which only
+							// renders them when `source` is `calendar`.
+							'tag_groups' => [
+								'type'     => 'async-multiselect',
+								'label'    => __( 'Tag groups', 'cp-sync' ),
+								'help'     => __( 'Pull these tag groups as separate taxonomies for The Events Calendar.', 'cp-sync' ),
+								'endpoint' => '/cp-sync/v1/pco/events/tag_groups',
+								'show_if'  => [ 'field' => 'source', 'is' => 'calendar' ],
+							],
+							'visibility' => [
+								'type'    => 'radio',
+								'label'   => __( 'Visibility', 'cp-sync' ),
+								'default' => 'public',
+								'options' => [
+									[ 'value' => 'all', 'label' => __( 'Show All', 'cp-sync' ) ],
+									[ 'value' => 'public', 'label' => __( 'Only Visible in Church Center', 'cp-sync' ) ],
+								],
+								'show_if' => [ 'field' => 'source', 'is' => 'calendar' ],
+							],
+							'filter' => [
+								'type'        => 'filter-builder',
+								'label'       => __( 'Events', 'cp-sync' ),
+								'filterGroup' => 'events',
+								'show_if'     => [ 'field' => 'source', 'is' => 'calendar' ],
+							],
+						],
+					],
+				],
+			],
+		];
 	}
 
 	/**
