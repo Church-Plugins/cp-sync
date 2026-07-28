@@ -29,6 +29,9 @@
     }
   },
   "config": {
+    "platform": {
+      "php": "7.4.33"
+    },
     "allow-plugins": {
       "composer/installers": true,
       "kylekatarnls/update-helper": false,
