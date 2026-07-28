@@ -98,6 +98,7 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 * Security: Added missing permission checks to the PCO option-lookup REST endpoints (they now require an administrator, matching every other settings route).
 * Security: Raised minimum versions of bundled HTTP libraries past known advisories (Guzzle 7.15.1+).
 * New: Reset tool under Settings → Advanced (and `wp cp-sync reset`) with five levels — clear a stuck sync queue, force a full re-import, delete imported content, remove the ChMS connection, or reset everything. Destructive levels require typed confirmation.
+* New: Optional "Delete all data on uninstall" toggle (Settings → Advanced). Off by default, so uninstalling the plugin keeps your data; turn it on to have WordPress permanently remove all CP Sync settings, the ChMS connection, sync state, and imported content when the plugin is deleted.
 * Enhancement: The settings screen was rebuilt on the WordPress component library for a native wp-admin look and feel, dramatically smaller page weight, and reliable browser-tab URLs for each settings tab.
 * Enhancement: Settings screens are now declared in PHP as a schema and rendered by a single form engine — new integrations and fields no longer require custom UI code.
 * Enhancement: Sync filter conditions no longer crash when no comparison options are available, correctly reset their value when switching between comparison types, and use collision-proof identifiers.

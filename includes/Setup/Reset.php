@@ -19,8 +19,15 @@
  *
  * The queue lives in wp_sitemeta on multisite, so it is only ever touched through
  * the Integration API ( get_batches() / delete() / get_identifier() ), never with
- * raw delete_option(). reset_all() is the natural core for a future
- * register_uninstall_hook() so uninstall and reset can share one code path.
+ * raw delete_option().
+ *
+ * NOTE ON uninstall.php: reset_all() CANNOT be reused from uninstall.php. That file
+ * runs standalone with the plugin un-booted, so no `init` hooks fire and the
+ * Integrations\_Init / ChMS\_Init registries this service iterates are EMPTY — a
+ * call would silently no-op the queue/content/connection steps. uninstall.php is
+ * therefore deliberately self-contained direct deletion. Only PURE-STATIC helpers
+ * here ( e.g. state_option_prefixes() ) are safe to share with it; anything that
+ * depends on runtime registration is not.
  *
  * @package CP_Sync
  */
