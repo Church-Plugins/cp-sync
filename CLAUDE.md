@@ -42,6 +42,31 @@ never a feature branch that may be deleted. When a ChurchPlugins change is neede
 it there first, then bump the gitlink here to the merged SHA. `build:wp` output
 (`build/`) is gitignored, so reviewers must rebuild locally.
 
+## Settings Architecture (schema-driven, since 1.0)
+
+- **PHP is the source of truth for per-ChMS settings screens.** `ChMS::get_settings_schema()`
+  (overridden in `PCO.php`/`CCB.php`) declares screens → sections → fields as pure data.
+  `get_formatted_settings_schema()` serializes a client-safe projection (strips the
+  server-only `sanitize`/`validate`/`encrypt` attrs, converts callable `options` into
+  `optionsFetcher` REST descriptors) served at `GET /cp-sync/v1/{chms}/schema`.
+- **One React renderer.** `src/admin/settings/schema-form/` — a field-type registry
+  (`registerFieldType`) + thin `<SchemaForm>`. New field type = one registry entry, never
+  a bespoke tab. Action widgets (OAuth/connect buttons, pull, preview) are NOT schema
+  fields — tabs compose them alongside `<SchemaForm>`.
+- **One store**: `cp-sync/global-settings` (`store/globalStore.js`) owns all values
+  (global + per-ChMS), connection, filters, schemas, options cache, and ui state.
+  `contexts/settingsContext.js` is a convenience wrapper only — complex flows use the
+  store directly.
+- **Save enforcement is two-layer, both driven by the schema:** the REST walk
+  (`ChMS::sanitize_settings_by_schema()`, per-field sanitize/validate with 400s) and
+  auto-registered option filters (`register_schema_option_filters()`, at-rest encryption)
+  — encryption lives at the option layer ON PURPOSE so non-REST writers (WP-CLI,
+  `update_setting()`) can never store plaintext. Do not consolidate the layers.
+- **Known asymmetry:** GLOBAL settings screens (license/advanced/log) declare their
+  schemas JS-side (`schema-form/schemas/*`) and the global POST uses the generic
+  sanitizer; per-ChMS screens are PHP-declared. Filter configs still ship separately
+  (`/{chms}/filters`) from the schema route — merging them is planned post-1.0.
+
 ## Code Style
 - Follow WordPress coding standards for PHP and JavaScript
 - Use PSR-4 autoloading for PHP classes with CP_Sync namespace

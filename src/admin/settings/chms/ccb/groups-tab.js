@@ -74,7 +74,7 @@ export default function GroupsTab({ data, updateField }) {
 
 				{error && (
 					<Notice status="error" isDismissible={false}>
-						<div dangerouslySetInnerHTML={{ __html: error }} />
+						<div>{ error }</div>
 					</Notice>
 				)}
 			</div>

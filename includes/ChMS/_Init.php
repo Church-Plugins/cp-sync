@@ -214,6 +214,10 @@ class _Init {
 
 					$chms_class = self::get_chms( $chms );
 
+					if ( ! $chms_class ) {
+						return new WP_Error( 'invalid_chms', __( 'Invalid ChMS', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
 					return get_option( $chms_class->settings_key, [] );
 				},
 				'permission_callback' => function() {
@@ -287,6 +291,11 @@ class _Init {
 				'callback' => function( $request ) {
 					$chms       = $request->get_param( 'chms' );
 					$chms_class = self::get_chms( $chms );
+
+					if ( ! $chms_class ) {
+						return new WP_Error( 'invalid_chms', __( 'Invalid ChMS', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
 					$chms_class->setup(); // make sure the integrations are loaded
 					
 					$filter_config = $chms_class->get_formatted_filter_config();
@@ -367,16 +376,23 @@ class _Init {
 	 * Handle OAuth redirect
 	 */
 	public function handle_oauth_redirect() {
-		// This is an OAuth callback *return* from an external bridge (the churchplugins theme
-		// bridge), so it cannot carry a standard WP nonce. Access is gated by the
-		// current_user_can( 'manage_options' ) capability check below. The real CSRF fix
-		// (OAuth `state` param + host allowlist) lives in the bridge and is tracked separately.
-		if ( ! isset( $_GET['cp_sync_oauth'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- OAuth callback return, guarded by the capability check below.
+		if ( ! isset( $_GET['cp_sync_oauth'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- presence check only; the nonce is verified below before anything is trusted.
 			return;
 		}
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
+
+		// CSRF protection: the connect flow sends a `cpSync` nonce to the OAuth bridge
+		// (see chms/pco/connect-tab.js), and the bridge echoes it back as `_nonce` on
+		// this return URL. Without this check, a crafted wp-admin link
+		// (?cp_sync_oauth=1&token=ATTACKER_TOKEN) loaded by a logged-in admin would
+		// silently repoint the ChMS integration at an attacker-controlled account.
+		$nonce = isset( $_GET['_nonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'cpSync' ) ) {
+			return;
+		}
+
 		add_action( 'admin_head', [ $this, 'add_oauth_script' ] );
 	}
 
@@ -390,9 +406,9 @@ class _Init {
 			return;
 		}
 
-		// OAuth callback return from the external bridge; cannot carry a WP nonce. Guarded by the
-		// current_user_can( 'manage_options' ) check in handle_oauth_redirect(). See note there.
-		$token = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- OAuth callback return, guarded by capability check in handle_oauth_redirect().
+		// This only runs after handle_oauth_redirect() has verified both the manage_options
+		// capability and the `cpSync` nonce echoed back by the OAuth bridge as `_nonce`.
+		$token = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified in handle_oauth_redirect() before this callback is hooked.
 		/**
 		 * Filter the token
 		 *
@@ -402,7 +418,7 @@ class _Init {
 		 */
 		$token = apply_filters( 'cp_sync_oauth_token', $token, $active_chms );
 
-		$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( wp_unslash( $_GET['refresh_token'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- OAuth callback return, guarded by capability check in handle_oauth_redirect().
+		$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( wp_unslash( $_GET['refresh_token'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified in handle_oauth_redirect() before this callback is hooked.
 		/**
 		 * Filter the refresh token
 		 *

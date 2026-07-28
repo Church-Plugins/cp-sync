@@ -103,7 +103,7 @@ class CCB {
 	 * @return bool
 	 */
 	public static function is_valid_subdomain( $subdomain ) {
-		return is_string( $subdomain ) && (bool) preg_match( '/^[a-zA-Z0-9-]+$/', $subdomain );
+		return is_string( $subdomain ) && (bool) preg_match( '/^[a-zA-Z0-9-]+\z/', $subdomain );
 	}
 
 	/**

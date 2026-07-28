@@ -258,15 +258,14 @@ const reducer = ( state = INITIAL_STATE, action ) => {
 				},
 			}
 		case 'SET_ERROR':
-			// NOTE: preserves legacy behavior byte-for-byte — the action carries
-			// `message` but the reducer reads `action.error`, so `error` is left
-			// falsy and the error Alert never renders. Do NOT "fix" here: doing so
-			// would surface error UI that the app never showed (a visible change).
+			// Surfaces save/resolver failures in the app-wide error Notice. This
+			// matters especially for the schema-driven 400s (e.g. invalid subdomain)
+			// — without it a failed save would just stop spinning with no feedback.
 			return {
 				...state,
 				ui: {
 					...state.ui,
-					error: action.error,
+					error: action.message,
 				},
 			}
 		case 'SETTINGS_UPDATE_SUCCESS':

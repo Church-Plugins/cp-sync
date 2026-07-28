@@ -114,7 +114,7 @@ export default function GroupsTab( { data, updateField } ) {
 						isDismissible={ false }
 						className="cps-pco-notice"
 					>
-						<div dangerouslySetInnerHTML={ { __html: error } } />
+						<div>{ error }</div>
 					</Notice>
 				) }
 			</div>

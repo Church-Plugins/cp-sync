@@ -513,7 +513,7 @@ abstract class ChMS {
 			case 'subdomain':
 				// Empty is allowed ( not-yet-configured ); any non-empty value must be a
 				// bare DNS label. Upgrades the Phase-1 silent-strip into a real 400 error.
-				if ( is_string( $value ) && '' !== $value && ! preg_match( '/^[a-zA-Z0-9-]+$/', $value ) ) {
+				if ( is_string( $value ) && '' !== $value && ! preg_match( '/^[a-zA-Z0-9-]+\z/', $value ) ) {
 					return new \WP_Error(
 						'invalid_subdomain',
 						__( 'Invalid subdomain. Subdomains may contain only letters, numbers, and hyphens.', 'cp-sync' ),
@@ -687,7 +687,7 @@ abstract class ChMS {
 	protected function validate_strip_at_option( $rule, $value, $prior ) {
 		switch ( $rule ) {
 			case 'subdomain':
-				if ( is_string( $value ) && '' !== $value && ! preg_match( '/^[a-zA-Z0-9-]+$/', $value ) ) {
+				if ( is_string( $value ) && '' !== $value && ! preg_match( '/^[a-zA-Z0-9-]+\z/', $value ) ) {
 					// Fallback notice for non-React consumers ( legacy admin ).
 					update_option(
 						'cp_settings_message',
@@ -697,7 +697,7 @@ abstract class ChMS {
 						]
 					);
 
-					return ( is_string( $prior ) && preg_match( '/^[a-zA-Z0-9-]+$/', $prior ) ) ? $prior : '';
+					return ( is_string( $prior ) && preg_match( '/^[a-zA-Z0-9-]+\z/', $prior ) ) ? $prior : '';
 				}
 				return $value;
 		}

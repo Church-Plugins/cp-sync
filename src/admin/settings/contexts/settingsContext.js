@@ -4,15 +4,12 @@ import { useDispatch, useSelect } from '@wordpress/data'
 
 const SettingsContext = createContext({
 	chms: null,
-	debugMode: null,
-	setChms: () => {},
+	error: null,
 	isConnected: false,
 	isSaving: false,
 	isDirty: false,
 	settings: {},
-	updateSettings: () => {},
 	updateField: () => {},
-	getField: () => {},
 	getFilterConfig: (filterGroup) => {},
 	save: () => {},
 	globalSettings: {},
@@ -46,6 +43,11 @@ export const useSettings = () => {
  */
 export default function SettingsProvider({ globalSettings: initialGlobalSettings, children, compareOptions }) {
 	const [seeded, setSeeded] = useState(false)
+	// One-way "ready" latch: once the initial connection check has resolved, the
+	// app stays mounted. Without this, the disconnect flow (which invalidates the
+	// getIsConnected resolution to force a re-check) would unmount the entire SPA
+	// for the duration of that round-trip.
+	const [isReady, setIsReady] = useState(false)
 
 	const {
 		setGlobalSettings,
@@ -89,15 +91,16 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		}
 	}, [seeded])
 
+	useEffect(() => {
+		if (seeded && isConnectionLoaded) {
+			setIsReady(true)
+		}
+	}, [seeded, isConnectionLoaded])
+
 	// Persist the global slice and the active ChMS slice through the store's single
 	// save action. Request bodies match the legacy per-ChMS/global POSTs exactly.
 	const save = () => {
 		saveSettings(globalSettings, globalSettings.chms, settings)
-	}
-
-	// Kept for API-surface compatibility; delegates to the store.
-	const saveGlobal = (data = false) => {
-		persistGlobalSettings(data || globalSettings)
 	}
 
 	const updateGlobalSettings = (field, value) => {
@@ -128,11 +131,6 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		})
 	}
 
-	const getField = (group, field) => {
-		// Guarded: return undefined instead of throwing when the group is absent.
-		return settings?.[group]?.[field]
-	}
-
 	/**
 	 * Gets the filter config for a filter group, e.g. 'groups' or 'events'
 	 * @param {*} filterGroup
@@ -141,6 +139,11 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		return filterConfig[filterGroup] || false
 	}
 
+	// NOTE: this context is a convenience wrapper for the common cases (flat field
+	// reads/updates + save). For anything beyond that — multi-step flows like
+	// "save then check connection", schema/options selectors, resolution
+	// invalidation — use the `cp-sync/global-settings` store directly via
+	// useSelect/useDispatch, as the connect tabs do. It is not a complete facade.
 	const value = {
 		chms: globalSettings.chms,
 		error,
@@ -148,13 +151,9 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		isSaving,
 		isDirty,
 		settings,
-		updateSettings,
 		updateField,
-		getField,
 		getFilterConfig,
 		save,
-		saveGlobal,
-		globalUnsavedChanges: isDirty,
 		globalSettings,
 		updateGlobalSettings,
 		compareOptions,
@@ -162,7 +161,7 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 
 	return (
 		<SettingsContext.Provider value={value}>
-			{seeded && isConnectionLoaded && children}
+			{isReady && children}
 		</SettingsContext.Provider>
 	)
 }

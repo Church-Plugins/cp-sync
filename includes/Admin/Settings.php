@@ -155,8 +155,8 @@ class Settings {
 		</style>
 		<div
 			class="cp_settings_root cp-sync"
-			data-settings='<?php echo wp_json_encode( $global_settings ); ?>'
-			data-compare-options='<?php echo wp_json_encode( $compare_options ); ?>'
+			data-settings="<?php echo esc_attr( wp_json_encode( $global_settings ) ); ?>"
+			data-compare-options="<?php echo esc_attr( wp_json_encode( $compare_options ) ); ?>"
 		>
 			<div class="cp-sync-loading">
 				<h1><?php esc_html_e( 'CP Sync', 'cp-sync' ); ?></h1>
