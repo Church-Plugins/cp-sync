@@ -37,3 +37,54 @@ body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-sync {
 .rotating-icon {
   animation: rotate 2s linear infinite;
 }
+
+// --- Schema-form migrated screens (License / Advanced / Log) ---
+// Minimal layout glue so the @wordpress/components controls stack with
+// consistent spacing inside the MUI Card shell.
+.cps-settings-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 640px;
+}
+
+.cps-schema-form,
+.cps-schema-form__section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cps-schema-form__section-title {
+  margin: 0;
+}
+
+.cps-schema-form__section-description {
+  margin: 0;
+  color: #757575;
+}
+
+.cps-license-actions,
+.cps-advanced-actions,
+.cps-log-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cps-license-actions__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+
+  .components-base-control {
+    min-width: 300px;
+  }
+}
+
+.cps-log-viewer__content {
+  textarea {
+    font-family: monospace;
+    white-space: pre;
+  }
+}

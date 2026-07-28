@@ -16,7 +16,6 @@ import { useState } from '@wordpress/element';
 import Filters from '../../components/filters';
 import Preview from '../../components/preview';
 import AsyncSelect from '../../components/async-select';
-import { useSettings } from '../../contexts/settingsContext';
 import { Divider } from '@mui/material';
 
 const EVENT_RECURRENCE_OPTIONS = [
@@ -30,7 +29,6 @@ export default function EventsTab({ data, updateField }) {
 	const [pulling, setPulling] = useState(false)
 	const [pullSuccess, setPullSuccess] = useState(false)
 	const [error, setError] = useState(null)
-	const { globalData } = useSettings()
 
 	const updateFilters = (newData) => {
 		updateField('filter', {

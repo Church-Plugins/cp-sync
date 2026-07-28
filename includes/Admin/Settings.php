@@ -199,6 +199,12 @@ class Settings {
 
 		global $cp_sync;
 
+		// The settings SPA now renders `@wordpress/components` controls, which need
+		// the core `wp-components` stylesheet or they render unstyled. The build's
+		// `.asset.php` records `wp-components` as a SCRIPT dependency only, so the
+		// matching STYLE must be enqueued explicitly here.
+		wp_enqueue_style( 'wp-components' );
+
 		$cp_sync->enqueue_asset( 'admin-settings' );
 		$cp_sync->enqueue_asset( 'admin-settings', [], false, true );
 	}

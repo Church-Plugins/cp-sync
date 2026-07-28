@@ -7,7 +7,6 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-import Skeleton from '@mui/material/Skeleton';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import platforms from './platforms';
 import { __ } from '@wordpress/i18n';
@@ -31,7 +30,7 @@ const theme = createTheme({
 function DynamicTab({ tab, value, index }) {
 	const { group, defaultData = {}, component } = tab
 
-	const { settings, save, updateField, isDirty, isHydrating } = useSettings()
+	const { settings, save, updateField, isDirty } = useSettings()
 
 	useEffect(() => {
 		if(isDirty) {
@@ -52,18 +51,6 @@ function DynamicTab({ tab, value, index }) {
 		<TabPanel value={value} index={index}>
 			<Box>
 				{
-					isHydrating &&
-					<>
-						<Skeleton variant="text" width={500} />
-						<Skeleton variant="text" width={200} />
-						<Skeleton variant="text" width={250} />
-						<Skeleton variant="text" width={300} height={40} />
-						<Skeleton variant="text" width={300} height={40} />
-						<Skeleton variant="text" width={300} height={40} />
-					</>
-				}
-				{
-					!isHydrating &&
 					component({
 						data: { ...defaultData, ...settings[group] },
 						updateField: (field, value) => updateField(group, field, value),
