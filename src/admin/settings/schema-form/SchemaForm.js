@@ -87,13 +87,18 @@ function Field( { fieldKey, field, value, onChange, disabled } ) {
 		return <UnknownFieldType type={ field.type } fieldKey={ fieldKey } />;
 	}
 
+	// A field can declare its own `disabled` in the schema (e.g. a sync toggle whose
+	// companion plugin is inactive). Merge it with the form-level `disabled` here, in
+	// the wrapper, so every registry component gets per-field disabling for free.
+	const effectiveDisabled = disabled || !! field.disabled;
+
 	return (
 		<div className="cps-schema-form__field">
 			<Component
 				field={ field }
 				value={ value }
 				onChange={ ( next ) => onChange( fieldKey, next ) }
-				disabled={ disabled }
+				disabled={ effectiveDisabled }
 			/>
 		</div>
 	);

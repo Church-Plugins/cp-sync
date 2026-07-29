@@ -6,6 +6,7 @@ import { useSelect, useDispatch } from '@wordpress/data'
 import { useSettings } from '../../contexts/settingsContext'
 import globalStore from '../../store/globalStore'
 import { SchemaForm } from '../../schema-form'
+import { omitSyncSchema } from '../../components/sync-toggles'
 
 /**
  * CCB Connect tab.
@@ -18,8 +19,11 @@ import { SchemaForm } from '../../schema-form'
  */
 export default function ConnectTab({ data, updateField }) {
 	const { isConnected, settings } = useSettings()
+	// The sync toggles are declared on the `connect` screen too, but they are
+	// rendered by the merged Connect tab (always editable, even once connected), so
+	// strip them here to avoid rendering them twice in the credential form.
 	const connectSchema = useSelect(
-		(select) => select(globalStore).getSchema('ccb')?.connect,
+		(select) => omitSyncSchema(select(globalStore).getSchema('ccb')?.connect),
 		[]
 	)
 	const [authLoading, setAuthLoading] = useState(false)

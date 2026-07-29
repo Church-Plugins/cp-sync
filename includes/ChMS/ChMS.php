@@ -175,6 +175,64 @@ abstract class ChMS {
 	}
 
 	/**
+	 * Build the shared Groups/Events sync-enable toggle FieldDefs for the connect screen.
+	 *
+	 * Both PCO and CCB embed these two booleans ( stored as `connect.sync_groups` /
+	 * `connect.sync_events` ) so an admin can turn a feed's sync on or off. They default
+	 * to TRUE, so existing installs keep their current behavior with no migration.
+	 *
+	 * When the required companion plugin is NOT active ( CP Groups for `sync_groups`,
+	 * The Events Calendar for `sync_events` ) the toggle is emitted with `disabled: true`
+	 * and its help text is replaced by the "requires …" explanation. Availability is
+	 * resolved every time the schema is served ( GET /{chms}/schema ), so the client
+	 * always sees current state.
+	 *
+	 * Availability is injectable so the shape can be unit-tested under both states without
+	 * defining the companion plugins' globals. When `$availability` is null the two pinned
+	 * conditions are evaluated via Integrations\_Init::is_integration_available().
+	 *
+	 * @since 0.4.0
+	 * @param array|null $availability Optional map `[ 'groups' => bool, 'events' => bool ]`.
+	 *                                 Null resolves live availability.
+	 * @return array `[ 'sync_groups' => FieldDef, 'sync_events' => FieldDef ]`.
+	 */
+	protected function get_sync_toggle_fields( $availability = null ) {
+		if ( null === $availability ) {
+			$availability = [
+				'groups' => \CP_Sync\Integrations\_Init::is_integration_available( 'groups' ),
+				'events' => \CP_Sync\Integrations\_Init::is_integration_available( 'events' ),
+			];
+		}
+
+		$fields = [
+			'sync_groups' => [
+				'type'    => 'toggle',
+				'label'   => __( 'Sync Groups', 'cp-sync' ),
+				'default' => true,
+				'help'    => __( 'When enabled, groups are synced from your ChMS to this site.', 'cp-sync' ),
+			],
+			'sync_events' => [
+				'type'    => 'toggle',
+				'label'   => __( 'Sync Events', 'cp-sync' ),
+				'default' => true,
+				'help'    => __( 'When enabled, events are synced from your ChMS to this site.', 'cp-sync' ),
+			],
+		];
+
+		if ( empty( $availability['groups'] ) ) {
+			$fields['sync_groups']['disabled'] = true;
+			$fields['sync_groups']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'groups' );
+		}
+
+		if ( empty( $availability['events'] ) ) {
+			$fields['sync_events']['disabled'] = true;
+			$fields['sync_events']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'events' );
+		}
+
+		return $fields;
+	}
+
+	/**
 	 * Serialize the declared settings schema into the client-safe JSON projection.
 	 *
 	 * Generalizes get_formatted_filter_config(): walks the schema declared by

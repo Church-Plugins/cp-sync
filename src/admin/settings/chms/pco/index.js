@@ -18,6 +18,7 @@ export default {
 			name: __( 'Groups', 'cp-sync' ),
 			component: (props) => <GroupsTab {...props} />,
 			group: 'cp_groups',
+			type: 'groups',
 			defaultData: {
 				types: [],
 				tag_groups: [],
@@ -35,6 +36,7 @@ export default {
 			name: __( 'Events', 'cp-sync' ),
 			component: (props) => <EventsTab {...props} />,
 			group: 'ecp',
+			type: 'events',
 			defaultData: {
 				visibility: 'public',
 				tag_groups: [],

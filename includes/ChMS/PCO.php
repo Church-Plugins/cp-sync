@@ -202,12 +202,17 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 */
 	public function get_settings_schema() {
 		return [
-			// OAuth-only screen: connect/disconnect is an action widget, so there
-			// are no persisted schema fields. Declared ( with empty sections ) so the
-			// screen is still addressable by the tab-migration batch.
+			// OAuth connect/disconnect is an action widget ( no persisted credential
+			// fields ), but the screen carries the Groups/Events sync-enable toggles so
+			// they are stored under `connect.sync_groups` / `connect.sync_events`.
 			'connect' => [
 				'label'    => __( 'Connect', 'cp-sync' ),
-				'sections' => [],
+				'sections' => [
+					[
+						'title'  => __( 'Sync', 'cp-sync' ),
+						'fields' => $this->get_sync_toggle_fields(),
+					],
+				],
 			],
 			'cp_groups' => [
 				'label'    => __( 'Groups', 'cp-sync' ),

@@ -2,6 +2,7 @@ import { __, sprintf } from '@wordpress/i18n';
 import { SelectControl, Notice } from '@wordpress/components';
 import platforms from '../platforms';
 import { useSettings } from '../contexts/settingsContext';
+import SyncToggles from './sync-toggles';
 
 /**
  * Merged Connect tab.
@@ -96,6 +97,18 @@ function ConnectTab() {
 							updateField( 'connect', field, value ),
 						save,
 					} ) }
+				</div>
+			) }
+
+			{ platform && (
+				<div className="cps-connect-sync">
+					<SyncToggles
+						chms={ chms }
+						values={ settings[ 'connect' ] }
+						updateField={ ( field, value ) =>
+							updateField( 'connect', field, value )
+						}
+					/>
 				</div>
 			) }
 		</div>

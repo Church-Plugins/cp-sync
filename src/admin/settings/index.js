@@ -1,8 +1,10 @@
 import { createRoot, useState, useEffect } from '@wordpress/element';
 import { Button, Card, CardBody, Notice } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
+import { useSelect } from '@wordpress/data';
 import './index.scss';
 import platforms from './platforms';
+import globalStore from './store/globalStore';
 import { connectTab } from './components/connect-tab';
 import { licenseTab } from './components/license-tab';
 import { logTab } from './components/log-tab';
@@ -63,17 +65,60 @@ function DynamicTab( { tab } ) {
 }
 
 function Settings() {
-	const { globalSettings, save, isSaving, isDirty, error, isConnected } =
-		useSettings();
+	const {
+		globalSettings,
+		settings,
+		save,
+		isSaving,
+		isDirty,
+		error,
+		isConnected,
+	} = useSettings();
 
 	const chmsData = platforms[ globalSettings.chms ] || { tabs: [] };
+
+	// The served `connect` screen schema for the active ChMS. Its per-field
+	// `disabled` flag is the availability signal for the sync toggles (set when the
+	// companion plugin is inactive). Selecting it also triggers the schema resolver.
+	const connectSchema = useSelect(
+		( select ) =>
+			globalSettings.chms
+				? select( globalStore ).getSchema( globalSettings.chms )?.connect
+				: undefined,
+		[ globalSettings.chms ]
+	);
+
+	// A per-feed tab (one carrying a `type`) is shown only when its feed is BOTH
+	// enabled (the `connect.sync_<type>` setting is not explicitly false —
+	// default-true semantics) AND available (its schema toggle is not `disabled`).
+	// A missing schema is treated as available so tabs are not hidden mid-load.
+	const connectValues = settings.connect || {};
+
+	const isTypeVisible = ( type ) => {
+		if ( connectValues[ 'sync_' + type ] === false ) {
+			return false;
+		}
+
+		if ( connectSchema && Array.isArray( connectSchema.sections ) ) {
+			for ( const section of connectSchema.sections ) {
+				const field = section.fields?.[ 'sync_' + type ];
+				if ( field && field.disabled ) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	};
 
 	// The merged Connect tab owns the picker + the active platform's connect
 	// screen, so the platform's own `connect` tab is never surfaced separately.
 	// The remaining per-feed tabs (groups, events, …) only appear once
-	// connected.
+	// connected, and each typed feed tab is additionally gated on enabled+available.
 	const platformTabs = isConnected
-		? chmsData.tabs.filter( ( tab ) => tab.group !== 'connect' )
+		? chmsData.tabs
+				.filter( ( tab ) => tab.group !== 'connect' )
+				.filter( ( tab ) => ! tab.type || isTypeVisible( tab.type ) )
 		: [];
 
 	// SLUG-KEYED tab list. A tab's identity is a stable slug (not its numeric

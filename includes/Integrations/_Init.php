@@ -96,6 +96,50 @@ class _Init {
 	}
 
 	/**
+	 * Whether an integration type's required companion plugin is active.
+	 *
+	 * The two pinned conditions ( mirroring includes() ): Groups needs the CP Groups
+	 * plugin ( cp_groups() ), Events needs The Events Calendar ( TRIBE_EVENTS_FILE ).
+	 * Any other type is treated as available ( it is gated elsewhere, e.g. the
+	 * supported-types check in pull_integration() ).
+	 *
+	 * @since 0.4.0
+	 * @param string $type The integration type ( 'groups' | 'events' ).
+	 * @return bool
+	 */
+	public static function is_integration_available( $type ) {
+		switch ( $type ) {
+			case 'groups':
+				return function_exists( 'cp_groups' );
+			case 'events':
+				return defined( 'TRIBE_EVENTS_FILE' );
+			default:
+				return true;
+		}
+	}
+
+	/**
+	 * The user-facing "required plugin missing" explanation for an integration type.
+	 *
+	 * Shared by the schema's disabled-toggle help text and the pull guard's WP_Error so
+	 * both surfaces speak with one voice.
+	 *
+	 * @since 0.4.0
+	 * @param string $type The integration type ( 'groups' | 'events' ).
+	 * @return string
+	 */
+	public static function integration_unavailable_message( $type ) {
+		switch ( $type ) {
+			case 'groups':
+				return __( 'Requires the CP Groups plugin, which is not active on this site.', 'cp-sync' );
+			case 'events':
+				return __( 'Requires The Events Calendar plugin, which is not active on this site.', 'cp-sync' );
+			default:
+				return __( 'This integration is not available on this site.', 'cp-sync' );
+		}
+	}
+
+	/**
 	 * Handle actions
 	 *
 	 * @since  1.0.0
@@ -122,6 +166,13 @@ class _Init {
 		foreach( self::$supported_types as $type ) {
 			$result = $this->pull_integration( $type );
 			if ( is_wp_error( $result ) ) {
+				// A type that is unavailable ( plugin missing ) or disabled in settings is
+				// a deliberate skip, not a failure — keep pulling the remaining types so a
+				// disabled Groups feed never blocks the Events feed ( and vice versa ) on
+				// the bulk /pull route or the cron run.
+				if ( in_array( $result->get_error_code(), [ 'integration_unavailable', 'integration_disabled' ], true ) ) {
+					continue;
+				}
 				return $result;
 			}
 		}
@@ -138,6 +189,29 @@ class _Init {
 	public function pull_integration( $integration_type ) {
 		if ( ! in_array( $integration_type, self::$supported_types ) ) {
 			return new WP_Error( 'invalid_integration_type', 'Invalid integration type. Supported types are `' . implode( '`, `', self::$supported_types ) . '`' );
+		}
+
+		// (a) Availability: the required companion plugin must be active. Guards the
+		// manual pull buttons, the REST /pull + /pull/{type} routes, and the cron path
+		// ( which funnels through pull_content() → here ).
+		if ( ! self::is_integration_available( $integration_type ) ) {
+			$message = self::integration_unavailable_message( $integration_type );
+			cp_sync()->logging->log( sprintf( 'Skipping %s pull: %s', $integration_type, $message ) );
+			return new WP_Error( 'integration_unavailable', $message );
+		}
+
+		// (b) Enable toggle: the active ChMS's `connect.sync_{type}` setting ( default
+		// true, so existing installs are unaffected ). A missing/true value pulls; an
+		// explicit false skips.
+		$active_chms = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
+		if ( $active_chms && ! $active_chms->get_setting( "sync_{$integration_type}", true, 'connect' ) ) {
+			$message = sprintf(
+				/* translators: %s: the integration type being synced (e.g. Groups, Events). */
+				__( '%s sync is disabled in CP Sync settings.', 'cp-sync' ),
+				ucfirst( $integration_type )
+			);
+			cp_sync()->logging->log( sprintf( 'Skipping %s pull: %s', $integration_type, $message ) );
+			return new WP_Error( 'integration_disabled', $message );
 		}
 
 		/**

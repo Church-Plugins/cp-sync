@@ -510,6 +510,13 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 							],
 						],
 					],
+					// Sync-enable toggles ( stored under connect.sync_groups /
+					// connect.sync_events ), kept in their own titled section so they are
+					// visually separate from the credential fields above.
+					[
+						'title'  => __( 'Sync', 'cp-sync' ),
+						'fields' => $this->get_sync_toggle_fields(),
+					],
 				],
 			],
 			'groups' => [
