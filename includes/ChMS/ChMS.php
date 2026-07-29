@@ -1326,11 +1326,12 @@ abstract class ChMS {
 				return true;
 			}
 
-			// Check if cron job is scheduled (indicates queued sync)
-			$cron_hook = "{$identifier}_cron";
-			if ( wp_next_scheduled( $cron_hook ) !== false ) {
-				return true;
-			}
+			// Deliberately NOT checked: the wp_pull_{type}_cron event. That is
+			// WP_Background_Process's recurring health-check watchdog — routine
+			// plumbing that lingers in cron after cancelled/killed runs — so its
+			// presence says nothing about a sync actually being in progress and
+			// produced false "Sync in progress" notices ( even with no account
+			// connected ). Batches + the process lock are the truthful signals.
 
 			return false;
 		} else {
@@ -1369,14 +1370,8 @@ abstract class ChMS {
 				}
 			}
 
-			// Check for any scheduled cron jobs
-			foreach ( $types as $type ) {
-				$action = "pull_{$type}";
-				$cron_hook = "wp_{$action}_cron";
-				if ( wp_next_scheduled( $cron_hook ) !== false ) {
-					return true;
-				}
-			}
+			// The wp_pull_{type}_cron health-check watchdog is deliberately not
+			// checked here — see the note in the single-type branch above.
 
 			return false;
 		}
