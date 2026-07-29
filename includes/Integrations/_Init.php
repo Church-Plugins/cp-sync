@@ -35,6 +35,7 @@ class _Init {
 	public static $supported_types = [
 		'groups',
 		'events',
+		'sermons',
 	];
 
 	/**
@@ -72,6 +73,10 @@ class _Init {
 
 		if ( defined( 'TRIBE_EVENTS_FILE' ) ) {
 			$integrations[ 'tec' ] = '\CP_Sync\Integrations\TEC';
+		}
+
+		if ( function_exists( 'cp_library' ) ) {
+			$integrations[ 'cp_library' ] = '\CP_Sync\Integrations\CP_Library';
 		}
 
 		foreach( $integrations as $key => $integration ) {
@@ -113,6 +118,8 @@ class _Init {
 				return function_exists( 'cp_groups' );
 			case 'events':
 				return defined( 'TRIBE_EVENTS_FILE' );
+			case 'sermons':
+				return function_exists( 'cp_library' );
 			default:
 				return true;
 		}
@@ -134,6 +141,8 @@ class _Init {
 				return __( 'Requires the CP Groups plugin, which is not active on this site.', 'cp-sync' );
 			case 'events':
 				return __( 'Requires The Events Calendar plugin, which is not active on this site.', 'cp-sync' );
+			case 'sermons':
+				return __( 'Requires the CP Library plugin, which is not active on this site.', 'cp-sync' );
 			default:
 				return __( 'This integration is not available on this site.', 'cp-sync' );
 		}

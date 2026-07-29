@@ -49,6 +49,19 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			]
 		);
 
+		// Sermons pull from the PCO Publishing app into CP Library. Registered
+		// unconditionally ( like Groups/Events ) so the Sync Sermons toggle always renders
+		// for PCO; availability ( CP Library active ) is carried by the toggle's disabled
+		// state and enforced by Integrations\_Init::pull_integration().
+		$this->add_support(
+			'sermons',
+			[
+				'fetch_callback'   => [ $this, 'fetch_sermons' ],
+				'format_callback'  => [ $this, 'format_sermon' ],
+				'filter_config'    => [ $this, 'get_sermon_filter_config' ],
+			]
+		);
+
 	}
 
 	/**
@@ -201,7 +214,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * @return array
 	 */
 	public function get_settings_schema() {
-		return [
+		$schema = [
 			// OAuth connect/disconnect is an action widget ( no persisted credential
 			// fields ), but the screen carries the Groups/Events sync-enable toggles so
 			// they are stored under `connect.sync_groups` / `connect.sync_events`.
@@ -293,6 +306,28 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				],
 			],
 		];
+
+		// Sermons ( PCO Publishing → CP Library ). Persisted under the `cp_library`
+		// settings group; only sermons published to the Church Center library are pulled.
+		// Always declared ( like Groups/Events ); the Sermons tab is gated client-side on
+		// the Sync Sermons toggle's enabled/available state.
+		$schema['cp_library'] = [
+			'label'    => __( 'Sermons', 'cp-sync' ),
+			'sections' => [
+				[
+					'description' => __( 'Only sermons published to your Church Center library are synced.', 'cp-sync' ),
+					'fields'      => [
+						'filter' => [
+							'type'        => 'filter-builder',
+							'label'       => __( 'Sermons', 'cp-sync' ),
+							'filterGroup' => 'sermons',
+						],
+					],
+				],
+			],
+		];
+
+		return $schema;
 	}
 
 	/**
@@ -1663,6 +1698,274 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		return wp_send_json_success( $formatted, 200 );
+	}
+
+
+	/**
+	 * Fetch sermons ( episodes ) from the PCO Publishing app.
+	 *
+	 * One paginated /publishing/v2/episodes call ( with series + speakerships included )
+	 * plus a single /publishing/v2/speakers lookup hydrates everything the formatter
+	 * needs. Only episodes published to the Church Center library are returned.
+	 *
+	 * @param int $limit Optional. Max episodes to fetch ( 0 = all ).
+	 * @return array { items, taxonomies, context } consumed by ChMS::get_formatted_data().
+	 */
+	public function fetch_sermons( $limit = 0 ) {
+		// Build a speaker lookup ( id => display name ) once, so each episode's
+		// speakerships can be resolved to a name without an N+1 call per episode.
+		$speakers_by_id = [];
+		$speakers_raw   = $this->api()
+			->module( 'publishing' )
+			->table( 'speakers' )
+			->get();
+
+		foreach ( ( $speakers_raw['data'] ?? [] ) as $speaker ) {
+			$attr = $speaker['attributes'] ?? [];
+			$name = $attr['formatted_name'] ?? trim( ( $attr['first_name'] ?? '' ) . ' ' . ( $attr['last_name'] ?? '' ) );
+			$speakers_by_id[ $speaker['id'] ] = $name;
+		}
+
+		// Fetch episodes, newest library publish first, with series + speakerships joined.
+		$api = $this->api()
+			->module( 'publishing' )
+			->table( 'episodes' )
+			->includes( 'series,speakerships' )
+			->order( '-published_to_library_at' );
+
+		if ( $limit > 0 ) {
+			$api->per_page( min( $limit, 100 ) );
+		}
+
+		$raw = $api->get( $limit > 0 ? $limit : 100000 );
+
+		$items = ( ! empty( $raw['data'] ) && is_array( $raw['data'] ) ) ? $raw['data'] : [];
+
+		// Index the JSON:API included[] payload by type => id for relational lookups.
+		$relational_data = [];
+		foreach ( ( $raw['included'] ?? [] ) as $include ) {
+			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
+		}
+
+		// Published-only: drop episodes that are not published to the library.
+		$items = array_values(
+			array_filter(
+				$items,
+				function( $episode ) {
+					return ! empty( $episode['attributes']['published_to_library_at'] );
+				}
+			)
+		);
+
+		// Apply the admin-configured filter ( stored under the `cp_library` group ).
+		$filter_settings = $this->get_setting( 'filter', [], 'cp_library' );
+		$filter_type     = $filter_settings['type'] ?? 'all';
+		$conditions      = $filter_settings['conditions'] ?? [];
+
+		$filter = new \CP_Sync\Setup\DataFilter(
+			$filter_type,
+			$conditions,
+			$this->get_sermon_filter_config(),
+			$relational_data
+		);
+
+		$filter->apply( $items );
+
+		return [
+			'items'      => $items,
+			'taxonomies' => [],
+			'context'    => [
+				'relational_data' => $relational_data,
+				'speakers_by_id'  => $speakers_by_id,
+			],
+		];
+	}
+
+	/**
+	 * Format a single PCO episode into the CP Library sermon item shape.
+	 *
+	 * The returned `cpl` sub-array is consumed by Integrations\CP_Library::update_item(),
+	 * which delegates the actual write to CP Library's SermonSync facade.
+	 *
+	 * @param array $episode The raw PCO episode record.
+	 * @param array $context { relational_data, speakers_by_id } from fetch_sermons().
+	 * @return array The formatted item.
+	 */
+	public function format_sermon( $episode, $context ) {
+		$relational_data = $context['relational_data'] ?? [];
+		$speakers_by_id  = $context['speakers_by_id'] ?? [];
+
+		$attr = $episode['attributes'] ?? [];
+
+		$published = $attr['published_to_library_at'] ?? ( $attr['published_live_at'] ?? '' );
+		$date_ts   = $published ? strtotime( $published ) : time();
+
+		// Series ( to_one ).
+		$series     = null;
+		$series_rel = $episode['relationships']['series']['data'] ?? null;
+		if ( ! empty( $series_rel['id'] ) ) {
+			$series_obj = $relational_data['Series'][ $series_rel['id'] ] ?? null;
+			if ( $series_obj && ! empty( $series_obj['attributes']['title'] ) ) {
+				$series = [
+					'id'    => $series_rel['id'],
+					'title' => $series_obj['attributes']['title'],
+				];
+			}
+		}
+
+		// Speakers ( via speakerships join, resolved through the speaker lookup ).
+		$speakers        = [];
+		$speakership_rel = $episode['relationships']['speakerships']['data'] ?? [];
+		foreach ( (array) $speakership_rel as $sref ) {
+			if ( empty( $sref['id'] ) ) {
+				continue;
+			}
+
+			$speakership = $relational_data['Speakership'][ $sref['id'] ] ?? null;
+			if ( ! $speakership ) {
+				continue;
+			}
+
+			$speaker_id = $speakership['relationships']['speaker']['data']['id'] ?? null;
+			if ( empty( $speaker_id ) ) {
+				continue;
+			}
+
+			$name = $speakers_by_id[ $speaker_id ] ?? '';
+			if ( '' === trim( (string) $name ) ) {
+				continue;
+			}
+
+			$speakers[] = [ 'id' => $speaker_id, 'name' => $name ];
+		}
+
+		// Media: prefer the Church Center library URLs, falling back to the raw video URL.
+		$video_url = $attr['library_video_url'] ?? '';
+		if ( '' === trim( (string) $video_url ) ) {
+			$video_url = $attr['video_url'] ?? '';
+		}
+		$audio_url = $attr['library_audio_url'] ?? '';
+
+		return [
+			'chms_id'       => $episode['id'],
+			'post_status'   => 'publish',
+			'post_title'    => $attr['title'] ?? '',
+			'post_content'  => $attr['description'] ?? '',
+			'thumbnail_url' => $this->get_episode_art( $attr ),
+			'tax_input'     => [],
+			'cpl'           => [
+				'date'      => $date_ts,
+				'series'    => $series,
+				'speakers'  => $speakers,
+				'video_url' => $video_url,
+				'audio_url' => $audio_url,
+			],
+		];
+	}
+
+	/**
+	 * Resolve a usable image URL from an episode's art hash / thumbnail fields.
+	 *
+	 * PCO returns `art` as a variable-shape hash; fall back to the video thumbnail URLs
+	 * when no direct art URL is present.
+	 *
+	 * @param array $attr The episode attributes.
+	 * @return string The image URL, or '' when none is available.
+	 */
+	protected function get_episode_art( $attr ) {
+		$art = $attr['art'] ?? null;
+
+		if ( is_array( $art ) ) {
+			foreach ( [ 'original', 'detail', 'thumbnail', '16x9', '1x1' ] as $key ) {
+				if ( ! empty( $art[ $key ] ) && is_string( $art[ $key ] ) ) {
+					return $art[ $key ];
+				}
+			}
+
+			foreach ( $art as $value ) {
+				if ( is_string( $value ) && filter_var( $value, FILTER_VALIDATE_URL ) ) {
+					return $value;
+				}
+			}
+		} elseif ( is_string( $art ) && '' !== $art ) {
+			return $art;
+		}
+
+		if ( ! empty( $attr['library_video_thumbnail_url'] ) ) {
+			return $attr['library_video_thumbnail_url'];
+		}
+
+		return $attr['video_thumbnail_url'] ?? '';
+	}
+
+	/**
+	 * Filter configuration for the sermons ( episodes ) feed.
+	 *
+	 * @return array
+	 */
+	public function get_sermon_filter_config() {
+		return [
+			'title' => [
+				'label'    => __( 'Title', 'cp-sync' ),
+				'path'     => 'attributes.title',
+				'type'     => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+					'contains',
+					'does_not_contain',
+				],
+			],
+			'description' => [
+				'label'    => __( 'Description', 'cp-sync' ),
+				'path'     => 'attributes.description',
+				'type'     => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+					'contains',
+					'does_not_contain',
+					'is_empty',
+					'is_not_empty',
+				],
+			],
+			'series' => [
+				'label'    => __( 'Series', 'cp-sync' ),
+				'path'     => 'relationships.series.data.id',
+				'type'     => 'select',
+				'supports' => [
+					'is',
+					'is_not',
+					'is_in',
+					'is_not_in',
+					'is_empty',
+					'is_not_empty',
+				],
+				'options'  => function() {
+					$raw = $this->api()
+						->module( 'publishing' )
+						->table( 'series' )
+						->order( '-started_at' )
+						->get();
+
+					if ( ! empty( $this->api()->errorMessage() ) ) {
+						return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+					}
+
+					$series = $raw['data'] ?? [];
+
+					$formatted = [];
+					foreach ( $series as $item ) {
+						$formatted[] = [
+							'value' => $item['id'],
+							'label' => $item['attributes']['title'] ?? '',
+						];
+					}
+
+					return wp_send_json_success( $formatted, 200 );
+				},
+			],
+		];
 	}
 
 }

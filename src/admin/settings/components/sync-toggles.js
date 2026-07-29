@@ -1,8 +1,8 @@
 /**
- * Groups/Events sync-enable toggles for the merged Connect tab.
+ * Feed sync-enable toggles for the merged Connect tab.
  *
- * The two toggles ( stored under `connect.sync_groups` / `connect.sync_events` )
- * are declared in PHP as part of every ChMS's `connect` screen schema. They are
+ * The toggles ( stored under `connect.sync_{type}` — groups, events, and any feed
+ * a ChMS declares, e.g. PCO's sermons ) live in each ChMS's `connect` screen schema. They are
  * rendered here — once, in the merged Connect tab, for whichever platform is
  * active — rather than inside each platform's connect component, so they stay
  * editable regardless of connection state ( CCB's credential form disables itself
@@ -17,8 +17,12 @@ import { useSelect } from '@wordpress/data';
 import globalStore from '../store/globalStore';
 import { SchemaForm } from '../schema-form';
 
-// The connect-screen field keys that carry the feed sync toggles.
-export const SYNC_FIELD_KEYS = [ 'sync_groups', 'sync_events' ];
+// A connect-screen field carries a feed sync toggle when its key follows the
+// `sync_{type}` convention ( sync_groups, sync_events, sync_sermons, … ). Derived
+// from the key rather than a hardcoded list so a ChMS adding a new feed type in
+// its PHP schema surfaces its toggle here automatically — a hardcoded list
+// silently hid the sermons toggle when that feed was added.
+export const isSyncFieldKey = ( key ) => key.startsWith( 'sync_' );
 
 /**
  * Rebuild a connect screen schema keeping ONLY sections/fields whose key passes
@@ -56,7 +60,7 @@ function filterConnectSchema( connectSchema, keep ) {
  */
 export function pickSyncSchema( connectSchema ) {
 	return filterConnectSchema( connectSchema, ( key ) =>
-		SYNC_FIELD_KEYS.includes( key )
+		isSyncFieldKey( key )
 	);
 }
 
@@ -75,7 +79,7 @@ export function omitSyncSchema( connectSchema ) {
 	}
 	const filtered = filterConnectSchema(
 		connectSchema,
-		( key ) => ! SYNC_FIELD_KEYS.includes( key )
+		( key ) => ! isSyncFieldKey( key )
 	);
 	// filterConnectSchema returns null when every field was a sync field; hand back
 	// an empty-sections schema so <SchemaForm> renders nothing rather than crashing.

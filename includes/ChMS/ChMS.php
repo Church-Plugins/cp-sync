@@ -192,15 +192,16 @@ abstract class ChMS {
 	 * conditions are evaluated via Integrations\_Init::is_integration_available().
 	 *
 	 * @since 0.4.0
-	 * @param array|null $availability Optional map `[ 'groups' => bool, 'events' => bool ]`.
+	 * @param array|null $availability Optional map `[ 'groups' => bool, 'events' => bool, 'sermons' => bool ]`.
 	 *                                 Null resolves live availability.
-	 * @return array `[ 'sync_groups' => FieldDef, 'sync_events' => FieldDef ]`.
+	 * @return array `[ 'sync_groups' => FieldDef, 'sync_events' => FieldDef, 'sync_sermons' => FieldDef ]`.
 	 */
 	protected function get_sync_toggle_fields( $availability = null ) {
 		if ( null === $availability ) {
 			$availability = [
-				'groups' => \CP_Sync\Integrations\_Init::is_integration_available( 'groups' ),
-				'events' => \CP_Sync\Integrations\_Init::is_integration_available( 'events' ),
+				'groups'  => \CP_Sync\Integrations\_Init::is_integration_available( 'groups' ),
+				'events'  => \CP_Sync\Integrations\_Init::is_integration_available( 'events' ),
+				'sermons' => \CP_Sync\Integrations\_Init::is_integration_available( 'sermons' ),
 			];
 		}
 
@@ -218,6 +219,22 @@ abstract class ChMS {
 				'help'    => __( 'When enabled, events are synced from your ChMS to this site.', 'cp-sync' ),
 			],
 		];
+
+		// Sermons are PCO-only for now, so the toggle is emitted only for a ChMS that
+		// actually registered sermons support ( keeps it off CCB's connect screen ).
+		if ( $this->supports( 'sermons' ) ) {
+			$fields['sync_sermons'] = [
+				'type'    => 'toggle',
+				'label'   => __( 'Sync Sermons', 'cp-sync' ),
+				'default' => true,
+				'help'    => __( 'When enabled, sermons are synced from your ChMS to CP Library.', 'cp-sync' ),
+			];
+
+			if ( empty( $availability['sermons'] ) ) {
+				$fields['sync_sermons']['disabled'] = true;
+				$fields['sync_sermons']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'sermons' );
+			}
+		}
 
 		if ( empty( $availability['groups'] ) ) {
 			$fields['sync_groups']['disabled'] = true;
@@ -1045,6 +1062,35 @@ abstract class ChMS {
 				$meta_input = $item['meta_input'] ?? [];
 				if ( ! empty( $meta_input['registration_url'] ) ) {
 					$preview_item['fields']['Registration'] = '✓ Required';
+				}
+			} elseif ( 'sermons' === $integration_type ) {
+				// Sermons: show message date, series, speaker(s), and available media.
+				$cpl = $item['cpl'] ?? [];
+
+				if ( ! empty( $cpl['date'] ) ) {
+					$preview_item['fields']['Date'] = date( 'D, M j, Y', (int) $cpl['date'] );
+				}
+
+				if ( ! empty( $cpl['series']['title'] ) ) {
+					$preview_item['fields']['Series'] = $cpl['series']['title'];
+				}
+
+				if ( ! empty( $cpl['speakers'] ) ) {
+					$names = array_filter( array_map( fn( $speaker ) => $speaker['name'] ?? '', $cpl['speakers'] ) );
+					if ( ! empty( $names ) ) {
+						$preview_item['fields']['Speaker'] = implode( ', ', $names );
+					}
+				}
+
+				$media = [];
+				if ( ! empty( $cpl['video_url'] ) ) {
+					$media[] = __( 'Video', 'cp-sync' );
+				}
+				if ( ! empty( $cpl['audio_url'] ) ) {
+					$media[] = __( 'Audio', 'cp-sync' );
+				}
+				if ( ! empty( $media ) ) {
+					$preview_item['fields']['Media'] = implode( ' + ', $media );
 				}
 			}
 

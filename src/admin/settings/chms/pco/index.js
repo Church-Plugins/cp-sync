@@ -3,6 +3,7 @@ import { __ } from '@wordpress/i18n';
 import ConnectTab from './connect-tab';
 import GroupsTab from './groups-tab';
 import EventsTab from './events-tab';
+import SermonsTab from './sermons-tab';
 
 // Ministry platform data
 export default {
@@ -45,6 +46,18 @@ export default {
 					conditions: [],
 				},
 				source: 'calendar'
+			}
+		},
+		{
+			name: __( 'Sermons', 'cp-sync' ),
+			component: (props) => <SermonsTab {...props} />,
+			group: 'cp_library',
+			type: 'sermons',
+			defaultData: {
+				filter: {
+					type: 'all',
+					conditions: [],
+				}
 			}
 		}
 	]
