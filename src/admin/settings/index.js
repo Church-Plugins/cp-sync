@@ -95,15 +95,26 @@ function Settings() {
 	const connectValues = settings.connect || {};
 
 	const isTypeVisible = ( type ) => {
-		if ( connectValues[ 'sync_' + type ] === false ) {
+		const stored = connectValues[ 'sync_' + type ];
+
+		if ( stored === false ) {
 			return false;
 		}
 
 		if ( connectSchema && Array.isArray( connectSchema.sections ) ) {
 			for ( const section of connectSchema.sections ) {
 				const field = section.fields?.[ 'sync_' + type ];
-				if ( field && field.disabled ) {
-					return false;
+				if ( field ) {
+					// Unavailable (companion plugin inactive) → hidden.
+					if ( field.disabled ) {
+						return false;
+					}
+					// Nothing stored yet → the schema's declared default decides
+					// (e.g. sermons default OFF so updates don't surface the tab
+					// until the admin opts in).
+					if ( stored === undefined && field.default === false ) {
+						return false;
+					}
 				}
 			}
 		}

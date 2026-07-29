@@ -1726,18 +1726,20 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$speakers_by_id[ $speaker['id'] ] = $name;
 		}
 
-		// Fetch episodes, newest library publish first, with series + speakerships joined.
-		$api = $this->api()
+		// Fetch episodes, newest library publish first, with series + speakerships +
+		// channel joined ( channel populates relationships.channel so the DataFilter can
+		// match the Channel filter condition client-side ).
+		// Always fetch the full published set — NOT capped by $limit. The published-only
+		// pass and the client-side DataFilter must run against every episode; if we only
+		// fetched the newest $limit, a filter like Channel would see just those and wrongly
+		// return nothing ( the matching episodes live deeper in the list ). get_formatted_data()
+		// caps how many survivors are FORMATTED for the preview.
+		$raw = $this->api()
 			->module( 'publishing' )
 			->table( 'episodes' )
-			->includes( 'series,speakerships' )
-			->order( '-published_to_library_at' );
-
-		if ( $limit > 0 ) {
-			$api->per_page( min( $limit, 100 ) );
-		}
-
-		$raw = $api->get( $limit > 0 ? $limit : 100000 );
+			->includes( 'series,speakerships,channel' )
+			->order( '-published_to_library_at' )
+			->get();
 
 		$items = ( ! empty( $raw['data'] ) && is_array( $raw['data'] ) ) ? $raw['data'] : [];
 
@@ -1928,6 +1930,39 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 					'is_empty',
 					'is_not_empty',
 				],
+			],
+			'channel' => [
+				'label'    => __( 'Channel', 'cp-sync' ),
+				'path'     => 'relationships.channel.data.id',
+				'type'     => 'select',
+				'supports' => [
+					'is',
+					'is_not',
+					'is_in',
+					'is_not_in',
+				],
+				'options'  => function() {
+					$raw = $this->api()
+						->module( 'publishing' )
+						->table( 'channels' )
+						->get();
+
+					if ( ! empty( $this->api()->errorMessage() ) ) {
+						return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+					}
+
+					$channels = $raw['data'] ?? [];
+
+					$formatted = [];
+					foreach ( $channels as $channel ) {
+						$formatted[] = [
+							'value' => $channel['id'],
+							'label' => $channel['attributes']['name'] ?? '',
+						];
+					}
+
+					return wp_send_json_success( $formatted, 200 );
+				},
 			],
 			'series' => [
 				'label'    => __( 'Series', 'cp-sync' ),

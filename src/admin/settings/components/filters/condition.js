@@ -131,6 +131,27 @@ export default function Condition( {
 		} );
 	};
 
+	// A single-select condition MUST resolve to one of its options — an empty value
+	// matches nothing (a native <select> shows the first option but never fires
+	// onChange, so the stored value silently stays ''). Once options load, commit the
+	// first option whenever the current value isn't a valid choice. This also heals a
+	// stale value left behind after switching the selector to a different field.
+	useEffect( () => {
+		if ( fieldType !== 'select' || ! options || options.length === 0 ) {
+			return;
+		}
+
+		const hasValidValue =
+			value !== '' &&
+			value !== undefined &&
+			options.some( ( o ) => String( o.value ) === String( value ) );
+
+		if ( ! hasValidValue ) {
+			handleChange( { value: options[ 0 ].value } );
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ fieldType, options, value ] );
+
 	const updateSelector = ( newSelector ) => {
 		const updatedCondition = {
 			...condition,

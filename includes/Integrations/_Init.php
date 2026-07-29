@@ -209,11 +209,13 @@ class _Init {
 			return new WP_Error( 'integration_unavailable', $message );
 		}
 
-		// (b) Enable toggle: the active ChMS's `connect.sync_{type}` setting ( default
-		// true, so existing installs are unaffected ). A missing/true value pulls; an
-		// explicit false skips.
+		// (b) Enable toggle: the active ChMS's `connect.sync_{type}` setting. The
+		// unstored fallback comes from ChMS::sync_toggle_default() — the single source
+		// shared with the schema FieldDef ( groups/events default ON, preserving
+		// long-standing behavior; sermons default OFF so updates never silently start
+		// syncing them ).
 		$active_chms = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
-		if ( $active_chms && ! $active_chms->get_setting( "sync_{$integration_type}", true, 'connect' ) ) {
+		if ( $active_chms && ! $active_chms->get_setting( "sync_{$integration_type}", \CP_Sync\ChMS\ChMS::sync_toggle_default( $integration_type ), 'connect' ) ) {
 			$message = sprintf(
 				/* translators: %s: the integration type being synced (e.g. Groups, Events). */
 				__( '%s sync is disabled in CP Sync settings.', 'cp-sync' ),

@@ -82,12 +82,60 @@ class DataFilterTest extends TestCase {
 	public function test_applicable_conditions_drops_selectors_absent_from_config() {
 		$f    = new DataFilter();
 		$kept = $f->applicable_conditions(
-			[ [ 'selector' => 'keep' ], [ 'selector' => 'ghost' ] ],
+			[ [ 'selector' => 'keep', 'compare' => 'is', 'value' => 'x' ], [ 'selector' => 'ghost', 'compare' => 'is', 'value' => 'x' ] ],
 			[ 'keep' => [ 'path' => 'k' ] ]
 		);
 
 		$this->assertCount( 1, $kept );
 		$this->assertSame( 'keep', $kept[0]['selector'] );
+	}
+
+	public function test_applicable_conditions_drops_incomplete_conditions() {
+		$config = [ 'field' => [ 'path' => 'field' ] ];
+		$f      = new DataFilter();
+
+		// Empty string, empty array, and null values are all "not finished yet".
+		$dropped = $f->applicable_conditions(
+			[
+				$this->cond( 'field', 'is', '' ),
+				$this->cond( 'field', 'is_in', [] ),
+				$this->cond( 'field', 'is', null ),
+			],
+			$config
+		);
+		$this->assertCount( 0, $dropped );
+
+		// A real value ( including a numeric 0 or boolean false ) is kept.
+		$kept = $f->applicable_conditions(
+			[
+				$this->cond( 'field', 'is', 'x' ),
+				$this->cond( 'field', 'is_greater_than', 0 ),
+				$this->cond( 'field', 'is', false ),
+			],
+			$config
+		);
+		$this->assertCount( 3, $kept );
+
+		// Emptiness operators are meaningful with no value and must survive.
+		$empties = $f->applicable_conditions(
+			[
+				$this->cond( 'field', 'is_empty', null ),
+				$this->cond( 'field', 'is_not_empty', '' ),
+			],
+			$config
+		);
+		$this->assertCount( 2, $empties );
+	}
+
+	public function test_incomplete_condition_is_a_noop_not_a_match_nothing() {
+		// An incomplete "is ''" condition must NOT zero out the feed — with it as the
+		// only condition, every item should still pass ( 'all' with no live conditions ).
+		$f     = $this->filter( 'all', [ $this->cond( 'field', 'is', '' ) ] );
+		$items = [ [ 'field' => 'a' ], [ 'field' => 'b' ] ];
+
+		$f->apply( $items );
+
+		$this->assertSame( [ [ 'field' => 'a' ], [ 'field' => 'b' ] ], array_values( $items ) );
 	}
 
 	/* ------------------------------------------------------------------- check() all */

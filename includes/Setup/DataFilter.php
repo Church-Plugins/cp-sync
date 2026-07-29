@@ -67,12 +67,58 @@ class DataFilter {
 		$output = [];
 
 		foreach ( $conditions as $condition ) {
-			if( ! empty( $filter_config[ $condition['selector'] ] ) ) {
-				$output[] = $condition;
+			// Skip conditions whose selector is not a declared filter field.
+			if ( empty( $filter_config[ $condition['selector'] ?? '' ] ) ) {
+				continue;
 			}
+
+			// Skip incomplete conditions ( a value never chosen ). Applying one would
+			// silently match nothing and zero out the whole feed; treating it as a no-op
+			// is the safe interpretation of "the user hasn't finished this condition yet".
+			if ( $this->is_condition_incomplete( $condition ) ) {
+				continue;
+			}
+
+			$output[] = $condition;
 		}
 
 		return $output;
+	}
+
+	/**
+	 * Whether a condition is missing the value it needs to be meaningful.
+	 *
+	 * Emptiness operators ( is_empty / is_not_empty ) need no value, so they are never
+	 * incomplete. For every other operator a null value, an empty string, or an empty
+	 * array means the user has not finished choosing — the condition should be ignored
+	 * rather than applied ( where it would match nothing ). A numeric 0 or boolean false
+	 * is a real, intentional value and is NOT treated as incomplete.
+	 *
+	 * @param array $condition The condition to check.
+	 * @return bool True when the condition should be skipped.
+	 */
+	protected function is_condition_incomplete( $condition ) {
+		$compare = $condition['compare'] ?? '';
+
+		if ( in_array( $compare, [ 'is_empty', 'is_not_empty' ], true ) ) {
+			return false;
+		}
+
+		$value = $condition['value'] ?? null;
+
+		if ( null === $value ) {
+			return true;
+		}
+
+		if ( is_string( $value ) && '' === $value ) {
+			return true;
+		}
+
+		if ( is_array( $value ) && 0 === count( $value ) ) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**

@@ -196,6 +196,24 @@ abstract class ChMS {
 	 *                                 Null resolves live availability.
 	 * @return array `[ 'sync_groups' => FieldDef, 'sync_events' => FieldDef, 'sync_sermons' => FieldDef ]`.
 	 */
+	/**
+	 * The default enabled-state for a feed's sync toggle when nothing is stored.
+	 *
+	 * SINGLE SOURCE OF TRUTH — consumed by the schema FieldDef ( which the client's
+	 * tab-visibility logic reads via the served `default` ) AND by the pull-path
+	 * enforcement in Integrations\_Init::pull_integration(). Groups/Events default ON
+	 * ( long-standing behavior ); sermons default OFF so a site updating to a version
+	 * that adds sermon support does not silently start syncing sermons — the admin
+	 * must opt in on the Connect tab.
+	 *
+	 * @since 0.4.0
+	 * @param string $type The integration type ( groups | events | sermons ).
+	 * @return bool
+	 */
+	public static function sync_toggle_default( $type ) {
+		return 'sermons' !== $type;
+	}
+
 	protected function get_sync_toggle_fields( $availability = null ) {
 		if ( null === $availability ) {
 			$availability = [
@@ -226,7 +244,7 @@ abstract class ChMS {
 			$fields['sync_sermons'] = [
 				'type'    => 'toggle',
 				'label'   => __( 'Sync Sermons', 'cp-sync' ),
-				'default' => true,
+				'default' => self::sync_toggle_default( 'sermons' ),
 				'help'    => __( 'When enabled, sermons are synced from your ChMS to CP Library.', 'cp-sync' ),
 			];
 
