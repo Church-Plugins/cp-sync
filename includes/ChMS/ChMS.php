@@ -210,13 +210,13 @@ abstract class ChMS {
 				'type'    => 'toggle',
 				'label'   => __( 'Sync Groups', 'cp-sync' ),
 				'default' => true,
-				'help'    => __( 'When enabled, groups are synced from your ChMS to this site.', 'cp-sync' ),
+				'help'    => __( 'When enabled, groups are synced from your ChMS to CP Groups.', 'cp-sync' ),
 			],
 			'sync_events' => [
 				'type'    => 'toggle',
 				'label'   => __( 'Sync Events', 'cp-sync' ),
 				'default' => true,
-				'help'    => __( 'When enabled, events are synced from your ChMS to this site.', 'cp-sync' ),
+				'help'    => __( 'When enabled, events are synced from your ChMS to The Events Calendar.', 'cp-sync' ),
 			],
 		];
 
