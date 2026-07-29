@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import globalStore from '../store/globalStore'
-import { useDispatch, useSelect } from '@wordpress/data'
+import { useDispatch, useSelect, select as selectStore } from '@wordpress/data'
 
 const SettingsContext = createContext({
 	chms: null,
@@ -99,8 +99,18 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 
 	// Persist the global slice and the active ChMS slice through the store's single
 	// save action. Request bodies match the legacy per-ChMS/global POSTs exactly.
+	//
+	// Values are read FRESH from the store registry at call time — NOT from this
+	// render's `globalSettings`/`settings` — because action widgets dispatch an
+	// update and call save() in the same tick (e.g. the license tab writing the
+	// new `status` then saving). The render-snapshot closure would persist the
+	// PRE-dispatch state and silently overwrite the change just made.
 	const save = () => {
-		saveSettings(globalSettings, globalSettings.chms, settings)
+		const store = selectStore(globalStore)
+		const global = store.getGlobalSettings() || {}
+		const chms = global.chms
+
+		saveSettings(global, chms, chms ? (store.getSettings(chms) || {}) : {})
 	}
 
 	const updateGlobalSettings = (field, value) => {
