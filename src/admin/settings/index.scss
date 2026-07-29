@@ -114,6 +114,14 @@ body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-sync {
 	font-style: italic;
 }
 
+// Separate the feed sync toggles from the platform connect UI above them,
+// mirroring the picker's divider at the top of the tab.
+.cps-connect-sync {
+	margin-top: 2rem;
+	padding-top: 2rem;
+	border-top: 1px solid #e0e0e0;
+}
+
 // --- Sync status indicator -------------------------------------------------
 .cps-sync-status {
 	margin: 0 0 1rem;
