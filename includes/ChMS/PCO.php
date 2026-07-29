@@ -563,11 +563,21 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 */
 	public function fetch_groups( $limit = 0 ) {
 		// Pull groups here
-		$raw = $this->api()
+		$api = $this->api()
 			->module( 'groups' )
 			->table( 'groups' )
-			->includes( 'location,group_type,enrollment' )
-			->get();
+			->includes( 'location,group_type,enrollment' );
+
+		// When the visibility setting is "Only Visible in Church Center", push the
+		// restriction to the API ( filter=published — "groups that are published on
+		// Church Center" ) so unlisted groups are never fetched at all. The
+		// client-side public_church_center_web_url condition remains as defence in
+		// depth; this just avoids paging through groups that would be discarded.
+		if ( 'public' === $this->get_setting( 'visibility', 'public', 'cp_groups' ) ) {
+			$api->filter( 'published' );
+		}
+
+		$raw = $api->get();
 
 		// Collapse and normalize the response
 		$items = [];
