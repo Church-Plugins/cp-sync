@@ -6,6 +6,17 @@ use CP_Sync\Exception;
 abstract class Integration extends \WP_Background_Process {
 
 	/**
+	 * Post meta key that, when truthy, locks a post against sync updates and removal.
+	 *
+	 * A site admin sets this from the post edit screen after customizing an imported
+	 * post so a later sync never overwrites or deletes their changes. Honored in
+	 * task() ( no update ), process() ( no queue, no removal ), and is_locked().
+	 *
+	 * @var string
+	 */
+	const LOCK_META_KEY = '_cp_sync_lock';
+
+	/**
 	 * @var | Unique ID for this integration
 	 */
 	public $id;
@@ -77,7 +88,7 @@ abstract class Integration extends \WP_Background_Process {
 		 * @param array $items The items to process.
 		 * @param \CP_Sync\Integrations\Integration $integration The integration instance.
 		 * @return array
-		 * @since 1.1.0
+		 * @since 1.0.0
 		 */
 		$items = apply_filters( 'cp_sync_process_items', $items, $this );
 
@@ -96,7 +107,18 @@ abstract class Integration extends \WP_Background_Process {
 
 		$item_store = $this->get_store();
 
+		$locked_ids = [];
+
 		foreach( $items as $item ) {
+			// A locked post has been customized by an admin who does not want sync to
+			// touch it. Never queue it for update, and unset it from the leftover store
+			// so the removal pass below cannot delete it either.
+			if ( $this->is_locked( $item['chms_id'] ) ) {
+				$locked_ids[ $item['chms_id'] ] = true;
+				unset( $item_store[ $item['chms_id'] ] );
+				continue;
+			}
+
 			$store = $item_store[ $item['chms_id'] ] ?? false;
 
 			if ( $hard_refresh ) {
@@ -120,6 +142,12 @@ abstract class Integration extends \WP_Background_Process {
 		}
 
 		foreach( $item_store as $chms_id => $hash ) {
+			// Never remove a locked post, even if it has disappeared from the ChMS —
+			// the admin has chosen to keep this post as-is.
+			if ( $this->is_locked( $chms_id ) ) {
+				continue;
+			}
+
 			/**
 			 * Filter whether an item should be removed.
 			 *
@@ -133,6 +161,23 @@ abstract class Integration extends \WP_Background_Process {
 			if ( $should_remove ) {
 				$this->remove_item( $chms_id );
 			}
+		}
+
+		// Record hashes for everything EXCEPT locked items. While locked, an item's
+		// hash must not be tracked — otherwise unlocking would compare the incoming
+		// hash to the one recorded during the lock, see "unchanged", and never queue
+		// the post, leaving it silently diverged ("uncheck to resume syncing" would
+		// be a lie). With no recorded hash, the first sync after unlocking always
+		// queues the item and brings the post back in line with the ChMS.
+		if ( ! empty( $locked_ids ) ) {
+			$items = array_values(
+				array_filter(
+					$items,
+					function ( $item ) use ( $locked_ids ) {
+						return empty( $locked_ids[ $item['chms_id'] ] );
+					}
+				)
+			);
 		}
 
 		$this->update_store( $items );
@@ -256,6 +301,13 @@ abstract class Integration extends \WP_Background_Process {
 		$chms_id = $item['chms_id'] ?? 'unknown';
 		$title = $item['post_title'] ?? 'unknown';
 		cp_sync()->logging->log( "Processing group {$chms_id}: {$title}" );
+
+		// Authoritative lock guard: whatever queued this item, a locked post is never
+		// written. Mirrors the process() guards so no code path can overwrite it.
+		if ( $this->is_locked( $chms_id ) ) {
+			cp_sync()->logging->log( "Skipping locked item {$chms_id}: {$title} ( sync disabled for this post )" );
+			return false;
+		}
 
 		$tax_input = $item['tax_input'] ?? [];
 
@@ -1011,6 +1063,37 @@ abstract class Integration extends \WP_Background_Process {
 	}
 
 	/**
+	 * Whether the imported post for a ChMS id is locked against sync.
+	 *
+	 * A locked post ( see LOCK_META_KEY ) has been customized by an admin who does
+	 * not want sync to update or remove it. Returns false for items that have not
+	 * been imported yet ( no post to lock ).
+	 *
+	 * @param string $chms_id The ChMS id.
+	 * @return bool
+	 */
+	public function is_locked( $chms_id ) {
+		$post_id = $this->get_chms_item_id( $chms_id );
+
+		if ( ! $post_id ) {
+			return false;
+		}
+
+		$locked = (bool) get_post_meta( $post_id, self::LOCK_META_KEY, true );
+
+		/**
+		 * Filter whether an imported post is locked against sync.
+		 *
+		 * @param bool        $locked      Whether the post is locked.
+		 * @param int         $post_id     The post id.
+		 * @param string      $chms_id     The ChMS id.
+		 * @param Integration $integration The integration instance.
+		 * @since 1.0.0
+		 */
+		return (bool) apply_filters( 'cp_sync_item_is_locked', $locked, $post_id, $chms_id, $this );
+	}
+
+	/**
 	 * Update the chms id cache
 	 *
 	 * @param $chms_id
@@ -1245,7 +1328,7 @@ abstract class Integration extends \WP_Background_Process {
 		 *
 		 * @param string $taxonomy The taxonomy to register.
 		 * @param array  $args     The arguments to register the taxonomy with.
-		 * @since 1.1.0
+		 * @since 1.0.0
 		 */
 		do_action( "cp_sync_load_taxonomy_{$this->id}", $taxonomy, $args );
 
@@ -1254,7 +1337,7 @@ abstract class Integration extends \WP_Background_Process {
 
 	/**
 	 * Load all taxonomies.
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 */
 	public function load_taxonomies() {
 		$taxonomies = get_option( "cp_sync_taxonomies_{$this->id}", [] );
