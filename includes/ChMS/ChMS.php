@@ -765,6 +765,10 @@ abstract class ChMS {
 		$this->update_setting( 'token', '', 'auth' );
 		$this->update_setting( 'last_token_refresh', '', 'auth' );
 		$this->update_setting( 'refresh_token', '', 'auth' );
+		// Cached account identity ( e.g. PCO org name — see PCO::get_account_details ).
+		// Not a credential, but it is customer data with no reason to outlive the
+		// connection it describes.
+		$this->update_setting( 'account', [], 'auth' );
 	}
 
 	/**
