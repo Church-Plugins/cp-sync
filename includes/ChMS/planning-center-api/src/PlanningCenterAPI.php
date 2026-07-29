@@ -397,8 +397,33 @@ class PlanningCenterAPI
             $results['data'] = array_merge($results['data'], $r['data']);
             $results['included'] = array_merge($results['included'], $r['included']);
 
-            // Set offset and per_page for next iteration, if any
-            $this->setRequestWindow($numRows);
+            // Continue paging based on the API's OWN pagination signals
+            // (meta.next.offset / links.next) instead of inferring from row
+            // counts. The old `numRows == per_page` heuristic silently stopped
+            // after one page whenever PCO returned fewer rows than the requested
+            // per_page — which it does when an endpoint caps the page size
+            // server-side (observed: groups pages capped at 50 while per_page
+            // was 100, truncating every sync to 50 items).
+            $totalRows  = count($results['data']);
+            $nextOffset = isset($r['meta']['next']['offset']) ? (int) $r['meta']['next']['offset'] : null;
+
+            if (null === $nextOffset && ! empty($r['links']['next']) && $numRows > 0) {
+                // Fallback when meta.next is absent but a next link exists.
+                $nextOffset = $this->parameters['offset'] + $numRows;
+            }
+
+            if (null !== $nextOffset && $numRows > 0 && $totalRows < $this->maxRows) {
+                $this->parameters['offset'] = $nextOffset;
+
+                // Never fetch past maxRows.
+                $remaining = $this->maxRows - $totalRows;
+                if ($remaining < $this->parameters['per_page']) {
+                    $this->parameters['per_page'] = $remaining;
+                }
+            } else {
+                // No next page (or maxRows reached) - we are done.
+                $this->parameters['offset'] = 0;
+            }
 
         } while ($this->parameters['offset'] > 0);
 
