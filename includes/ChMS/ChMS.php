@@ -1058,6 +1058,9 @@ abstract class ChMS {
 						[
 							'connected' => 'success' === $data['status'],
 							'message'   => $data['message'],
+							// Optional per-ChMS account identity ( e.g. PCO org +
+							// person ) so the UI can show WHICH account is connected.
+							'account'   => $data['account'] ?? null,
 						]
 					);
 				},

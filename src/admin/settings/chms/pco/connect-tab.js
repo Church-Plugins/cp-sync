@@ -1,8 +1,8 @@
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import { useState } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 import { Button, Card, CardBody, Notice, Spinner } from '@wordpress/components';
-import { useDispatch } from '@wordpress/data';
+import { useDispatch, useSelect } from '@wordpress/data';
 import { useSettings } from '../../contexts/settingsContext';
 import globalStore from '../../store/globalStore';
 import { launchOauth } from '../../util/oauth';
@@ -21,6 +21,13 @@ export default function ConnectTab() {
 	const [ authError, setAuthError ] = useState( null );
 	const { invalidateResolutionForStoreSelector, setIsConnected } =
 		useDispatch( globalStore );
+
+	// Which PCO account this connection belongs to ({ person, organization }),
+	// from the check-connection response. May be undefined mid-resolution.
+	const account = useSelect(
+		( select ) => select( globalStore ).getConnectionDetails( 'pco' )?.account,
+		[]
+	);
 
 	const initiateOAuth = () => {
 		save();
@@ -108,7 +115,20 @@ export default function ConnectTab() {
 				{ isConnected && (
 					<div>
 						<Notice status="success" isDismissible={ false }>
-							{ __( 'Connected', 'cp-sync' ) }
+							{ account?.organization && account?.person
+								? sprintf(
+										/* translators: 1: PCO organization name, 2: connected person's name. */
+										__( 'Connected to %1$s as %2$s', 'cp-sync' ),
+										account.organization,
+										account.person
+								  )
+								: account?.organization
+								? sprintf(
+										/* translators: %s: PCO organization name. */
+										__( 'Connected to %s', 'cp-sync' ),
+										account.organization
+								  )
+								: __( 'Connected', 'cp-sync' ) }
 						</Notice>
 						<div style={ { marginTop: '1rem' } }>
 							<Button

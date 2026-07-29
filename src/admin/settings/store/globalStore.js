@@ -26,6 +26,7 @@ import { __ } from '@wordpress/i18n';
 const INITIAL_STATE = {
 	values: { global: {} },
 	connection: {},
+	connectionDetails: {},
 	filters: {},
 	schemas: {},
 	optionsCache: {},
@@ -66,6 +67,15 @@ const actions = {
 			type: 'SET_IS_CONNECTED',
 			chms,
 			value
+		}
+	},
+	// The full check-connection response ({ connected, message, account }) so the
+	// UI can show WHICH account is connected, not just that one is.
+	setConnectionDetails( chms, details ) {
+		return {
+			type: 'SET_CONNECTION_DETAILS',
+			chms,
+			details
 		}
 	},
 	setError( message ) {
@@ -176,6 +186,7 @@ const resolvers = {
 	*getIsConnected( chms ) {
 		try {
 			const response = yield actions.fetch( `/cp-sync/v1/${chms}/check-connection` )
+			yield actions.setConnectionDetails( chms, response )
 			return actions.setIsConnected( chms, response.connected )
 		} catch ( e ) {
 			return actions.setError( e.message )
@@ -215,6 +226,7 @@ const selectors = {
 	getIsDirty: state => state.ui.isDirty,
 	getIsLoading: state => state.ui.isLoading,
 	getIsConnected: (state, chms) => !!state.connection[chms],
+	getConnectionDetails: (state, chms) => state.connectionDetails[chms],
 	getFilters: (state, chms) => state.filters[chms],
 	getSchema: (state, chms) => state.schemas[chms],
 	getOptions: (state, endpoint) => state.optionsCache[endpoint],
@@ -285,6 +297,14 @@ const reducer = ( state = INITIAL_STATE, action ) => {
 					...state.ui,
 					isSaving: action.value,
 				},
+			}
+		case 'SET_CONNECTION_DETAILS':
+			return {
+				...state,
+				connectionDetails: {
+					...state.connectionDetails,
+					[action.chms]: action.details
+				}
 			}
 		case 'SET_IS_CONNECTED':
 			return {

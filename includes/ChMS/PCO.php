@@ -461,11 +461,59 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		if ( isset( $response['data'] ) && ! empty( $response['data']['id'] ) ) {
 			cp_sync()->logging->log( 'PCO connection check successful' );
-			return [ 'status' => 'success', 'message' => 'Connection successful' ];
+			return [
+				'status'  => 'success',
+				'message' => 'Connection successful',
+				'account' => $this->get_account_details( $response['data'] ),
+			];
 		}
 
 		cp_sync()->logging->log( 'PCO connection check failed: ' . $this->api()->errorMessage() );
 		return false;
+	}
+
+	/**
+	 * Resolve which PCO account this connection belongs to.
+	 *
+	 * The person name comes free from the `/people/v2/me` response the connection
+	 * check already makes. The ORGANIZATION name (the real "which account" signal
+	 * when juggling test vs production) requires one extra call to the People
+	 * module root, so it is cached in the `auth` settings group keyed by the
+	 * organization id — the extra request happens once per connected org, not on
+	 * every settings-page load.
+	 *
+	 * @param array $me The `data` object from the `/people/v2/me` response.
+	 * @return array{person: string, organization: string}
+	 */
+	protected function get_account_details( $me ) {
+		$person = $me['attributes']['name'] ?? '';
+		$org_id = $me['relationships']['organization']['data']['id'] ?? '';
+
+		$cached = $this->get_setting( 'account', [], 'auth' );
+
+		if ( $org_id && ( $cached['organization_id'] ?? null ) === $org_id && ! empty( $cached['organization'] ) ) {
+			$org_name = $cached['organization'];
+		} else {
+			// Module root ( /people/v2/ ) returns the Organization object.
+			$root     = $this->api()->module( 'people' )->table( '' )->get( 1 );
+			$org_name = $root['data']['attributes']['name'] ?? '';
+
+			if ( $org_id && $org_name ) {
+				$this->update_setting(
+					'account',
+					[
+						'organization'    => $org_name,
+						'organization_id' => $org_id,
+					],
+					'auth'
+				);
+			}
+		}
+
+		return [
+			'person'       => $person,
+			'organization' => $org_name,
+		];
 	}
 
 	/**
