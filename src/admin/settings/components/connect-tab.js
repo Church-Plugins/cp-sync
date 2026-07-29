@@ -100,7 +100,8 @@ function ConnectTab() {
 				</div>
 			) }
 
-			{ platform && (
+			{ /* Sync feed toggles only make sense once a connection exists. */ }
+			{ platform && isConnected && (
 				<div className="cps-connect-sync">
 					<SyncToggles
 						chms={ chms }

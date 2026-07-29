@@ -1,7 +1,7 @@
 import { __, sprintf } from '@wordpress/i18n';
 import { useState } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
-import { Button, Card, CardBody, Notice, Spinner } from '@wordpress/components';
+import { Button, Notice, Spinner } from '@wordpress/components';
 import { useDispatch, useSelect } from '@wordpress/data';
 import { useSettings } from '../../contexts/settingsContext';
 import globalStore from '../../store/globalStore';
@@ -82,11 +82,13 @@ export default function ConnectTab() {
 	};
 
 	return (
-		<Card>
-			<CardBody>
-				<h2 style={ { marginTop: 0 } }>
-					{ __( 'PCO API Configuration', 'cp-sync' ) }
-				</h2>
+		// No Card wrapper: this component is embedded in the merged Connect tab,
+		// which already renders inside the shell's Card — a nested Card doubled
+		// the padding/border.
+		<div className="cps-pco-connect">
+			<h2 style={ { marginTop: 0 } }>
+				{ __( 'PCO API Configuration', 'cp-sync' ) }
+			</h2>
 				{ ! isConnected && (
 					<>
 						<p>
@@ -142,7 +144,6 @@ export default function ConnectTab() {
 						</div>
 					</div>
 				) }
-			</CardBody>
-		</Card>
+		</div>
 	);
 }
