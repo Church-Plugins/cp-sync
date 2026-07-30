@@ -86,6 +86,12 @@ class TEC extends Integration {
 			}
 
 			if ( $venue ) {
+				// Capture the id to link AFTER the event is saved. Passing
+				// `venue` to tribe_update_event() does NOT link the venue in
+				// current TEC ( verified 6.15.13 — the ORM ignores it on update ),
+				// so we set _EventVenueID directly below, the same way the CCB
+				// integration does. Still set $event['venue'] for the create path.
+				$venue_id       = $venue->ID;
 				$event['venue'] = $venue->ID;
 			} else {
 				cp_sync()->logging->log( 'Error creating venue for post: ' . $item['post_title'] );
@@ -129,6 +135,14 @@ class TEC extends Integration {
 				cp_sync()->logging->log( 'ERROR creating event: ' . $e->getMessage() );
 				throw $e;
 			}
+		}
+
+		// Link the venue directly. tribe_update_event()/create() do not reliably
+		// associate the venue from the `venue` arg on update ( verified TEC 6.15.13 ),
+		// so set the meta explicitly once we have the event id — matching the CCB path.
+		if ( ! empty( $venue_id ) && ! empty( $id ) ) {
+			update_post_meta( $id, '_EventVenueID', $venue_id );
+			cp_sync()->logging->log( "Linked venue {$venue_id} to event {$id}" );
 		}
 
 		// TEC categories
