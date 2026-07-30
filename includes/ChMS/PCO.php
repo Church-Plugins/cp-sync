@@ -1640,8 +1640,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		foreach ( $location_ids as $location_id ) {
 			$data     = $relational_data['SignupLocation'][ $location_id ]['attributes'] ?? [];
 			$location = self::parse_signup_location( $data );
-			if ( ! empty( $location['Venue'] ) ) {
-				$args['Venue'] = $location;
+			if ( ! empty( $location['venue'] ) ) {
+				$args['EventVenue'] = $location;
 				break;
 			}
 		}
@@ -1661,11 +1661,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * ( US-style ) pattern; otherwise the raw line is kept as the City so non-US
 	 * addresses degrade to name + street + raw-locality rather than being dropped.
 	 *
-	 * Pure ( no WordPress calls ) so it is unit-testable.
+	 * Returns the shape TEC consumes ( `$item['EventVenue']` in Integrations\TEC ):
+	 * lowercase `venue`/`address`/`city`/`state`/`zip` keys. Pure ( no WordPress
+	 * calls ) so it is unit-testable.
 	 *
 	 * @param array $attrs The SignupLocation attributes.
-	 * @return array TEC venue args ( Venue, Address?, City?, State?, Zip? ), or [] when
-	 *               there is nothing usable.
+	 * @return array TEC EventVenue args ( venue, address?, city?, state?, zip? ), or []
+	 *               when there is nothing usable.
 	 */
 	public static function parse_signup_location( $attrs ) {
 		$name    = trim( (string) ( $attrs['name'] ?? '' ) );
@@ -1679,21 +1681,21 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$lines = array_values( array_filter( array_map( 'trim', explode( "\n", $address ) ) ) );
 
 		$venue = [
-			'Venue' => '' !== $name ? $name : ( $lines[0] ?? '' ),
+			'venue' => '' !== $name ? $name : ( $lines[0] ?? '' ),
 		];
 
 		if ( ! empty( $lines[0] ) ) {
-			$venue['Address'] = $lines[0];
+			$venue['address'] = $lines[0];
 		}
 
 		if ( ! empty( $lines[1] ) ) {
 			if ( preg_match( '/^(.+),\s*([A-Za-z]{2})\s+([0-9][0-9-]{3,9})\z/', $lines[1], $m ) ) {
-				$venue['City']  = $m[1];
-				$venue['State'] = strtoupper( $m[2] );
-				$venue['Zip']   = $m[3];
+				$venue['city']  = $m[1];
+				$venue['state'] = strtoupper( $m[2] );
+				$venue['zip']   = $m[3];
 			} else {
 				// Non-US / unparseable locality: keep it rather than drop it.
-				$venue['City'] = $lines[1];
+				$venue['city'] = $lines[1];
 			}
 		}
 

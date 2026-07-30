@@ -143,12 +143,12 @@ class FormatEventRegistrationsTest extends TestCase {
 		// Category keyed by a slug derived from the name (Category has no slug attribute).
 		$this->assertSame( [ 'youth-events' => 'Youth Events' ], $result['event_category'] );
 
-		// Location resolved from SignupLocation (flat formatted_address).
-		$this->assertSame( 'Main Campus', $result['Venue']['Venue'] );
-		$this->assertSame( '123 Main St', $result['Venue']['Address'] );
-		$this->assertSame( 'Springfield', $result['Venue']['City'] );
-		$this->assertSame( 'IL', $result['Venue']['State'] );
-		$this->assertSame( '62704', $result['Venue']['Zip'] );
+		// Location resolved from SignupLocation into TEC's EventVenue contract.
+		$this->assertSame( 'Main Campus', $result['EventVenue']['venue'] );
+		$this->assertSame( '123 Main St', $result['EventVenue']['address'] );
+		$this->assertSame( 'Springfield', $result['EventVenue']['city'] );
+		$this->assertSame( 'IL', $result['EventVenue']['state'] );
+		$this->assertSame( '62704', $result['EventVenue']['zip'] );
 	}
 
 	/**
@@ -262,11 +262,11 @@ class FormatEventRegistrationsTest extends TestCase {
 			'formatted_address' => "401 Wabash Ave\nGranite Falls, WA 98252",
 		] );
 
-		$this->assertSame( 'Church', $venue['Venue'] );
-		$this->assertSame( '401 Wabash Ave', $venue['Address'] );
-		$this->assertSame( 'Granite Falls', $venue['City'] );
-		$this->assertSame( 'WA', $venue['State'] );
-		$this->assertSame( '98252', $venue['Zip'] );
+		$this->assertSame( 'Church', $venue['venue'] );
+		$this->assertSame( '401 Wabash Ave', $venue['address'] );
+		$this->assertSame( 'Granite Falls', $venue['city'] );
+		$this->assertSame( 'WA', $venue['state'] );
+		$this->assertSame( '98252', $venue['zip'] );
 	}
 
 	public function test_parse_signup_location_unparseable_locality_kept_as_city(): void {
@@ -275,10 +275,10 @@ class FormatEventRegistrationsTest extends TestCase {
 			'formatted_address' => "12 Rue de Rivoli\n75001 Paris",
 		] );
 
-		$this->assertSame( 'Overseas Campus', $venue['Venue'] );
-		$this->assertSame( '12 Rue de Rivoli', $venue['Address'] );
-		$this->assertSame( '75001 Paris', $venue['City'] );
-		$this->assertArrayNotHasKey( 'State', $venue );
+		$this->assertSame( 'Overseas Campus', $venue['venue'] );
+		$this->assertSame( '12 Rue de Rivoli', $venue['address'] );
+		$this->assertSame( '75001 Paris', $venue['city'] );
+		$this->assertArrayNotHasKey( 'state', $venue );
 	}
 
 	public function test_parse_signup_location_name_falls_back_to_street(): void {
@@ -286,7 +286,7 @@ class FormatEventRegistrationsTest extends TestCase {
 			'formatted_address' => "401 Wabash Ave\nGranite Falls, WA 98252",
 		] );
 
-		$this->assertSame( '401 Wabash Ave', $venue['Venue'] );
+		$this->assertSame( '401 Wabash Ave', $venue['venue'] );
 	}
 
 	public function test_parse_signup_location_empty_yields_no_venue(): void {
