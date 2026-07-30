@@ -157,6 +157,9 @@ abstract class ChMS {
 	 *   [ 'label' => string, 'sections' => [ [ 'title'?, 'description'?, 'fields' => [ fieldKey => FieldDef ] ] ] ]
 	 *
 	 * A FieldDef is `[ 'type', 'label', 'help'?, 'default'?, 'options'?, 'show_if'?, ...typeSpecific ]`.
+	 * `show_if` is `[ 'field' => 'dot.path', 'is' => value|value[] ]` — a scalar `is`
+	 * matches by equality, an array `is` matches when the field's value is in the list.
+	 * A `notice`-type field is static ( `message`/`label` only ); it stores no value.
 	 * Every `fieldKey` MUST equal the exact stored settings key the corresponding
 	 * screen persists ( screens are keyed by the settings group the tab writes to ).
 	 *
@@ -175,28 +178,6 @@ abstract class ChMS {
 	}
 
 	/**
-	 * Build the shared Groups/Events sync-enable toggle FieldDefs for the connect screen.
-	 *
-	 * Both PCO and CCB embed these two booleans ( stored as `connect.sync_groups` /
-	 * `connect.sync_events` ) so an admin can turn a feed's sync on or off. They default
-	 * to TRUE, so existing installs keep their current behavior with no migration.
-	 *
-	 * When the required companion plugin is NOT active ( CP Groups for `sync_groups`,
-	 * The Events Calendar for `sync_events` ) the toggle is emitted with `disabled: true`
-	 * and its help text is replaced by the "requires …" explanation. Availability is
-	 * resolved every time the schema is served ( GET /{chms}/schema ), so the client
-	 * always sees current state.
-	 *
-	 * Availability is injectable so the shape can be unit-tested under both states without
-	 * defining the companion plugins' globals. When `$availability` is null the two pinned
-	 * conditions are evaluated via Integrations\_Init::is_integration_available().
-	 *
-	 * @since 0.4.0
-	 * @param array|null $availability Optional map `[ 'groups' => bool, 'events' => bool, 'sermons' => bool ]`.
-	 *                                 Null resolves live availability.
-	 * @return array `[ 'sync_groups' => FieldDef, 'sync_events' => FieldDef, 'sync_sermons' => FieldDef ]`.
-	 */
-	/**
 	 * The default enabled-state for a feed's sync toggle when nothing is stored.
 	 *
 	 * SINGLE SOURCE OF TRUTH — consumed by the schema FieldDef ( which the client's
@@ -214,6 +195,29 @@ abstract class ChMS {
 		return 'sermons' !== $type;
 	}
 
+	/**
+	 * Build the shared feed sync-enable toggle FieldDefs for the connect screen.
+	 *
+	 * Stored as `connect.sync_{type}` booleans so an admin can turn a feed's sync on
+	 * or off. Unstored defaults come from sync_toggle_default() ( groups/events ON,
+	 * sermons OFF ); the sermons toggle is emitted only for a ChMS that registered
+	 * sermons support.
+	 *
+	 * When the required companion plugin is NOT active ( CP Groups / The Events
+	 * Calendar / CP Library ) the toggle is emitted with `disabled: true` and its help
+	 * text is replaced by the "requires …" explanation. Availability is resolved every
+	 * time the schema is served ( GET /{chms}/schema ), so the client always sees
+	 * current state.
+	 *
+	 * Availability is injectable so the shape can be unit-tested under both states
+	 * without defining the companion plugins' globals. When `$availability` is null the
+	 * pinned conditions are evaluated via Integrations\_Init::is_integration_available().
+	 *
+	 * @since 0.4.0
+	 * @param array|null $availability Optional map `[ 'groups' => bool, 'events' => bool, 'sermons' => bool ]`.
+	 *                                 Null resolves live availability.
+	 * @return array `[ 'sync_groups' => FieldDef, 'sync_events' => FieldDef, 'sync_sermons'? => FieldDef ]`.
+	 */
 	protected function get_sync_toggle_fields( $availability = null ) {
 		if ( null === $availability ) {
 			$availability = [

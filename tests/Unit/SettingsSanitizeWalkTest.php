@@ -122,6 +122,33 @@ class SettingsSanitizeWalkTest extends TestCase {
 		$this->assertSame( 12345, $out['connect']['username'] );
 	}
 
+	/**
+	 * A `notice` field carries no stored value, so it never appears in an incoming
+	 * payload and the walk simply never touches it ( the disclaimer is display-only ).
+	 * Declaring it in the schema must not affect sanitization of real fields.
+	 */
+	public function test_notice_field_is_never_processed_by_the_walk() {
+		$schema = [
+			'ecp' => [
+				'label'    => 'Events',
+				'sections' => [
+					[
+						'fields' => [
+							'source'              => [ 'type' => 'radio' ],
+							'events_dedup_notice' => [ 'type' => 'notice', 'message' => 'Heads up.' ],
+						],
+					],
+				],
+			],
+		];
+
+		// The client only ever sends `source`; the notice has no key.
+		$out = ChMS::sanitize_settings_by_schema( $schema, [ 'ecp' => [ 'source' => 'both' ] ] );
+
+		$this->assertSame( [ 'ecp' => [ 'source' => 'both' ] ], $out );
+		$this->assertArrayNotHasKey( 'events_dedup_notice', $out['ecp'] );
+	}
+
 	public function test_key_rule_applies_sanitize_key() {
 		$out = ChMS::sanitize_settings_by_schema(
 			$this->schema(),

@@ -13,6 +13,7 @@ import {
 	RadioControl,
 	ToggleControl,
 	CheckboxControl,
+	Notice,
 } from '@wordpress/components';
 import { registerFieldType } from './registry';
 
@@ -104,8 +105,35 @@ function CheckboxField( { field, value, onChange, disabled } ) {
 	);
 }
 
+/**
+ * `notice` — a static, informational message (no stored value).
+ *
+ * FieldDef: `{ type: 'notice', message?, label?, show_if? }`. Renders an
+ * `@wordpress/components` <Notice> (status info, not dismissible) from
+ * `field.message` (falling back to `field.label`). It holds no value and never
+ * calls onChange, so the server sanitize walk never sees a key for it.
+ *
+ * @param {Object} props
+ * @param {Object} props.field
+ * @return {JSX.Element|null} The notice, or null when there is no message.
+ */
+function NoticeField( { field } ) {
+	const message = field.message ?? field.label;
+
+	if ( ! message ) {
+		return null;
+	}
+
+	return (
+		<Notice status="info" isDismissible={ false }>
+			{ message }
+		</Notice>
+	);
+}
+
 registerFieldType( 'text', TextField );
 registerFieldType( 'select', SelectField );
 registerFieldType( 'radio', RadioField );
 registerFieldType( 'toggle', ToggleField );
 registerFieldType( 'checkbox', CheckboxField );
+registerFieldType( 'notice', NoticeField );

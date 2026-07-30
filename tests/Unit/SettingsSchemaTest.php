@@ -225,4 +225,56 @@ class SettingsSchemaTest extends TestCase {
 			$field['optionsFetcher']['endpoint']
 		);
 	}
+
+	/* ------------------------------------------------ show_if + notice ( dual-source ) */
+
+	/** An array `show_if.is` ( in-list match ) must pass through the serializer untouched. */
+	public function test_array_show_if_is_passes_through_untouched() {
+		$schema = [
+			'ecp' => [
+				'label'    => 'Events',
+				'sections' => [
+					[
+						'fields' => [
+							'filter' => [
+								'type'    => 'filter-builder',
+								'label'   => 'Calendar Filters',
+								'show_if' => [ 'field' => 'source', 'is' => [ 'calendar', 'both' ] ],
+							],
+						],
+					],
+				],
+			],
+		];
+
+		$field = $this->makeChms( $schema )->get_formatted_settings_schema()['ecp']['sections'][0]['fields']['filter'];
+
+		$this->assertSame( [ 'field' => 'source', 'is' => [ 'calendar', 'both' ] ], $field['show_if'] );
+	}
+
+	/** A `notice` field ( static message, no stored value ) serializes with its message + show_if intact. */
+	public function test_notice_field_passes_through() {
+		$schema = [
+			'ecp' => [
+				'label'    => 'Events',
+				'sections' => [
+					[
+						'fields' => [
+							'events_dedup_notice' => [
+								'type'    => 'notice',
+								'message' => 'Not deduplicated.',
+								'show_if' => [ 'field' => 'source', 'is' => 'both' ],
+							],
+						],
+					],
+				],
+			],
+		];
+
+		$field = $this->makeChms( $schema )->get_formatted_settings_schema()['ecp']['sections'][0]['fields']['events_dedup_notice'];
+
+		$this->assertSame( 'notice', $field['type'] );
+		$this->assertSame( 'Not deduplicated.', $field['message'] );
+		$this->assertSame( [ 'field' => 'source', 'is' => 'both' ], $field['show_if'] );
+	}
 }

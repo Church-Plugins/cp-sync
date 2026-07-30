@@ -30,6 +30,17 @@ class FormatEventRegistrationsTest extends TestCase {
 		Monkey\setUp();
 		Functions\when( '__' )->returnArg( 1 );
 		Functions\when( 'wp_timezone' )->justReturn( new \DateTimeZone( 'UTC' ) );
+		// The formatter logs skipped signups; provide a no-op logger.
+		Functions\when( 'cp_sync' )->justReturn(
+			new class() {
+				public $logging;
+				public function __construct() {
+					$this->logging = new class() {
+						public function log( $message ) {}
+					};
+				}
+			}
+		);
 		Functions\when( 'sanitize_title' )->alias(
 			static fn( $title ) => strtolower( preg_replace( '/[^a-z0-9]+/i', '-', trim( $title ) ) )
 		);
@@ -96,15 +107,9 @@ class FormatEventRegistrationsTest extends TestCase {
 					'loc1' => [
 						'id'         => 'loc1',
 						'attributes' => [
-							'name'         => 'Main Campus',
-							'address_data' => [
-								[ 'types' => [ 'street_number' ], 'long_name' => '123' ],
-								[ 'types' => [ 'route' ], 'long_name' => ' Main St' ],
-								[ 'types' => [ 'locality' ], 'long_name' => 'Springfield' ],
-								[ 'types' => [ 'administrative_area_level_1' ], 'long_name' => 'IL' ],
-								[ 'types' => [ 'postal_code' ], 'long_name' => '62704' ],
-								[ 'types' => [ 'country' ], 'long_name' => 'USA' ],
-							],
+							// Live SignupLocation shape (flat), not the documented address_data.
+							'name'              => 'Main Campus',
+							'formatted_address' => "123 Main St\nSpringfield, IL 62704",
 						],
 					],
 				],
@@ -138,10 +143,12 @@ class FormatEventRegistrationsTest extends TestCase {
 		// Category keyed by a slug derived from the name (Category has no slug attribute).
 		$this->assertSame( [ 'youth-events' => 'Youth Events' ], $result['event_category'] );
 
-		// Location resolved from SignupLocation.
+		// Location resolved from SignupLocation (flat formatted_address).
 		$this->assertSame( 'Main Campus', $result['Venue']['Venue'] );
 		$this->assertSame( '123 Main St', $result['Venue']['Address'] );
 		$this->assertSame( 'Springfield', $result['Venue']['City'] );
+		$this->assertSame( 'IL', $result['Venue']['State'] );
+		$this->assertSame( '62704', $result['Venue']['Zip'] );
 	}
 
 	/**
@@ -243,5 +250,47 @@ class FormatEventRegistrationsTest extends TestCase {
 				],
 			],
 		];
+	}
+
+	/**
+	 * parse_signup_location: the LIVE (flat) SignupLocation shape — verified against a
+	 * real account 2026-07-29; the documented `address_data` attribute is not returned.
+	 */
+	public function test_parse_signup_location_us_address(): void {
+		$venue = PCO::parse_signup_location( [
+			'name'              => 'Church',
+			'formatted_address' => "401 Wabash Ave\nGranite Falls, WA 98252",
+		] );
+
+		$this->assertSame( 'Church', $venue['Venue'] );
+		$this->assertSame( '401 Wabash Ave', $venue['Address'] );
+		$this->assertSame( 'Granite Falls', $venue['City'] );
+		$this->assertSame( 'WA', $venue['State'] );
+		$this->assertSame( '98252', $venue['Zip'] );
+	}
+
+	public function test_parse_signup_location_unparseable_locality_kept_as_city(): void {
+		$venue = PCO::parse_signup_location( [
+			'name'              => 'Overseas Campus',
+			'formatted_address' => "12 Rue de Rivoli\n75001 Paris",
+		] );
+
+		$this->assertSame( 'Overseas Campus', $venue['Venue'] );
+		$this->assertSame( '12 Rue de Rivoli', $venue['Address'] );
+		$this->assertSame( '75001 Paris', $venue['City'] );
+		$this->assertArrayNotHasKey( 'State', $venue );
+	}
+
+	public function test_parse_signup_location_name_falls_back_to_street(): void {
+		$venue = PCO::parse_signup_location( [
+			'formatted_address' => "401 Wabash Ave\nGranite Falls, WA 98252",
+		] );
+
+		$this->assertSame( '401 Wabash Ave', $venue['Venue'] );
+	}
+
+	public function test_parse_signup_location_empty_yields_no_venue(): void {
+		$this->assertSame( [], PCO::parse_signup_location( [] ) );
+		$this->assertSame( [], PCO::parse_signup_location( [ 'name' => '', 'formatted_address' => '' ] ) );
 	}
 }
