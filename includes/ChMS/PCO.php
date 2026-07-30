@@ -1111,32 +1111,47 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 */
 	public function fetch_events_from_registrations() {
 		cp_sync()->logging->log( 'Starting PCO registration events import' );
-		
+
+		// Documented Registrations API (2025-05-01): the model is `signups`, related
+		// dates/location/categories are included as SignupTime / SignupLocation /
+		// Category. Signup supports ordering by created_at/updated_at only (no
+		// starts_at), and exposes no filter param — so we order by -created_at and
+		// skip archived signups client-side below. `at_maximum_capacity` is served
+		// only when explicitly requested via a sparse fieldset, so we list every
+		// Signup attribute we consume (adding one to a fields request drops the
+		// rest for that type). If PCO rejects the shape the pull still succeeds and
+		// the sold-out meta is simply omitted (guarded in the formatter).
 		$raw_events = $this->api()
 			->module( 'registrations' )
-			->table( 'events' )
-			->includes( 'categories,event_location,event_times' )
-			->order( 'starts_at' )
-			->filter( 'unarchived,published' )
+			->table( 'signups' )
+			->includes( 'signup_times,signup_location,categories' )
+			->order( '-created_at' )
+			// NOTE: per JSON:API, a sparse fieldset restricts RELATIONSHIPS as well as
+			// attributes — the relationship names must be listed or the payload loses
+			// the signup_times/signup_location/categories linkage entirely.
+			->param( 'fields[Signup]', 'name,description,logo_url,new_registration_url,archived,at_maximum_capacity,signup_times,signup_location,categories' )
 			->get();
 
-		$items = $raw_events['data'] ?? [];
-		cp_sync()->logging->log( sprintf( 'PCO API returned %d registration events', count( $items ) ) );
-		
 		// Log API errors
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			cp_sync()->logging->log( 'PCO API Error: ' . $this->api()->errorMessage() );
-		}
-		
-		// Log if no events found
-		if ( empty( $items ) ) {
-			cp_sync()->logging->log( 'No registration events found in PCO (check if events are published and not archived)' );
+			cp_sync()->logging->log( 'PCO API Error: ' . var_export( $this->api()->errorMessage(), true ) );
 		}
 
-		$categories = [];
+		$items = $raw_events['data'] ?? [];
+
+		// No filter param exists on signups; drop archived signups here instead.
+		$items = array_values( array_filter( $items, function( $item ) {
+			return true !== ( $item['attributes']['archived'] ?? false );
+		} ) );
+
+		cp_sync()->logging->log( sprintf( 'PCO API returned %d registration signups', count( $items ) ) );
+
+		if ( empty( $items ) ) {
+			cp_sync()->logging->log( 'No registration signups found in PCO (check that signups exist and are not archived)' );
+		}
 
 		$relational_data = [];
-		foreach( $raw_events['included'] as $include ) {
+		foreach( $raw_events['included'] ?? [] as $include ) {
 			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
 		}
 
@@ -1145,18 +1160,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		$filter_type = $filter_settings['type'] ?? 'all';
 		$conditions  = $filter_settings['conditions'] ?? [];
-
-		$public_events_only = 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
-
-		if ( $public_events_only ) {
-			cp_sync()->logging->log( 'Public events only filter enabled - events must be visible in Church Center' );
-			$conditions[] = [
-				'compare' => 'is_not_empty',
-				'type'    => 'visible_in_church_center',
-			];
-		} else {
-			cp_sync()->logging->log( 'Importing all events (public and private)' );
-		}
 
 		$filter = new \CP_Sync\Setup\DataFilter(
 			$filter_type,
@@ -1342,111 +1345,90 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * @param array $context The context for the data.
 	 * @return array|bool The formatted event or false if the event should be skipped.
 	 */
-	public function format_event_from_registrations( $event, $context ) {
-		$event_name = $event['attributes']['name'] ?? 'Unknown Event';
-		$event_id = $event['id'] ?? 'Unknown ID';
-		cp_sync()->logging->log( sprintf( 'Processing event: "%s" (ID: %s)', $event_name, $event_id ) );
-		
+	public function format_event_from_registrations( $signup, $context ) {
 		$relational_data = $context['relational_data'];
 
-		// Begin stuffing the output
-		$args = [
-			'chms_id'        => $event['id'],
-			'post_status'    => 'publish',
-			'post_title'     => $event['attributes']['name'] ?? '',
-			'post_content'   => $event['attributes']['description'] ?? '',
-			// 'post_excerpt'   => $event['attributes']['summary'] ?? '',
-			'tax_input'      => [],
-			'event_category' => [],
-			'thumbnail_url'  => '',
-			'meta_input'     => [
-				'registration_url' => '',
-			],
-			// 'EventStartDate'        => $start_date->format( 'Y-m-d' ),
-			// 'EventEndDate'          => $end_date->format( 'Y-m-d' ),
-			// 'EventAllDay'           => true,
-			// 'EventStartHour'        => $start_date->format( 'G' ),
-			// 'EventStartMinute'      => $start_date->format( 'i' ),
-			// 'EventStartMeridian'    => $event[''],
-			// 'EventEndHour'          => $end_date->format( 'G' ),
-			// 'EventEndMinute'        => $end_date->format( 'i' ),
-			// 'EventEndMeridian'      => $event[''],
-			// 'EventHideFromUpcoming' => $event[''],
-			// 'EventShowMapLink'      => $event[''],
-			// 'EventShowMap'          => $event[''],
-			// 'EventCost'             => $event[''],
-			// 'EventURL'              => $event[''],
-			// 'FeaturedImage'         => $event['attributes']['image_url'] ?? '',
-		];
+		// Dates live on the related SignupTime rows; use the first one. Without a
+		// usable start/end there is nothing to import as a dated event.
+		$time_ids  = wp_list_pluck( $signup['relationships']['signup_times']['data'] ?? [], 'id' );
+		$time_id   = current( $time_ids );
 
-		// Log registration details
-		$registration_type = $event['attributes']['registration_type'] ?? 'none';
-		$public_url = $event['attributes']['public_url'] ?? '';
-		$at_capacity = $event['attributes']['at_maximum_capacity'] ?? false;
-		
-		cp_sync()->logging->log( sprintf( 'Event registration type: %s, has public URL: %s, at capacity: %s', 
-			$registration_type, 
-			$public_url ? 'yes' : 'no', 
-			$at_capacity ? 'yes' : 'no' 
-		) );
-
-		if ( 'none' !== $registration_type ) {
-			$args['meta_input']['registration_url'] = trailingslashit( $public_url ) . 'reservations/new/';
-			$args['meta_input']['registration_sold_out'] = false;
-
-			if ( ! empty( $at_capacity ) ) {
-				$args['meta_input']['registration_sold_out'] = true;
-			}
-		}
-
-		$time_ids  = wp_list_pluck( $event['relationships']['event_times']['data'], 'id' );
-		$date_time = current( $time_ids );
-
-		if ( empty( $date_time ) ) {
+		if ( empty( $time_id ) ) {
 			return false;
 		}
 
-		$start_date = $relational_data['EventTime'][ $date_time ]['attributes']['starts_at'] ?? '';
-		$end_date   = $relational_data['EventTime'][ $date_time ]['attributes']['ends_at'] ?? '';
-		$all_day    = $relational_data['EventTime'][ $date_time ]['attributes']['all_day'] ?? false;
+		$start_date = $relational_data['SignupTime'][ $time_id ]['attributes']['starts_at'] ?? '';
+		$end_date   = $relational_data['SignupTime'][ $time_id ]['attributes']['ends_at'] ?? '';
+		$all_day    = $relational_data['SignupTime'][ $time_id ]['attributes']['all_day'] ?? false;
 
 		if ( ! $start_date || ! $end_date ) {
 			return false;
 		}
 
-		$start_date = (new \DateTime( $start_date ))->setTimezone( wp_timezone() );
-		$end_date   = (new \DateTime( $end_date ))->setTimezone( wp_timezone() );
+		$start_date = ( new \DateTime( $start_date ) )->setTimezone( wp_timezone() );
+		$end_date   = ( new \DateTime( $end_date ) )->setTimezone( wp_timezone() );
 
-		$args['EventStartDate'] = $start_date->format( 'Y-m-d' );
-		$args['EventStartHour'] = $start_date->format( 'G' );
-		$args['EventStartMinute'] = $start_date->format( 'i' );
-		$args['EventEndDate'] = $end_date->format( 'Y-m-d' );
-		$args['EventEndHour'] = $end_date->format( 'G' );
-		$args['EventEndMinute'] = $end_date->format( 'i' );
+		// Begin stuffing the output. chms_id is prefixed with `reg_` so registrations
+		// and calendar events never collide in the shared store keyspace (plan §3/§4).
+		$args = [
+			'chms_id'        => 'reg_' . $signup['id'],
+			'post_status'    => 'publish',
+			'post_title'     => $signup['attributes']['name'] ?? '',
+			'post_content'   => $signup['attributes']['description'] ?? '',
+			'tax_input'      => [],
+			'event_category' => [],
+			'thumbnail_url'  => '',
+			'meta_input'     => [
+				'registration_url' => $signup['attributes']['new_registration_url'] ?? '',
+			],
+			'EventStartDate'   => $start_date->format( 'Y-m-d' ),
+			'EventStartHour'   => $start_date->format( 'G' ),
+			'EventStartMinute' => $start_date->format( 'i' ),
+			'EventEndDate'     => $end_date->format( 'Y-m-d' ),
+			'EventEndHour'     => $end_date->format( 'G' ),
+			'EventEndMinute'   => $end_date->format( 'i' ),
+		];
 
 		if ( $all_day ) {
 			$args['EventAllDay'] = true;
 		}
 
-		// Featured image
-		if ( ! empty( $event['attributes']['logo_url'] ) ) {
-			$args['thumbnail_url'] = $event['attributes']['logo_url'];
+		// at_maximum_capacity is only present when the sparse fieldset request
+		// succeeded; expose sold-out state only when we actually have the value.
+		if ( array_key_exists( 'at_maximum_capacity', $signup['attributes'] ?? [] ) ) {
+			$args['meta_input']['registration_sold_out'] = ! empty( $signup['attributes']['at_maximum_capacity'] );
 		}
 
-		$category_ids = wp_list_pluck( $event['relationships']['categories']['data'], 'id' );
-		$categories = [];
+		// Featured image
+		if ( ! empty( $signup['attributes']['logo_url'] ) ) {
+			$args['thumbnail_url'] = $signup['attributes']['logo_url'];
+		}
+
+		// Categories. The documented Category vertex has no slug, so derive a stable
+		// slug from the name (TEC does the same when given a non-string key).
+		$category_ids = wp_list_pluck( $signup['relationships']['categories']['data'] ?? [], 'id' );
+		$categories   = [];
 		foreach ( $category_ids as $category_id ) {
-			$data = $relational_data['Category'][ $category_id ]['attributes'];
-			$categories[ $data['slug'] ] = $data['name'];
+			$data = $relational_data['Category'][ $category_id ]['attributes'] ?? [];
+			if ( empty( $data['name'] ) ) {
+				continue;
+			}
+			$categories[ sanitize_title( $data['name'] ) ] = $data['name'];
 		}
 
 		if ( ! empty( $categories ) ) {
 			$args['event_category'] = $categories;
 		}
 
-		$location_ids = wp_list_pluck( $event['relationships']['event_location']['data'], 'id' );
+		// Location. signup_location is a to-one relationship; normalize to a list so
+		// either an object or an array of one is handled.
+		$location_rel = $signup['relationships']['signup_location']['data'] ?? [];
+		if ( isset( $location_rel['id'] ) ) {
+			$location_rel = [ $location_rel ];
+		}
+		$location_ids = wp_list_pluck( $location_rel, 'id' );
 		foreach ( $location_ids as $location_id ) {
-			$data = $relational_data['Location'][ $location_id ]['attributes'];
+			$data     = $relational_data['SignupLocation'][ $location_id ]['attributes'] ?? [];
 			$location = $this->get_location_details( $data );
 			if ( ! empty( $location['Venue'] ) ) {
 				$args['Venue'] = $location;
@@ -1577,28 +1559,40 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 */
 	public function get_registration_filter_config() {
 		return [
+			// Signup has no date attributes of its own; the dates live on the related
+			// SignupTime rows. DataFilter's relation lookup resolves a single related
+			// id, so we point at the FIRST signup_time (`...data.0.id`) and read its
+			// starts_at/ends_at. Signups with multiple times are filtered on their
+			// first occurrence — a documented, pragmatic limitation of the single-id
+			// relation mechanism (see review notes / needs live verification).
 			'start_date' => [
-				'label' => __( 'Start Date', 'cp-sync' ),
-				'path'  => 'attributes.first_event_date',
+				'label'         => __( 'Start Date', 'cp-sync' ),
+				'path'          => 'relationships.signup_times.data.0.id',
+				'relation'      => 'SignupTime',
+				'relation_path' => 'attributes.starts_at',
+				'type'          => 'date',
+				'supports'      => [ 'is_greater_than', 'is_less_than' ],
 			],
 			'end_date' => [
-				'label' => __( 'End Date', 'cp-sync' ),
-				'path'  => 'attributes.ends_at',
+				'label'         => __( 'End Date', 'cp-sync' ),
+				'path'          => 'relationships.signup_times.data.0.id',
+				'relation'      => 'SignupTime',
+				'relation_path' => 'attributes.ends_at',
+				'type'          => 'date',
+				'supports'      => [ 'is_greater_than', 'is_less_than' ],
 			],
 			'event_name' => [
-				'label'         => __( 'Event Name', 'cp-sync' ),
-				'path'          => 'attributes.name',
-			],
-			'visible_in_church_center' => [
-				'label'         => __( 'Visible in Church Center', 'cp-sync' ),
-				'path'          => 'relationships.event.data.id',
-				'relation'      => 'Event',
-				'relation_path' => 'attributes.visible_in_church_center',
+				'label'    => __( 'Event Name', 'cp-sync' ),
+				'path'     => 'attributes.name',
+				'type'     => 'text',
+				'supports' => [ 'contains', 'does_not_contain', 'is_empty', 'is_not_empty', 'is', 'is_not' ],
 			],
 			'registration_category' => [
-				'label'         => __( 'Category', 'cp-sync' ),
-				'path'          => 'relationships.categories.data',
-				'format'        => fn( $value ) => wp_list_pluck( $value, 'id' ),
+				'label'    => __( 'Category', 'cp-sync' ),
+				'path'     => 'relationships.categories.data',
+				'format'   => fn( $value ) => wp_list_pluck( $value, 'id' ),
+				'type'     => 'select',
+				'supports' => [ 'is', 'is_not', 'is_empty', 'is_not_empty', 'is_in', 'is_not_in' ],
 			],
 		];
 	}

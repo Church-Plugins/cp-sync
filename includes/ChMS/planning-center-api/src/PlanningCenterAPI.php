@@ -334,6 +334,22 @@ class PlanningCenterAPI
     }
 
     /**
+     * Set an arbitrary GET parameter on the request. Useful for JSON:API options
+     * that have no dedicated helper, e.g. sparse fieldsets: param('fields[Signup]',
+     * 'name,at_maximum_capacity'). The key/value are appended verbatim to the URL.
+     *
+     * @param $key
+     * @param $value
+     * @return $this
+     */
+    public function param($key, $value)
+    {
+        $this->parameters[$key] = $value;
+
+        return $this;
+    }
+
+    /**
      * Specify the data to be used in the POST or PUT operations
      *
      * @param $data
