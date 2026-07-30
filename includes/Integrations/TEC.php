@@ -17,7 +17,11 @@ class TEC extends Integration {
 
 	public function actions() {
 		parent::actions();
-		 add_action( 'tribe_events_single_event_before_the_content', [ $this, 'maybe_add_registration_button'] );
+		// Append via the_content rather than the legacy
+		// `tribe_events_single_event_before_the_content` action: TEC's V2 single-event
+		// views ( default since TEC 5 ) do not fire the legacy action, so it never
+		// rendered. the_content is used by both V2 and classic single templates.
+		add_filter( 'the_content', [ $this, 'maybe_add_registration_button' ] );
 	}
 
 	public function update_item( $item ) {
@@ -205,46 +209,59 @@ class TEC extends Integration {
 		register_taxonomy( $taxonomy, 'tribe_events', $args );
 	}
 
-	public function maybe_add_registration_button() {
-
-		if ( ! apply_filters( 'cp_sync_show_event_registration_button', false, get_the_ID() ) ) {
-			return;
+	/**
+	 * Append the Register button to a single event's content.
+	 *
+	 * Runs on the_content ( see actions() for why not the legacy action ). Guarded to
+	 * the main single-event query so it never leaks into feeds, excerpts, or secondary
+	 * loops. Visibility is driven by the global `showEventRegisterButton` setting
+	 * ( default on ), still overridable via the `cp_sync_show_event_registration_button`
+	 * filter. Renders only when the event carries a registration_url.
+	 *
+	 * @param string $content The post content.
+	 * @return string
+	 */
+	public function maybe_add_registration_button( $content ) {
+		if ( ! is_singular( 'tribe_events' ) || ! in_the_loop() || ! is_main_query() ) {
+			return $content;
 		}
 
-		if ( ! $registration_url = get_post_meta( get_the_ID(), 'registration_url', true ) ) {
-			return;
+		$post_id = get_the_ID();
+
+		$show = (bool) \CP_Sync\Admin\Settings::get( 'showEventRegisterButton', true, 'cp_sync_settings' );
+
+		if ( ! apply_filters( 'cp_sync_show_event_registration_button', $show, $post_id ) ) {
+			return $content;
 		}
 
-		$button_text = __( 'Register', 'cp-sync' );
+		$registration_url = get_post_meta( $post_id, 'registration_url', true );
+
+		if ( ! $registration_url ) {
+			return $content;
+		}
+
+		$button_text  = __( 'Register', 'cp-sync' );
 		$button_class = 'tribe-common-c-btn';
 
-		if ( get_post_meta( get_the_ID(), 'registration_sold_out', true ) ) {
-			$button_text = __( 'Sold Out', 'cp-sync' );
+		if ( get_post_meta( $post_id, 'registration_sold_out', true ) ) {
+			$button_text   = __( 'Sold Out', 'cp-sync' );
 			$button_class .= ' disabled';
 		}
 
-		?>
-		<div class="tribe-common cp-sync--register-cont">
-			<a href="<?php echo esc_url( $registration_url ); ?>" class="<?php echo esc_attr( $button_class ); ?>"><?php echo esc_html( $button_text ); ?></a>
-		</div>
+		$button = sprintf(
+			'<div class="tribe-common cp-sync--register-cont"><a href="%1$s" class="%2$s">%3$s</a></div>',
+			esc_url( $registration_url ),
+			esc_attr( $button_class ),
+			esc_html( $button_text )
+		);
 
-		<style>
-			.cp-sync--register-cont {
-				margin-bottom: var(--tec-spacer-7);
-				text-align: right;
-			}
+		$button .= '<style>
+			.cp-sync--register-cont { margin-bottom: var(--tec-spacer-7); text-align: right; }
+			.tribe-common.cp-sync--register-cont .tribe-common-c-btn { width: auto; }
+			.cp-sync--register-cont .disabled { opacity: 0.5; pointer-events: none; cursor: default; }
+		</style>';
 
-			.tribe-common.cp-sync--register-cont .tribe-common-c-btn {
-				width: auto;
-			}
-
-			.cp-sync--register-cont .disabled {
-				opacity: 0.5;
-				pointer-events: none;
-				cursor: default;
-			}
-		</style>
-		<?php
+		return $content . $button;
 	}
 
 }
