@@ -433,13 +433,22 @@ class _Init {
 
 		cp_sync()->logging->log( 'OAuth token saved' );
 
-		$target_origin = parse_url( home_url(), PHP_URL_SCHEME ) . '://' . parse_url( home_url(), PHP_URL_HOST );
+		// The opener (settings SPA) lives under wp-admin, so target the admin
+		// origin — on sites where WP_SITEURL differs from WP_HOME, posting to the
+		// home origin would be silently dropped by the browser.
+		$target_origin = parse_url( admin_url(), PHP_URL_SCHEME ) . '://' . parse_url( admin_url(), PHP_URL_HOST );
 		?>
 		<script>
-			window.postMessage({
-				success: true,
-				type: 'cp_sync_oauth',
-			}, '<?php echo esc_url( $target_origin ); ?>');
+			// Post the result to the window that opened this popup, then close.
+			// The opener listens on its own window (see util/oauth.js); this popup's
+			// own listeners were destroyed by the cross-origin OAuth navigations.
+			( function () {
+				var data = { success: true, type: 'cp_sync_oauth' };
+				if ( window.opener && ! window.opener.closed ) {
+					window.opener.postMessage( data, '<?php echo esc_url( $target_origin ); ?>' );
+				}
+				window.close();
+			} )();
 		</script>
 		<?php
 	}
