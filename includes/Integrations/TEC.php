@@ -147,10 +147,24 @@ class TEC extends Integration {
 				cp_sync()->logging->log( "Linked venue {$venue_id} to event {$id}" );
 			}
 
-			// Event website ( TEC "Event Website" field ). Populated from the source's
-			// public URL when available ( PCO registration/signup URL ).
+			// Event website ( TEC "Event Website" field ). Set from the source's public
+			// URL when available, and CLEARED when absent so removing it at the source
+			// ( or switching a feed that no longer provides one ) propagates instead of
+			// leaving a stale link.
 			if ( ! empty( $item['EventURL'] ) ) {
 				update_post_meta( $id, '_EventURL', esc_url_raw( $item['EventURL'] ) );
+			} else {
+				delete_post_meta( $id, '_EventURL' );
+			}
+
+			// Arbitrary post meta the formatter asked us to persist ( e.g. the
+			// registration_url that drives the Register button ). tribe_update_event()
+			// only handles its own known fields, so meta_input was silently dropped
+			// before — write it here.
+			if ( ! empty( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) {
+				foreach ( $item['meta_input'] as $meta_key => $meta_value ) {
+					update_post_meta( $id, $meta_key, $meta_value );
+				}
 			}
 		}
 
