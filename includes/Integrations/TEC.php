@@ -228,7 +228,13 @@ class TEC extends Integration {
 
 		$post_id = get_the_ID();
 
-		$show = (bool) \CP_Sync\Admin\Settings::get( 'showEventRegisterButton', true, 'cp_sync_settings' );
+		// Visibility is the active ChMS's per-events-tab "Show Register button" setting
+		// ( default on ). The events settings group name differs per ChMS, so ask the
+		// ChMS for it. Still overridable via the filter.
+		$active = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
+		$show   = $active
+			? (bool) $active->get_setting( 'show_register_button', true, $active->get_events_settings_group() )
+			: true;
 
 		if ( ! apply_filters( 'cp_sync_show_event_registration_button', $show, $post_id ) ) {
 			return $content;

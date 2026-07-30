@@ -196,6 +196,20 @@ abstract class ChMS {
 	}
 
 	/**
+	 * The settings-group key under which this ChMS stores its EVENTS settings.
+	 *
+	 * The group names are historically inconsistent ( CCB uses `events`, PCO uses the
+	 * legacy `ecp` ), so display-time readers ( e.g. the TEC Register-button toggle )
+	 * ask the active ChMS rather than guessing. Base default is `events`; PCO overrides.
+	 *
+	 * @since 0.4.0
+	 * @return string
+	 */
+	public function get_events_settings_group() {
+		return 'events';
+	}
+
+	/**
 	 * Build the shared feed sync-enable toggle FieldDefs for the connect screen.
 	 *
 	 * Stored as `connect.sync_{type}` booleans so an admin can turn a feed's sync on
@@ -302,6 +316,12 @@ abstract class ChMS {
 
 				if ( isset( $section['description'] ) ) {
 					$formatted_section['description'] = $section['description'];
+				}
+
+				// Section-level conditional visibility ( same shape as a field's
+				// show_if ) — the client collapses the whole section when it fails.
+				if ( isset( $section['show_if'] ) ) {
+					$formatted_section['show_if'] = $section['show_if'];
 				}
 
 				$formatted_fields = [];

@@ -283,6 +283,15 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * @since 0.4.0
 	 * @return array
 	 */
+	/**
+	 * PCO stores events settings under the legacy `ecp` group.
+	 *
+	 * @return string
+	 */
+	public function get_events_settings_group() {
+		return 'ecp';
+	}
+
 	public function get_settings_schema() {
 		$schema = [
 			// OAuth connect/disconnect is an action widget ( no persisted credential
@@ -334,7 +343,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'ecp' => [
 				'label'    => __( 'Events', 'cp-sync' ),
 				'sections' => [
+					// --- Source + general event options ---
 					[
+						'title'  => __( 'Event Source', 'cp-sync' ),
 						'fields' => [
 							'source' => [
 								'type'    => 'radio',
@@ -346,15 +357,31 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 									[ 'value' => 'both', 'label' => __( 'Calendar AND Registrations', 'cp-sync' ) ],
 								],
 							],
-							// The calendar-only controls below mirror the tab, which only
-							// render them when `source` includes calendar ( `calendar` or
-							// `both` ). `show_if.is` is an array = in-list match.
+							'show_register_button' => [
+								'type'    => 'toggle',
+								'label'   => __( 'Show Register button on events', 'cp-sync' ),
+								'default' => true,
+								'help'    => __( 'Adds a Register button to synced events that have a registration link ( Planning Center registrations ). Turn off to hide it.', 'cp-sync' ),
+							],
+							// Shown only when both sources are enabled — warns that an event
+							// published in both apps imports twice ( no dedup ).
+							'events_dedup_notice' => [
+								'type'    => 'notice',
+								'message' => __( 'Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.', 'cp-sync' ),
+								'show_if' => [ 'field' => 'source', 'is' => 'both' ],
+							],
+						],
+					],
+					// --- Calendar settings ( whole section hides unless calendar is on ) ---
+					[
+						'title'   => __( 'Calendar Settings', 'cp-sync' ),
+						'show_if' => [ 'field' => 'source', 'is' => [ 'calendar', 'both' ] ],
+						'fields'  => [
 							'tag_groups' => [
 								'type'     => 'async-multiselect',
 								'label'    => __( 'Tag groups', 'cp-sync' ),
 								'help'     => __( 'Pull these tag groups as separate taxonomies for The Events Calendar.', 'cp-sync' ),
 								'endpoint' => '/cp-sync/v1/pco/events/tag_groups',
-								'show_if'  => [ 'field' => 'source', 'is' => [ 'calendar', 'both' ] ],
 							],
 							'visibility' => [
 								'type'    => 'radio',
@@ -364,27 +391,23 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 									[ 'value' => 'all', 'label' => __( 'Show All', 'cp-sync' ) ],
 									[ 'value' => 'public', 'label' => __( 'Only Visible in Church Center', 'cp-sync' ) ],
 								],
-								'show_if' => [ 'field' => 'source', 'is' => [ 'calendar', 'both' ] ],
-							],
-							// When both sources are enabled the two filter builders sit
-							// adjacent; this disclaimer renders above them ( field order )
-							// to warn that events are not deduplicated across the two apps.
-							'events_dedup_notice' => [
-								'type'    => 'notice',
-								'message' => __( 'Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.', 'cp-sync' ),
-								'show_if' => [ 'field' => 'source', 'is' => 'both' ],
 							],
 							'filter' => [
 								'type'        => 'filter-builder',
 								'label'       => __( 'Calendar Filters', 'cp-sync' ),
 								'filterGroup' => 'events',
-								'show_if'     => [ 'field' => 'source', 'is' => [ 'calendar', 'both' ] ],
 							],
+						],
+					],
+					// --- Registrations settings ( hides unless registrations is on ) ---
+					[
+						'title'   => __( 'Registration Settings', 'cp-sync' ),
+						'show_if' => [ 'field' => 'source', 'is' => [ 'registrations', 'both' ] ],
+						'fields'  => [
 							'registration_filter' => [
 								'type'        => 'filter-builder',
-								'label'       => __( 'Registrations Filters', 'cp-sync' ),
+								'label'       => __( 'Registration Filters', 'cp-sync' ),
 								'filterGroup' => 'events_registrations',
-								'show_if'     => [ 'field' => 'source', 'is' => [ 'registrations', 'both' ] ],
 							],
 						],
 					],

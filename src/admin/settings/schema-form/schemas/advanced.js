@@ -32,15 +32,6 @@ const advancedSchema = {
 						{ value: 'weekly', label: __( 'Weekly', 'cp-sync' ) },
 					],
 				},
-				showEventRegisterButton: {
-					type: 'toggle',
-					label: __( 'Show Register button on events', 'cp-sync' ),
-					default: true,
-					help: __(
-						'Adds a Register button to synced events that have a registration link (e.g. Planning Center signups). Turn off to hide it.',
-						'cp-sync'
-					),
-				},
 			},
 		},
 	],
