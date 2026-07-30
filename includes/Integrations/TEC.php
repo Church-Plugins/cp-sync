@@ -137,12 +137,21 @@ class TEC extends Integration {
 			}
 		}
 
-		// Link the venue directly. tribe_update_event()/create() do not reliably
-		// associate the venue from the `venue` arg on update ( verified TEC 6.15.13 ),
-		// so set the meta explicitly once we have the event id — matching the CCB path.
-		if ( ! empty( $venue_id ) && ! empty( $id ) ) {
-			update_post_meta( $id, '_EventVenueID', $venue_id );
-			cp_sync()->logging->log( "Linked venue {$venue_id} to event {$id}" );
+		// Set venue + website meta directly. tribe_update_event()/create() do not
+		// reliably persist the `venue`/`url` args on update ( verified TEC 6.15.13 —
+		// the ORM ignores them ), so write the meta explicitly once we have the event
+		// id — matching the CCB integration's approach.
+		if ( ! empty( $id ) ) {
+			if ( ! empty( $venue_id ) ) {
+				update_post_meta( $id, '_EventVenueID', $venue_id );
+				cp_sync()->logging->log( "Linked venue {$venue_id} to event {$id}" );
+			}
+
+			// Event website ( TEC "Event Website" field ). Populated from the source's
+			// public URL when available ( PCO registration/signup URL ).
+			if ( ! empty( $item['EventURL'] ) ) {
+				update_post_meta( $id, '_EventURL', esc_url_raw( $item['EventURL'] ) );
+			}
 		}
 
 		// TEC categories

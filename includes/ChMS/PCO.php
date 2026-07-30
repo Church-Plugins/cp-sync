@@ -1584,6 +1584,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'tax_input'      => [],
 			'event_category' => [],
 			'thumbnail_url'  => '',
+			// The signup page is the event's public website (TEC "Event Website"
+			// field, mapped from EventURL in Integrations\TEC). Empty values are
+			// dropped downstream by array_filter.
+			'EventURL'       => $signup['attributes']['new_registration_url'] ?? '',
 			'meta_input'     => [
 				'registration_url' => $signup['attributes']['new_registration_url'] ?? '',
 			],
