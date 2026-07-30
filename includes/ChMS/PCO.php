@@ -1584,10 +1584,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'tax_input'      => [],
 			'event_category' => [],
 			'thumbnail_url'  => '',
-			// The signup page is the event's public website (TEC "Event Website"
-			// field, mapped from EventURL in Integrations\TEC). Empty values are
-			// dropped downstream by array_filter.
-			'EventURL'       => $signup['attributes']['new_registration_url'] ?? '',
+			// Deliberately NO EventURL ( TEC "Event Website" ) for registrations: the
+			// only URL PCO exposes is the signup/reservation page, which already has a
+			// home as the "Register" button ( registration_url meta below ). Pointing
+			// the website field at the same reservation form would be redundant and
+			// would send visitors into a form instead of an event page.
 			'meta_input'     => [
 				'registration_url' => $signup['attributes']['new_registration_url'] ?? '',
 			],

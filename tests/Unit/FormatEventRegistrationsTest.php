@@ -128,8 +128,9 @@ class FormatEventRegistrationsTest extends TestCase {
 		// Registration URL used directly, no suffix.
 		$this->assertSame( 'https://church.center/signups/77', $result['meta_input']['registration_url'] );
 
-		// The signup page also populates the TEC event website (EventURL).
-		$this->assertSame( 'https://church.center/signups/77', $result['EventURL'] );
+		// Registrations do NOT populate the TEC event website — the signup URL is the
+		// Register button only, not the website field.
+		$this->assertArrayNotHasKey( 'EventURL', $result );
 
 		// Sold-out derived from at_maximum_capacity when present.
 		$this->assertTrue( $result['meta_input']['registration_sold_out'] );
