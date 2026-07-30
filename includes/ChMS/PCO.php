@@ -214,15 +214,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		};
 
 		$this->add_rest_route(
-			'groups/types',
-			[
-				'methods'             => 'GET',
-				'callback'            => [ $this, 'fetch_group_types' ],
-				'permission_callback' => $options_permission,
-			]
-		);
-
-		$this->add_rest_route(
 			'groups/tag_groups',
 			[
 				'methods'             => 'GET',
@@ -311,15 +302,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				'sections' => [
 					[
 						'fields' => [
-							'types' => [
-								'type'     => 'async-multiselect',
-								'label'    => __( 'Group Types', 'cp-sync' ),
-								'endpoint' => '/cp-sync/v1/pco/groups/types',
-							],
 							'tag_groups' => [
 								'type'     => 'async-multiselect',
-								'label'    => __( 'Relevant Tag Groups to Include', 'cp-sync' ),
-								'help'     => __( 'Pull these tag groups as separate taxonomies for CP Groups.', 'cp-sync' ),
+								'label'    => __( 'Group Tags to Sync', 'cp-sync' ),
+								'help'     => __( 'Each selected Planning Center tag group is added to your site as a group category and shown as a filter on the groups page — e.g. a "Life Stage" tag group becomes a Life Stage filter.', 'cp-sync' ),
 								'endpoint' => '/cp-sync/v1/pco/groups/tag_groups',
 							],
 							'visibility' => [
@@ -961,35 +947,35 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Get group types from PCO - a rest endpoint handler
+	 * Convert a PCO API error payload into a REST-ready ChMSError.
+	 *
+	 * PCO error bodies decode to `[ 'errors' => [ [ 'status', 'title', 'detail' ] ] ]`
+	 * ( PlanningCenterAPI::saveErrorMessage() ). The HTTP status is forwarded so the
+	 * client can distinguish permission failures ( 401/403 ) from transient ones,
+	 * and the message is flattened to a string ( WP_Error messages must not be arrays ).
+	 *
+	 * @param mixed $error The decoded payload from PlanningCenterAPI::errorMessage().
+	 * @return ChMSError
 	 */
-	public function fetch_group_types() {
-		$raw = $this->api()
-			->module( 'groups' )
-			->table( 'group_types' )
-			->get();
-			
-		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+	protected function api_error_to_rest_error( $error ) {
+		$status = 500;
+		$detail = '';
+
+		if ( is_array( $error ) && ! empty( $error['errors'][0] ) ) {
+			$first  = $error['errors'][0];
+			$status = absint( $first['status'] ?? 0 ) ?: 500;
+			$detail = $first['detail'] ?? $first['title'] ?? '';
+		} elseif ( is_string( $error ) ) {
+			$detail = $error;
 		}
 
-		if ( empty( $raw ) ) {
-			return new ChMSError( 'pco_data_not_found', 'The data was not found in PCO' );
+		if ( ! $detail ) {
+			$detail = __( 'The request to Planning Center failed.', 'cp-sync' );
 		}
 
-		$group_types = $raw['data'] ? (array) $raw['data'] : [];
+		$code = in_array( $status, [ 401, 403 ], true ) ? 'pco_permission_denied' : 'pco_fetch_error';
 
-		$formatted = [];
-
-		foreach ( $group_types as $group_type ) {
-			$formatted[] = [
-				'id'   => $group_type['id'],
-				'name' => $group_type['attributes']['name'] ?? '',
-				'desc' => $group_type['attributes']['description'] ?? '',
-			];
-		}
-
-		return wp_send_json_success( $formatted, 200 );
+		return new ChMSError( $code, $detail, [ 'status' => $status ] );
 	}
 
 	/**
@@ -1000,9 +986,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->module( 'groups' )
 			->table( 'tag_groups' )
 			->get();
-		
+
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+			return $this->api_error_to_rest_error( $this->api()->errorMessage() );
 		}
 
 		if ( empty( $raw ) ) {
@@ -1037,7 +1023,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+			return $this->api_error_to_rest_error( $this->api()->errorMessage() );
 		}
 
 		if ( empty( $raw ) ) {
@@ -2021,9 +2007,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->module( 'calendar' )
 			->table( 'tag_groups' )
 			->get();
-		
+
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+			return $this->api_error_to_rest_error( $this->api()->errorMessage() );
 		}
 
 		if ( empty( $raw ) ) {
@@ -2058,7 +2044,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+			return $this->api_error_to_rest_error( $this->api()->errorMessage() );
 		}
 
 		if ( empty( $raw ) ) {
@@ -2089,7 +2075,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+			return $this->api_error_to_rest_error( $this->api()->errorMessage() );
 		}
 
 		if ( empty( $raw ) ) {

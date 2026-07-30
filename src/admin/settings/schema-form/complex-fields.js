@@ -8,7 +8,9 @@
  * `schema-form/index.js`).
  */
 
+import { __, sprintf } from '@wordpress/i18n';
 import { useSelect } from '@wordpress/data';
+import { Notice } from '@wordpress/components';
 import globalStore from '../store/globalStore';
 import { registerFieldType } from './registry';
 import Filters from '../components/filters';
@@ -61,11 +63,12 @@ function FilterBuilderField( { field, value, onChange } ) {
  * @return {JSX.Element} The async multiselect field.
  */
 function AsyncMultiselectField( { field, value, onChange, disabled } ) {
-	const { options, loading } = useSelect(
+	const { options, error, loading } = useSelect(
 		( select ) => {
 			const store = select( globalStore );
 			return {
 				options: store.getOptions( field.endpoint ) || [],
+				error: store.getOptionsError( field.endpoint ),
 				loading:
 					store.getResolutionState( 'getOptions', [ field.endpoint ] )
 						?.status === 'resolving',
@@ -74,17 +77,39 @@ function AsyncMultiselectField( { field, value, onChange, disabled } ) {
 		[ field.endpoint ]
 	);
 
+	const permissionDenied =
+		!! error && [ 401, 403 ].includes( error.status );
+
 	return (
-		<MultiTokenField
-			label={ field.label }
-			help={ field.help }
-			value={ value }
-			options={ options }
-			onChange={ onChange }
-			disabled={ disabled || loading }
-			valueKey="id"
-			labelKey="name"
-		/>
+		<>
+			<MultiTokenField
+				label={ field.label }
+				help={ field.help }
+				value={ value }
+				options={ options }
+				onChange={ onChange }
+				disabled={ disabled || loading || !! error }
+				valueKey="id"
+				labelKey="name"
+			/>
+			{ error && (
+				<Notice status="warning" isDismissible={ false }>
+					{ permissionDenied
+						? __(
+								'The connected account does not have permission to access these options, so this field has been disabled. Grant the account access or reconnect with an account that has permission.',
+								'cp-sync'
+						  )
+						: sprintf(
+								/* translators: %s: error message from the server. */
+								__(
+									'These options could not be loaded, so this field has been disabled. Error: %s',
+									'cp-sync'
+								),
+								error.message
+						  ) }
+				</Notice>
+			) }
+		</>
 	);
 }
 

@@ -408,7 +408,7 @@ abstract class ChMS {
 	 * Non-string scalars ( bool, int, float ) and null are preserved untouched so
 	 * legitimately typed values are not corrupted. This is the fallback used for
 	 * settings the schema deliberately does not declare ( custom-widget keys such as
-	 * `facets`, `date_range_mode`, `date_start`, `date_end`, `enrollment_*` ) — such
+	 * `date_range_mode`, `date_start`, `date_end`, `enrollment_*` ) — such
 	 * keys are never dropped or rejected.
 	 *
 	 * REST request params are not slash-escaped ( unlike $_POST ), so no wp_unslash()

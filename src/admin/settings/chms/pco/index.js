@@ -21,12 +21,10 @@ export default {
 			group: 'cp_groups',
 			type: 'groups',
 			defaultData: {
-				types: [],
 				tag_groups: [],
 				visibility: 'public',
 				enrollment_status: [],
 				enrollment_strategies: [],
-				facets: [],
 				filter: {
 					type: 'all',
 					conditions: [],
