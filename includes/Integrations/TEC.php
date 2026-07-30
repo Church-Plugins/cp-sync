@@ -147,6 +147,14 @@ class TEC extends Integration {
 				cp_sync()->logging->log( "Linked venue {$venue_id} to event {$id}" );
 			}
 
+			// Post excerpt ( e.g. the PCO calendar `summary` short blurb ). Not a TEC
+			// ORM field, so tribe_update_event()/create() drop it — write the core
+			// post column directly. Left untouched when the source provides none, so
+			// WordPress can still auto-generate one from the content.
+			if ( isset( $item['post_excerpt'] ) && '' !== trim( (string) $item['post_excerpt'] ) ) {
+				wp_update_post( [ 'ID' => $id, 'post_excerpt' => $item['post_excerpt'] ] );
+			}
+
 			// Event website ( TEC "Event Website" field ). Set from the source's public
 			// URL when available, and CLEARED when absent so removing it at the source
 			// ( or switching a feed that no longer provides one ) propagates instead of
