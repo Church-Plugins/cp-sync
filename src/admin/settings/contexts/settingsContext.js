@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import globalStore from '../store/globalStore'
 import { useDispatch, useSelect, select as selectStore } from '@wordpress/data'
+import LoadingSkeleton from '../components/loading-skeleton'
 
 const SettingsContext = createContext({
 	chms: null,
@@ -171,7 +172,7 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 
 	return (
 		<SettingsContext.Provider value={value}>
-			{isReady && children}
+			{isReady ? children : <LoadingSkeleton />}
 		</SettingsContext.Provider>
 	)
 }
