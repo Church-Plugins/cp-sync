@@ -263,7 +263,7 @@ abstract class ChMS {
 				'type'    => 'toggle',
 				'label'   => __( 'Sync Sermons', 'cp-sync' ),
 				'default' => self::sync_toggle_default( 'sermons' ),
-				'help'    => __( 'When enabled, sermons are synced from your ChMS to CP Library.', 'cp-sync' ),
+				'help'    => __( 'When enabled, sermons are synced from your ChMS to CP Sermons.', 'cp-sync' ),
 			];
 
 			if ( empty( $availability['sermons'] ) ) {

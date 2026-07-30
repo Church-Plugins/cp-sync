@@ -271,6 +271,16 @@ body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-sync {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+
+  // Action buttons size to their label instead of stretching to the flex
+  // container's full width (notices and the log textarea should still stretch).
+  > .components-button {
+    align-self: flex-start;
+  }
+
+  .components-button .components-spinner {
+    margin: 0 8px 0 0;
+  }
 }
 
 .cps-license-actions__row {

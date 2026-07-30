@@ -26,6 +26,13 @@ class Settings {
 	public $license;
 
 	/**
+	 * The settings page hook suffix, returned by add_submenu_page().
+	 *
+	 * @var string|false
+	 */
+	protected $hook_suffix = false;
+
+	/**
 	 * Only make one instance of \CP_Sync\Settings
 	 *
 	 * @return Settings
@@ -81,6 +88,11 @@ class Settings {
 	 * Class constructor. Add admin hooks and actions
 	 */
 	protected function __construct() {
+		// Opt into the shared "Church Plugins" parent menu. Declared here (before
+		// `admin_menu` fires) so the parent is registered and our submenu can
+		// attach to it in settings_page().
+		\ChurchPlugins\Admin\Menu::add_support();
+
 		add_action( 'admin_menu', [ $this, 'settings_page' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
 
@@ -95,9 +107,9 @@ class Settings {
 	 * @since 1.1.0
 	 */
 	public function settings_page() {
-		add_submenu_page(
-			'options-general.php',
-			__( 'Settings', 'cp-sync' ),
+		$this->hook_suffix = add_submenu_page(
+			\ChurchPlugins\Admin\Menu::get_slug(),
+			__( 'CP Sync', 'cp-sync' ),
 			__( 'CP Sync', 'cp-sync' ),
 			'manage_options',
 			'cps_settings',
@@ -178,7 +190,7 @@ class Settings {
 	 */
 	public function enqueue_scripts() {
 		$screen = get_current_screen();
-		if ( 'settings_page_cps_settings' !== $screen->id ) {
+		if ( ! $screen || $screen->id !== $this->hook_suffix ) {
 			return;
 		}
 

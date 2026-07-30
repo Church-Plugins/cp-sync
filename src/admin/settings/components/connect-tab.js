@@ -57,7 +57,7 @@ function ConnectTab() {
 			<div className="cps-chms-picker">
 				<SelectControl
 					className="cps-chms-select"
-					label={ __( 'ChMS', 'cp-sync' ) }
+					label={ __( 'Church Management System', 'cp-sync' ) }
 					value={ chms }
 					options={ options }
 					onChange={ ( value ) =>
