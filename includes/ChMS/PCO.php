@@ -1456,10 +1456,16 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$args['thumbnail_url'] = $event['attributes']['image_url'];
 		}
 
-		// Generic location - a long string with an entire address
-		// if ( ! empty( $event_instance['attributes']['location'] ) ) {
-		// 	$args['tax_input']['cp_location'] = $event_instance['attributes']['location'];
-		// }
+		// Venue. Calendar event instances carry the venue as a single free-text
+		// `location` string ( e.g. "Church - 401 Wabash Ave, Granite Falls, WA 98252,
+		// USA" ) right in the main query — no enrichment call needed. Parse it into
+		// TEC's EventVenue contract; empty/unparseable values yield no venue.
+		if ( ! empty( $event_instance['attributes']['location'] ) ) {
+			$venue = self::parse_calendar_location( $event_instance['attributes']['location'] );
+			if ( ! empty( $venue['venue'] ) ) {
+				$args['EventVenue'] = $venue;
+			}
+		}
 
 		// Get the event's tags and pair them with appropriate taxonomies
 		$tags = wp_list_pluck( $event_instance['relationships']['tags']['data'], 'id' );
@@ -1701,6 +1707,81 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			} else {
 				// Non-US / unparseable locality: keep it rather than drop it.
 				$venue['city'] = $lines[1];
+			}
+		}
+
+		return $venue;
+	}
+
+	/**
+	 * Parse a Calendar event instance's free-text `location` string into TEC venue args.
+	 *
+	 * PCO Calendar exposes the venue as one string on the event instance ( in the main
+	 * query — no enrichment needed ), typically:
+	 *   "{name} - {street}, {city}, {ST} {zip}, {country}"
+	 * e.g. "Church - 401 Wabash Ave, Granite Falls, WA 98252, USA".
+	 *
+	 * It is free text, though, so it may be just a room name ( "Room 101" ) with no
+	 * address. Strategy: split the name off the leading "… - " when present, then scan
+	 * the comma-separated remainder for a "ST ZIP" part to anchor state/zip, treating
+	 * what precedes it as street/city and dropping a trailing country. Anything that
+	 * doesn't fit degrades to a venue name only rather than being dropped.
+	 *
+	 * Returns TEC's EventVenue contract ( lowercase venue/address/city/state/zip ), or
+	 * [] when there is nothing usable. Pure ( no WordPress calls ) so it is unit-testable.
+	 *
+	 * @param string $location The event instance `location` attribute.
+	 * @return array
+	 */
+	public static function parse_calendar_location( $location ) {
+		$location = trim( (string) $location );
+
+		if ( '' === $location ) {
+			return [];
+		}
+
+		// Split a leading venue name off "Name - address…" ( first " - " only ).
+		$name = '';
+		$rest = $location;
+		if ( false !== strpos( $location, ' - ' ) ) {
+			list( $name, $rest ) = explode( ' - ', $location, 2 );
+			$name = trim( $name );
+			$rest = trim( $rest );
+		}
+
+		$parts = array_values( array_filter( array_map( 'trim', explode( ',', $rest ) ) ) );
+
+		// No comma-structured address → the whole thing is just a venue name.
+		if ( count( $parts ) < 2 ) {
+			$venue_name = '' !== $name ? $name : $location;
+			return '' !== $venue_name ? [ 'venue' => $venue_name ] : [];
+		}
+
+		$venue = [ 'venue' => '' !== $name ? $name : $parts[0] ];
+
+		// Find the "ST ZIP" segment ( e.g. "WA 98252" / "WA 98252-1234" ).
+		$state_zip_idx = null;
+		foreach ( $parts as $i => $part ) {
+			if ( preg_match( '/^([A-Za-z]{2})\s+([0-9]{5}(?:-[0-9]{4})?)\z/', $part, $m ) ) {
+				$venue['state'] = strtoupper( $m[1] );
+				$venue['zip']   = $m[2];
+				$state_zip_idx  = $i;
+				break;
+			}
+		}
+
+		if ( null !== $state_zip_idx ) {
+			// Street = first part; city = whatever sits between street and state/zip.
+			$venue['address'] = $parts[0];
+			$city_parts       = array_slice( $parts, 1, $state_zip_idx - 1 );
+			if ( ! empty( $city_parts ) ) {
+				$venue['city'] = implode( ', ', $city_parts );
+			}
+		} else {
+			// No state/zip anchor: keep the first line as the street, best-effort.
+			$venue['address'] = $parts[0];
+			if ( isset( $parts[1] ) ) {
+				$venue['city'] = $parts[1];
 			}
 		}
 
