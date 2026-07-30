@@ -262,7 +262,7 @@ class TEC extends Integration {
 		);
 
 		$button .= '<style>
-			.cp-sync--register-cont { margin-bottom: var(--tec-spacer-7); text-align: right; }
+			.cp-sync--register-cont { margin-bottom: var(--tec-spacer-7); }
 			.tribe-common.cp-sync--register-cont .tribe-common-c-btn { width: auto; }
 			.cp-sync--register-cont .disabled { opacity: 0.5; pointer-events: none; cursor: default; }
 		</style>';
