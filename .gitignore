@@ -13,3 +13,4 @@ app/templates/*.rt.js
 /vendor/
 cp-sync.zip
 .claude
+releases/
