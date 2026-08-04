@@ -14,7 +14,7 @@ Before connecting to Planning Center Online:
 
 ### Connection Steps
 
-1. Navigate to **Settings → CP Sync** in your WordPress admin dashboard
+1. Navigate to **Church Plugins → CP Sync** in your WordPress admin dashboard
 2. Click on the **PCO** tab
 3. In the **Connect** sub-tab, click the **Connect to Planning Center** button
 4. You'll be redirected to the Planning Center Online login page
@@ -30,7 +30,7 @@ For those who prefer to set up their own API application in Planning Center:
 2. Create a new application
 3. Set the Redirect URI to: `https://your-site.com/wp-json/cp-sync/v1/pco/oauth`
 4. Copy the Client ID and Client Secret
-5. In your WordPress admin, navigate to **Settings → CP Sync → PCO → Connect**
+5. In your WordPress admin, navigate to **Church Plugins → CP Sync → PCO → Connect**
 6. Enter the Client ID and Client Secret in the corresponding fields
 7. Click "Save API Settings" and then "Connect to Planning Center"
 
@@ -46,7 +46,7 @@ Before connecting to Church Community Builder:
 
 ### Connection Steps
 
-1. Navigate to **Settings → CP Sync** in your WordPress admin dashboard
+1. Navigate to **Church Plugins → CP Sync** in your WordPress admin dashboard
 2. Click on the **CCB** tab
 3. In the **Connect** sub-tab, enter the following information:
    - CCB Church Subdomain (the part before `.ccbchurch.com`)

@@ -30,6 +30,10 @@ const INITIAL_STATE = {
 	filters: {},
 	schemas: {},
 	optionsCache: {},
+	// Per-endpoint option-fetch failures ({ [endpoint]: { code, message, status } })
+	// so fields can disable themselves and explain why (e.g. the connected ChMS
+	// account lacks permission for that resource).
+	optionsErrors: {},
 	ui: {
 		isSaving: false,
 		isDirty: false,
@@ -103,6 +107,13 @@ const actions = {
 			type: 'SET_OPTIONS',
 			endpoint,
 			data
+		}
+	},
+	setOptionsError( endpoint, error ) {
+		return {
+			type: 'SET_OPTIONS_ERROR',
+			endpoint,
+			error
 		}
 	},
 	fetch( path, options = {} ) {
@@ -211,10 +222,19 @@ const resolvers = {
 		}
 	},
 	// Folds in the retired settingsStore.getData resolver: fetch an arbitrary
-	// endpoint and cache `response.data` keyed by endpoint.
+	// endpoint and cache `response.data` keyed by endpoint. Failures are cached
+	// per-endpoint (not thrown) so fields can render a specific notice.
 	*getOptions( endpoint ) {
-		const response = yield actions.fetch( endpoint )
-		return actions.setOptions( endpoint, response.data )
+		try {
+			const response = yield actions.fetch( endpoint )
+			return actions.setOptions( endpoint, response.data )
+		} catch ( e ) {
+			return actions.setOptionsError( endpoint, {
+				code: e.code,
+				message: e.message,
+				status: e.data?.status,
+			} )
+		}
 	},
 }
 
@@ -230,6 +250,7 @@ const selectors = {
 	getFilters: (state, chms) => state.filters[chms],
 	getSchema: (state, chms) => state.schemas[chms],
 	getOptions: (state, endpoint) => state.optionsCache[endpoint],
+	getOptionsError: (state, endpoint) => state.optionsErrors[endpoint],
 }
 
 const reducer = ( state = INITIAL_STATE, action ) => {
@@ -336,6 +357,18 @@ const reducer = ( state = INITIAL_STATE, action ) => {
 				optionsCache: {
 					...state.optionsCache,
 					[action.endpoint]: action.data
+				},
+				optionsErrors: {
+					...state.optionsErrors,
+					[action.endpoint]: undefined
+				}
+			}
+		case 'SET_OPTIONS_ERROR':
+			return {
+				...state,
+				optionsErrors: {
+					...state.optionsErrors,
+					[action.endpoint]: action.error
 				}
 			}
 		default:

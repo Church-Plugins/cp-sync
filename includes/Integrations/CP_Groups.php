@@ -81,6 +81,37 @@ class CP_Groups extends Integration {
 
 	public function actions() {
 		parent::actions();
+
+		add_filter( 'cp_groups_filter_facets', [ $this, 'add_synced_facets' ] );
+	}
+
+	/**
+	 * Add the synced ChMS taxonomies ( tag groups ) as facets on the group archive filter.
+	 *
+	 * Every taxonomy pulled from the ChMS is included automatically; a CP Groups
+	 * setting to control which facets display is planned there, not here.
+	 *
+	 * @param array $facets Facet taxonomy objects ( ->taxonomy, ->single_label, ->plural_label ).
+	 * @return array
+	 */
+	public function add_synced_facets( $facets ) {
+		$existing   = wp_list_pluck( $facets, 'taxonomy' );
+		$taxonomies = get_option( "cp_sync_taxonomies_{$this->id}", [] );
+
+		foreach ( $taxonomies as $slug => $data ) {
+			// cp_group_type is stored with the sync data but already a core CP Groups facet.
+			if ( in_array( $slug, $existing, true ) || ! taxonomy_exists( $slug ) ) {
+				continue;
+			}
+
+			$facets[] = (object) [
+				'taxonomy'     => $slug,
+				'single_label' => $data['single_label'] ?? $slug,
+				'plural_label' => $data['plural_label'] ?? $slug,
+			];
+		}
+
+		return $facets;
 	}
 
 	public function register_taxonomy($taxonomy, $args) {

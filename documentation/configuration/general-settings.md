@@ -5,7 +5,7 @@ The General Settings section of CP-Sync allows you to configure basic plugin opt
 ## Accessing General Settings
 
 1. Log in to your WordPress admin dashboard
-2. Navigate to **Settings → CP Sync**
+2. Navigate to **Church Plugins → CP Sync**
 3. Click on the **General** tab (this is typically the default tab)
 
 ## Available Settings

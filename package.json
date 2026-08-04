@@ -11,7 +11,7 @@
 		"lint:wp": "wp-scripts lint-js",
 		"format:wp": "wp-scripts format",
 		"build:all": "npm run build:wp",
-		"plugin-zip": "wp-scripts plugin-zip"
+		"plugin-zip": "wp-scripts plugin-zip && zip -d cp-sync.zip README.md package.json"
 	},
 	"dependencies": {
 		"@wordpress/api-fetch": "^6.50.0",
@@ -26,7 +26,6 @@
 		"vendor/**",
 		"build/**",
 		"*.php",
-		"*.md",
 		"readme.txt",
 		"languages/**",
 		"LICENSE",

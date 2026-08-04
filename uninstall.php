@@ -295,7 +295,7 @@ function cp_sync_uninstall_current_site() {
 	}
 
 	// 3. Imported content — only items/terms tagged with _chms_id.
-	cp_sync_uninstall_delete_tagged_posts( $wpdb, array( 'cp_group', 'tribe_events' ) );
+	cp_sync_uninstall_delete_tagged_posts( $wpdb, array( 'cp_group', 'tribe_events', 'cpl_item' ) );
 	cp_sync_uninstall_delete_tagged_terms( $wpdb );
 
 	// 4. Sideloaded attachments + the on-disk image cache directory.
@@ -316,7 +316,7 @@ function cp_sync_uninstall_current_site() {
 	}
 
 	// 5. Scheduled events ( WP-Cron is per-site ).
-	foreach ( array( 'cp_sync_pull', 'wp_pull_groups_cron', 'wp_pull_events_cron' ) as $hook ) {
+	foreach ( array( 'cp_sync_pull', 'wp_pull_groups_cron', 'wp_pull_events_cron', 'wp_pull_sermons_cron' ) as $hook ) {
 		wp_clear_scheduled_hook( $hook );
 	}
 }

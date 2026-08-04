@@ -142,7 +142,7 @@ class _Init {
 			case 'events':
 				return __( 'Requires The Events Calendar plugin, which is not active on this site.', 'cp-sync' );
 			case 'sermons':
-				return __( 'Requires the CP Library plugin, which is not active on this site.', 'cp-sync' );
+				return __( 'Requires the CP Sermons plugin, which is not active on this site.', 'cp-sync' );
 			default:
 				return __( 'This integration is not available on this site.', 'cp-sync' );
 		}

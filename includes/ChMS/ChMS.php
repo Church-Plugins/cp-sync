@@ -218,7 +218,7 @@ abstract class ChMS {
 	 * sermons support.
 	 *
 	 * When the required companion plugin is NOT active ( CP Groups / The Events
-	 * Calendar / CP Library ) the toggle is emitted with `disabled: true` and its help
+	 * Calendar / CP Sermons ) the toggle is emitted with `disabled: true` and its help
 	 * text is replaced by the "requires …" explanation. Availability is resolved every
 	 * time the schema is served ( GET /{chms}/schema ), so the client always sees
 	 * current state.
@@ -263,7 +263,7 @@ abstract class ChMS {
 				'type'    => 'toggle',
 				'label'   => __( 'Sync Sermons', 'cp-sync' ),
 				'default' => self::sync_toggle_default( 'sermons' ),
-				'help'    => __( 'When enabled, sermons are synced from your ChMS to CP Library.', 'cp-sync' ),
+				'help'    => __( 'When enabled, sermons are synced from your ChMS to CP Sermons.', 'cp-sync' ),
 			];
 
 			if ( empty( $availability['sermons'] ) ) {
@@ -408,7 +408,7 @@ abstract class ChMS {
 	 * Non-string scalars ( bool, int, float ) and null are preserved untouched so
 	 * legitimately typed values are not corrupted. This is the fallback used for
 	 * settings the schema deliberately does not declare ( custom-widget keys such as
-	 * `facets`, `date_range_mode`, `date_start`, `date_end`, `enrollment_*` ) — such
+	 * `date_range_mode`, `date_start`, `date_end`, `enrollment_*` ) — such
 	 * keys are never dropped or rejected.
 	 *
 	 * REST request params are not slash-escaped ( unlike $_POST ), so no wp_unslash()
