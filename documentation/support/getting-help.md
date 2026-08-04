@@ -61,7 +61,7 @@ To help us resolve your issue quickly, please provide:
    - Steps to reproduce the issue
 
 3. **Access to Logs**
-   - Navigate to **Settings → CP Sync → Logs**
+   - Navigate to **Church Plugins → CP Sync → Logs**
    - Export relevant logs and attach them to your support request
 
 4. **Error Messages**

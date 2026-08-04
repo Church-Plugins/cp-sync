@@ -56,7 +56,7 @@ This guide provides solutions for common issues you might encounter when using C
 
 This usually means the sync is queueing items correctly but the queue cannot be read back. Preview will look completely normal, because it reads from the ChMS directly and never touches the queue.
 
-1. **Check the Logs** at **Settings → CP Sync → Logs** for either of these:
+1. **Check the Logs** at **Church Plugins → CP Sync → Logs** for either of these:
    - `Queue column ... charset: latin1` (or `utf8`) — the database cannot represent characters in your data
    - `Batch ... is unreadable and will be discarded without importing` — the queue was corrupted after it was stored
 
@@ -146,12 +146,12 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
 
 ### Enabling Debug Logs
 
-1. Navigate to **Settings → CP Sync → Advanced**
+1. Navigate to **Church Plugins → CP Sync → Advanced**
 2. Set "Log Level" to "Debug"
 3. Enable "Detailed API Logging" if needed
 4. Save settings
 5. Perform the operation that's having issues
-6. Check logs at **Settings → CP Sync → Logs**
+6. Check logs at **Church Plugins → CP Sync → Logs**
 
 ### Common Log Error Messages
 

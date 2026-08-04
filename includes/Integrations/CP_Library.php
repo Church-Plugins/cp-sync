@@ -5,12 +5,12 @@ namespace CP_Sync\Integrations;
 use CP_Sync\Exception;
 
 /**
- * CP Library ( sermons ) integration.
+ * CP Sermons ( formerly CP Library ) sermons integration.
  *
  * Destination side of the `sermons` type: takes a formatted episode ( produced by the
- * active ChMS's `format_sermon` ) and creates/updates a CP Library sermon ( `cpl_item` )
+ * active ChMS's `format_sermon` ) and creates/updates a CP Sermons sermon ( `cpl_item` )
  * along with its series, speakers and media. The heavy model-layer work is delegated to
- * CP Library's own `SermonSync` facade so this plugin never reimplements the custom-table
+ * CP Sermons' own `SermonSync` facade so this plugin never reimplements the custom-table
  * plumbing ( dual meta writes, `do_enclosure`, model-id resolution ).
  */
 class CP_Library extends Integration {
@@ -28,12 +28,12 @@ class CP_Library extends Integration {
 	 *
 	 * @param array $item The formatted item ( see PCO::format_sermon ).
 	 * @return int|\WP_Error The `cpl_item` post id.
-	 * @throws Exception If CP Library is unavailable or the save fails.
+	 * @throws Exception If CP Sermons is unavailable or the save fails.
 	 */
 	public function update_item( $item ) {
 		if ( ! class_exists( '\CP_Library\Util\SermonSync' ) ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- caught in Integration::task() and only logged.
-			throw new Exception( 'CP Library SermonSync facade is not available; is CP Library up to date?' );
+			throw new Exception( 'CP Sermons SermonSync facade is not available; is CP Sermons up to date?' );
 		}
 
 		$cpl = $item['cpl'] ?? [];

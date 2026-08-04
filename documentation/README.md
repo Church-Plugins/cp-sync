@@ -22,7 +22,7 @@ Welcome to the CP-Sync documentation. This guide will help you set up and use th
 ### Integrations
 - [CP Groups](integrations/cp-groups.md) - Integration with Church Plugins Groups
 - [The Events Calendar](integrations/the-events-calendar.md) - Integration with The Events Calendar
-- [CP Library](integrations/cp-library.md) - Sermon syncing from PCO Publishing to CP Library
+- [CP Sermons](integrations/cp-library.md) - Sermon syncing from PCO Publishing to CP Sermons
 
 ### Advanced Topics
 - [Customizing Data Filters](advanced/data-filters.md) - Creating custom data filters

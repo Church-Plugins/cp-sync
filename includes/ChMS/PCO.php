@@ -49,9 +49,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			]
 		);
 
-		// Sermons pull from the PCO Publishing app into CP Library. Registered
+		// Sermons pull from the PCO Publishing app into CP Sermons. Registered
 		// unconditionally ( like Groups/Events ) so the Sync Sermons toggle always renders
-		// for PCO; availability ( CP Library active ) is carried by the toggle's disabled
+		// for PCO; availability ( CP Sermons active ) is carried by the toggle's disabled
 		// state and enforced by Integrations\_Init::pull_integration().
 		$this->add_support(
 			'sermons',
@@ -401,7 +401,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			],
 		];
 
-		// Sermons ( PCO Publishing → CP Library ). Persisted under the `cp_library`
+		// Sermons ( PCO Publishing → CP Sermons ). Persisted under the `cp_library`
 		// settings group; only sermons published to the Church Center library are pulled.
 		// Always declared ( like Groups/Events ); the Sermons tab is gated client-side on
 		// the Sync Sermons toggle's enabled/available state.
@@ -2183,10 +2183,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Format a single PCO episode into the CP Library sermon item shape.
+	 * Format a single PCO episode into the CP Sermons sermon item shape.
 	 *
 	 * The returned `cpl` sub-array is consumed by Integrations\CP_Library::update_item(),
-	 * which delegates the actual write to CP Library's SermonSync facade.
+	 * which delegates the actual write to CP Sermons' SermonSync facade.
 	 *
 	 * @param array $episode The raw PCO episode record.
 	 * @param array $context { relational_data, speakers_by_id } from fetch_sermons().

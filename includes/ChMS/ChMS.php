@@ -218,7 +218,7 @@ abstract class ChMS {
 	 * sermons support.
 	 *
 	 * When the required companion plugin is NOT active ( CP Groups / The Events
-	 * Calendar / CP Library ) the toggle is emitted with `disabled: true` and its help
+	 * Calendar / CP Sermons ) the toggle is emitted with `disabled: true` and its help
 	 * text is replaced by the "requires …" explanation. Availability is resolved every
 	 * time the schema is served ( GET /{chms}/schema ), so the client always sees
 	 * current state.

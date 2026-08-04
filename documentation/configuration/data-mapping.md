@@ -42,7 +42,7 @@ CP-Sync includes sensible default mappings for common data types:
 
 Each ChMS integration includes specific field mapping options:
 
-1. Navigate to **Settings → CP Sync**
+1. Navigate to **Church Plugins → CP Sync**
 2. Select your ChMS tab (PCO or CCB)
 3. Go to the related tab (Groups, Events, etc.)
 4. Configure the available mapping options
@@ -52,7 +52,7 @@ Each ChMS integration includes specific field mapping options:
 
 Data filters allow you to control which records are imported based on criteria:
 
-1. Navigate to **Settings → CP Sync → Advanced**
+1. Navigate to **Church Plugins → CP Sync → Advanced**
 2. Configure filters based on:
    - Field values (e.g., only active groups)
    - Date ranges (e.g., future events only)
@@ -62,7 +62,7 @@ Data filters allow you to control which records are imported based on criteria:
 
 For Ministry Platform integration only:
 
-1. Navigate to **Settings → CP Sync → MP → Configure**
+1. Navigate to **Church Plugins → CP Sync → MP → Configure**
 2. Under the Custom Field Mapping section, you can map MP fields to standard WordPress fields
 3. Field mappings are specific to the Ministry Platform integration
 
@@ -70,7 +70,7 @@ For Ministry Platform integration only:
 
 If you need to reset mappings to defaults:
 
-1. Go to **Settings → CP Sync → Advanced**
+1. Go to **Church Plugins → CP Sync → Advanced**
 2. Click **Reset Mappings**
 3. Select which mappings to reset (Groups, Events, or All)
 4. Confirm the reset
