@@ -95,6 +95,7 @@ class Settings {
 
 		add_action( 'admin_menu', [ $this, 'settings_page' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
+		add_filter( 'admin_body_class', [ $this, 'admin_body_class' ] );
 
 		\ChurchPlugins\Admin\Options::register_rest_route( 'cp-sync/v1', 'cps_' );
 
@@ -181,6 +182,26 @@ class Settings {
 			</div>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Add a stable body class on the settings screen.
+	 *
+	 * WordPress derives the screen id ( and matching body class ) from the parent
+	 * menu's title, so it changed when the page moved under the shared Church
+	 * Plugins menu — the stylesheet targets this class instead of the generated one.
+	 *
+	 * @param string $classes Space-separated admin body classes.
+	 * @return string
+	 */
+	public function admin_body_class( $classes ) {
+		$screen = get_current_screen();
+
+		if ( $screen && $screen->id === $this->hook_suffix ) {
+			$classes .= ' cp-sync-settings';
+		}
+
+		return $classes;
 	}
 
 	/**
