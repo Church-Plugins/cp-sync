@@ -53,6 +53,10 @@ mkdir -p releases
 STAGE=$( mktemp -d )
 mkdir "${STAGE}/cp-sync"
 unzip -q cp-sync.zip -d "${STAGE}/cp-sync"
+# Strip VCS internals — the ChurchPlugins checkout carries a .git gitlink and
+# vendored packages ship .github/.gitignore files none of which belong in a
+# customer zip.
+find "${STAGE}/cp-sync" \( -name '.git' -o -name '.github' -o -name '.gitignore' -o -name '.gitattributes' \) -prune -exec rm -rf {} +
 ( cd "${STAGE}" && zip -qr wrapped.zip cp-sync )
 mv "${STAGE}/wrapped.zip" "${RELEASE_ZIP}"
 rm -f cp-sync.zip
