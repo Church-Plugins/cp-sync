@@ -2,22 +2,17 @@
 
 ## Build Commands
 
-There are **two** build systems, each compiling different, non-overlapping assets.
-Know which one you need:
+There is **one** build system: **wp-scripts**. (The old wpackio build and the jQuery
+widgets it compiled were removed in 1.0.)
 
-- `npm run build:wp` — **wp-scripts** → `build/src/`. Compiles the **React settings SPA**
-  (`src/admin/settings/`). Enqueued via `enqueue_asset()` in `Admin/Settings.php`.
-  **If you touch the settings UI, this is the command.**
-- `npm run build` — **wpackio** → `dist/`. Compiles the **general plugin assets**
-  (`assets/js/{main,admin}.js`, `assets/scss/{main,admin}.scss` — the jQuery
-  multi-select / field-mapping widgets for the non-React admin). Enqueued in `_Init.php`.
-- `npm run build:all` — runs both. **Use this for a full/production build.**
-- `npm run start:wp` / `npm run start` — dev watch for wp-scripts / wpackio respectively.
+- `npm run build:wp` — wp-scripts → `build/src/`. Compiles the **React settings SPA**
+  (`src/admin/settings/`), the only compiled JS in the plugin. Enqueued via
+  `enqueue_asset()` in `Admin/Settings.php`. **This is the only command that compiles JS.**
+- `npm run build:all` — alias for `build:wp` (kept for muscle memory / older docs).
+- `npm run start:wp` — dev watch.
 - `npm run lint:wp` — ESLint over JS (`wp-scripts lint-js`).
 - `npm run format:wp` — Prettier.
-
-> The two-build split is known tech debt; consolidation onto wp-scripts is planned for
-> the settings refactor (see `ai/1.0-release-plan.md`). Until then, `build:all` is safest.
+- `npm run plugin-zip` — wp-scripts plugin-zip for packaging.
 
 ## Verification (run before claiming work is done)
 
