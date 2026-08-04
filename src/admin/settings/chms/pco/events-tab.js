@@ -57,6 +57,8 @@ export default function EventsTab( { data, updateField } ) {
 
 				<hr style={ { margin: '1.5rem 0' } } />
 
+				{ /* Any real source is active ( `both` included ). `none` is gone
+				     from the UI, but still gates un-migrated stored data. */ }
 				{ data.source !== 'none' && (
 					<Button
 						variant="primary"

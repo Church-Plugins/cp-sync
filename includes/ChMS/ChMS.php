@@ -157,6 +157,9 @@ abstract class ChMS {
 	 *   [ 'label' => string, 'sections' => [ [ 'title'?, 'description'?, 'fields' => [ fieldKey => FieldDef ] ] ] ]
 	 *
 	 * A FieldDef is `[ 'type', 'label', 'help'?, 'default'?, 'options'?, 'show_if'?, ...typeSpecific ]`.
+	 * `show_if` is `[ 'field' => 'dot.path', 'is' => value|value[] ]` — a scalar `is`
+	 * matches by equality, an array `is` matches when the field's value is in the list.
+	 * A `notice`-type field is static ( `message`/`label` only ); it stores no value.
 	 * Every `fieldKey` MUST equal the exact stored settings key the corresponding
 	 * screen persists ( screens are keyed by the settings group the tab writes to ).
 	 *
@@ -175,28 +178,6 @@ abstract class ChMS {
 	}
 
 	/**
-	 * Build the shared Groups/Events sync-enable toggle FieldDefs for the connect screen.
-	 *
-	 * Both PCO and CCB embed these two booleans ( stored as `connect.sync_groups` /
-	 * `connect.sync_events` ) so an admin can turn a feed's sync on or off. They default
-	 * to TRUE, so existing installs keep their current behavior with no migration.
-	 *
-	 * When the required companion plugin is NOT active ( CP Groups for `sync_groups`,
-	 * The Events Calendar for `sync_events` ) the toggle is emitted with `disabled: true`
-	 * and its help text is replaced by the "requires …" explanation. Availability is
-	 * resolved every time the schema is served ( GET /{chms}/schema ), so the client
-	 * always sees current state.
-	 *
-	 * Availability is injectable so the shape can be unit-tested under both states without
-	 * defining the companion plugins' globals. When `$availability` is null the two pinned
-	 * conditions are evaluated via Integrations\_Init::is_integration_available().
-	 *
-	 * @since 0.4.0
-	 * @param array|null $availability Optional map `[ 'groups' => bool, 'events' => bool, 'sermons' => bool ]`.
-	 *                                 Null resolves live availability.
-	 * @return array `[ 'sync_groups' => FieldDef, 'sync_events' => FieldDef, 'sync_sermons' => FieldDef ]`.
-	 */
-	/**
 	 * The default enabled-state for a feed's sync toggle when nothing is stored.
 	 *
 	 * SINGLE SOURCE OF TRUTH — consumed by the schema FieldDef ( which the client's
@@ -214,6 +195,43 @@ abstract class ChMS {
 		return 'sermons' !== $type;
 	}
 
+	/**
+	 * The settings-group key under which this ChMS stores its EVENTS settings.
+	 *
+	 * The group names are historically inconsistent ( CCB uses `events`, PCO uses the
+	 * legacy `ecp` ), so display-time readers ( e.g. the TEC Register-button toggle )
+	 * ask the active ChMS rather than guessing. Base default is `events`; PCO overrides.
+	 *
+	 * @since 0.4.0
+	 * @return string
+	 */
+	public function get_events_settings_group() {
+		return 'events';
+	}
+
+	/**
+	 * Build the shared feed sync-enable toggle FieldDefs for the connect screen.
+	 *
+	 * Stored as `connect.sync_{type}` booleans so an admin can turn a feed's sync on
+	 * or off. Unstored defaults come from sync_toggle_default() ( groups/events ON,
+	 * sermons OFF ); the sermons toggle is emitted only for a ChMS that registered
+	 * sermons support.
+	 *
+	 * When the required companion plugin is NOT active ( CP Groups / The Events
+	 * Calendar / CP Library ) the toggle is emitted with `disabled: true` and its help
+	 * text is replaced by the "requires …" explanation. Availability is resolved every
+	 * time the schema is served ( GET /{chms}/schema ), so the client always sees
+	 * current state.
+	 *
+	 * Availability is injectable so the shape can be unit-tested under both states
+	 * without defining the companion plugins' globals. When `$availability` is null the
+	 * pinned conditions are evaluated via Integrations\_Init::is_integration_available().
+	 *
+	 * @since 0.4.0
+	 * @param array|null $availability Optional map `[ 'groups' => bool, 'events' => bool, 'sermons' => bool ]`.
+	 *                                 Null resolves live availability.
+	 * @return array `[ 'sync_groups' => FieldDef, 'sync_events' => FieldDef, 'sync_sermons'? => FieldDef ]`.
+	 */
 	protected function get_sync_toggle_fields( $availability = null ) {
 		if ( null === $availability ) {
 			$availability = [
@@ -298,6 +316,12 @@ abstract class ChMS {
 
 				if ( isset( $section['description'] ) ) {
 					$formatted_section['description'] = $section['description'];
+				}
+
+				// Section-level conditional visibility ( same shape as a field's
+				// show_if ) — the client collapses the whole section when it fails.
+				if ( isset( $section['show_if'] ) ) {
+					$formatted_section['show_if'] = $section['show_if'];
 				}
 
 				$formatted_fields = [];
@@ -1326,11 +1350,12 @@ abstract class ChMS {
 				return true;
 			}
 
-			// Check if cron job is scheduled (indicates queued sync)
-			$cron_hook = "{$identifier}_cron";
-			if ( wp_next_scheduled( $cron_hook ) !== false ) {
-				return true;
-			}
+			// Deliberately NOT checked: the wp_pull_{type}_cron event. That is
+			// WP_Background_Process's recurring health-check watchdog — routine
+			// plumbing that lingers in cron after cancelled/killed runs — so its
+			// presence says nothing about a sync actually being in progress and
+			// produced false "Sync in progress" notices ( even with no account
+			// connected ). Batches + the process lock are the truthful signals.
 
 			return false;
 		} else {
@@ -1369,14 +1394,8 @@ abstract class ChMS {
 				}
 			}
 
-			// Check for any scheduled cron jobs
-			foreach ( $types as $type ) {
-				$action = "pull_{$type}";
-				$cron_hook = "wp_{$action}_cron";
-				if ( wp_next_scheduled( $cron_hook ) !== false ) {
-					return true;
-				}
-			}
+			// The wp_pull_{type}_cron health-check watchdog is deliberately not
+			// checked here — see the note in the single-type branch above.
 
 			return false;
 		}

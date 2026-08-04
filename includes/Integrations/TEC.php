@@ -17,7 +17,11 @@ class TEC extends Integration {
 
 	public function actions() {
 		parent::actions();
-		 add_action( 'tribe_events_single_event_before_the_content', [ $this, 'maybe_add_registration_button'] );
+		// Append via the_content rather than the legacy
+		// `tribe_events_single_event_before_the_content` action: TEC's V2 single-event
+		// views ( default since TEC 5 ) do not fire the legacy action, so it never
+		// rendered. the_content is used by both V2 and classic single templates.
+		add_filter( 'the_content', [ $this, 'maybe_add_registration_button' ] );
 	}
 
 	public function update_item( $item ) {
@@ -86,6 +90,12 @@ class TEC extends Integration {
 			}
 
 			if ( $venue ) {
+				// Capture the id to link AFTER the event is saved. Passing
+				// `venue` to tribe_update_event() does NOT link the venue in
+				// current TEC ( verified 6.15.13 — the ORM ignores it on update ),
+				// so we set _EventVenueID directly below, the same way the CCB
+				// integration does. Still set $event['venue'] for the create path.
+				$venue_id       = $venue->ID;
 				$event['venue'] = $venue->ID;
 			} else {
 				cp_sync()->logging->log( 'Error creating venue for post: ' . $item['post_title'] );
@@ -131,6 +141,45 @@ class TEC extends Integration {
 			}
 		}
 
+		// Set venue + website meta directly. tribe_update_event()/create() do not
+		// reliably persist the `venue`/`url` args on update ( verified TEC 6.15.13 —
+		// the ORM ignores them ), so write the meta explicitly once we have the event
+		// id — matching the CCB integration's approach.
+		if ( ! empty( $id ) ) {
+			if ( ! empty( $venue_id ) ) {
+				update_post_meta( $id, '_EventVenueID', $venue_id );
+				cp_sync()->logging->log( "Linked venue {$venue_id} to event {$id}" );
+			}
+
+			// Post excerpt ( e.g. the PCO calendar `summary` short blurb ). Not a TEC
+			// ORM field, so tribe_update_event()/create() drop it — write the core
+			// post column directly. Left untouched when the source provides none, so
+			// WordPress can still auto-generate one from the content.
+			if ( isset( $item['post_excerpt'] ) && '' !== trim( (string) $item['post_excerpt'] ) ) {
+				wp_update_post( [ 'ID' => $id, 'post_excerpt' => $item['post_excerpt'] ] );
+			}
+
+			// Event website ( TEC "Event Website" field ). Set from the source's public
+			// URL when available, and CLEARED when absent so removing it at the source
+			// ( or switching a feed that no longer provides one ) propagates instead of
+			// leaving a stale link.
+			if ( ! empty( $item['EventURL'] ) ) {
+				update_post_meta( $id, '_EventURL', esc_url_raw( $item['EventURL'] ) );
+			} else {
+				delete_post_meta( $id, '_EventURL' );
+			}
+
+			// Arbitrary post meta the formatter asked us to persist ( e.g. the
+			// registration_url that drives the Register button ). tribe_update_event()
+			// only handles its own known fields, so meta_input was silently dropped
+			// before — write it here.
+			if ( ! empty( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) {
+				foreach ( $item['meta_input'] as $meta_key => $meta_value ) {
+					update_post_meta( $id, $meta_key, $meta_value );
+				}
+			}
+		}
+
 		// TEC categories
 		$categories = [];
 		if ( empty( $item['event_category'] ) || ! is_array( $item['event_category'] ) ) {
@@ -160,46 +209,65 @@ class TEC extends Integration {
 		register_taxonomy( $taxonomy, 'tribe_events', $args );
 	}
 
-	public function maybe_add_registration_button() {
-
-		if ( ! apply_filters( 'cp_sync_show_event_registration_button', false, get_the_ID() ) ) {
-			return;
+	/**
+	 * Append the Register button to a single event's content.
+	 *
+	 * Runs on the_content ( see actions() for why not the legacy action ). Guarded to
+	 * the main single-event query so it never leaks into feeds, excerpts, or secondary
+	 * loops. Visibility is driven by the global `showEventRegisterButton` setting
+	 * ( default on ), still overridable via the `cp_sync_show_event_registration_button`
+	 * filter. Renders only when the event carries a registration_url.
+	 *
+	 * @param string $content The post content.
+	 * @return string
+	 */
+	public function maybe_add_registration_button( $content ) {
+		if ( ! is_singular( 'tribe_events' ) || ! in_the_loop() || ! is_main_query() ) {
+			return $content;
 		}
 
-		if ( ! $registration_url = get_post_meta( get_the_ID(), 'registration_url', true ) ) {
-			return;
+		$post_id = get_the_ID();
+
+		// Visibility is the active ChMS's per-events-tab "Show Register button" setting
+		// ( default on ). The events settings group name differs per ChMS, so ask the
+		// ChMS for it. Still overridable via the filter.
+		$active = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
+		$show   = $active
+			? (bool) $active->get_setting( 'show_register_button', true, $active->get_events_settings_group() )
+			: true;
+
+		if ( ! apply_filters( 'cp_sync_show_event_registration_button', $show, $post_id ) ) {
+			return $content;
 		}
 
-		$button_text = __( 'Register', 'cp-sync' );
+		$registration_url = get_post_meta( $post_id, 'registration_url', true );
+
+		if ( ! $registration_url ) {
+			return $content;
+		}
+
+		$button_text  = __( 'Register', 'cp-sync' );
 		$button_class = 'tribe-common-c-btn';
 
-		if ( get_post_meta( get_the_ID(), 'registration_sold_out', true ) ) {
-			$button_text = __( 'Sold Out', 'cp-sync' );
+		if ( get_post_meta( $post_id, 'registration_sold_out', true ) ) {
+			$button_text   = __( 'Sold Out', 'cp-sync' );
 			$button_class .= ' disabled';
 		}
 
-		?>
-		<div class="tribe-common cp-sync--register-cont">
-			<a href="<?php echo esc_url( $registration_url ); ?>" class="<?php echo esc_attr( $button_class ); ?>"><?php echo esc_html( $button_text ); ?></a>
-		</div>
+		$button = sprintf(
+			'<div class="tribe-common cp-sync--register-cont"><a href="%1$s" class="%2$s">%3$s</a></div>',
+			esc_url( $registration_url ),
+			esc_attr( $button_class ),
+			esc_html( $button_text )
+		);
 
-		<style>
-			.cp-sync--register-cont {
-				margin-bottom: var(--tec-spacer-7);
-				text-align: right;
-			}
+		$button .= '<style>
+			.cp-sync--register-cont { margin-bottom: var(--tec-spacer-7); text-align: right; }
+			.tribe-common.cp-sync--register-cont .tribe-common-c-btn { width: auto; }
+			.cp-sync--register-cont .disabled { opacity: 0.5; pointer-events: none; cursor: default; }
+		</style>';
 
-			.tribe-common.cp-sync--register-cont .tribe-common-c-btn {
-				width: auto;
-			}
-
-			.cp-sync--register-cont .disabled {
-				opacity: 0.5;
-				pointer-events: none;
-				cursor: default;
-			}
-		</style>
-		<?php
+		return $content . $button;
 	}
 
 }

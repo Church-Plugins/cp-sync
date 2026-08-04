@@ -537,13 +537,25 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 				'label'    => __( 'Events', 'cp-sync' ),
 				'sections' => [
 					[
+						'title'  => __( 'Event Options', 'cp-sync' ),
 						'fields' => [
+							'show_register_button' => [
+								'type'    => 'toggle',
+								'label'   => __( 'Show Register button on events', 'cp-sync' ),
+								'default' => true,
+								'help'    => __( 'Adds a Register button to synced events that have a registration link. Turn off to hide it.', 'cp-sync' ),
+							],
 							'remove_events_outside_range' => [
 								'type'    => 'checkbox',
 								'label'   => __( 'Remove events outside the date range', 'cp-sync' ),
 								'help'    => __( 'By default, events outside the configured date range are preserved. Enable this option to remove events that fall outside the date range.', 'cp-sync' ),
 								'default' => false,
 							],
+						],
+					],
+					[
+						'title'  => __( 'Event Filters', 'cp-sync' ),
+						'fields' => [
 							'filter' => [
 								'type'        => 'filter-builder',
 								'label'       => __( 'Events', 'cp-sync' ),

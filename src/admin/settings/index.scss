@@ -154,8 +154,22 @@ body #wpwrap, #wpbody, #wpbody-content, .cp_settings_root.cp-sync {
   gap: 1rem;
 }
 
+// Visually separate each control group. Sections after the first get a divider
+// and extra breathing room so the distinct groups (source, calendar, filters,
+// registrations) read as separate cards rather than one long stack.
+.cps-schema-form {
+  gap: 1.5rem;
+
+  .cps-schema-form__section + .cps-schema-form__section {
+    padding-top: 1.5rem;
+    border-top: 1px solid #e0e0e0;
+  }
+}
+
 .cps-schema-form__section-title {
   margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
 }
 
 .cps-schema-form__section-description {

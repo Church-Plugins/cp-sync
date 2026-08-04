@@ -20,7 +20,9 @@
  *             label, help?,        // presentation
  *             default?,           // applied when value is absent
  *             options?,           // for select/radio/etc.
- *             show_if?,           // { field: 'dot.path', is: value } conditional
+ *             show_if?,           // { field: 'dot.path', is: value | value[] } conditional
+ *                                 //   - `is` scalar → strict equality
+ *                                 //   - `is` array  → in-list match (value is one of)
  *             ...typeSpecific
  *           }
  *         }
@@ -48,6 +50,9 @@ function getByPath( values, path ) {
 /**
  * Evaluate a field's `show_if` conditional against the current values.
  *
+ * `is` may be a single value (strict equality) or an array (in-list match: the
+ * field renders when the current value is one of the listed values).
+ *
  * @param {Object} showIf The `{ field, is }` descriptor (or undefined).
  * @param {Object} values The current values.
  * @return {boolean} Whether the field should render.
@@ -56,7 +61,11 @@ function isVisible( showIf, values ) {
 	if ( ! showIf ) {
 		return true;
 	}
-	return getByPath( values, showIf.field ) === showIf.is;
+	const current = getByPath( values, showIf.field );
+	if ( Array.isArray( showIf.is ) ) {
+		return showIf.is.includes( current );
+	}
+	return current === showIf.is;
 }
 
 // Dev-facing error box for an unknown field type. Renders instead of crashing.
@@ -107,6 +116,18 @@ function Field( { fieldKey, field, value, onChange, disabled } ) {
 function Section( { section, values, onChange, disabled } ) {
 	const fields = section.fields || {};
 
+	const visibleKeys = Object.keys( fields ).filter( ( key ) =>
+		isVisible( fields[ key ].show_if, values )
+	);
+
+	// A section-level show_if ( same shape as a field's ) plus the "nothing to
+	// show" case both collapse the whole section — heading and separator included —
+	// so conditional groups ( e.g. Registrations settings ) don't leave an empty
+	// titled block when their source isn't selected.
+	if ( ! isVisible( section.show_if, values ) || 0 === visibleKeys.length ) {
+		return null;
+	}
+
 	return (
 		<div className="cps-schema-form__section">
 			{ section.title && (
@@ -119,12 +140,8 @@ function Section( { section, values, onChange, disabled } ) {
 					{ section.description }
 				</p>
 			) }
-			{ Object.keys( fields ).map( ( fieldKey ) => {
+			{ visibleKeys.map( ( fieldKey ) => {
 				const field = fields[ fieldKey ];
-
-				if ( ! isVisible( field.show_if, values ) ) {
-					return null;
-				}
 
 				const raw = values ? values[ fieldKey ] : undefined;
 				const value = raw === undefined ? field.default : raw;
