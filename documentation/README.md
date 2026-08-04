@@ -13,6 +13,7 @@ Welcome to the CP-Sync documentation. This guide will help you set up and use th
 - [General Settings](configuration/general-settings.md) - Basic plugin configuration
 - [API Connections](configuration/api-connections.md) - Setting up API connections to your ChMS
 - [Data Mapping](configuration/data-mapping.md) - How to map ChMS data to WordPress
+- [Preventing Sync Updates](configuration/preventing-sync-updates.md) - Lock individual imported posts against sync changes
 
 ### Church Management Systems
 - [Planning Center Online](chms/planning-center.md) - PCO integration setup and usage
@@ -21,11 +22,13 @@ Welcome to the CP-Sync documentation. This guide will help you set up and use th
 ### Integrations
 - [CP Groups](integrations/cp-groups.md) - Integration with Church Plugins Groups
 - [The Events Calendar](integrations/the-events-calendar.md) - Integration with The Events Calendar
+- [CP Library](integrations/cp-library.md) - Sermon syncing from PCO Publishing to CP Library
 
 ### Advanced Topics
 - [Customizing Data Filters](advanced/data-filters.md) - Creating custom data filters
 - [Sync Scheduling](advanced/sync-scheduling.md) - Configure automated sync schedules
 - [Troubleshooting](advanced/troubleshooting.md) - Common issues and solutions
+- [Reset Tool](advanced/reset-tool.md) - Reset install data at selectable levels (UI, WP-CLI, REST)
 - [Developer Guide](advanced/developer-guide.md) - Hooks, filters, and extending the plugin
 
 ### Support
