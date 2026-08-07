@@ -107,6 +107,20 @@ abstract class Integration extends \WP_Background_Process {
 
 		$item_store = $this->get_store();
 
+		// Safety net: zero items fetched while the store tracks existing imports is
+		// far more likely a silent upstream failure than a genuinely emptied ChMS —
+		// and proceeding would delete every previously imported post as "leftover".
+		// Abort untouched ( no queue, no removals, store intact ); a legitimately
+		// emptied ChMS can be reflected with the Reset tool's content level.
+		if ( empty( $items ) && ! empty( $item_store ) ) {
+			cp_sync()->logging->log( sprintf(
+				'ABORTING %s sync: fetch returned 0 items while %d are tracked locally. Treating this as a failed fetch, not a mass removal. If you really removed everything in your ChMS, use the Reset tool (content level) to clear imported content.',
+				$this->label,
+				count( $item_store )
+			) );
+			return;
+		}
+
 		$locked_ids = [];
 
 		foreach( $items as $item ) {
@@ -182,9 +196,19 @@ abstract class Integration extends \WP_Background_Process {
 
 		$this->update_store( $items );
 
-		$this->save()->dispatch();
+		$dispatched = $this->save()->dispatch();
 
-		cp_sync()->logging->log( 'Process disbatched for ' . $this->label );
+		// dispatch() fires a non-blocking loopback POST that starts the queue
+		// worker. Non-blocking success carries no meaningful response body/code,
+		// but a WP_Error here means the request could not even be SENT ( blocked
+		// loopback, security plugin, DNS ) — the queue would then sit idle until
+		// the health-check cron picks it up, which is exactly the "dispatched then
+		// nothing" stall this log exists to expose.
+		if ( is_wp_error( $dispatched ) ) {
+			cp_sync()->logging->log( 'Process dispatch request FAILED for ' . $this->label . ': ' . $dispatched->get_error_message() . ' — queue will wait for the health-check cron.' );
+		} else {
+			cp_sync()->logging->log( 'Process dispatched for ' . $this->label );
+		}
 	}
 
 	/**

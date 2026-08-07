@@ -24,6 +24,32 @@ class TEC extends Integration {
 		add_filter( 'the_content', [ $this, 'maybe_add_registration_button' ] );
 	}
 
+	/**
+	 * Compose a full TEC datetime from the formatter's split date/time keys.
+	 *
+	 * The ChMS formatters emit EventStartDate/EventEndDate as a bare `Y-m-d` with
+	 * the time split into separate Hour ( `G`, 0-23 ) / Minute ( `i` ) keys. TEC's
+	 * ORM parses a bare date as midnight, so the time parts MUST be folded back
+	 * into the `start_date`/`end_date` strings or every event lands at 12:00am.
+	 *
+	 * @param string          $date   The `Y-m-d` date. Empty yields ''.
+	 * @param string|int|null $hour   The 24-hour hour. Null/'' yields the bare date.
+	 * @param string|int|null $minute The minute. Null/'' is treated as 0.
+	 * @return string `Y-m-d H:i:s`, the bare date, or ''.
+	 */
+	public static function compose_datetime( $date, $hour = null, $minute = null ) {
+		if ( empty( $date ) ) {
+			return '';
+		}
+
+		// Hour 0 ( midnight ) is valid — only null/'' mean "no time provided".
+		if ( null === $hour || '' === $hour ) {
+			return $date;
+		}
+
+		return sprintf( '%s %02d:%02d:00', $date, (int) $hour, (int) $minute );
+	}
+
 	public function update_item( $item ) {
 		$existing = $this->get_chms_item_id( $item['chms_id'] );
 
@@ -107,9 +133,10 @@ class TEC extends Integration {
 		$event['content'] = $item['post_content'] ?? '';
 		$event['post_content'] = $item['post_content'] ?? '';
 		$event['image'] = $item['thumbnail_url'] ?? '';
-		$event['start_date'] = $item['EventStartDate'] ?? '';
-		$event['end_date'] = $item['EventEndDate'] ?? '';
+		$event['start_date'] = self::compose_datetime( $item['EventStartDate'] ?? '', $item['EventStartHour'] ?? null, $item['EventStartMinute'] ?? null );
+		$event['end_date'] = self::compose_datetime( $item['EventEndDate'] ?? '', $item['EventEndHour'] ?? null, $item['EventEndMinute'] ?? null );
 		$event['timezone'] = $item['EventTimezone'] ?? '';
+		$event['all_day'] = ! empty( $item['EventAllDay'] );
 		$event['url'] = $item['EventURL'] ?? '';
 		$event['recurrence'] = $item['EventRecurrence'] ?? '';
 		$event = array_filter( $event );

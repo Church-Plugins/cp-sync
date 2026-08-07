@@ -147,8 +147,15 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			if ( $this->get_token() ) {
 				$this->api->authorization = 'Authorization: Bearer ' . $this->get_token();
 			}
+
+			// Log every page of a paginated crawl. Large accounts crawl dozens of
+			// pages sequentially; when a shared host kills the request mid-crawl,
+			// this trail is the only evidence of how far it got.
+			$this->api->onPageProgress( function ( $table, $total, $page_rows ) {
+				cp_sync()->logging->log( sprintf( 'PCO crawl [%s]: %d records so far (+%d this page)', $table, $total, $page_rows ) );
+			} );
 		}
-		
+
 		return $this->api;
 	}
 
@@ -1124,11 +1131,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 *   - if ANY enabled source's fetch errors → abort the whole pull with that
 	 *     error, so the healthy source's items are never mistaken for leftovers.
 	 */
-	public function fetch_events() {
+	public function fetch_events( $limit = 0 ) {
 		$source  = $this->get_setting( 'source', 'calendar', 'ecp' );
 		$sources = self::events_sources_for( $source );
 
-		cp_sync()->logging->log( 'Fetching events from ' . $source );
+		cp_sync()->logging->log( 'Fetching events from ' . $source . ( $limit > 0 ? " (limit {$limit})" : '' ) );
 
 		if ( empty( $sources ) ) {
 			return new ChMSError( 'pco_fetch_error', 'No event source enabled' );
@@ -1138,9 +1145,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		foreach ( $sources as $src ) {
 			if ( 'calendar' === $src ) {
-				$result = $this->fetch_events_from_calendar();
+				$result = $this->fetch_events_from_calendar( $limit );
 			} else {
-				$result = $this->fetch_events_from_registrations();
+				$result = $this->fetch_events_from_registrations( $limit );
 			}
 
 			// Partial-failure abort ( amendment #1 ).
@@ -1196,24 +1203,43 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * }
 	 * @throws ChMSException If there is an error fetching the events.
 	 */
-	public function fetch_events_from_calendar() {
-	
+	public function fetch_events_from_calendar( $limit = 0 ) {
+		cp_sync()->logging->log( 'Calendar fetch: starting event_instances crawl' . ( $limit > 0 ? " (limit {$limit})" : '' ) );
+
 		$raw_events = $this->api()
 			->module('calendar')
 			->table('event_instances')
 			->includes('event,event_times,tags')
 			->filter('future')
 			->order('starts_at')
-			->get();
+			->get( $limit > 0 ? $limit : 100000 );
+
+		// Check for failure IMMEDIATELY: the wrapper returns `false` on any API
+		// error ( including 429 rate limits ) and every get() resets errorMessage,
+		// so checking after a later call would let a successful follow-up request
+		// silently mask this one's failure — turning "PCO errored" into "the
+		// calendar is empty", which the caller would then treat as real removals.
+		if ( false === $raw_events || ! empty( $this->api()->errorMessage() ) ) {
+			$error = $this->api()->errorMessage() ?: 'event_instances request failed with no error detail';
+			cp_sync()->logging->log( 'Calendar fetch FAILED (event_instances): ' . var_export( $error, true ) );
+			return new ChMSError( 'pco_fetch_error', $error );
+		}
+
+		cp_sync()->logging->log( sprintf(
+			'Calendar fetch: %d event instances, %d included records',
+			count( $raw_events['data'] ?? [] ),
+			count( $raw_events['included'] ?? [] )
+		) );
 
 		$tag_groups = $this->api()
 			->module( 'calendar' )
 			->table('tag_groups')
 			->get();
 
-		if( !empty( $this->api()->errorMessage() ) ) {
-			cp_sync()->logging->log( var_export( $this->api()->errorMessage(), true ) );
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+		if ( false === $tag_groups || ! empty( $this->api()->errorMessage() ) ) {
+			$error = $this->api()->errorMessage() ?: 'tag_groups request failed with no error detail';
+			cp_sync()->logging->log( 'Calendar fetch FAILED (tag_groups): ' . var_export( $error, true ) );
+			return new ChMSError( 'pco_fetch_error', $error );
 		}
 
 		$items      = $raw_events['data'] ?? [];
@@ -1222,11 +1248,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$relational_data = [];
 		$taxonomies      = [];
 
-		foreach( $raw_events['included'] as $include ) {
+		foreach( $raw_events['included'] ?? [] as $include ) {
 			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
 		}
 
-		foreach ( $raw_events['data'] as $event ) {
+		foreach ( $raw_events['data'] ?? [] as $event ) {
 			$relational_data[ $event['type'] ][ $event['id'] ] = $event;
 		}
 
@@ -1253,6 +1279,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				->id( $tag_group['id'] )
 				->associations( 'tags' )
 				->get();
+
+			if ( false === $tags || ! empty( $this->api()->errorMessage() ) ) {
+				$error = $this->api()->errorMessage() ?: 'tag_group tags request failed with no error detail';
+				cp_sync()->logging->log( 'Calendar fetch FAILED (tags for group ' . $tag_group['id'] . '): ' . var_export( $error, true ) );
+				return new ChMSError( 'pco_fetch_error', $error );
+			}
 
 			$tags = $tags['data'] ?? [];
 
@@ -1309,8 +1341,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 *   @type array taxonomies The taxonomies for the events.
 	 * }
 	 */
-	public function fetch_events_from_registrations() {
-		cp_sync()->logging->log( 'Starting PCO registration events import' );
+	public function fetch_events_from_registrations( $limit = 0 ) {
+		cp_sync()->logging->log( 'Starting PCO registration events import' . ( $limit > 0 ? " (limit {$limit})" : '' ) );
 
 		// Documented Registrations API (2025-05-01): the model is `signups`, related
 		// dates/location/categories are included as SignupTime / SignupLocation /
@@ -1330,11 +1362,16 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			// attributes — the relationship names must be listed or the payload loses
 			// the signup_times/signup_location/categories linkage entirely.
 			->param( 'fields[Signup]', 'name,description,logo_url,new_registration_url,archived,at_maximum_capacity,signup_times,signup_location,categories' )
-			->get();
+			->get( $limit > 0 ? $limit : 100000 );
 
-		// Log API errors
-		if ( ! empty( $this->api()->errorMessage() ) ) {
-			cp_sync()->logging->log( 'PCO API Error: ' . var_export( $this->api()->errorMessage(), true ) );
+		// A failed fetch must ABORT, not proceed with an empty list: an empty list
+		// here reads as "every signup was removed from PCO" downstream. ( The
+		// sparse-fieldset tolerance note above concerns PCO ignoring unknown field
+		// names, which still returns a successful response — not this. )
+		if ( false === $raw_events || ! empty( $this->api()->errorMessage() ) ) {
+			$error = $this->api()->errorMessage() ?: 'signups request failed with no error detail';
+			cp_sync()->logging->log( 'Registrations fetch FAILED: ' . var_export( $error, true ) );
+			return new ChMSError( 'pco_fetch_error', $error );
 		}
 
 		$items = $raw_events['data'] ?? [];

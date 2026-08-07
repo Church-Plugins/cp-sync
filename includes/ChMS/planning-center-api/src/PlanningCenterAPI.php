@@ -119,6 +119,28 @@ class PlanningCenterAPI
     private $parameters = null;
 
     /**
+     * Optional callable invoked after each page of a paginated get() crawl,
+     * with ( string $table, int $totalRowsSoFar, int $pageRows ). Local fork
+     * addition: lets the caller surface crawl progress ( e.g. into a log ) so
+     * a request killed mid-crawl leaves a trail of how far it got.
+     *
+     * @var callable|null
+     */
+    private $pageProgressCallback = null;
+
+    /**
+     * Register a page-progress callback ( see $pageProgressCallback ).
+     *
+     * @param callable $callback
+     * @return $this
+     */
+    public function onPageProgress(callable $callback)
+    {
+        $this->pageProgressCallback = $callback;
+        return $this;
+    }
+
+    /**
      * POST data being sent to Planning Center
      * @var null
      */
@@ -412,6 +434,12 @@ class PlanningCenterAPI
             // Append the result set to the previous results
             $results['data'] = array_merge($results['data'], $r['data']);
             $results['included'] = array_merge($results['included'], $r['included']);
+
+            // Surface crawl progress before deciding whether to continue, so even
+            // a crawl killed by the host leaves a log trail of its last page.
+            if (null !== $this->pageProgressCallback) {
+                call_user_func($this->pageProgressCallback, $this->table, count($results['data']), $numRows);
+            }
 
             // Continue paging based on the API's OWN pagination signals
             // (meta.next.offset / links.next) instead of inferring from row
