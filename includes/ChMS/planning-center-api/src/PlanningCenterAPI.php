@@ -15,6 +15,33 @@ use GuzzleHttp\Client;
 class PlanningCenterAPI
 {
     /**
+     * Rate-limit ( HTTP 429 ) retry policy. PCO's limit is a short rolling
+     * window ( 100 requests / 20 seconds ), so a brief, bounded back-off almost
+     * always succeeds. Local fork addition.
+     */
+    const MAX_RATE_LIMIT_RETRIES = 2;
+    const DEFAULT_RATE_LIMIT_WAIT = 5;
+    const MAX_RATE_LIMIT_WAIT = 30;
+
+    /**
+     * Bound a Retry-After header value to a sane wait in seconds.
+     *
+     * @param mixed $retryAfter The raw Retry-After header value ( seconds ).
+     * @return int Seconds to wait: header value clamped to [1, MAX_RATE_LIMIT_WAIT],
+     *             or DEFAULT_RATE_LIMIT_WAIT when the header is absent/unusable.
+     */
+    public static function rateLimitWait($retryAfter)
+    {
+        $seconds = is_numeric($retryAfter) ? (int) $retryAfter : 0;
+
+        if ($seconds <= 0) {
+            $seconds = self::DEFAULT_RATE_LIMIT_WAIT;
+        }
+
+        return max(1, min($seconds, self::MAX_RATE_LIMIT_WAIT));
+    }
+
+    /**
      * Application ID from PCO - Personal Access Token part 1
      * HTTP Basic Auth
      *
@@ -137,6 +164,27 @@ class PlanningCenterAPI
     public function onPageProgress(callable $callback)
     {
         $this->pageProgressCallback = $callback;
+        return $this;
+    }
+
+    /**
+     * Optional callable invoked when a request is rate limited ( HTTP 429 ) and
+     * about to be retried, with ( int $waitSeconds, int $attempt ). Local fork
+     * addition, paired with the bounded retry in execute().
+     *
+     * @var callable|null
+     */
+    private $rateLimitCallback = null;
+
+    /**
+     * Register a rate-limit callback ( see $rateLimitCallback ).
+     *
+     * @param callable $callback
+     * @return $this
+     */
+    public function onRateLimit(callable $callback)
+    {
+        $this->rateLimitCallback = $callback;
         return $this;
     }
 
@@ -730,37 +778,57 @@ class PlanningCenterAPI
             $this->authorization
         ];
 
-        try {
-            $response = $client->request('GET', $endpoint, [
-                'headers' => $this->headers,
-                'curl' => $this->setGetCurlopts(),
+        $attempt = 0;
+
+        do {
+            try {
+                $response = $client->request('GET', $endpoint, [
+                    'headers' => $this->headers,
+                    'curl' => $this->setGetCurlopts(),
 //                'auth' => [
 //                    $this->pcoApplicationId,
 //                    $this->pcoSecret
 //                ]
-            ]);
+                ]);
 
-        } catch (\GuzzleHttp\Exception\ClientException $e) {
-            $error = $e->getResponse()->getBody()->getContents();
-            $this->saveErrorMessage($error);
-            return false;
+                return json_decode($response->getBody(), true);
 
-        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
-            $error = $e->getResponse()->getBody()->getContents();
-            $this->saveErrorMessage($error);
-            return false;
+            } catch (\GuzzleHttp\Exception\ClientException $e) {
+                // 429: PCO's rate limit is a short rolling window ( 100 req/20s ),
+                // so honor Retry-After with a bounded wait and retry a couple of
+                // times before treating it as a hard failure. Local fork addition.
+                if (429 === $e->getResponse()->getStatusCode() && $attempt < self::MAX_RATE_LIMIT_RETRIES) {
+                    $attempt++;
+                    $wait = self::rateLimitWait($e->getResponse()->getHeaderLine('Retry-After'));
 
-        }  catch (\GuzzleHttp\Exception\ServerException $e) {
-            $error = $e->getResponse()->getBody()->getContents();
-            $this->saveErrorMessage($error);
-            return false;
+                    if (null !== $this->rateLimitCallback) {
+                        call_user_func($this->rateLimitCallback, $wait, $attempt);
+                    }
 
-        } catch (Exception $e) {
-            $error = 'Unknown Exception in Guzzle request';
-            $this->saveErrorMessage($error);
-        }
+                    sleep($wait);
+                    continue;
+                }
 
-        return json_decode($response->getBody(), true);
+                $error = $e->getResponse()->getBody()->getContents();
+                $this->saveErrorMessage($error);
+                return false;
+
+            } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+                $error = $e->getResponse()->getBody()->getContents();
+                $this->saveErrorMessage($error);
+                return false;
+
+            }  catch (\GuzzleHttp\Exception\ServerException $e) {
+                $error = $e->getResponse()->getBody()->getContents();
+                $this->saveErrorMessage($error);
+                return false;
+
+            } catch (Exception $e) {
+                $error = 'Unknown Exception in Guzzle request';
+                $this->saveErrorMessage($error);
+                return false;
+            }
+        } while (true);
 
     }
 

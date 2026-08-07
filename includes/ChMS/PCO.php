@@ -154,6 +154,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$this->api->onPageProgress( function ( $table, $total, $page_rows ) {
 				cp_sync()->logging->log( sprintf( 'PCO crawl [%s]: %d records so far (+%d this page)', $table, $total, $page_rows ) );
 			} );
+
+			$this->api->onRateLimit( function ( $wait, $attempt ) {
+				cp_sync()->logging->log( sprintf( 'PCO rate limited (429): waiting %ds before retry #%d', $wait, $attempt ) );
+			} );
 		}
 
 		return $this->api;
