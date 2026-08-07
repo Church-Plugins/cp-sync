@@ -1,12 +1,11 @@
-import { Button, Notice, Spinner } from '@wordpress/components'
+import { Spinner } from '@wordpress/components'
 import { __ } from '@wordpress/i18n'
-import { useState } from '@wordpress/element'
 import { useSelect } from '@wordpress/data'
-import apiFetch from '@wordpress/api-fetch'
 import globalStore from '../../store/globalStore'
 import { SchemaForm } from '../../schema-form'
 import Preview from '../../components/preview'
 import DateRange from '../../components/date-range'
+import PullNow from '../../components/pull-now'
 
 /**
  * CCB Events tab.
@@ -22,9 +21,6 @@ export default function EventsTab({ data, updateField }) {
 		(select) => select(globalStore).getSchema('ccb')?.events,
 		[]
 	)
-	const [pulling, setPulling] = useState(false)
-	const [pullSuccess, setPullSuccess] = useState(false)
-	const [error, setError] = useState(null)
 
 	const updateDateRange = (newData) => {
 		if (newData.mode !== undefined) {
@@ -36,24 +32,6 @@ export default function EventsTab({ data, updateField }) {
 		if (newData.endDate !== undefined) {
 			updateField('date_end', newData.endDate);
 		}
-	}
-
-	const handlePull = () => {
-		setPulling(true)
-		apiFetch({
-			path: '/cp-sync/v1/pull/events',
-			method: 'POST',
-		}).then(response => {
-			if (response.success) {
-				setPullSuccess(true)
-			} else {
-				setError(response.message)
-			}
-		}).catch(err => {
-			setError(err.message)
-		}).finally(() => {
-			setPulling(false)
-		})
 	}
 
 	return (
@@ -80,26 +58,8 @@ export default function EventsTab({ data, updateField }) {
 				)}
 
 				<div className="cps-feed-tab__actions">
-					<Button
-						variant="primary"
-						onClick={handlePull}
-						disabled={pulling}
-					>
-						{pulling ? __('Starting import', 'cp-sync') : __('Pull Now', 'cp-sync')}
-					</Button>
+					<PullNow type="events" />
 				</div>
-
-				{pullSuccess && (
-					<Notice status="success" isDismissible={false}>
-						{__('Import started', 'cp-sync')}
-					</Notice>
-				)}
-
-				{error && (
-					<Notice status="error" isDismissible={false}>
-						<div>{ error }</div>
-					</Notice>
-				)}
 			</div>
 			<div style={{ flex: '2 1 50%', background: '#eee', padding: '16px' }}>
 				<Preview type="events" optionGroup="events" />
