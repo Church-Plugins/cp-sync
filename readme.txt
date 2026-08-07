@@ -91,6 +91,13 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 
 == Changelog ==
 
+= 1.0.0-beta2 =
+* Fix: Synced events no longer land at 12:00am — event times now persist on both newly created and existing events, and all-day status is kept in sync (including clearing it when an event gains specific times at the source).
+* Fix: A failed Planning Center API request could silently read as "the calendar is empty," which removed previously imported events. Failed fetches now abort the sync with a logged error, and a safety guard refuses to run the removal pass when a fetch unexpectedly returns zero items.
+* Fix: Event previews no longer crawl the entire calendar — they fetch only the handful of items they display, so Generate Preview responds in seconds on large calendars.
+* Improved: Planning Center rate limits (HTTP 429) are retried automatically with a short back-off instead of failing the sync.
+* Improved: The sync log now records crawl progress page by page, fetch counts, rate-limit waits, and the result of the background dispatch — making stalled imports diagnosable from the log alone.
+
 = 1.0.0 =
 * Security: CCB API credentials are now encrypted at rest (libsodium with OpenSSL fallback, keyed from your site's WordPress salts). Existing plain-text credentials keep working and are re-encrypted on the next save.
 * Security: The CCB subdomain is validated everywhere it is used — malformed values are rejected with a clear error instead of being built into API URLs.

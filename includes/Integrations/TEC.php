@@ -50,6 +50,43 @@ class TEC extends Integration {
 		return sprintf( '%s %02d:%02d:00', $date, (int) $hour, (int) $minute );
 	}
 
+	/**
+	 * Build the args for updating an existing event via tribe_update_event().
+	 *
+	 * tribe_update_event() routes through the legacy Tribe__Events__API, which
+	 * reads the CamelCase Event* keys — the snake_case ORM keys used on the
+	 * create path are silently dropped on update, and saveEventMeta() re-saves
+	 * the STORED date whenever EventStartDate is absent ( verified TEC 6.15.13 ).
+	 * So updates must be fed the formatter's own CamelCase keys or date/time
+	 * changes ( and the midnight-time fix ) never reach existing events.
+	 *
+	 * @param array $item The formatted item from the ChMS.
+	 * @return array Args for tribe_update_event().
+	 */
+	public static function legacy_update_args( array $item ) {
+		$args = [
+			'post_title'   => $item['post_title'] ?? '',
+			'post_content' => $item['post_content'] ?? '',
+		];
+
+		// Date keys only when the formatter provided a start date: an empty
+		// EventStartDate must be ABSENT ( not '' ) so TEC keeps the stored date.
+		if ( ! empty( $item['EventStartDate'] ) ) {
+			$args['EventStartDate']   = $item['EventStartDate'];
+			$args['EventEndDate']     = ! empty( $item['EventEndDate'] ) ? $item['EventEndDate'] : $item['EventStartDate'];
+			$args['EventStartHour']   = $item['EventStartHour'] ?? '0';
+			$args['EventStartMinute'] = $item['EventStartMinute'] ?? '00';
+			$args['EventEndHour']     = $item['EventEndHour'] ?? '0';
+			$args['EventEndMinute']   = $item['EventEndMinute'] ?? '00';
+			// Presence matters: FALSE must be sent so an event that changed from
+			// all-day to timed at the source has its stale all-day flag cleared
+			// ( Tribe__Date_Utils::is_all_day( false ) → 'no' → flag deleted ).
+			$args['EventAllDay']      = ! empty( $item['EventAllDay'] );
+		}
+
+		return $args;
+	}
+
 	public function update_item( $item ) {
 		$existing = $this->get_chms_item_id( $item['chms_id'] );
 
@@ -144,7 +181,7 @@ class TEC extends Integration {
 		if ( $existing ) {
 			cp_sync()->logging->log( 'Updating existing event ID: ' . $existing );
 			try {
-				tribe_update_event( $existing, $event );
+				tribe_update_event( $existing, self::legacy_update_args( $item ) );
 				$id = $existing;
 				cp_sync()->logging->log( 'Successfully updated event ID: ' . $id );
 			} catch ( \Exception $e ) {

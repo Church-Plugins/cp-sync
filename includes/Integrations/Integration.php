@@ -198,14 +198,14 @@ abstract class Integration extends \WP_Background_Process {
 
 		$dispatched = $this->save()->dispatch();
 
-		// dispatch() fires a non-blocking loopback POST that starts the queue
-		// worker. Non-blocking success carries no meaningful response body/code,
-		// but a WP_Error here means the request could not even be SENT ( blocked
-		// loopback, security plugin, DNS ) — the queue would then sit idle until
-		// the health-check cron picks it up, which is exactly the "dispatched then
-		// nothing" stall this log exists to expose.
+		// dispatch() fires a short-timeout, non-blocking loopback POST that starts
+		// the queue worker. A WP_Error here USUALLY means the request could not be
+		// sent ( blocked loopback, security plugin, DNS ) — but a busy worker pool
+		// can also time out the handoff even though the worker still starts, so
+		// this is a diagnostic breadcrumb, not proof of failure. Either way the
+		// health-check cron re-dispatches a stalled queue.
 		if ( is_wp_error( $dispatched ) ) {
-			cp_sync()->logging->log( 'Process dispatch request FAILED for ' . $this->label . ': ' . $dispatched->get_error_message() . ' — queue will wait for the health-check cron.' );
+			cp_sync()->logging->log( 'Process dispatched for ' . $this->label . ', but the loopback request did not confirm delivery (' . $dispatched->get_error_message() . '). If no items import, the worker likely never started; the health-check cron will retry the queue.' );
 		} else {
 			cp_sync()->logging->log( 'Process dispatched for ' . $this->label );
 		}

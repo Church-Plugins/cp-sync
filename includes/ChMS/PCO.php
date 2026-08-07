@@ -1134,6 +1134,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 *     entirely and nothing is deleted;
 	 *   - if ANY enabled source's fetch errors → abort the whole pull with that
 	 *     error, so the healthy source's items are never mistaken for leftovers.
+	 *
+	 * @param int $limit Optional. Max items to fetch PER SOURCE ( 0 = all ). Caps
+	 *                   the API crawl itself, so previews stay one small request.
 	 */
 	public function fetch_events( $limit = 0 ) {
 		$source  = $this->get_setting( 'source', 'calendar', 'ecp' );
@@ -1200,6 +1203,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Fetch events from PCO calendar
 	 *
+	 * @param int $limit Optional. Max event instances to fetch ( 0 = all ).
 	 * @return array {
 	 * 	 @type array items   The raw events from PCO
 	 * 	 @type array context The context for the data.
@@ -1338,7 +1342,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 	/**
 	 * Fetch events from PCO registrations
-	 * 
+	 *
+	 * @param int $limit Optional. Max signups to fetch ( 0 = all ). Applied to the
+	 *                   API crawl BEFORE the client-side archived filter, so a
+	 *                   limited fetch can return fewer ( even zero ) usable items.
 	 * @return array {
 	 * 	 @type array items   The raw events from PCO
 	 * 	 @type array context The context for the data.

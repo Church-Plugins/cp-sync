@@ -24,6 +24,21 @@ class PlanningCenterAPI
     const MAX_RATE_LIMIT_WAIT = 30;
 
     /**
+     * Ceiling on TOTAL seconds slept for rate limits across one get() crawl.
+     * The per-page retry counter resets every page, so on a heavily throttled
+     * multi-page crawl the sleeps could otherwise accumulate to minutes and
+     * push a synchronous request into its host's kill threshold — the very
+     * failure the retry exists to avoid.
+     */
+    const MAX_RATE_LIMIT_SLEEP_TOTAL = 90;
+
+    /**
+     * Seconds slept for rate limits during the current get() crawl.
+     * @var int
+     */
+    private $rateLimitSleptTotal = 0;
+
+    /**
      * Bound a Retry-After header value to a sane wait in seconds.
      *
      * @param mixed $retryAfter The raw Retry-After header value ( seconds ).
@@ -461,6 +476,7 @@ class PlanningCenterAPI
         // Initialize the Guzzle client
         $client = new Client(); //GuzzleHttp\Client
         $this->errorMessage = null;
+        $this->rateLimitSleptTotal = 0;
 
         $results['data'] = [];
         $results['included'] = [];
@@ -797,9 +813,14 @@ class PlanningCenterAPI
                 // 429: PCO's rate limit is a short rolling window ( 100 req/20s ),
                 // so honor Retry-After with a bounded wait and retry a couple of
                 // times before treating it as a hard failure. Local fork addition.
-                if (429 === $e->getResponse()->getStatusCode() && $attempt < self::MAX_RATE_LIMIT_RETRIES) {
+                if (
+                    429 === $e->getResponse()->getStatusCode()
+                    && $attempt < self::MAX_RATE_LIMIT_RETRIES
+                    && $this->rateLimitSleptTotal < self::MAX_RATE_LIMIT_SLEEP_TOTAL
+                ) {
                     $attempt++;
                     $wait = self::rateLimitWait($e->getResponse()->getHeaderLine('Retry-After'));
+                    $this->rateLimitSleptTotal += $wait;
 
                     if (null !== $this->rateLimitCallback) {
                         call_user_func($this->rateLimitCallback, $wait, $attempt);

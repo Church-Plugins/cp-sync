@@ -44,6 +44,9 @@ class RemovalGuardIntegration extends Integration {
 	/** @var bool */
 	public $dispatched = false;
 
+	/** @var mixed What dispatch() should return ( [] by default, or a WP_Error ). */
+	public $dispatch_result = [];
+
 	/** @var array|null null = update_store() never called */
 	public $store_updated = null;
 
@@ -74,7 +77,7 @@ class RemovalGuardIntegration extends Integration {
 
 	public function dispatch() {
 		$this->dispatched = true;
-		return [];
+		return $this->dispatch_result;
 	}
 
 	public function update_item( $item ) {}
@@ -94,7 +97,9 @@ class IntegrationRemovalGuardTest extends TestCase {
 		Functions\when( 'apply_filters' )->alias(
 			static fn( $tag, $value ) => $value
 		);
-		Functions\when( 'is_wp_error' )->justReturn( false );
+		Functions\when( 'is_wp_error' )->alias(
+			static fn( $thing ) => $thing instanceof \WP_Error
+		);
 
 		// process() logs through the plugin singleton; give it a no-op logger.
 		$plugin          = new class { public $logging; };
@@ -132,6 +137,19 @@ class IntegrationRemovalGuardTest extends TestCase {
 
 		$this->assertSame( [], $integration->removed );
 		$this->assertTrue( $integration->dispatched, 'A normal (empty) run still completes' );
+	}
+
+	public function test_dispatch_returning_wp_error_does_not_break_the_run() {
+		// A non-blocking dispatch can return WP_Error (blocked loopback, busy
+		// worker pool) — process() must log-and-complete, never throw, because
+		// the health-check cron can still pick the queue up.
+		$integration = $this->integration();
+		$integration->dispatch_result = new \WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out' );
+
+		$integration->process( [ [ 'chms_id' => 'evt_1' ] ] );
+
+		$this->assertTrue( $integration->dispatched );
+		$this->assertNotNull( $integration->store_updated, 'The run completes normally after a dispatch error' );
 	}
 
 	public function test_fetched_items_still_remove_genuine_leftovers() {
