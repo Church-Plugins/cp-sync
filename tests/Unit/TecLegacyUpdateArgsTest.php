@@ -80,4 +80,38 @@ class TecLegacyUpdateArgsTest extends TestCase {
 		$this->assertSame( '0', $args['EventStartHour'] );
 		$this->assertSame( '00', $args['EventStartMinute'] );
 	}
+
+	public function test_ccb_combined_datetime_shape_is_split_not_double_stamped() {
+		// CCB emits a full Y-m-d H:i:s in EventStartDate with NO Hour/Minute keys.
+		// Fabricating hour parts alongside the datetime made saveEventMeta() build
+		// "2026-08-05 14:30:00 0:00:00" — unparseable, so every CCB event's date
+		// collapsed to Jan 1 1970 on its first update pass.
+		$args = TEC::legacy_update_args( [
+			'EventStartDate' => '2026-08-05 14:30:00',
+			'EventEndDate'   => '2026-08-05 16:00:00',
+		] );
+
+		$this->assertSame( '2026-08-05', $args['EventStartDate'], 'Date part only — no time doubling' );
+		$this->assertSame( '14', $args['EventStartHour'] );
+		$this->assertSame( '30', $args['EventStartMinute'] );
+		$this->assertSame( '2026-08-05', $args['EventEndDate'] );
+		$this->assertSame( '16', $args['EventEndHour'] );
+		$this->assertSame( '00', $args['EventEndMinute'] );
+	}
+
+	public function test_explicit_hour_keys_win_over_datetime_parsing() {
+		$parts = TEC::split_datetime( '2026-08-05', '19', '30' );
+
+		$this->assertSame( [ 'date' => '2026-08-05', 'hour' => '19', 'minute' => '30' ], $parts );
+	}
+
+	public function test_unparseable_date_yields_no_date_keys() {
+		// A garbage date must leave EventStartDate ABSENT so TEC keeps the stored
+		// date, rather than passing junk through to strtotime (the 1970 trap).
+		$this->assertFalse( TEC::split_datetime( 'not a date' ) );
+
+		$args = TEC::legacy_update_args( [ 'post_title' => 'Bad date', 'EventStartDate' => 'not a date' ] );
+
+		$this->assertArrayNotHasKey( 'EventStartDate', $args );
+	}
 }

@@ -71,13 +71,21 @@ class TEC extends Integration {
 
 		// Date keys only when the formatter provided a start date: an empty
 		// EventStartDate must be ABSENT ( not '' ) so TEC keeps the stored date.
-		if ( ! empty( $item['EventStartDate'] ) ) {
-			$args['EventStartDate']   = $item['EventStartDate'];
-			$args['EventEndDate']     = ! empty( $item['EventEndDate'] ) ? $item['EventEndDate'] : $item['EventStartDate'];
-			$args['EventStartHour']   = $item['EventStartHour'] ?? '0';
-			$args['EventStartMinute'] = $item['EventStartMinute'] ?? '00';
-			$args['EventEndHour']     = $item['EventEndHour'] ?? '0';
-			$args['EventEndMinute']   = $item['EventEndMinute'] ?? '00';
+		$start = self::split_datetime( $item['EventStartDate'] ?? '', $item['EventStartHour'] ?? null, $item['EventStartMinute'] ?? null );
+
+		if ( $start ) {
+			$end = self::split_datetime(
+				! empty( $item['EventEndDate'] ) ? $item['EventEndDate'] : $item['EventStartDate'],
+				$item['EventEndHour'] ?? null,
+				$item['EventEndMinute'] ?? null
+			) ?: $start;
+
+			$args['EventStartDate']   = $start['date'];
+			$args['EventStartHour']   = $start['hour'];
+			$args['EventStartMinute'] = $start['minute'];
+			$args['EventEndDate']     = $end['date'];
+			$args['EventEndHour']     = $end['hour'];
+			$args['EventEndMinute']   = $end['minute'];
 			// Presence matters: FALSE must be sent so an event that changed from
 			// all-day to timed at the source has its stale all-day flag cleared
 			// ( Tribe__Date_Utils::is_all_day( false ) → 'no' → flag deleted ).
@@ -85,6 +93,49 @@ class TEC extends Integration {
 		}
 
 		return $args;
+	}
+
+	/**
+	 * Normalize a formatter date into TEC's legacy date + hour + minute parts.
+	 *
+	 * The formatters emit two shapes: PCO's split shape ( a bare `Y-m-d` date
+	 * with separate Hour/Minute keys ) and CCB's combined shape ( a full
+	 * `Y-m-d H:i:s` datetime with NO Hour/Minute keys ). saveEventMeta() joins
+	 * "{EventStartDate} {Hour}:{Minute}:00", so handing it a datetime AND
+	 * fabricated parts produces an unparseable string — strtotime() fails and
+	 * every date collapses to Jan 1 1970. Explicit parts win; otherwise the
+	 * datetime itself is split.
+	 *
+	 * @param string          $date   The date or datetime string.
+	 * @param string|int|null $hour   Explicit hour, when the formatter split it out.
+	 * @param string|int|null $minute Explicit minute.
+	 * @return array|false { date: Y-m-d, hour: G, minute: i }, or false when unusable.
+	 */
+	public static function split_datetime( $date, $hour = null, $minute = null ) {
+		if ( empty( $date ) ) {
+			return false;
+		}
+
+		// Hour 0 ( midnight ) is valid — only null/'' mean "not provided".
+		if ( null !== $hour && '' !== $hour ) {
+			return [
+				'date'   => $date,
+				'hour'   => (string) (int) $hour,
+				'minute' => sprintf( '%02d', (int) $minute ),
+			];
+		}
+
+		$timestamp = strtotime( $date );
+
+		if ( false === $timestamp ) {
+			return false;
+		}
+
+		return [
+			'date'   => date( 'Y-m-d', $timestamp ),
+			'hour'   => date( 'G', $timestamp ),
+			'minute' => date( 'i', $timestamp ),
+		];
 	}
 
 	public function update_item( $item ) {
