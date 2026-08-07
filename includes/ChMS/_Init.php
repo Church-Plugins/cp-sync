@@ -61,7 +61,7 @@ class _Init {
 	protected function actions() {
 		add_action( 'init', [ $this, 'includes' ], 5 );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
-		add_action( 'admin_init', [ $this, 'handle_oauth_redirect' ] );
+		add_action( 'admin_init', [ $this, 'handle_oauth_redirect' ], 1 );
 	}
 
 	/**
@@ -183,7 +183,16 @@ class _Init {
 
 					$chms_class = self::get_chms( $chms );
 
-					return get_option( $chms_class->settings_key, [] );
+					if ( ! $chms_class ) {
+						return new WP_Error( 'invalid_chms', __( 'Unknown ChMS', 'cp-sync' ), [ 'status' => 404 ] );
+					}
+
+					$settings = get_option( $chms_class->settings_key, [] );
+
+					// Tokens are server-side only; the POST route drops this group too.
+					unset( $settings['auth'] );
+
+					return rest_ensure_response( $settings );
 				},
 				'permission_callback' => function() {
 					return current_user_can( 'manage_options' );
@@ -306,28 +315,55 @@ class _Init {
 
 	/**
 	 * Handle OAuth redirect
+	 *
+	 * Runs early on admin_init and terminates the request. The authorization service
+	 * redirects back to admin_url(), so this callback lands on the Dashboard -- a screen
+	 * plenty of plugins redirect away from on admin_init. Saving the token here rather
+	 * than during admin_head keeps it out of the way of those redirects.
 	 */
 	public function handle_oauth_redirect() {
 		if ( ! isset( $_GET['cp_sync_oauth'] ) ) {
 			return;
 		}
+
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		add_action( 'admin_head', [ $this, 'add_oauth_script' ] );
+
+		$this->render_oauth_response( $this->process_oauth_redirect() );
 	}
 
 	/**
-	 * Add the OAuth script
+	 * Validate the OAuth redirect and store the returned token.
+	 *
+	 * @return array {
+	 *     @type bool   $success Whether a token was stored.
+	 *     @type string $message Detail to show when it was not.
+	 * }
 	 */
-	public function add_oauth_script() {
+	protected function process_oauth_redirect() {
+		$nonce = isset( $_GET['_nonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_nonce'] ) ) : '';
+
+		// The authorization service round-trips the nonce it was handed at the start of the flow.
+		if ( ! wp_verify_nonce( $nonce, 'cpSync' ) ) {
+			cp_sync()->logging->log( 'OAuth redirect rejected: nonce verification failed' );
+
+			return [
+				'success' => false,
+				'message' => __( 'This authorization link is invalid or has expired. Please try connecting again.', 'cp-sync' ),
+			];
+		}
+
 		$active_chms = $this->get_active_chms_class();
 
 		if ( ! $active_chms ) {
-			return;
+			return [
+				'success' => false,
+				'message' => __( 'No ChMS is currently active.', 'cp-sync' ),
+			];
 		}
 
-		$token = $_GET[ 'token' ] ?? '';
+		$token = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
 		/**
 		 * Filter the token
 		 *
@@ -337,7 +373,7 @@ class _Init {
 		 */
 		$token = apply_filters( 'cp_sync_oauth_token', $token, $active_chms );
 
-		$refresh_token = $_GET[ 'refresh_token' ] ?? '';
+		$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( wp_unslash( $_GET['refresh_token'] ) ) : '';
 		/**
 		 * Filter the refresh token
 		 *
@@ -347,18 +383,91 @@ class _Init {
 		 */
 		$refresh_token = apply_filters( 'cp_sync_oauth_refresh_token', $refresh_token, $active_chms );
 
+		// Saving an empty token would overwrite a working connection.
+		if ( empty( $token ) ) {
+			cp_sync()->logging->log( 'OAuth redirect returned no token; existing token left untouched' );
+
+			return [
+				'success' => false,
+				'message' => __( 'The authorization service did not return a token. Please try again.', 'cp-sync' ),
+			];
+		}
+
 		$active_chms->save_token( $token, $refresh_token );
 
 		cp_sync()->logging->log( 'OAuth token saved' );
 
-		$target_origin = parse_url( home_url(), PHP_URL_SCHEME ) . '://' . parse_url( home_url(), PHP_URL_HOST );
+		return [
+			'success' => true,
+			'message' => '',
+		];
+	}
+
+	/**
+	 * Hand the result back to the settings screen that opened this window, then exit.
+	 *
+	 * The result goes out over both BroadcastChannel and window.opener. A COOP header
+	 * anywhere in the authorization chain severs window.opener for good, and the settings
+	 * screen would sit and wait; BroadcastChannel does not depend on the opener handle.
+	 *
+	 * @param array $result Result from process_oauth_redirect().
+	 */
+	protected function render_oauth_response( $result ) {
+		$payload = array_merge( $result, [ 'type' => 'cp_sync_oauth' ] );
+		$notice  = $result['success']
+			? __( 'Authorization successful. You can close this window.', 'cp-sync' )
+			: $result['message'];
+
+		nocache_headers();
 		?>
-		<script>
-			window.postMessage({
-				success: true,
-				type: 'cp_sync_oauth',
-			}, '<?php echo esc_url( $target_origin ); ?>');
-		</script>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+	<meta charset="<?php bloginfo( 'charset' ); ?>" />
+	<title><?php esc_html_e( 'Finishing authorization', 'cp-sync' ); ?></title>
+</head>
+<body>
+	<p><?php echo esc_html( $notice ); ?></p>
+	<script>
+		( function () {
+			var payload = <?php echo wp_json_encode( $payload ); ?>;
+			var origin  = <?php echo wp_json_encode( $this->get_oauth_origin() ); ?>;
+
+			// Left open deliberately: closing a channel right after posting can drop the
+			// message before it is delivered. This document is about to go away regardless.
+			try {
+				new BroadcastChannel( 'cp_sync_oauth' ).postMessage( payload );
+			} catch ( e ) {}
+
+			try {
+				if ( window.opener && ! window.opener.closed ) {
+					window.opener.postMessage( payload, origin );
+				}
+			} catch ( e ) {}
+		} )();
+	</script>
+</body>
+</html>
 		<?php
+		exit;
+	}
+
+	/**
+	 * The origin of the settings screen, for postMessage targeting.
+	 *
+	 * Derived from admin_url() rather than home_url(): the two can differ, and the port
+	 * matters on local and staging installs.
+	 *
+	 * @return string
+	 */
+	protected function get_oauth_origin() {
+		$parts  = wp_parse_url( admin_url() );
+		$origin = $parts['scheme'] . '://' . $parts['host'];
+
+		if ( ! empty( $parts['port'] ) ) {
+			$origin .= ':' . $parts['port'];
+		}
+
+		return $origin;
 	}
 }

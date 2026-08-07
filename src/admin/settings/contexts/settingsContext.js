@@ -55,7 +55,7 @@ export default function SettingsProvider({ globalSettings: initialGlobalSettings
 		}
 	})
 
-	const { persistSettings, setSettings } = useDispatch(globalStore)
+	const { persistSettings, setSettings, setError } = useDispatch(globalStore)
 
 	const saveGlobal = async (data = false) => {
 		if (!globalUnsavedChanges && !data) {

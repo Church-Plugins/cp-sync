@@ -178,14 +178,28 @@ abstract class ChMS {
 
 	/**
 	 * Save the token
+	 *
+	 * An empty token is refused rather than stored: writing one would clear a working
+	 * connection and still stamp last_token_refresh, which reads downstream as a
+	 * freshly refreshed credential.
+	 *
+	 * @param string $token         The access token.
+	 * @param string $refresh_token The refresh token.
+	 * @return bool Whether the token was stored.
 	 */
 	public function save_token( $token, $refresh_token = '' ) {
+		if ( empty( $token ) ) {
+			return false;
+		}
+
 		$this->update_setting( 'token', $token, 'auth' );
 		$this->update_setting( 'last_token_refresh', time(), 'auth' );
 
 		if ( $refresh_token ) {
 			$this->update_setting( 'refresh_token', $refresh_token, 'auth' );
 		}
+
+		return true;
 	}
 
 	/**

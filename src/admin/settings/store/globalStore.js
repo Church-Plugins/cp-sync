@@ -52,19 +52,24 @@ const actions = {
 	*persistSettings(chms, data) {
 		yield { type: 'IS_SAVING', value: true }
 
+		// Errors stick until something clears them, so start each attempt clean.
+		yield actions.setError( null )
+
 		try {
 			const response = yield actions.fetch( `/cp-sync/v1/${chms}/settings`, { data: { data }, method: 'POST' } );
 
 			if ( response ) {
+				// SETTINGS_UPDATE_SUCCESS clears isSaving itself.
 				yield { type: 'SETTINGS_UPDATE_SUCCESS' }
-			} else {
-				yield actions.setError( __( 'Settings were not saved.', 'cp-sync' ) )
+				return
 			}
+
+			yield actions.setError( __( 'Settings were not saved.', 'cp-sync' ) )
 		} catch ( e ) {
-			return actions.setError( e.message )
-		} finally {
-			return { type: 'IS_SAVING', value: false }
-		}		
+			yield actions.setError( e.message )
+		}
+
+		yield { type: 'IS_SAVING', value: false }
 	},
 }
 
@@ -123,7 +128,7 @@ const reducer = ( state = INITIAL_STATE, action ) => {
 		case 'SET_ERROR':
 			return {
 				...state,
-				error: action.error
+				error: action.message
 			}
 		case 'SETTINGS_UPDATE_SUCCESS':
 			return {
