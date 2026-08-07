@@ -5,8 +5,9 @@
   instead of the row-count heuristic, which silently truncated crawls when an
   endpoint capped page size server-side (observed: groups capped at 50).
 - 429 rate limits are retried with a bounded Retry-After back-off (max 2
-  retries per request, waits clamped to 1-30s, total sleep per get() crawl
-  capped at 90s), with an optional onRateLimit() callback for logging.
+  retries per request, waits clamped to 1-20s, total sleep per get() crawl
+  capped at 40s so a worker slot is never held long enough to trip host
+  wall-clock limits), with an optional onRateLimit() callback for logging.
 - Added onPageProgress() callback: invoked after each page of a get() crawl so
   callers can log progress (a request killed mid-crawl leaves a trail).
 

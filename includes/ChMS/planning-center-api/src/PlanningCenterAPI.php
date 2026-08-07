@@ -21,16 +21,25 @@ class PlanningCenterAPI
      */
     const MAX_RATE_LIMIT_RETRIES = 2;
     const DEFAULT_RATE_LIMIT_WAIT = 5;
-    const MAX_RATE_LIMIT_WAIT = 30;
 
     /**
-     * Ceiling on TOTAL seconds slept for rate limits across one get() crawl.
-     * The per-page retry counter resets every page, so on a heavily throttled
-     * multi-page crawl the sleeps could otherwise accumulate to minutes and
-     * push a synchronous request into its host's kill threshold — the very
-     * failure the retry exists to avoid.
+     * PCO's rate window is 20 seconds total, so no legitimate Retry-After
+     * exceeds it — a larger value is pathological and better failed fast than
+     * slept on: sleep holds a PHP worker slot for its full wall-clock time,
+     * and host-level wall-clock limits ( request_terminate_timeout, gateway
+     * timeouts, LVE ) kill long sleepers regardless of PHP's own limits.
      */
-    const MAX_RATE_LIMIT_SLEEP_TOTAL = 90;
+    const MAX_RATE_LIMIT_WAIT = 20;
+
+    /**
+     * Ceiling on TOTAL seconds slept for rate limits across one get() crawl
+     * ( two full PCO windows ). The per-page retry counter resets every page,
+     * so on a heavily throttled multi-page crawl the sleeps could otherwise
+     * accumulate to minutes and push a synchronous request into its host's
+     * kill threshold — the very failure the retry exists to avoid. Tripping
+     * the cap fails loudly and safely ( logged 429, sync aborts, no removals ).
+     */
+    const MAX_RATE_LIMIT_SLEEP_TOTAL = 40;
 
     /**
      * Seconds slept for rate limits during the current get() crawl.
