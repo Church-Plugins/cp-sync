@@ -214,6 +214,14 @@ class DataFilter {
 	 * @return array|\WP_Error The filtered data or WP_Error on error.
 	 */
 	public function apply( &$items ) {
+		// No conditions means NO FILTERING — everything passes. Without this,
+		// the 'any' branch below would collect zero items into $filtered and
+		// wipe the whole feed for a filter group saved as "any" with no
+		// conditions configured (a state the UI happily produces).
+		if ( empty( $this->conditions ) ) {
+			return;
+		}
+
 		if ( 'all' === $this->type ) {
 			$item_count = count( $items );
 			for ( $i = 0; $i < $item_count; $i++ ) {
@@ -266,6 +274,12 @@ class DataFilter {
 	 * @return bool|\WP_Error True if the item passes the filter, false otherwise. WP_Error on error.
 	 */
 	public function check( $item ) {
+		// Mirror apply(): no conditions = no filtering, so every item passes
+		// regardless of the group type.
+		if ( empty( $this->conditions ) ) {
+			return true;
+		}
+
 		foreach ( $this->conditions as $condition ) {
 			$pass = $this->passes_condition( $item, $condition );
 

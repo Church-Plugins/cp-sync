@@ -802,33 +802,29 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$filter_type     = $filter_settings['type'] ?? 'all';
 		$conditions      = $filter_settings['conditions'] ?? [];
 
-		$public_groups_only    = 'public' === $this->get_setting( 'visibility', 'public', 'cp_groups' );
-		$enrollment_status     = $this->get_setting( 'enrollment_status', [], 'cp_groups' );
-		$enrollment_strategies = $this->get_setting( 'enrollment_strategies', [], 'cp_groups' );
+		$public_groups_only = 'public' === $this->get_setting( 'visibility', 'public', 'cp_groups' );
 
-		// add a few custom conditions not based on the filter UI
+		// Church Center visibility is an independent constraint applied as its own
+		// all-type filter, defence in depth behind the API-side filter=published
+		// above. ( It previously used the key `type` instead of `selector`, so
+		// DataFilter silently discarded it. The old enrollment_status /
+		// enrollment_strategies constraints are gone: their settings fields were
+		// removed from the groups screen in the schema refactor, so they could
+		// never be set. )
 		if ( $public_groups_only ) {
-			$conditions[] = [
-				'compare' => 'is_not_empty',
-				'value'   => 'attributes.public_church_center_web_url',
-				'type'    => 'visibility',
-			];
-		}
+			$visibility_filter = new \CP_Sync\Setup\DataFilter(
+				'all',
+				[ [ 'compare' => 'is_not_empty', 'selector' => 'visibility' ] ],
+				$this->get_group_filter_config(),
+				$relational_data
+			);
 
-		if ( ! empty( $enrollment_status ) ) {
-			$conditions[] = [
-				'compare' => 'is_in',
-				'value'   => $enrollment_status,
-				'type'    => 'enrollment_status',
-			];
-		}
+			$error = $visibility_filter->apply( $items );
 
-		if ( ! empty( $enrollment_strategies ) ) {
-			$conditions[] = [
-				'compare' => 'is_in',
-				'value'   => $enrollment_strategies,
-				'type'    => 'enrollment_strategy',
-			];
+			if ( is_wp_error( $error ) ) {
+				cp_sync()->logging->log( 'Group visibility filter FAILED: ' . $error->get_error_message() );
+				return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+			}
 		}
 
 		$filter = new \CP_Sync\Setup\DataFilter(
@@ -838,7 +834,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$relational_data
 		);
 
-		$filter->apply( $items ); // Apply the filter to the items
+		$error = $filter->apply( $items ); // Apply the filter to the items
+
+		if ( is_wp_error( $error ) ) {
+			cp_sync()->logging->log( 'Group filter FAILED: ' . $error->get_error_message() );
+			return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+		}
 
 		return [
 			'items'      => $items,
@@ -1315,11 +1316,24 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		$public_events_only = 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
 
+		// Church Center visibility is an independent constraint applied as its own
+		// all-type filter — merging it into the user's condition group would OR it
+		// away under an "any" group. ( It previously also used the key `type`
+		// instead of `selector`, so DataFilter silently discarded it. )
 		if ( $public_events_only ) {
-			$conditions[] = [
-				'compare' => 'is_not_empty',
-				'type'    => 'visible_in_church_center',
-			];
+			$visibility_filter = new \CP_Sync\Setup\DataFilter(
+				'all',
+				[ [ 'compare' => 'is_not_empty', 'selector' => 'visible_in_church_center' ] ],
+				$this->get_event_filter_config(),
+				$relational_data
+			);
+
+			$error = $visibility_filter->apply( $items );
+
+			if ( is_wp_error( $error ) ) {
+				cp_sync()->logging->log( 'Calendar visibility filter FAILED: ' . $error->get_error_message() );
+				return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+			}
 		}
 
 		$filter = new \CP_Sync\Setup\DataFilter(
@@ -1329,7 +1343,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$relational_data
 		);
 
-		$filter->apply( $items );
+		$error = $filter->apply( $items );
+
+		if ( is_wp_error( $error ) ) {
+			cp_sync()->logging->log( 'Calendar event filter FAILED: ' . $error->get_error_message() );
+			return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+		}
 
 		return [
 			'items'   => $items,
@@ -1419,7 +1438,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$relational_data
 		);
 
-		$filter->apply( $items ); // Apply the filter to the items
+		$error = $filter->apply( $items ); // Apply the filter to the items
+
+		if ( is_wp_error( $error ) ) {
+			cp_sync()->logging->log( 'Registration filter FAILED: ' . $error->get_error_message() );
+			return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+		}
 
 		// Log filtering results
 		$filtered_count = count( $items );

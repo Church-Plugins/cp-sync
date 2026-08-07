@@ -92,6 +92,7 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 == Changelog ==
 
 = 1.0.0-beta2 =
+* Fix: A filter group set to "any" with no conditions no longer filters out every item — previews and syncs affected by this returned zero events. The Church Center visibility restriction (events and groups) is also now applied correctly; it was previously skipped due to a mis-keyed internal condition.
 * Fix: Synced events no longer land at 12:00am — event times now persist on both newly created and existing events, and all-day status is kept in sync (including clearing it when an event gains specific times at the source).
 * Fix: A failed Planning Center API request could silently read as "the calendar is empty," which removed previously imported events. Failed fetches now abort the sync with a logged error, and a safety guard refuses to run the removal pass when a fetch unexpectedly returns zero items.
 * Fix: Event previews no longer crawl the entire calendar — they fetch only the handful of items they display, so Generate Preview responds in seconds on large calendars.
