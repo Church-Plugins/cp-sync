@@ -1048,14 +1048,26 @@ abstract class ChMS {
 				}
 
 			} elseif ( 'events' === $integration_type ) {
-				// Events: show date, time, location, duration
+				// Events: show date, time, location, duration. The formatters split
+				// the time into EventStartHour/Minute keys ( EventStartDate is a bare
+				// Y-m-d ), so fold them back together — the same composition TEC's
+				// integration uses — or every preview time reads 12:00 AM.
 				if ( ! empty( $item['EventStartDate'] ) ) {
-					$start_date = strtotime( $item['EventStartDate'] );
+					$all_day    = ! empty( $item['EventAllDay'] );
+					$start_date = strtotime( \CP_Sync\Integrations\TEC::compose_datetime(
+						$item['EventStartDate'],
+						$item['EventStartHour'] ?? null,
+						$item['EventStartMinute'] ?? null
+					) );
 					$start_date_formatted = date( 'D, M j, Y', $start_date );
 
 					// Check if we have an end date
 					if ( ! empty( $item['EventEndDate'] ) ) {
-						$end_date = strtotime( $item['EventEndDate'] );
+						$end_date = strtotime( \CP_Sync\Integrations\TEC::compose_datetime(
+							$item['EventEndDate'],
+							$item['EventEndHour'] ?? null,
+							$item['EventEndMinute'] ?? null
+						) );
 						$end_date_formatted = date( 'D, M j, Y', $end_date );
 
 						// Check if it's a multi-day event
@@ -1067,26 +1079,30 @@ abstract class ChMS {
 							$preview_item['fields']['Date'] = $start_date_formatted;
 						}
 
-						// Show time range
-						$preview_item['fields']['Time'] = date( 'g:i A', $start_date ) . ' - ' . date( 'g:i A', $end_date );
-
-						// Calculate duration
-						$duration = ( $end_date - $start_date ) / 60; // minutes
-						if ( $duration >= 60 ) {
-							$hours = floor( $duration / 60 );
-							$mins = $duration % 60;
-							$duration_str = $hours . 'h';
-							if ( $mins > 0 ) {
-								$duration_str .= ' ' . $mins . 'm';
-							}
-							$preview_item['fields']['Duration'] = $duration_str;
+						if ( $all_day ) {
+							$preview_item['fields']['Time'] = __( 'All day', 'cp-sync' );
 						} else {
-							$preview_item['fields']['Duration'] = $duration . ' min';
+							// Show time range
+							$preview_item['fields']['Time'] = date( 'g:i A', $start_date ) . ' - ' . date( 'g:i A', $end_date );
+
+							// Calculate duration
+							$duration = ( $end_date - $start_date ) / 60; // minutes
+							if ( $duration >= 60 ) {
+								$hours = floor( $duration / 60 );
+								$mins = $duration % 60;
+								$duration_str = $hours . 'h';
+								if ( $mins > 0 ) {
+									$duration_str .= ' ' . $mins . 'm';
+								}
+								$preview_item['fields']['Duration'] = $duration_str;
+							} else {
+								$preview_item['fields']['Duration'] = $duration . ' min';
+							}
 						}
 					} else {
 						// No end date, just show start
 						$preview_item['fields']['Date'] = $start_date_formatted;
-						$preview_item['fields']['Time'] = date( 'g:i A', $start_date );
+						$preview_item['fields']['Time'] = $all_day ? __( 'All day', 'cp-sync' ) : date( 'g:i A', $start_date );
 					}
 				}
 
