@@ -988,6 +988,21 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * Whether a start/end pair is CCB's representation of an all-day event.
+	 *
+	 * CCB has no explicit all-day flag — an all-day event arrives as a span
+	 * from midnight to 23:59 ( single- or multi-day ). Detect that shape so
+	 * TEC can render "All Day" instead of a literal 12:00am - 11:59pm range.
+	 *
+	 * @param \DateTime $start The event start.
+	 * @param \DateTime $end   The event end.
+	 * @return bool
+	 */
+	public static function is_all_day_span( \DateTime $start, \DateTime $end ) {
+		return '00:00' === $start->format( 'H:i' ) && '23:59' === $end->format( 'H:i' );
+	}
+
+	/**
 	 * Format event
 	 *
 	 * @param array $event The event data.
@@ -1022,6 +1037,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			// Event Data
 			'EventStartDate' => $start_date->format( 'Y-m-d H:i:s' ),
 			'EventEndDate'   => $end_date->format( 'Y-m-d H:i:s' ),
+			'EventAllDay'    => self::is_all_day_span( $start_date, $end_date ),
 			'EventTimezone'  => $event['timezone'] ?? $start_date->getTimezone()->getName(),
 			'EventURL'       => $event_url,
 
