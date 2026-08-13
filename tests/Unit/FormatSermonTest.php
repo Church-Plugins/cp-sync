@@ -6,20 +6,50 @@
  *
  * format_sermon()/get_episode_art() touch no WordPress functions and no API client, so
  * the PCO instance is built without its ( hook-registering ) constructor via reflection.
+ * The one exception is the diagnostic log emitted when a series carries art that cannot
+ * be resolved, which needs the plugin singleton stubbed.
  *
  * @package CP_Sync
  */
 
 namespace CP_Sync\Tests\Unit;
 
+use Brain\Monkey;
+use Brain\Monkey\Functions;
 use CP_Sync\ChMS\PCO;
 use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \CP_Sync\ChMS\PCO::format_sermon
  * @covers \CP_Sync\ChMS\PCO::get_episode_art
+ * @covers \CP_Sync\ChMS\PCO::resolve_art_url
  */
 class FormatSermonTest extends TestCase {
+
+	/** @var array Messages captured from the plugin logger. */
+	private $logged = [];
+
+	protected function setUp(): void {
+		parent::setUp();
+		Monkey\setUp();
+
+		$this->logged = [];
+
+		$logger          = new class( $this->logged ) {
+			public $sink;
+			public function __construct( &$sink ) { $this->sink = &$sink; }
+			public function log( $message ) { $this->sink[] = $message; }
+		};
+		$plugin          = new class { public $logging; };
+		$plugin->logging = $logger;
+
+		Functions\when( 'cp_sync' )->justReturn( $plugin );
+	}
+
+	protected function tearDown(): void {
+		Monkey\tearDown();
+		parent::tearDown();
+	}
 
 	/**
 	 * Build a PCO instance without invoking the constructor ( which registers WP hooks ).
@@ -42,7 +72,15 @@ class FormatSermonTest extends TestCase {
 				'published_to_library_at' => '2026-01-15T12:00:00Z',
 				'library_video_url'       => 'https://example.com/video.mp4',
 				'library_audio_url'       => 'https://example.com/audio.mp3',
-				'art'                     => [ 'original' => 'https://example.com/art.jpg' ],
+				// PCO's real shape: a File object with the sizes under attributes.variants.
+				'art'                     => [
+					'type'       => 'File',
+					'id'         => 165919,
+					'attributes' => [
+						'name'     => 'episode.jpg',
+						'variants' => [ 'original' => 'https://example.com/art.jpg' ],
+					],
+				],
 			],
 			'relationships' => [
 				'series'       => [ 'data' => [ 'type' => 'Series', 'id' => '55' ] ],
@@ -59,7 +97,17 @@ class FormatSermonTest extends TestCase {
 						'id'         => '55',
 						'attributes' => [
 							'title' => 'Romans',
-							'art'   => [ 'original' => 'https://example.com/series-art.jpg' ],
+							'art'   => [
+								'type'       => 'File',
+								'id'         => 242547,
+								'attributes' => [
+									'name'     => 'series.jpg',
+									'variants' => [
+										'original' => 'https://example.com/series-art.jpg',
+										'large'    => 'https://example.com/series-large.jpg',
+									],
+								],
+							],
 						],
 					],
 				],
@@ -147,45 +195,134 @@ class FormatSermonTest extends TestCase {
 	}
 
 	/**
-	 * The series art hash is resolved by preference order, not by whatever comes first.
+	 * Variants are resolved by preference order, not by whatever comes first.
 	 *
-	 * PCO does not guarantee which sizes are present or in what order, so a hash
-	 * missing `original` must still yield the best available size.
+	 * PCO does not guarantee which renditions exist, so a File object missing
+	 * `original` must still yield the largest available one.
 	 */
-	public function test_series_art_falls_back_through_the_hash() {
-		$episode = [
-			'id'         => '105',
-			'attributes' => [
-				'title'                   => 'Art Fallback',
+	public function test_series_art_falls_back_through_the_variants() {
+		$result = $this->makePco()->format_sermon(
+			$this->episodeWithSeriesArt(
+				'105',
+				'57',
+				[
+					'type'       => 'File',
+					'id'         => 1,
+					'attributes' => [
+						// No `original`; `medium` outranks `small` despite key order.
+						'variants' => [
+							'small'  => 'https://example.com/small.jpg',
+							'medium' => 'https://example.com/medium.jpg',
+						],
+					],
+				]
+			),
+			$this->contextWithSeries( '57', 'Acts', [
+				'type'       => 'File',
+				'id'         => 1,
+				'attributes' => [
+					'variants' => [
+						'small'  => 'https://example.com/small.jpg',
+						'medium' => 'https://example.com/medium.jpg',
+					],
+				],
+			] )
+		);
+
+		$this->assertSame( 'https://example.com/medium.jpg', $result['cpl']['series']['thumbnail_url'] );
+	}
+
+	/**
+	 * The documented flat-hash shape still resolves.
+	 *
+	 * The API docs type `art` only as "hash"; PCO currently serves a File object. If it
+	 * ever serves the flat shape instead, this must not silently stop working — that is
+	 * the exact failure mode that shipped a no-op the first time.
+	 */
+	public function test_series_art_accepts_a_flat_size_hash() {
+		$result = $this->makePco()->format_sermon(
+			$this->episodeWithSeriesArt( '106', '58', null ),
+			$this->contextWithSeries( '58', 'Jude', [ 'original' => 'https://example.com/flat.jpg' ] )
+		);
+
+		$this->assertSame( 'https://example.com/flat.jpg', $result['cpl']['series']['thumbnail_url'] );
+	}
+
+	/**
+	 * A File object carrying no usable variants resolves to '' rather than leaking
+	 * the object's own scalars ( 'File', the integer id ) as an image URL.
+	 */
+	public function test_series_art_with_no_variants_resolves_empty() {
+		$result = $this->makePco()->format_sermon(
+			$this->episodeWithSeriesArt( '107', '59', null ),
+			$this->contextWithSeries( '59', 'Titus', [
+				'type'       => 'File',
+				'id'         => 999,
+				'attributes' => [ 'name' => 'broken.jpg' ],
+			] )
+		);
+
+		$this->assertSame( '', $result['cpl']['series']['thumbnail_url'] );
+
+		// Art that is present but unreadable must be reported. A silent '' here is what
+		// let the File-object shape ship as a no-op in the first place.
+		$this->assertNotEmpty( $this->logged, 'Unresolvable series art must be logged' );
+		$this->assertStringContainsString( 'Titus', $this->logged[0] );
+	}
+
+	/**
+	 * A series with no art at all is normal, not an anomaly, and must stay silent.
+	 */
+	public function test_series_without_art_logs_nothing() {
+		$this->makePco()->format_sermon(
+			$this->episodeWithSeriesArt( '108', '60', null ),
+			$this->contextWithSeries( '60', 'Philemon', null )
+		);
+
+		$this->assertSame( [], $this->logged );
+	}
+
+	/**
+	 * Build a minimal episode that references a series.
+	 *
+	 * @param string     $episode_id The episode id.
+	 * @param string     $series_id  The series id it points at.
+	 * @param array|null $unused     Ignored; keeps call sites readable.
+	 * @return array
+	 */
+	private function episodeWithSeriesArt( $episode_id, $series_id, $unused = null ) {
+		return [
+			'id'            => $episode_id,
+			'attributes'    => [
+				'title'                   => 'Episode ' . $episode_id,
 				'published_to_library_at' => '2026-05-01T12:00:00Z',
 			],
 			'relationships' => [
-				'series' => [ 'data' => [ 'type' => 'Series', 'id' => '57' ] ],
+				'series' => [ 'data' => [ 'type' => 'Series', 'id' => $series_id ] ],
 			],
 		];
+	}
 
-		$context = [
+	/**
+	 * Build a context whose Series carries the given `art` payload.
+	 *
+	 * @param string $series_id The series id.
+	 * @param string $title     The series title.
+	 * @param mixed  $art       The `art` attribute to attach.
+	 * @return array
+	 */
+	private function contextWithSeries( $series_id, $title, $art ) {
+		return [
 			'relational_data' => [
 				'Series' => [
-					'57' => [
-						'id'         => '57',
-						'attributes' => [
-							'title' => 'Acts',
-							// No `original`; `detail` outranks `thumbnail` despite order.
-							'art'   => [
-								'thumbnail' => 'https://example.com/small.jpg',
-								'detail'    => 'https://example.com/detail.jpg',
-							],
-						],
+					$series_id => [
+						'id'         => $series_id,
+						'attributes' => [ 'title' => $title, 'art' => $art ],
 					],
 				],
 			],
 			'speakers_by_id'  => [],
 		];
-
-		$result = $this->makePco()->format_sermon( $episode, $context );
-
-		$this->assertSame( 'https://example.com/detail.jpg', $result['cpl']['series']['thumbnail_url'] );
 	}
 
 	/**

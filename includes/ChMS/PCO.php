@@ -2282,10 +2282,20 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				$series = [
 					'id'    => $series_rel['id'],
 					'title' => $series_obj['attributes']['title'],
-					// Series art is its own `art` hash, distinct from the episode's —
-					// the series graphic, not the sermon's.
+					// Series art is its own image, distinct from the episode's — the
+					// series graphic, not the sermon's.
 					'thumbnail_url' => $this->resolve_art_url( $series_obj['attributes']['art'] ?? null ),
 				];
+
+				// Art present but unreadable means PCO changed the payload shape. Without
+				// this the failure is silent: the series just quietly has no graphic.
+				if ( '' === $series['thumbnail_url'] && ! empty( $series_obj['attributes']['art'] ) ) {
+					cp_sync()->logging->log( sprintf(
+						'Series "%s" has art in PCO but no usable image URL could be resolved from it. Payload keys: %s',
+						$series['title'],
+						is_array( $series_obj['attributes']['art'] ) ? implode( ', ', array_keys( $series_obj['attributes']['art'] ) ) : gettype( $series_obj['attributes']['art'] )
+					) );
+				}
 			}
 		}
 
@@ -2342,29 +2352,58 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Resolve a usable image URL out of PCO's `art` attribute.
 	 *
-	 * Both Episode and Series expose `art` as a hash of the same shape, so this is
-	 * shared by both. PCO does not guarantee which sizes are present, hence the
-	 * preference order followed by a scan for any URL-valued key.
+	 * Shared by Episode and Series, which serve `art` identically — and NOT as the flat
+	 * size hash the docs' "hash" type suggests. It is a File object, with the sizes
+	 * nested two levels down:
+	 *
+	 *     [
+	 *       'type'       => 'File',
+	 *       'id'         => 165919,
+	 *       'attributes' => [
+	 *         'name'              => 'artwork.jpg',
+	 *         'signed_identifier' => '…',
+	 *         'variants'          => [
+	 *           'original' => 'https://images.planningcenterusercontent.com/…',
+	 *           'original_ratio_small' => '…', 'small' => '…', 'medium' => '…', 'large' => '…',
+	 *         ],
+	 *       ],
+	 *     ]
+	 *
+	 * The top level holds only the string 'File', an integer id and a nested array, so
+	 * reading sizes from it — or scanning it for a URL — finds nothing. The flat-hash
+	 * keys are still honored as a fallback in case PCO ever serves the documented shape.
 	 *
 	 * @since 1.0.0
 	 * @param array|string|null $art The `art` attribute.
 	 * @return string The image URL, or '' when none is available.
 	 */
 	protected function resolve_art_url( $art ) {
-		if ( is_array( $art ) ) {
-			foreach ( [ 'original', 'detail', 'thumbnail', '16x9', '1x1' ] as $key ) {
-				if ( ! empty( $art[ $key ] ) && is_string( $art[ $key ] ) ) {
-					return $art[ $key ];
-				}
-			}
-
-			foreach ( $art as $value ) {
-				if ( is_string( $value ) && filter_var( $value, FILTER_VALIDATE_URL ) ) {
-					return $value;
-				}
-			}
-		} elseif ( is_string( $art ) && '' !== $art ) {
+		if ( is_string( $art ) ) {
 			return $art;
+		}
+
+		if ( ! is_array( $art ) ) {
+			return '';
+		}
+
+		// Unwrap the File object; fall back to treating $art itself as the size hash.
+		$variants = $art['attributes']['variants'] ?? null;
+		$sizes    = is_array( $variants ) ? $variants : $art;
+
+		// Largest usable rendition first: `original` is the uncropped upload, the rest
+		// descend by size. The trailing keys are the documented flat-hash names.
+		$preferred = [ 'original', 'large', 'medium', 'original_ratio_small', 'small', 'detail', 'thumbnail', '16x9', '1x1' ];
+
+		foreach ( $preferred as $key ) {
+			if ( ! empty( $sizes[ $key ] ) && is_string( $sizes[ $key ] ) ) {
+				return $sizes[ $key ];
+			}
+		}
+
+		foreach ( $sizes as $value ) {
+			if ( is_string( $value ) && filter_var( $value, FILTER_VALIDATE_URL ) ) {
+				return $value;
+			}
 		}
 
 		return '';
