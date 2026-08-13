@@ -66,6 +66,41 @@ class CP_Library extends Integration {
 	}
 
 	/**
+	 * Attach the sermon's artwork, or clear a previously synced one.
+	 *
+	 * The base implementation only ever sets an image. That is right for events and
+	 * groups, but a sermon with no artwork of its own must end up with an EMPTY
+	 * featured image so CP Sermons' template can fall back to the series image and
+	 * then the service type image. Leaving a stale one attached silently disables
+	 * that cascade — including the placeholder gradients an earlier sync imported.
+	 *
+	 * @since 1.0.0
+	 * @param array $item The formatted item.
+	 * @param int   $id   The sermon post id.
+	 */
+	public function maybe_sideload_thumb( $item, $id ) {
+		if ( ! empty( $item['thumbnail_url'] ) ) {
+			parent::maybe_sideload_thumb( $item, $id );
+			return;
+		}
+
+		// Only remove an image THIS plugin attached. maybe_sideload_thumb() records
+		// `_thumbnail_url` whenever it sets one, so its absence means the image was
+		// chosen by hand and must survive.
+		if ( ! get_post_meta( $id, '_thumbnail_url', true ) ) {
+			return;
+		}
+
+		delete_post_thumbnail( $id );
+		delete_post_meta( $id, '_thumbnail_url' );
+
+		cp_sync()->logging->log( sprintf(
+			'Cleared synced artwork from sermon %d ( the episode has none of its own in PCO ); the template will fall back to series, then service type.',
+			$id
+		) );
+	}
+
+	/**
 	 * Swap a related record's source art URL for a local attachment id.
 	 *
 	 * Used for both the series and the service type. SermonSync owns creation of those

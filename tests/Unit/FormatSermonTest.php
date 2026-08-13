@@ -77,8 +77,9 @@ class FormatSermonTest extends TestCase {
 					'type'       => 'File',
 					'id'         => 165919,
 					'attributes' => [
-						'name'     => 'episode.jpg',
-						'variants' => [ 'original' => 'https://example.com/art.jpg' ],
+						'name'              => 'episode.jpg',
+						'signed_identifier' => 'eyJfcmFpbHMiOnsiZGF0YSI6OTk5fX0=--abc123',
+						'variants'          => [ 'original' => 'https://example.com/art.jpg' ],
 					],
 				],
 			],
@@ -101,8 +102,9 @@ class FormatSermonTest extends TestCase {
 								'type'       => 'File',
 								'id'         => 242547,
 								'attributes' => [
-									'name'     => 'series.jpg',
-									'variants' => [
+									'name'              => 'series.jpg',
+									'signed_identifier' => 'eyJfcmFpbHMiOnsiZGF0YSI6ODg4fX0=--def456',
+									'variants'          => [
 										'original' => 'https://example.com/series-art.jpg',
 										'large'    => 'https://example.com/series-large.jpg',
 									],
@@ -209,6 +211,7 @@ class FormatSermonTest extends TestCase {
 					'type'       => 'File',
 					'id'         => 1,
 					'attributes' => [
+						'signed_identifier' => 'sig',
 						// No `original`; `medium` outranks `small` despite key order.
 						'variants' => [
 							'small'  => 'https://example.com/small.jpg',
@@ -221,6 +224,7 @@ class FormatSermonTest extends TestCase {
 				'type'       => 'File',
 				'id'         => 1,
 				'attributes' => [
+					'signed_identifier' => 'sig',
 					'variants' => [
 						'small'  => 'https://example.com/small.jpg',
 						'medium' => 'https://example.com/medium.jpg',
@@ -258,7 +262,7 @@ class FormatSermonTest extends TestCase {
 			$this->contextWithSeries( '59', 'Titus', [
 				'type'       => 'File',
 				'id'         => 999,
-				'attributes' => [ 'name' => 'broken.jpg' ],
+				'attributes' => [ 'name' => 'broken.jpg', 'signed_identifier' => 'sig' ],
 			] )
 		);
 
@@ -408,9 +412,36 @@ class FormatSermonTest extends TestCase {
 	private function fileObject( $url ) {
 		return [
 			'type'       => 'File',
-			'id'         => 1,
-			'attributes' => [ 'variants' => [ 'original' => $url ] ],
+			'id'         => 12473005,
+			'attributes' => [
+				// A real upload carries a signed blob id; PCO's generated placeholders
+				// leave it empty. Its presence is what marks this as genuine artwork.
+				'signed_identifier' => 'eyJfcmFpbHMiOnsiZGF0YSI6MTExNjA4OX19--0d5dd132',
+				'variants'          => [ 'original' => $url ],
+			],
 		];
+	}
+
+	/**
+	 * Build PCO's auto-assigned placeholder art payload.
+	 *
+	 * @param string      $url    The gradient URL.
+	 * @param string|null $source The `source` attribute; null omits it, as Series and
+	 *                            Channel art objects do.
+	 * @return array
+	 */
+	private function placeholderArt( $url, $source = 'default' ) {
+		$attributes = [
+			'name'              => '926-large.png',
+			'signed_identifier' => '',
+			'variants'          => [ 'original' => $url ],
+		];
+
+		if ( null !== $source ) {
+			$attributes['source'] = $source;
+		}
+
+		return [ 'type' => 'File', 'id' => 926, 'attributes' => $attributes ];
 	}
 
 	/**
@@ -510,21 +541,108 @@ class FormatSermonTest extends TestCase {
 	}
 
 	/**
-	 * When art has no direct URL, the thumbnail URL fields are used as a fallback.
+	 * An episode with no artwork yields NO image, not a video still.
+	 *
+	 * CP Sermons' template falls back to the series image and then the service type
+	 * image, but only while the sermon's own featured image is empty. Substituting a
+	 * frame grab here — which this used to do — pins every sermon to a still and the
+	 * cascade never runs.
 	 */
-	public function test_art_falls_back_to_thumbnail() {
+	public function test_episode_without_art_yields_no_image() {
 		$episode = [
 			'id'         => '104',
 			'attributes' => [
-				'title'                       => 'Thumb Fallback',
+				'title'                       => 'No Art',
 				'published_to_library_at'     => '2026-04-01T12:00:00Z',
 				'library_video_thumbnail_url' => 'https://example.com/thumb.jpg',
+				'video_thumbnail_url'         => 'https://example.com/thumb2.jpg',
 			],
 			'relationships' => [],
 		];
 
 		$result = $this->makePco()->format_sermon( $episode, [ 'relational_data' => [], 'speakers_by_id' => [] ] );
 
-		$this->assertSame( 'https://example.com/thumb.jpg', $result['thumbnail_url'] );
+		$this->assertSame( '', $result['thumbnail_url'] );
+	}
+
+	/* ------------------------------------------------------- placeholder artwork */
+
+	/**
+	 * PCO's auto-assigned placeholder is not artwork.
+	 *
+	 * Every episode has `art`; PCO fills an empty one with a generated gradient. On the
+	 * calendar this was found on, 189 of 200 episodes carried one, so importing them
+	 * replaced every sermon image with noise. Episodes mark it as `source: default`.
+	 */
+	public function test_episode_placeholder_art_is_ignored() {
+		$episode = [
+			'id'            => '120',
+			'attributes'    => [
+				'title'                   => 'Placeholder',
+				'published_to_library_at' => '2026-07-01T12:00:00Z',
+				'art'                     => $this->placeholderArt( 'https://cdn.example.net/926-large.png' ),
+			],
+			'relationships' => [],
+		];
+
+		$result = $this->makePco()->format_sermon( $episode, [ 'relational_data' => [], 'speakers_by_id' => [] ] );
+
+		$this->assertSame( '', $result['thumbnail_url'] );
+	}
+
+	/**
+	 * Series and Channel art objects carry NO `source` key, so the placeholder check
+	 * cannot rely on it — an empty `signed_identifier` is the signal that holds for
+	 * every record type.
+	 */
+	public function test_series_and_channel_placeholder_art_is_ignored() {
+		$episode = [
+			'id'            => '121',
+			'attributes'    => [
+				'title'                   => 'Placeholder Relations',
+				'published_to_library_at' => '2026-07-08T12:00:00Z',
+			],
+			'relationships' => [
+				'series'  => [ 'data' => [ 'type' => 'Series', 'id' => '70' ] ],
+				'channel' => [ 'data' => [ 'type' => 'Channel', 'id' => '80' ] ],
+			],
+		];
+
+		$context = [
+			'relational_data' => [
+				'Series'  => [
+					'70' => [
+						'id'         => '70',
+						// `source` omitted, exactly as PCO serves related records.
+						'attributes' => [ 'title' => 'Stock Series', 'art' => $this->placeholderArt( 'https://cdn.example.net/1-large.png', null ) ],
+					],
+				],
+				'Channel' => [
+					'80' => [
+						'id'         => '80',
+						'attributes' => [ 'name' => 'Stock Channel', 'art' => $this->placeholderArt( 'https://cdn.example.net/2-large.png', null ) ],
+					],
+				],
+			],
+			'speakers_by_id'  => [],
+		];
+
+		$result = $this->makePco()->format_sermon( $episode, $context );
+
+		$this->assertSame( '', $result['cpl']['series']['thumbnail_url'] );
+		$this->assertSame( '', $result['cpl']['service_type']['thumbnail_url'] );
+	}
+
+	/**
+	 * Placeholder art must not trip the "art present but unresolvable" diagnostic —
+	 * it resolves to nothing on purpose, which is not an anomaly worth logging.
+	 */
+	public function test_placeholder_art_logs_nothing() {
+		$this->makePco()->format_sermon(
+			$this->episodeWithSeriesArt( '122', '71', null ),
+			$this->contextWithSeries( '71', 'Stock', $this->placeholderArt( 'https://cdn.example.net/3-large.png', null ) )
+		);
+
+		$this->assertSame( [], $this->logged );
 	}
 }

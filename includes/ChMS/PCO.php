@@ -2361,6 +2361,41 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * Whether an `art` payload is PCO's auto-assigned placeholder rather than an upload.
+	 *
+	 * Every episode has `art`, but PCO fills an empty one with a generated abstract
+	 * gradient ( a different one per record, so they cannot be spotted by repetition ).
+	 * On one production calendar 189 of 200 episodes carried one — importing those as
+	 * sermon artwork replaces a meaningful image with noise.
+	 *
+	 * `signed_identifier` is the signal that holds everywhere: an uploaded file has a
+	 * signed blob id, a generated default has an empty one. Verified against all 238
+	 * Episode/Series/Channel records on that calendar, where it agreed exactly with both
+	 * the `source` attribute and the hosting domain. `source` is checked first where it
+	 * exists — it says so outright — but only Episode carries it; Series and Channel art
+	 * objects have no such key, which is why the check cannot rely on it alone.
+	 *
+	 * @since 1.0.0
+	 * @param array $art The `art` File object.
+	 * @return bool
+	 */
+	protected static function is_placeholder_art( $art ) {
+		// Only a File object carries provenance. A bare size hash ( the shape the docs
+		// describe ) has none, so it is taken at face value rather than assumed fake.
+		if ( empty( $art['attributes'] ) || ! is_array( $art['attributes'] ) ) {
+			return false;
+		}
+
+		$source = $art['attributes']['source'] ?? null;
+
+		if ( null !== $source ) {
+			return 'default' === $source;
+		}
+
+		return empty( $art['attributes']['signed_identifier'] );
+	}
+
+	/**
 	 * Resolve a usable image URL out of PCO's `art` attribute.
 	 *
 	 * Shared by Episode and Series, which serve `art` identically — and NOT as the flat
@@ -2394,6 +2429,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		if ( ! is_array( $art ) ) {
+			return '';
+		}
+
+		// A placeholder is not artwork. Treated as "no image" so the theme's own
+		// fallback ( series art, then service type art ) takes over.
+		if ( self::is_placeholder_art( $art ) ) {
 			return '';
 		}
 
@@ -2446,12 +2487,17 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$url = $this->resolve_art_url( $attributes['art'] ?? null );
 		}
 
-		if ( '' === $url && ! empty( $attributes['art'] ) ) {
+		$art = $attributes['art'] ?? null;
+
+		// A placeholder resolving to nothing is the intended outcome, not an anomaly.
+		$is_placeholder = is_array( $art ) && self::is_placeholder_art( $art );
+
+		if ( '' === $url && ! empty( $art ) && ! $is_placeholder ) {
 			cp_sync()->logging->log( sprintf(
 				'%s "%s" has art in PCO but no usable image URL could be resolved from it. Payload keys: %s',
 				$type,
 				$label,
-				is_array( $attributes['art'] ) ? implode( ', ', array_keys( $attributes['art'] ) ) : gettype( $attributes['art'] )
+				is_array( $art ) ? implode( ', ', array_keys( $art ) ) : gettype( $art )
 			) );
 		}
 
@@ -2459,26 +2505,20 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Resolve a usable image URL from an episode's art hash / thumbnail fields.
+	 * Resolve the sermon's own artwork from an episode.
 	 *
-	 * Falls back to the video thumbnail URLs when no direct art URL is present —
-	 * episode-only fallbacks, since a Series has no video.
+	 * Deliberately returns '' rather than substituting anything when the episode has
+	 * no artwork of its own: CP Sermons' template already falls back to the series
+	 * image and then the service type image, and that cascade only runs while the
+	 * sermon's featured image is empty. Filling it with a video still frame — which
+	 * this did previously — pins every sermon to a frame grab and prevents the
+	 * series graphic from ever showing.
 	 *
 	 * @param array $attr The episode attributes.
-	 * @return string The image URL, or '' when none is available.
+	 * @return string The image URL, or '' to let the template decide.
 	 */
 	protected function get_episode_art( $attr ) {
-		$art_url = $this->resolve_art_url( $attr['art'] ?? null );
-
-		if ( '' !== $art_url ) {
-			return $art_url;
-		}
-
-		if ( ! empty( $attr['library_video_thumbnail_url'] ) ) {
-			return $attr['library_video_thumbnail_url'];
-		}
-
-		return $attr['video_thumbnail_url'] ?? '';
+		return $this->resolve_art_url( $attr['art'] ?? null );
 	}
 
 	/**
