@@ -1035,8 +1035,14 @@ abstract class Integration extends \WP_Background_Process {
 	public function remove_item( $chms_id ) {
 		$id = $this->get_chms_item_id( $chms_id );
 
+		// Only delete the image if nothing else is using it. Sideloaded attachments are
+		// deduplicated by source URL, so this one may equally be the featured image of
+		// another synced post — deleting it with this post would break that one.
+		// $id is excluded from the check because it still references the attachment here.
 		if ( $thumb = get_post_thumbnail_id( $id ) ) {
-			wp_delete_attachment( $thumb, true );
+			if ( ! \CP_Sync\Setup\Convenience::attachment_in_use( $thumb, $id ) ) {
+				wp_delete_attachment( $thumb, true );
+			}
 		}
 
 		wp_delete_post( $id, true );

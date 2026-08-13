@@ -396,7 +396,7 @@ class Reset {
 			// — a series or speaker an admin created, say. Deleting the attachment
 			// anyway would leave that post pointing at nothing, which is worse than
 			// leaving one image behind.
-			if ( self::attachment_in_use( $id ) ) {
+			if ( Convenience::attachment_in_use( $id ) ) {
 				continue;
 			}
 
@@ -408,26 +408,6 @@ class Reset {
 		return $count;
 	}
 
-	/**
-	 * Is this attachment still the featured image of some surviving post?
-	 *
-	 * @since 1.0.0
-	 * @param int $attachment_id The attachment id.
-	 * @return bool
-	 */
-	protected static function attachment_in_use( $attachment_id ) {
-		global $wpdb;
-
-		return (bool) $wpdb->get_var( $wpdb->prepare(
-			"SELECT pm.post_id
-			FROM $wpdb->postmeta pm
-			JOIN $wpdb->posts p ON p.ID = pm.post_id
-			WHERE pm.meta_key = '_thumbnail_id'
-			AND pm.meta_value = %d
-			LIMIT 1",
-			(int) $attachment_id
-		) );
-	}
 
 	/**
 	 * Remove the uploads image cache directory ( {uploads}/cp-sync ) and its files.
