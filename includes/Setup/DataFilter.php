@@ -67,12 +67,58 @@ class DataFilter {
 		$output = [];
 
 		foreach ( $conditions as $condition ) {
-			if( ! empty( $filter_config[ $condition['selector'] ] ) ) {
-				$output[] = $condition;
+			// Skip conditions whose selector is not a declared filter field.
+			if ( empty( $filter_config[ $condition['selector'] ?? '' ] ) ) {
+				continue;
 			}
+
+			// Skip incomplete conditions ( a value never chosen ). Applying one would
+			// silently match nothing and zero out the whole feed; treating it as a no-op
+			// is the safe interpretation of "the user hasn't finished this condition yet".
+			if ( $this->is_condition_incomplete( $condition ) ) {
+				continue;
+			}
+
+			$output[] = $condition;
 		}
 
 		return $output;
+	}
+
+	/**
+	 * Whether a condition is missing the value it needs to be meaningful.
+	 *
+	 * Emptiness operators ( is_empty / is_not_empty ) need no value, so they are never
+	 * incomplete. For every other operator a null value, an empty string, or an empty
+	 * array means the user has not finished choosing — the condition should be ignored
+	 * rather than applied ( where it would match nothing ). A numeric 0 or boolean false
+	 * is a real, intentional value and is NOT treated as incomplete.
+	 *
+	 * @param array $condition The condition to check.
+	 * @return bool True when the condition should be skipped.
+	 */
+	protected function is_condition_incomplete( $condition ) {
+		$compare = $condition['compare'] ?? '';
+
+		if ( in_array( $compare, [ 'is_empty', 'is_not_empty' ], true ) ) {
+			return false;
+		}
+
+		$value = $condition['value'] ?? null;
+
+		if ( null === $value ) {
+			return true;
+		}
+
+		if ( is_string( $value ) && '' === $value ) {
+			return true;
+		}
+
+		if ( is_array( $value ) && 0 === count( $value ) ) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -168,6 +214,14 @@ class DataFilter {
 	 * @return array|\WP_Error The filtered data or WP_Error on error.
 	 */
 	public function apply( &$items ) {
+		// No conditions means NO FILTERING — everything passes. Without this,
+		// the 'any' branch below would collect zero items into $filtered and
+		// wipe the whole feed for a filter group saved as "any" with no
+		// conditions configured (a state the UI happily produces).
+		if ( empty( $this->conditions ) ) {
+			return;
+		}
+
 		if ( 'all' === $this->type ) {
 			$item_count = count( $items );
 			for ( $i = 0; $i < $item_count; $i++ ) {
@@ -220,6 +274,12 @@ class DataFilter {
 	 * @return bool|\WP_Error True if the item passes the filter, false otherwise. WP_Error on error.
 	 */
 	public function check( $item ) {
+		// Mirror apply(): no conditions = no filtering, so every item passes
+		// regardless of the group type.
+		if ( empty( $this->conditions ) ) {
+			return true;
+		}
+
 		foreach ( $this->conditions as $condition ) {
 			$pass = $this->passes_condition( $item, $condition );
 

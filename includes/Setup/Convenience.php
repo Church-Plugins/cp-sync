@@ -154,4 +154,42 @@ class Convenience {
 		return preg_replace( "/[\-\_]/", $replacement_char, $slug );
 	}
 
+	/**
+	 * Is this attachment the featured image of any post other than the excluded one?
+	 *
+	 * Sideloaded images are deduplicated by their normalized source URL
+	 * ( Integration::get_existing_attachment ), so ONE attachment can be the featured
+	 * image of several synced posts — a series graphic reused across its sermons is
+	 * exactly that shape. Deleting it along with the first of those posts leaves the
+	 * others pointing at nothing, so anything that deletes a sideloaded attachment has
+	 * to ask this first.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param int $attachment_id   The attachment to check.
+	 * @param int $exclude_post_id A post to ignore — normally the one being deleted,
+	 *                             which still references the attachment at this point.
+	 *                             0 excludes nothing.
+	 * @return bool
+	 */
+	public static function attachment_in_use( $attachment_id, $exclude_post_id = 0 ) {
+		global $wpdb;
+
+		if ( ! $attachment_id ) {
+			return false;
+		}
+
+		return (bool) $wpdb->get_var( $wpdb->prepare(
+			"SELECT pm.post_id
+			FROM $wpdb->postmeta pm
+			JOIN $wpdb->posts p ON p.ID = pm.post_id
+			WHERE pm.meta_key = '_thumbnail_id'
+			AND pm.meta_value = %d
+			AND pm.post_id != %d
+			LIMIT 1",
+			(int) $attachment_id,
+			(int) $exclude_post_id
+		) );
+	}
+
 }

@@ -49,35 +49,89 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			]
 		);
 
-		add_filter( 'cp_sync_settings_entrypoint_data', [ $this, 'settings_entrypoint_data' ] );
+		// Sermons pull from the PCO Publishing app into CP Sermons. Registered
+		// unconditionally ( like Groups/Events ) so the Sync Sermons toggle always renders
+		// for PCO; availability ( CP Sermons active ) is carried by the toggle's disabled
+		// state and enforced by Integrations\_Init::pull_integration().
+		$this->add_support(
+			'sermons',
+			[
+				'fetch_callback'   => [ $this, 'fetch_sermons' ],
+				'format_callback'  => [ $this, 'format_sermon' ],
+				'filter_config'    => [ $this, 'get_sermon_filter_config' ],
+			]
+		);
+
 	}
 
 	/**
-	 * Get the settings entrypoint data
+	 * Load the active PCO integration.
 	 *
-	 * @param array $entrypoint_data The entrypoint data.
-	 * @return array
+	 * Adds the one-time `none` → sync-toggle migration on `admin_init` ( it only
+	 * needs to run when PCO is the active ChMS, which is exactly when load() runs ).
+	 *
+	 * @return void
 	 */
-	public function settings_entrypoint_data( $entrypoint_data ) {
-		$group_filter_options = $this->get_group_filter_config();
-		$event_filter_options = $this->get_event_filter_config();
+	public function load() {
+		parent::load();
 
-		$entrypoint_group_filter_options = []; // Format the group filter config for the entrypoint
-		foreach ( $group_filter_options as $key => $config ) {
-			$entrypoint_group_filter_options[ $key ] = $config['label'];
+		add_action( 'admin_init', [ $this, 'maybe_migrate_none_source' ] );
+	}
+
+	/**
+	 * Compute the migrated settings for a legacy `ecp.source === 'none'` install.
+	 *
+	 * "Do not pull" is no longer a radio option; its meaning is carried by the
+	 * `connect.sync_events` toggle. When the stored source is `none` this returns a
+	 * copy of the settings with `connect.sync_events = false` and
+	 * `ecp.source = 'calendar'`. Any other ( already-migrated / normal ) source
+	 * returns null — signalling no change, which makes the migration idempotent.
+	 *
+	 * Pure ( no WP ) so it is unit-testable in isolation.
+	 *
+	 * @since 0.5.0
+	 * @param array $settings The full stored settings array ( groups keyed by name ).
+	 * @return array|null The migrated settings, or null when nothing changes.
+	 */
+	public static function migrate_none_source_settings( $settings ) {
+		if ( ! is_array( $settings ) ) {
+			return null;
 		}
 
-		$entrypoint_event_filter_options = []; // Format the event filter config for the entrypoint
-		foreach ( $event_filter_options as $key => $config ) {
-			$entrypoint_event_filter_options[ $key ] = $config['label'];
-		}
-		
-		$entrypoint_data['pco'] = [
-			'group_filter_options' => $entrypoint_group_filter_options,
-			'event_filter_options' => $entrypoint_event_filter_options,
-		];
+		$source = isset( $settings['ecp']['source'] ) ? $settings['ecp']['source'] : null;
 
-		return $entrypoint_data;
+		if ( 'none' !== $source ) {
+			return null;
+		}
+
+		$settings['ecp']['source']          = 'calendar';
+		$settings['connect']['sync_events']  = false;
+
+		return $settings;
+	}
+
+	/**
+	 * Self-erasing `none` migration, hooked on admin_init.
+	 *
+	 * One option read + one conditional write: if the pure transform reports a
+	 * change ( legacy `none` install ), persist it; otherwise do nothing. Running
+	 * again is a no-op because `source` is then `calendar`.
+	 *
+	 * @return void
+	 */
+	public function maybe_migrate_none_source() {
+		if ( empty( $this->settings_key ) ) {
+			return;
+		}
+
+		$settings = get_option( $this->settings_key, [] );
+		$migrated = self::migrate_none_source_settings( $settings );
+
+		if ( null === $migrated ) {
+			return;
+		}
+
+		update_option( $this->settings_key, $migrated );
 	}
 
 	/**
@@ -93,8 +147,19 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			if ( $this->get_token() ) {
 				$this->api->authorization = 'Authorization: Bearer ' . $this->get_token();
 			}
+
+			// Log every page of a paginated crawl. Large accounts crawl dozens of
+			// pages sequentially; when a shared host kills the request mid-crawl,
+			// this trail is the only evidence of how far it got.
+			$this->api->onPageProgress( function ( $table, $total, $page_rows ) {
+				cp_sync()->logging->log( sprintf( 'PCO crawl [%s]: %d records so far (+%d this page)', $table, $total, $page_rows ) );
+			} );
+
+			$this->api->onRateLimit( function ( $wait, $attempt ) {
+				cp_sync()->logging->log( sprintf( 'PCO rate limited (429): waiting %ds before retry #%d', $wait, $attempt ) );
+			} );
 		}
-		
+
 		return $this->api;
 	}
 
@@ -153,53 +218,221 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public function register_rest_routes() {
 		parent::register_rest_routes();
 
-		$this->add_rest_route(
-			'groups/types',
-			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_group_types' ],
-			]
-		);
+		// These routes feed admin-only option selectors; gate them behind the same
+		// capability check the rest of the ChMS routes use.
+		$options_permission = function () {
+			return current_user_can( 'manage_options' );
+		};
 
 		$this->add_rest_route(
 			'groups/tag_groups',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_group_tag_groups' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_group_tag_groups' ],
+				'permission_callback' => $options_permission,
 			]
 		);
 
 		$this->add_rest_route(
 			'groups/tag_groups/(?P<tag_group>\d+)/tags',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_group_tags' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_group_tags' ],
+				'permission_callback' => $options_permission,
 			]
 		);
 
 		$this->add_rest_route(
 			'events/tag_groups',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_event_tag_groups' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_event_tag_groups' ],
+				'permission_callback' => $options_permission,
 			]
 		);
 
 		$this->add_rest_route(
 			'events/tag_groups/(?P<tag_group>\d+)/tags',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_event_tags' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_event_tags' ],
+				'permission_callback' => $options_permission,
 			]
 		);
 
 		$this->add_rest_route(
 			'events/registration_categories',
 			[
-				'methods'  => 'GET',
-				'callback' => [ $this, 'fetch_event_registration_categories' ],
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'fetch_event_registration_categories' ],
+				'permission_callback' => $options_permission,
 			]
 		);
+	}
+
+	/**
+	 * Declare the PCO settings screens as schema data.
+	 *
+	 * Screen keys equal the stored settings groups the current tabs write to:
+	 *   - `connect`  → OAuth-only ( no persisted form fields; the connect/disconnect
+	 *                  flow is an action widget composed by the tab ).
+	 *   - `cp_groups`→ the Groups tab.
+	 *   - `ecp`      → the Events tab.
+	 *
+	 * Field keys equal the exact stored setting keys ( verified against the tab
+	 * `updateField()` calls ). Additive only — nothing consumes this yet.
+	 *
+	 * @since 0.4.0
+	 * @return array
+	 */
+	/**
+	 * PCO stores events settings under the legacy `ecp` group.
+	 *
+	 * @return string
+	 */
+	public function get_events_settings_group() {
+		return 'ecp';
+	}
+
+	public function get_settings_schema() {
+		$schema = [
+			// OAuth connect/disconnect is an action widget ( no persisted credential
+			// fields ), but the screen carries the Groups/Events sync-enable toggles so
+			// they are stored under `connect.sync_groups` / `connect.sync_events`.
+			'connect' => [
+				'label'    => __( 'Connect', 'cp-sync' ),
+				'sections' => [
+					[
+						'title'  => __( 'Sync', 'cp-sync' ),
+						'fields' => $this->get_sync_toggle_fields(),
+					],
+				],
+			],
+			'cp_groups' => [
+				'label'    => __( 'Groups', 'cp-sync' ),
+				'sections' => [
+					[
+						'fields' => [
+							'tag_groups' => [
+								'type'     => 'async-multiselect',
+								'label'    => __( 'Group Tags to Sync', 'cp-sync' ),
+								'help'     => __( 'Each selected Planning Center tag group is added to your site as a group category and shown as a filter on the groups page — e.g. a "Life Stage" tag group becomes a Life Stage filter.', 'cp-sync' ),
+								'endpoint' => '/cp-sync/v1/pco/groups/tag_groups',
+							],
+							'visibility' => [
+								'type'    => 'radio',
+								'label'   => __( 'Visibility', 'cp-sync' ),
+								'default' => 'public',
+								'options' => [
+									[ 'value' => 'all', 'label' => __( 'Show All', 'cp-sync' ) ],
+									[ 'value' => 'public', 'label' => __( 'Only Visible in Church Center', 'cp-sync' ) ],
+								],
+							],
+							'filter' => [
+								'type'        => 'filter-builder',
+								'label'       => __( 'Groups', 'cp-sync' ),
+								'filterGroup' => 'groups',
+							],
+						],
+					],
+				],
+			],
+			'ecp' => [
+				'label'    => __( 'Events', 'cp-sync' ),
+				'sections' => [
+					// --- Source + general event options ---
+					[
+						'title'  => __( 'Event Source', 'cp-sync' ),
+						'fields' => [
+							'source' => [
+								'type'    => 'radio',
+								'label'   => __( 'Event source', 'cp-sync' ),
+								'default' => 'calendar',
+								'options' => [
+									[ 'value' => 'calendar', 'label' => __( 'Pull from Calendar', 'cp-sync' ) ],
+									[ 'value' => 'registrations', 'label' => __( 'Pull from Registrations', 'cp-sync' ) ],
+									[ 'value' => 'both', 'label' => __( 'Calendar AND Registrations', 'cp-sync' ) ],
+								],
+							],
+							'show_register_button' => [
+								'type'    => 'toggle',
+								'label'   => __( 'Show Register button on events', 'cp-sync' ),
+								'default' => true,
+								'help'    => __( 'Adds a Register button to synced events that have a registration link ( Planning Center registrations ). Turn off to hide it.', 'cp-sync' ),
+							],
+							// Shown only when both sources are enabled — warns that an event
+							// published in both apps imports twice ( no dedup ).
+							'events_dedup_notice' => [
+								'type'    => 'notice',
+								'message' => __( 'Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.', 'cp-sync' ),
+								'show_if' => [ 'field' => 'source', 'is' => 'both' ],
+							],
+						],
+					],
+					// --- Calendar settings ( whole section hides unless calendar is on ) ---
+					[
+						'title'   => __( 'Calendar Settings', 'cp-sync' ),
+						'show_if' => [ 'field' => 'source', 'is' => [ 'calendar', 'both' ] ],
+						'fields'  => [
+							'tag_groups' => [
+								'type'     => 'async-multiselect',
+								'label'    => __( 'Tag groups', 'cp-sync' ),
+								'help'     => __( 'Pull these tag groups as separate taxonomies for The Events Calendar.', 'cp-sync' ),
+								'endpoint' => '/cp-sync/v1/pco/events/tag_groups',
+							],
+							'visibility' => [
+								'type'    => 'radio',
+								'label'   => __( 'Visibility', 'cp-sync' ),
+								'default' => 'public',
+								'options' => [
+									[ 'value' => 'all', 'label' => __( 'Show All', 'cp-sync' ) ],
+									[ 'value' => 'public', 'label' => __( 'Only Visible in Church Center', 'cp-sync' ) ],
+								],
+							],
+							'filter' => [
+								'type'        => 'filter-builder',
+								'label'       => __( 'Calendar Filters', 'cp-sync' ),
+								'filterGroup' => 'events',
+							],
+						],
+					],
+					// --- Registrations settings ( hides unless registrations is on ) ---
+					[
+						'title'   => __( 'Registration Settings', 'cp-sync' ),
+						'show_if' => [ 'field' => 'source', 'is' => [ 'registrations', 'both' ] ],
+						'fields'  => [
+							'registration_filter' => [
+								'type'        => 'filter-builder',
+								'label'       => __( 'Registration Filters', 'cp-sync' ),
+								'filterGroup' => 'events_registrations',
+							],
+						],
+					],
+				],
+			],
+		];
+
+		// Sermons ( PCO Publishing → CP Sermons ). Persisted under the `cp_library`
+		// settings group; only sermons published to the Church Center library are pulled.
+		// Always declared ( like Groups/Events ); the Sermons tab is gated client-side on
+		// the Sync Sermons toggle's enabled/available state.
+		$schema['cp_library'] = [
+			'label'    => __( 'Sermons', 'cp-sync' ),
+			'sections' => [
+				[
+					'description' => __( 'Only sermons published to your Church Center library are synced.', 'cp-sync' ),
+					'fields'      => [
+						'filter' => [
+							'type'        => 'filter-builder',
+							'label'       => __( 'Sermons', 'cp-sync' ),
+							'filterGroup' => 'sermons',
+						],
+					],
+				],
+			],
+		];
+
+		return $schema;
 	}
 
 	/**
@@ -373,11 +606,59 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		if ( isset( $response['data'] ) && ! empty( $response['data']['id'] ) ) {
 			cp_sync()->logging->log( 'PCO connection check successful' );
-			return [ 'status' => 'success', 'message' => 'Connection successful' ];
+			return [
+				'status'  => 'success',
+				'message' => 'Connection successful',
+				'account' => $this->get_account_details( $response['data'] ),
+			];
 		}
 
 		cp_sync()->logging->log( 'PCO connection check failed: ' . $this->api()->errorMessage() );
 		return false;
+	}
+
+	/**
+	 * Resolve which PCO account this connection belongs to.
+	 *
+	 * The person name comes free from the `/people/v2/me` response the connection
+	 * check already makes. The ORGANIZATION name (the real "which account" signal
+	 * when juggling test vs production) requires one extra call to the People
+	 * module root, so it is cached in the `auth` settings group keyed by the
+	 * organization id — the extra request happens once per connected org, not on
+	 * every settings-page load.
+	 *
+	 * @param array $me The `data` object from the `/people/v2/me` response.
+	 * @return array{person: string, organization: string}
+	 */
+	protected function get_account_details( $me ) {
+		$person = $me['attributes']['name'] ?? '';
+		$org_id = $me['relationships']['organization']['data']['id'] ?? '';
+
+		$cached = $this->get_setting( 'account', [], 'auth' );
+
+		if ( $org_id && ( $cached['organization_id'] ?? null ) === $org_id && ! empty( $cached['organization'] ) ) {
+			$org_name = $cached['organization'];
+		} else {
+			// Module root ( /people/v2/ ) returns the Organization object.
+			$root     = $this->api()->module( 'people' )->table( '' )->get( 1 );
+			$org_name = $root['data']['attributes']['name'] ?? '';
+
+			if ( $org_id && $org_name ) {
+				$this->update_setting(
+					'account',
+					[
+						'organization'    => $org_name,
+						'organization_id' => $org_id,
+					],
+					'auth'
+				);
+			}
+		}
+
+		return [
+			'person'       => $person,
+			'organization' => $org_name,
+		];
 	}
 
 	/**
@@ -427,11 +708,21 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 */
 	public function fetch_groups( $limit = 0 ) {
 		// Pull groups here
-		$raw = $this->api()
+		$api = $this->api()
 			->module( 'groups' )
 			->table( 'groups' )
-			->includes( 'location,group_type,enrollment' )
-			->get();
+			->includes( 'location,group_type,enrollment' );
+
+		// When the visibility setting is "Only Visible in Church Center", push the
+		// restriction to the API ( filter=published — "groups that are published on
+		// Church Center" ) so unlisted groups are never fetched at all. The
+		// client-side public_church_center_web_url condition remains as defence in
+		// depth; this just avoids paging through groups that would be discarded.
+		if ( 'public' === $this->get_setting( 'visibility', 'public', 'cp_groups' ) ) {
+			$api->filter( 'published' );
+		}
+
+		$raw = $api->get();
 
 		// Collapse and normalize the response
 		$items = [];
@@ -511,33 +802,29 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$filter_type     = $filter_settings['type'] ?? 'all';
 		$conditions      = $filter_settings['conditions'] ?? [];
 
-		$public_groups_only    = 'public' === $this->get_setting( 'visibility', 'public', 'cp_groups' );
-		$enrollment_status     = $this->get_setting( 'enrollment_status', [], 'cp_groups' );
-		$enrollment_strategies = $this->get_setting( 'enrollment_strategies', [], 'cp_groups' );
+		$public_groups_only = 'public' === $this->get_setting( 'visibility', 'public', 'cp_groups' );
 
-		// add a few custom conditions not based on the filter UI
+		// Church Center visibility is an independent constraint applied as its own
+		// all-type filter, defence in depth behind the API-side filter=published
+		// above. ( It previously used the key `type` instead of `selector`, so
+		// DataFilter silently discarded it. The old enrollment_status /
+		// enrollment_strategies constraints are gone: their settings fields were
+		// removed from the groups screen in the schema refactor, so they could
+		// never be set. )
 		if ( $public_groups_only ) {
-			$conditions[] = [
-				'compare' => 'is_not_empty',
-				'value'   => 'attributes.public_church_center_web_url',
-				'type'    => 'visibility',
-			];
-		}
+			$visibility_filter = new \CP_Sync\Setup\DataFilter(
+				'all',
+				[ [ 'compare' => 'is_not_empty', 'selector' => 'visibility' ] ],
+				$this->get_group_filter_config(),
+				$relational_data
+			);
 
-		if ( ! empty( $enrollment_status ) ) {
-			$conditions[] = [
-				'compare' => 'is_in',
-				'value'   => $enrollment_status,
-				'type'    => 'enrollment_status',
-			];
-		}
+			$error = $visibility_filter->apply( $items );
 
-		if ( ! empty( $enrollment_strategies ) ) {
-			$conditions[] = [
-				'compare' => 'is_in',
-				'value'   => $enrollment_strategies,
-				'type'    => 'enrollment_strategy',
-			];
+			if ( is_wp_error( $error ) ) {
+				cp_sync()->logging->log( 'Group visibility filter FAILED: ' . $error->get_error_message() );
+				return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+			}
 		}
 
 		$filter = new \CP_Sync\Setup\DataFilter(
@@ -547,7 +834,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$relational_data
 		);
 
-		$filter->apply( $items ); // Apply the filter to the items
+		$error = $filter->apply( $items ); // Apply the filter to the items
+
+		if ( is_wp_error( $error ) ) {
+			cp_sync()->logging->log( 'Group filter FAILED: ' . $error->get_error_message() );
+			return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+		}
 
 		return [
 			'items'      => $items,
@@ -579,6 +871,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		if ( $this->api()->errorMessage() ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Always caught in ChMS::get_formatted_data() and only written to the log via error_log() (never echoed to the browser); HTML-escaping would corrupt the log output.
 			throw new ChMSException( 'pco_fetch_error', $this->api()->errorMessage() );
 		}
 
@@ -666,35 +959,35 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Get group types from PCO - a rest endpoint handler
+	 * Convert a PCO API error payload into a REST-ready ChMSError.
+	 *
+	 * PCO error bodies decode to `[ 'errors' => [ [ 'status', 'title', 'detail' ] ] ]`
+	 * ( PlanningCenterAPI::saveErrorMessage() ). The HTTP status is forwarded so the
+	 * client can distinguish permission failures ( 401/403 ) from transient ones,
+	 * and the message is flattened to a string ( WP_Error messages must not be arrays ).
+	 *
+	 * @param mixed $error The decoded payload from PlanningCenterAPI::errorMessage().
+	 * @return ChMSError
 	 */
-	public function fetch_group_types() {
-		$raw = $this->api()
-			->module( 'groups' )
-			->table( 'group_types' )
-			->get();
-			
-		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+	protected function api_error_to_rest_error( $error ) {
+		$status = 500;
+		$detail = '';
+
+		if ( is_array( $error ) && ! empty( $error['errors'][0] ) ) {
+			$first  = $error['errors'][0];
+			$status = absint( $first['status'] ?? 0 ) ?: 500;
+			$detail = $first['detail'] ?? $first['title'] ?? '';
+		} elseif ( is_string( $error ) ) {
+			$detail = $error;
 		}
 
-		if ( empty( $raw ) ) {
-			return new ChMSError( 'pco_data_not_found', 'The data was not found in PCO' );
+		if ( ! $detail ) {
+			$detail = __( 'The request to Planning Center failed.', 'cp-sync' );
 		}
 
-		$group_types = $raw['data'] ? (array) $raw['data'] : [];
+		$code = in_array( $status, [ 401, 403 ], true ) ? 'pco_permission_denied' : 'pco_fetch_error';
 
-		$formatted = [];
-
-		foreach ( $group_types as $group_type ) {
-			$formatted[] = [
-				'id'   => $group_type['id'],
-				'name' => $group_type['attributes']['name'] ?? '',
-				'desc' => $group_type['attributes']['description'] ?? '',
-			];
-		}
-
-		return wp_send_json_success( $formatted, 200 );
+		return new ChMSError( $code, $detail, [ 'status' => $status ] );
 	}
 
 	/**
@@ -705,9 +998,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->module( 'groups' )
 			->table( 'tag_groups' )
 			->get();
-		
+
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+			return $this->api_error_to_rest_error( $this->api()->errorMessage() );
 		}
 
 		if ( empty( $raw ) ) {
@@ -742,7 +1035,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+			return $this->api_error_to_rest_error( $this->api()->errorMessage() );
 		}
 
 		if ( empty( $raw ) ) {
@@ -768,40 +1061,150 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 */
 
 	/**
-	 * Fetch events from PCO
+	 * Map the stored `source` setting to the list of enabled event sources.
+	 *
+	 * Pure ( no WP / no API ) so it is unit-testable. `none` and any unknown
+	 * value resolve to an empty list, which fetch_events() turns into a
+	 * ChMSError no-op ( Review amendment #1 — an empty item list must never
+	 * reach process()'s leftover pass or every imported event is hard-deleted ).
+	 *
+	 * @since 0.5.0
+	 * @param string $source Stored `ecp.source` value.
+	 * @return string[] Ordered list of enabled sources ( subset of calendar|registrations ).
 	 */
-	public function fetch_events() {
-		$source = $this->get_setting( 'source', 'calendar', 'ecp' );
-
-		cp_sync()->logging->log( 'Fetching events from ' . $source );
-
-		if ( 'calendar' === $source ) {
-			return $this->fetch_events_from_calendar();
-		} else if ( 'registrations' === $source ) {
-			return $this->fetch_events_from_registrations();
-		} else {
-			return new ChMSError( 'pco_fetch_error', 'Invalid source type' );
+	public static function events_sources_for( $source ) {
+		switch ( $source ) {
+			case 'calendar':
+				return [ 'calendar' ];
+			case 'registrations':
+				return [ 'registrations' ];
+			case 'both':
+				return [ 'calendar', 'registrations' ];
+			default:
+				return []; // none / unknown → no-op ( amendment #1 ).
 		}
 	}
 
 	/**
-	 * Format an event
+	 * Merge per-source fetch results into one fetch payload.
+	 *
+	 * Pure ( no WP / no API ). Each raw item is tagged with `_cp_source` so
+	 * format_event() can dispatch and hand each formatter its own source's
+	 * relational data — the tag lives ONLY on the raw item, never on formatted
+	 * output ( amendment #8: the store-key hash must not change for calendar
+	 * installs ). Relational data is namespaced per source ( amendment #6 ) so
+	 * EventTime / SignupTime ids from the two independent apps cannot collide.
+	 * Taxonomies come from calendar only.
+	 *
+	 * @since 0.5.0
+	 * @param array $results Map of source => fetch result ( items/context/taxonomies ).
+	 * @return array { items, context => [ relational_data => [ source => data ] ], taxonomies }
+	 */
+	public static function merge_event_sources( array $results ) {
+		$items      = [];
+		$relational = [];
+		$taxonomies = [];
+
+		foreach ( $results as $source => $result ) {
+			$relational[ $source ] = $result['context']['relational_data'] ?? [];
+
+			foreach ( ( $result['items'] ?? [] ) as $item ) {
+				$item['_cp_source'] = $source;
+				$items[]            = $item;
+			}
+
+			// Only calendar contributes taxonomies ( registrations have none ).
+			if ( 'calendar' === $source && ! empty( $result['taxonomies'] ) ) {
+				$taxonomies = $result['taxonomies'];
+			}
+		}
+
+		return [
+			'items'      => $items,
+			'context'    => [ 'relational_data' => $relational ],
+			'taxonomies' => $taxonomies,
+		];
+	}
+
+	/**
+	 * Fetch events from PCO ( Calendar and/or Registrations ).
+	 *
+	 * Runs every enabled source's fetcher, tags + merges the raw items, and
+	 * namespaces each source's relational data. Amendment #1 no-op / abort rules:
+	 *   - empty enabled list ( `none`/unknown ) → ChMSError, so process() skips
+	 *     entirely and nothing is deleted;
+	 *   - if ANY enabled source's fetch errors → abort the whole pull with that
+	 *     error, so the healthy source's items are never mistaken for leftovers.
+	 *
+	 * @param int $limit Optional. Max items to fetch PER SOURCE ( 0 = all ). Caps
+	 *                   the API crawl itself, so previews stay one small request.
+	 */
+	public function fetch_events( $limit = 0 ) {
+		$source  = $this->get_setting( 'source', 'calendar', 'ecp' );
+		$sources = self::events_sources_for( $source );
+
+		cp_sync()->logging->log( 'Fetching events from ' . $source . ( $limit > 0 ? " (limit {$limit})" : '' ) );
+
+		if ( empty( $sources ) ) {
+			return new ChMSError( 'pco_fetch_error', 'No event source enabled' );
+		}
+
+		$results = [];
+
+		foreach ( $sources as $src ) {
+			if ( 'calendar' === $src ) {
+				$result = $this->fetch_events_from_calendar( $limit );
+			} else {
+				$result = $this->fetch_events_from_registrations( $limit );
+			}
+
+			// Partial-failure abort ( amendment #1 ).
+			if ( is_wp_error( $result ) ) {
+				return $result;
+			}
+
+			$results[ $src ] = $result;
+		}
+
+		return self::merge_event_sources( $results );
+	}
+
+	/**
+	 * Format an event.
+	 *
+	 * Dispatches per raw item on its `_cp_source` tag ( set at merge time ) and
+	 * passes each source-specific formatter ONLY that source's relational_data
+	 * slice ( context.relational_data.<source> ). Untagged items fall back to the
+	 * legacy single-source behavior for safety.
 	 */
 	public function format_event( $event, $context ) {
-		$source = $this->get_setting( 'source', 'calendar', 'ecp' );
+		$source = isset( $event['_cp_source'] ) ? $event['_cp_source'] : null;
 
-		if ( 'calendar' === $source ) {
-			return $this->format_event_from_calendar( $event, $context );
-		} else if ( 'registrations' === $source ) {
-			return $this->format_event_from_registrations( $event, $context );
-		} else {
-			return new ChMSError( 'pco_fetch_error', 'Invalid source type' );
+		// Dual-source path: namespaced relational data, one slice per formatter.
+		if ( null !== $source && isset( $context['relational_data'][ $source ] ) ) {
+			$sub_context = [ 'relational_data' => $context['relational_data'][ $source ] ];
+
+			if ( 'calendar' === $source ) {
+				return $this->format_event_from_calendar( $event, $sub_context );
+			}
+			if ( 'registrations' === $source ) {
+				return $this->format_event_from_registrations( $event, $sub_context );
+			}
+			return false;
 		}
+
+		// Fallback ( untagged item / non-namespaced context ): legacy behavior.
+		$stored = $this->get_setting( 'source', 'calendar', 'ecp' );
+		if ( 'registrations' === $stored ) {
+			return $this->format_event_from_registrations( $event, $context );
+		}
+		return $this->format_event_from_calendar( $event, $context );
 	}
 
 	/**
 	 * Fetch events from PCO calendar
 	 *
+	 * @param int $limit Optional. Max event instances to fetch ( 0 = all ).
 	 * @return array {
 	 * 	 @type array items   The raw events from PCO
 	 * 	 @type array context The context for the data.
@@ -809,24 +1212,43 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * }
 	 * @throws ChMSException If there is an error fetching the events.
 	 */
-	public function fetch_events_from_calendar() {
-	
+	public function fetch_events_from_calendar( $limit = 0 ) {
+		cp_sync()->logging->log( 'Calendar fetch: starting event_instances crawl' . ( $limit > 0 ? " (limit {$limit})" : '' ) );
+
 		$raw_events = $this->api()
 			->module('calendar')
 			->table('event_instances')
 			->includes('event,event_times,tags')
 			->filter('future')
 			->order('starts_at')
-			->get();
+			->get( $limit > 0 ? $limit : 100000 );
+
+		// Check for failure IMMEDIATELY: the wrapper returns `false` on any API
+		// error ( including 429 rate limits ) and every get() resets errorMessage,
+		// so checking after a later call would let a successful follow-up request
+		// silently mask this one's failure — turning "PCO errored" into "the
+		// calendar is empty", which the caller would then treat as real removals.
+		if ( false === $raw_events || ! empty( $this->api()->errorMessage() ) ) {
+			$error = $this->api()->errorMessage() ?: 'event_instances request failed with no error detail';
+			cp_sync()->logging->log( 'Calendar fetch FAILED (event_instances): ' . var_export( $error, true ) );
+			return new ChMSError( 'pco_fetch_error', $error );
+		}
+
+		cp_sync()->logging->log( sprintf(
+			'Calendar fetch: %d event instances, %d included records',
+			count( $raw_events['data'] ?? [] ),
+			count( $raw_events['included'] ?? [] )
+		) );
 
 		$tag_groups = $this->api()
 			->module( 'calendar' )
 			->table('tag_groups')
 			->get();
 
-		if( !empty( $this->api()->errorMessage() ) ) {
-			cp_sync()->logging->log( var_export( $this->api()->errorMessage(), true ) );
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+		if ( false === $tag_groups || ! empty( $this->api()->errorMessage() ) ) {
+			$error = $this->api()->errorMessage() ?: 'tag_groups request failed with no error detail';
+			cp_sync()->logging->log( 'Calendar fetch FAILED (tag_groups): ' . var_export( $error, true ) );
+			return new ChMSError( 'pco_fetch_error', $error );
 		}
 
 		$items      = $raw_events['data'] ?? [];
@@ -835,11 +1257,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$relational_data = [];
 		$taxonomies      = [];
 
-		foreach( $raw_events['included'] as $include ) {
+		foreach( $raw_events['included'] ?? [] as $include ) {
 			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
 		}
 
-		foreach ( $raw_events['data'] as $event ) {
+		foreach ( $raw_events['data'] ?? [] as $event ) {
 			$relational_data[ $event['type'] ][ $event['id'] ] = $event;
 		}
 
@@ -867,6 +1289,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				->associations( 'tags' )
 				->get();
 
+			if ( false === $tags || ! empty( $this->api()->errorMessage() ) ) {
+				$error = $this->api()->errorMessage() ?: 'tag_group tags request failed with no error detail';
+				cp_sync()->logging->log( 'Calendar fetch FAILED (tags for group ' . $tag_group['id'] . '): ' . var_export( $error, true ) );
+				return new ChMSError( 'pco_fetch_error', $error );
+			}
+
 			$tags = $tags['data'] ?? [];
 
 			foreach ( $tags as $tag ) {
@@ -888,11 +1316,24 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		$public_events_only = 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
 
+		// Church Center visibility is an independent constraint applied as its own
+		// all-type filter — merging it into the user's condition group would OR it
+		// away under an "any" group. ( It previously also used the key `type`
+		// instead of `selector`, so DataFilter silently discarded it. )
 		if ( $public_events_only ) {
-			$conditions[] = [
-				'compare' => 'is_not_empty',
-				'type'    => 'visible_in_church_center',
-			];
+			$visibility_filter = new \CP_Sync\Setup\DataFilter(
+				'all',
+				[ [ 'compare' => 'is_not_empty', 'selector' => 'visible_in_church_center' ] ],
+				$this->get_event_filter_config(),
+				$relational_data
+			);
+
+			$error = $visibility_filter->apply( $items );
+
+			if ( is_wp_error( $error ) ) {
+				cp_sync()->logging->log( 'Calendar visibility filter FAILED: ' . $error->get_error_message() );
+				return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+			}
 		}
 
 		$filter = new \CP_Sync\Setup\DataFilter(
@@ -902,7 +1343,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$relational_data
 		);
 
-		$filter->apply( $items );
+		$error = $filter->apply( $items );
+
+		if ( is_wp_error( $error ) ) {
+			cp_sync()->logging->log( 'Calendar event filter FAILED: ' . $error->get_error_message() );
+			return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+		}
 
 		return [
 			'items'   => $items,
@@ -915,61 +1361,75 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 	/**
 	 * Fetch events from PCO registrations
-	 * 
+	 *
+	 * @param int $limit Optional. Max signups to fetch ( 0 = all ). Applied to the
+	 *                   API crawl BEFORE the client-side archived filter, so a
+	 *                   limited fetch can return fewer ( even zero ) usable items.
 	 * @return array {
 	 * 	 @type array items   The raw events from PCO
 	 * 	 @type array context The context for the data.
 	 *   @type array taxonomies The taxonomies for the events.
 	 * }
 	 */
-	public function fetch_events_from_registrations() {
-		cp_sync()->logging->log( 'Starting PCO registration events import' );
-		
+	public function fetch_events_from_registrations( $limit = 0 ) {
+		cp_sync()->logging->log( 'Starting PCO registration events import' . ( $limit > 0 ? " (limit {$limit})" : '' ) );
+
+		// Documented Registrations API (2025-05-01): the model is `signups`, related
+		// dates/location/categories are included as SignupTime / SignupLocation /
+		// Category. Signup supports ordering by created_at/updated_at only (no
+		// starts_at), and exposes no filter param — so we order by -created_at and
+		// skip archived signups client-side below. `at_maximum_capacity` is served
+		// only when explicitly requested via a sparse fieldset, so we list every
+		// Signup attribute we consume (adding one to a fields request drops the
+		// rest for that type). If PCO rejects the shape the pull still succeeds and
+		// the sold-out meta is simply omitted (guarded in the formatter).
 		$raw_events = $this->api()
 			->module( 'registrations' )
-			->table( 'events' )
-			->includes( 'categories,event_location,event_times' )
-			->order( 'starts_at' )
-			->filter( 'unarchived,published' )
-			->get();
+			->table( 'signups' )
+			->includes( 'signup_times,signup_location,categories' )
+			->order( '-created_at' )
+			// NOTE: per JSON:API, a sparse fieldset restricts RELATIONSHIPS as well as
+			// attributes — the relationship names must be listed or the payload loses
+			// the signup_times/signup_location/categories linkage entirely.
+			->param( 'fields[Signup]', 'name,description,logo_url,new_registration_url,archived,at_maximum_capacity,signup_times,signup_location,categories' )
+			->get( $limit > 0 ? $limit : 100000 );
+
+		// A failed fetch must ABORT, not proceed with an empty list: an empty list
+		// here reads as "every signup was removed from PCO" downstream. ( The
+		// sparse-fieldset tolerance note above concerns PCO ignoring unknown field
+		// names, which still returns a successful response — not this. )
+		if ( false === $raw_events || ! empty( $this->api()->errorMessage() ) ) {
+			$error = $this->api()->errorMessage() ?: 'signups request failed with no error detail';
+			cp_sync()->logging->log( 'Registrations fetch FAILED: ' . var_export( $error, true ) );
+			return new ChMSError( 'pco_fetch_error', $error );
+		}
 
 		$items = $raw_events['data'] ?? [];
-		cp_sync()->logging->log( sprintf( 'PCO API returned %d registration events', count( $items ) ) );
-		
-		// Log API errors
-		if ( ! empty( $this->api()->errorMessage() ) ) {
-			cp_sync()->logging->log( 'PCO API Error: ' . $this->api()->errorMessage() );
-		}
-		
-		// Log if no events found
-		if ( empty( $items ) ) {
-			cp_sync()->logging->log( 'No registration events found in PCO (check if events are published and not archived)' );
-		}
 
-		$categories = [];
+		// No filter param exists on signups; drop archived signups here instead.
+		$items = array_values( array_filter( $items, function( $item ) {
+			return true !== ( $item['attributes']['archived'] ?? false );
+		} ) );
+
+		cp_sync()->logging->log( sprintf( 'PCO API returned %d registration signups', count( $items ) ) );
+
+		if ( empty( $items ) ) {
+			cp_sync()->logging->log( 'No registration signups found in PCO (check that signups exist and are not archived)' );
+		}
 
 		$relational_data = [];
-		foreach( $raw_events['included'] as $include ) {
+		foreach( $raw_events['included'] ?? [] as $include ) {
 			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
 		}
 
-		$filter_settings = $this->get_setting( 'filter', [], 'ecp' );
+		// Registrations read their OWN filter ( `ecp.registration_filter` ); the
+		// calendar keeps `ecp.filter`. ( Amendment #7 — the legacy code read
+		// `ecp.filter` and `ecp.visibility` here; both are dropped for signups. )
+		$filter_settings = $this->get_setting( 'registration_filter', [], 'ecp' );
 		cp_sync()->logging->log( sprintf( 'Filter settings: type=%s, conditions=%d', $filter_settings['type'] ?? 'all', count( $filter_settings['conditions'] ?? [] ) ) );
 
 		$filter_type = $filter_settings['type'] ?? 'all';
 		$conditions  = $filter_settings['conditions'] ?? [];
-
-		$public_events_only = 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
-
-		if ( $public_events_only ) {
-			cp_sync()->logging->log( 'Public events only filter enabled - events must be visible in Church Center' );
-			$conditions[] = [
-				'compare' => 'is_not_empty',
-				'type'    => 'visible_in_church_center',
-			];
-		} else {
-			cp_sync()->logging->log( 'Importing all events (public and private)' );
-		}
 
 		$filter = new \CP_Sync\Setup\DataFilter(
 			$filter_type,
@@ -978,7 +1438,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$relational_data
 		);
 
-		$filter->apply( $items ); // Apply the filter to the items
+		$error = $filter->apply( $items ); // Apply the filter to the items
+
+		if ( is_wp_error( $error ) ) {
+			cp_sync()->logging->log( 'Registration filter FAILED: ' . $error->get_error_message() );
+			return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+		}
 
 		// Log filtering results
 		$filtered_count = count( $items );
@@ -1072,10 +1537,16 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$args['thumbnail_url'] = $event['attributes']['image_url'];
 		}
 
-		// Generic location - a long string with an entire address
-		// if ( ! empty( $event_instance['attributes']['location'] ) ) {
-		// 	$args['tax_input']['cp_location'] = $event_instance['attributes']['location'];
-		// }
+		// Venue. Calendar event instances carry the venue as a single free-text
+		// `location` string ( e.g. "Church - 401 Wabash Ave, Granite Falls, WA 98252,
+		// USA" ) right in the main query — no enrichment call needed. Parse it into
+		// TEC's EventVenue contract; empty/unparseable values yield no venue.
+		if ( ! empty( $event_instance['attributes']['location'] ) ) {
+			$venue = self::parse_calendar_location( $event_instance['attributes']['location'] );
+			if ( ! empty( $venue['venue'] ) ) {
+				$args['EventVenue'] = $venue;
+			}
+		}
 
 		// Get the event's tags and pair them with appropriate taxonomies
 		$tags = wp_list_pluck( $event_instance['relationships']['tags']['data'], 'id' );
@@ -1155,119 +1626,247 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * @param array $context The context for the data.
 	 * @return array|bool The formatted event or false if the event should be skipped.
 	 */
-	public function format_event_from_registrations( $event, $context ) {
-		$event_name = $event['attributes']['name'] ?? 'Unknown Event';
-		$event_id = $event['id'] ?? 'Unknown ID';
-		cp_sync()->logging->log( sprintf( 'Processing event: "%s" (ID: %s)', $event_name, $event_id ) );
-		
+	public function format_event_from_registrations( $signup, $context ) {
 		$relational_data = $context['relational_data'];
 
-		// Begin stuffing the output
+		// Dates live on the related SignupTime rows; use the first one. Without a
+		// usable start/end there is nothing to import as a dated event.
+		$time_ids  = wp_list_pluck( $signup['relationships']['signup_times']['data'] ?? [], 'id' );
+		$time_id   = current( $time_ids );
+
+		if ( empty( $time_id ) ) {
+			// e.g. an "ongoing" registration — no scheduled dates, so it cannot become
+			// a dated event. Log it so the fetched-vs-processed counts add up.
+			cp_sync()->logging->log( sprintf(
+				'Skipping signup %s (%s): no scheduled dates (signup_times is empty)',
+				$signup['id'] ?? '?',
+				$signup['attributes']['name'] ?? 'unnamed'
+			) );
+			return false;
+		}
+
+		$start_date = $relational_data['SignupTime'][ $time_id ]['attributes']['starts_at'] ?? '';
+		$end_date   = $relational_data['SignupTime'][ $time_id ]['attributes']['ends_at'] ?? '';
+		$all_day    = $relational_data['SignupTime'][ $time_id ]['attributes']['all_day'] ?? false;
+
+		if ( ! $start_date || ! $end_date ) {
+			cp_sync()->logging->log( sprintf(
+				'Skipping signup %s (%s): signup time has no usable start/end date',
+				$signup['id'] ?? '?',
+				$signup['attributes']['name'] ?? 'unnamed'
+			) );
+			return false;
+		}
+
+		$start_date = ( new \DateTime( $start_date ) )->setTimezone( wp_timezone() );
+		$end_date   = ( new \DateTime( $end_date ) )->setTimezone( wp_timezone() );
+
+		// Begin stuffing the output. chms_id is prefixed with `reg_` so registrations
+		// and calendar events never collide in the shared store keyspace (plan §3/§4).
 		$args = [
-			'chms_id'        => $event['id'],
+			'chms_id'        => 'reg_' . $signup['id'],
 			'post_status'    => 'publish',
-			'post_title'     => $event['attributes']['name'] ?? '',
-			'post_content'   => $event['attributes']['description'] ?? '',
-			// 'post_excerpt'   => $event['attributes']['summary'] ?? '',
+			'post_title'     => $signup['attributes']['name'] ?? '',
+			'post_content'   => $signup['attributes']['description'] ?? '',
 			'tax_input'      => [],
 			'event_category' => [],
 			'thumbnail_url'  => '',
+			// Deliberately NO EventURL ( TEC "Event Website" ) for registrations: the
+			// only URL PCO exposes is the signup/reservation page, which already has a
+			// home as the "Register" button ( registration_url meta below ). Pointing
+			// the website field at the same reservation form would be redundant and
+			// would send visitors into a form instead of an event page.
 			'meta_input'     => [
-				'registration_url' => '',
+				'registration_url' => $signup['attributes']['new_registration_url'] ?? '',
 			],
-			// 'EventStartDate'        => $start_date->format( 'Y-m-d' ),
-			// 'EventEndDate'          => $end_date->format( 'Y-m-d' ),
-			// 'EventAllDay'           => true,
-			// 'EventStartHour'        => $start_date->format( 'G' ),
-			// 'EventStartMinute'      => $start_date->format( 'i' ),
-			// 'EventStartMeridian'    => $event[''],
-			// 'EventEndHour'          => $end_date->format( 'G' ),
-			// 'EventEndMinute'        => $end_date->format( 'i' ),
-			// 'EventEndMeridian'      => $event[''],
-			// 'EventHideFromUpcoming' => $event[''],
-			// 'EventShowMapLink'      => $event[''],
-			// 'EventShowMap'          => $event[''],
-			// 'EventCost'             => $event[''],
-			// 'EventURL'              => $event[''],
-			// 'FeaturedImage'         => $event['attributes']['image_url'] ?? '',
+			'EventStartDate'   => $start_date->format( 'Y-m-d' ),
+			'EventStartHour'   => $start_date->format( 'G' ),
+			'EventStartMinute' => $start_date->format( 'i' ),
+			'EventEndDate'     => $end_date->format( 'Y-m-d' ),
+			'EventEndHour'     => $end_date->format( 'G' ),
+			'EventEndMinute'   => $end_date->format( 'i' ),
 		];
-
-		// Log registration details
-		$registration_type = $event['attributes']['registration_type'] ?? 'none';
-		$public_url = $event['attributes']['public_url'] ?? '';
-		$at_capacity = $event['attributes']['at_maximum_capacity'] ?? false;
-		
-		cp_sync()->logging->log( sprintf( 'Event registration type: %s, has public URL: %s, at capacity: %s', 
-			$registration_type, 
-			$public_url ? 'yes' : 'no', 
-			$at_capacity ? 'yes' : 'no' 
-		) );
-
-		if ( 'none' !== $registration_type ) {
-			$args['meta_input']['registration_url'] = trailingslashit( $public_url ) . 'reservations/new/';
-			$args['meta_input']['registration_sold_out'] = false;
-
-			if ( ! empty( $at_capacity ) ) {
-				$args['meta_input']['registration_sold_out'] = true;
-			}
-		}
-
-		$time_ids  = wp_list_pluck( $event['relationships']['event_times']['data'], 'id' );
-		$date_time = current( $time_ids );
-
-		if ( empty( $date_time ) ) {
-			return false;
-		}
-
-		$start_date = $relational_data['EventTime'][ $date_time ]['attributes']['starts_at'] ?? '';
-		$end_date   = $relational_data['EventTime'][ $date_time ]['attributes']['ends_at'] ?? '';
-		$all_day    = $relational_data['EventTime'][ $date_time ]['attributes']['all_day'] ?? false;
-
-		if ( ! $start_date || ! $end_date ) {
-			return false;
-		}
-
-		$start_date = (new \DateTime( $start_date ))->setTimezone( wp_timezone() );
-		$end_date   = (new \DateTime( $end_date ))->setTimezone( wp_timezone() );
-
-		$args['EventStartDate'] = $start_date->format( 'Y-m-d' );
-		$args['EventStartHour'] = $start_date->format( 'G' );
-		$args['EventStartMinute'] = $start_date->format( 'i' );
-		$args['EventEndDate'] = $end_date->format( 'Y-m-d' );
-		$args['EventEndHour'] = $end_date->format( 'G' );
-		$args['EventEndMinute'] = $end_date->format( 'i' );
 
 		if ( $all_day ) {
 			$args['EventAllDay'] = true;
 		}
 
-		// Featured image
-		if ( ! empty( $event['attributes']['logo_url'] ) ) {
-			$args['thumbnail_url'] = $event['attributes']['logo_url'];
+		// at_maximum_capacity is only present when the sparse fieldset request
+		// succeeded; expose sold-out state only when we actually have the value.
+		if ( array_key_exists( 'at_maximum_capacity', $signup['attributes'] ?? [] ) ) {
+			$args['meta_input']['registration_sold_out'] = ! empty( $signup['attributes']['at_maximum_capacity'] );
 		}
 
-		$category_ids = wp_list_pluck( $event['relationships']['categories']['data'], 'id' );
-		$categories = [];
+		// Featured image
+		if ( ! empty( $signup['attributes']['logo_url'] ) ) {
+			$args['thumbnail_url'] = $signup['attributes']['logo_url'];
+		}
+
+		// Categories. The documented Category vertex has no slug, so derive a stable
+		// slug from the name (TEC does the same when given a non-string key).
+		$category_ids = wp_list_pluck( $signup['relationships']['categories']['data'] ?? [], 'id' );
+		$categories   = [];
 		foreach ( $category_ids as $category_id ) {
-			$data = $relational_data['Category'][ $category_id ]['attributes'];
-			$categories[ $data['slug'] ] = $data['name'];
+			$data = $relational_data['Category'][ $category_id ]['attributes'] ?? [];
+			if ( empty( $data['name'] ) ) {
+				continue;
+			}
+			$categories[ sanitize_title( $data['name'] ) ] = $data['name'];
 		}
 
 		if ( ! empty( $categories ) ) {
 			$args['event_category'] = $categories;
 		}
 
-		$location_ids = wp_list_pluck( $event['relationships']['event_location']['data'], 'id' );
+		// Location. signup_location is a to-one relationship; normalize to a list so
+		// either an object or an array of one is handled. NOTE: despite the docs
+		// listing `address_data`, the live API returns a FLAT shape (name,
+		// formatted_address, latitude, longitude, …) — verified against a real
+		// account 2026-07-29 — so this uses the dedicated flat parser, NOT the
+		// Google-components get_location_details().
+		$location_rel = $signup['relationships']['signup_location']['data'] ?? [];
+		if ( isset( $location_rel['id'] ) ) {
+			$location_rel = [ $location_rel ];
+		}
+		$location_ids = wp_list_pluck( $location_rel, 'id' );
 		foreach ( $location_ids as $location_id ) {
-			$data = $relational_data['Location'][ $location_id ]['attributes'];
-			$location = $this->get_location_details( $data );
-			if ( ! empty( $location['Venue'] ) ) {
-				$args['Venue'] = $location;
+			$data     = $relational_data['SignupLocation'][ $location_id ]['attributes'] ?? [];
+			$location = self::parse_signup_location( $data );
+			if ( ! empty( $location['venue'] ) ) {
+				$args['EventVenue'] = $location;
 				break;
 			}
 		}
 
 		return $args;
+	}
+
+	/**
+	 * Parse the live SignupLocation attribute shape into TEC venue args.
+	 *
+	 * The documented Registrations API lists an `address_data` json attribute, but the
+	 * live API ( verified 2026-07-29 ) returns a flat shape instead:
+	 *   { name, formatted_address ( "street\nCity, ST 12345" ), latitude, longitude,
+	 *     location_type, subpremise, url }
+	 *
+	 * The second address line is parsed as "City, ST ZIP" when it matches that
+	 * ( US-style ) pattern; otherwise the raw line is kept as the City so non-US
+	 * addresses degrade to name + street + raw-locality rather than being dropped.
+	 *
+	 * Returns the shape TEC consumes ( `$item['EventVenue']` in Integrations\TEC ):
+	 * lowercase `venue`/`address`/`city`/`state`/`zip` keys. Pure ( no WordPress
+	 * calls ) so it is unit-testable.
+	 *
+	 * @param array $attrs The SignupLocation attributes.
+	 * @return array TEC EventVenue args ( venue, address?, city?, state?, zip? ), or []
+	 *               when there is nothing usable.
+	 */
+	public static function parse_signup_location( $attrs ) {
+		$name    = trim( (string) ( $attrs['name'] ?? '' ) );
+		$address = trim( (string) ( $attrs['formatted_address'] ?? '' ) );
+
+		if ( '' === $name && '' === $address ) {
+			return [];
+		}
+
+		// The venue needs SOME name; fall back to the first address line.
+		$lines = array_values( array_filter( array_map( 'trim', explode( "\n", $address ) ) ) );
+
+		$venue = [
+			'venue' => '' !== $name ? $name : ( $lines[0] ?? '' ),
+		];
+
+		if ( ! empty( $lines[0] ) ) {
+			$venue['address'] = $lines[0];
+		}
+
+		if ( ! empty( $lines[1] ) ) {
+			if ( preg_match( '/^(.+),\s*([A-Za-z]{2})\s+([0-9][0-9-]{3,9})\z/', $lines[1], $m ) ) {
+				$venue['city']  = $m[1];
+				$venue['state'] = strtoupper( $m[2] );
+				$venue['zip']   = $m[3];
+			} else {
+				// Non-US / unparseable locality: keep it rather than drop it.
+				$venue['city'] = $lines[1];
+			}
+		}
+
+		return $venue;
+	}
+
+	/**
+	 * Parse a Calendar event instance's free-text `location` string into TEC venue args.
+	 *
+	 * PCO Calendar exposes the venue as one string on the event instance ( in the main
+	 * query — no enrichment needed ), typically:
+	 *   "{name} - {street}, {city}, {ST} {zip}, {country}"
+	 * e.g. "Church - 401 Wabash Ave, Granite Falls, WA 98252, USA".
+	 *
+	 * It is free text, though, so it may be just a room name ( "Room 101" ) with no
+	 * address. Strategy: split the name off the leading "… - " when present, then scan
+	 * the comma-separated remainder for a "ST ZIP" part to anchor state/zip, treating
+	 * what precedes it as street/city and dropping a trailing country. Anything that
+	 * doesn't fit degrades to a venue name only rather than being dropped.
+	 *
+	 * Returns TEC's EventVenue contract ( lowercase venue/address/city/state/zip ), or
+	 * [] when there is nothing usable. Pure ( no WordPress calls ) so it is unit-testable.
+	 *
+	 * @param string $location The event instance `location` attribute.
+	 * @return array
+	 */
+	public static function parse_calendar_location( $location ) {
+		$location = trim( (string) $location );
+
+		if ( '' === $location ) {
+			return [];
+		}
+
+		// Split a leading venue name off "Name - address…" ( first " - " only ).
+		$name = '';
+		$rest = $location;
+		if ( false !== strpos( $location, ' - ' ) ) {
+			list( $name, $rest ) = explode( ' - ', $location, 2 );
+			$name = trim( $name );
+			$rest = trim( $rest );
+		}
+
+		$parts = array_values( array_filter( array_map( 'trim', explode( ',', $rest ) ) ) );
+
+		// No comma-structured address → the whole thing is just a venue name.
+		if ( count( $parts ) < 2 ) {
+			$venue_name = '' !== $name ? $name : $location;
+			return '' !== $venue_name ? [ 'venue' => $venue_name ] : [];
+		}
+
+		$venue = [ 'venue' => '' !== $name ? $name : $parts[0] ];
+
+		// Find the "ST ZIP" segment ( e.g. "WA 98252" / "WA 98252-1234" ).
+		$state_zip_idx = null;
+		foreach ( $parts as $i => $part ) {
+			if ( preg_match( '/^([A-Za-z]{2})\s+([0-9]{5}(?:-[0-9]{4})?)\z/', $part, $m ) ) {
+				$venue['state'] = strtoupper( $m[1] );
+				$venue['zip']   = $m[2];
+				$state_zip_idx  = $i;
+				break;
+			}
+		}
+
+		if ( null !== $state_zip_idx ) {
+			// Street = first part; city = whatever sits between street and state/zip.
+			$venue['address'] = $parts[0];
+			$city_parts       = array_slice( $parts, 1, $state_zip_idx - 1 );
+			if ( ! empty( $city_parts ) ) {
+				$venue['city'] = implode( ', ', $city_parts );
+			}
+		} else {
+			// No state/zip anchor: keep the first line as the street, best-effort.
+			$venue['address'] = $parts[0];
+			if ( isset( $parts[1] ) ) {
+				$venue['city'] = $parts[1];
+			}
+		}
+
+		return $venue;
 	}
 
 	/**
@@ -1390,30 +1989,86 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 */
 	public function get_registration_filter_config() {
 		return [
+			// Signup has no date attributes of its own; the dates live on the related
+			// SignupTime rows. DataFilter's relation lookup resolves a single related
+			// id, so we point at the FIRST signup_time (`...data.0.id`) and read its
+			// starts_at/ends_at. Signups with multiple times are filtered on their
+			// first occurrence — a documented, pragmatic limitation of the single-id
+			// relation mechanism (see review notes / needs live verification).
 			'start_date' => [
-				'label' => __( 'Start Date', 'cp-sync' ),
-				'path'  => 'attributes.first_event_date',
+				'label'         => __( 'Start Date', 'cp-sync' ),
+				'path'          => 'relationships.signup_times.data.0.id',
+				'relation'      => 'SignupTime',
+				'relation_path' => 'attributes.starts_at',
+				'type'          => 'date',
+				'supports'      => [ 'is_greater_than', 'is_less_than' ],
 			],
 			'end_date' => [
-				'label' => __( 'End Date', 'cp-sync' ),
-				'path'  => 'attributes.ends_at',
+				'label'         => __( 'End Date', 'cp-sync' ),
+				'path'          => 'relationships.signup_times.data.0.id',
+				'relation'      => 'SignupTime',
+				'relation_path' => 'attributes.ends_at',
+				'type'          => 'date',
+				'supports'      => [ 'is_greater_than', 'is_less_than' ],
 			],
 			'event_name' => [
-				'label'         => __( 'Event Name', 'cp-sync' ),
-				'path'          => 'attributes.name',
-			],
-			'visible_in_church_center' => [
-				'label'         => __( 'Visible in Church Center', 'cp-sync' ),
-				'path'          => 'relationships.event.data.id',
-				'relation'      => 'Event',
-				'relation_path' => 'attributes.visible_in_church_center',
+				'label'    => __( 'Event Name', 'cp-sync' ),
+				'path'     => 'attributes.name',
+				'type'     => 'text',
+				'supports' => [ 'contains', 'does_not_contain', 'is_empty', 'is_not_empty', 'is', 'is_not' ],
 			],
 			'registration_category' => [
-				'label'         => __( 'Category', 'cp-sync' ),
-				'path'          => 'relationships.categories.data',
-				'format'        => fn( $value ) => wp_list_pluck( $value, 'id' ),
+				'label'    => __( 'Category', 'cp-sync' ),
+				'path'     => 'relationships.categories.data',
+				'format'   => fn( $value ) => wp_list_pluck( $value, 'id' ),
+				'type'     => 'select',
+				'supports' => [ 'is', 'is_not', 'is_empty', 'is_not_empty', 'is_in', 'is_not_in' ],
 			],
 		];
+	}
+
+	/**
+	 * Client-facing filter config, adding the `events_registrations` group.
+	 *
+	 * The base serializer only iterates registered integration types ( groups,
+	 * events, sermons ), and it attaches an `optionsFetcher` ONLY for fields that
+	 * declare a callable `options`. The registrations config is a pseudo-type ( it
+	 * shares the one `events` integration ) and its `registration_category` field
+	 * has no options callable — its option route is the dedicated
+	 * `/events/registration_categories` endpoint. So the group is hand-built here
+	 * ( amendment #3 ) rather than run through the generic formatter: project each
+	 * field's label/type/supports, and wire `registration_category` explicitly to
+	 * its REST endpoint. The `format` closure is intentionally NOT projected — it
+	 * is server-only ( used by the DataFilter in the fetcher ).
+	 *
+	 * @since 0.5.0
+	 * @return array
+	 */
+	public function get_formatted_filter_config() {
+		$output = parent::get_formatted_filter_config();
+
+		$formatted = [];
+
+		foreach ( $this->get_registration_filter_config() as $key => $filter ) {
+			$config_item = [
+				'label'    => $filter['label'],
+				'type'     => $filter['type'] ?? 'text',
+				'supports' => $filter['supports'] ?? [],
+			];
+
+			if ( 'registration_category' === $key ) {
+				$config_item['optionsFetcher'] = [
+					'endpoint' => '/cp-sync/v1/pco/events/registration_categories',
+					'args'     => [],
+				];
+			}
+
+			$formatted[ $key ] = $config_item;
+		}
+
+		$output['events_registrations'] = $formatted;
+
+		return $output;
 	}
 
 	/**
@@ -1424,9 +2079,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->module( 'calendar' )
 			->table( 'tag_groups' )
 			->get();
-		
+
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+			return $this->api_error_to_rest_error( $this->api()->errorMessage() );
 		}
 
 		if ( empty( $raw ) ) {
@@ -1461,7 +2116,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+			return $this->api_error_to_rest_error( $this->api()->errorMessage() );
 		}
 
 		if ( empty( $raw ) ) {
@@ -1492,7 +2147,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->get();
 
 		if ( ! empty( $this->api()->errorMessage() ) ) {
-			return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+			return $this->api_error_to_rest_error( $this->api()->errorMessage() );
 		}
 
 		if ( empty( $raw ) ) {
@@ -1503,14 +2158,470 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		$formatted = [];
 
+		// value/label shape so the filter-builder select ( events_registrations
+		// group ) resolves options directly — the stored condition value is the
+		// PCO Category id, matched server-side by get_registration_filter_config().
 		foreach ( $tags as $tag ) {
 			$formatted[] = [
-				'id'   => $tag['id'],
-				'name' => $tag['attributes']['name'] ?? '',
+				'value' => $tag['id'],
+				'label' => $tag['attributes']['name'] ?? '',
 			];
 		}
 
 		return wp_send_json_success( $formatted, 200 );
+	}
+
+
+	/**
+	 * Fetch sermons ( episodes ) from the PCO Publishing app.
+	 *
+	 * One paginated /publishing/v2/episodes call ( with series + speakerships included )
+	 * plus a single /publishing/v2/speakers lookup hydrates everything the formatter
+	 * needs. Only episodes published to the Church Center library are returned.
+	 *
+	 * @param int $limit Optional. Max episodes to fetch ( 0 = all ).
+	 * @return array { items, taxonomies, context } consumed by ChMS::get_formatted_data().
+	 */
+	public function fetch_sermons( $limit = 0 ) {
+		// Build a speaker lookup ( id => display name ) once, so each episode's
+		// speakerships can be resolved to a name without an N+1 call per episode.
+		$speakers_by_id = [];
+		$speakers_raw   = $this->api()
+			->module( 'publishing' )
+			->table( 'speakers' )
+			->get();
+
+		foreach ( ( $speakers_raw['data'] ?? [] ) as $speaker ) {
+			$attr = $speaker['attributes'] ?? [];
+			$name = $attr['formatted_name'] ?? trim( ( $attr['first_name'] ?? '' ) . ' ' . ( $attr['last_name'] ?? '' ) );
+			$speakers_by_id[ $speaker['id'] ] = $name;
+		}
+
+		// Fetch episodes, newest library publish first, with series + speakerships +
+		// channel joined ( channel populates relationships.channel so the DataFilter can
+		// match the Channel filter condition client-side ).
+		// Always fetch the full published set — NOT capped by $limit. The published-only
+		// pass and the client-side DataFilter must run against every episode; if we only
+		// fetched the newest $limit, a filter like Channel would see just those and wrongly
+		// return nothing ( the matching episodes live deeper in the list ). get_formatted_data()
+		// caps how many survivors are FORMATTED for the preview.
+		$raw = $this->api()
+			->module( 'publishing' )
+			->table( 'episodes' )
+			->includes( 'series,speakerships,channel' )
+			->order( '-published_to_library_at' )
+			->get();
+
+		$items = ( ! empty( $raw['data'] ) && is_array( $raw['data'] ) ) ? $raw['data'] : [];
+
+		// Index the JSON:API included[] payload by type => id for relational lookups.
+		$relational_data = [];
+		foreach ( ( $raw['included'] ?? [] ) as $include ) {
+			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
+		}
+
+		// Published-only: drop episodes that are not published to the library.
+		$items = array_values(
+			array_filter(
+				$items,
+				function( $episode ) {
+					return ! empty( $episode['attributes']['published_to_library_at'] );
+				}
+			)
+		);
+
+		// Apply the admin-configured filter ( stored under the `cp_library` group ).
+		$filter_settings = $this->get_setting( 'filter', [], 'cp_library' );
+		$filter_type     = $filter_settings['type'] ?? 'all';
+		$conditions      = $filter_settings['conditions'] ?? [];
+
+		$filter = new \CP_Sync\Setup\DataFilter(
+			$filter_type,
+			$conditions,
+			$this->get_sermon_filter_config(),
+			$relational_data
+		);
+
+		$filter->apply( $items );
+
+		return [
+			'items'      => $items,
+			'taxonomies' => [],
+			'context'    => [
+				'relational_data' => $relational_data,
+				'speakers_by_id'  => $speakers_by_id,
+			],
+		];
+	}
+
+	/**
+	 * Format a single PCO episode into the CP Sermons sermon item shape.
+	 *
+	 * The returned `cpl` sub-array is consumed by Integrations\CP_Library::update_item(),
+	 * which delegates the actual write to CP Sermons' SermonSync facade.
+	 *
+	 * @param array $episode The raw PCO episode record.
+	 * @param array $context { relational_data, speakers_by_id } from fetch_sermons().
+	 * @return array The formatted item.
+	 */
+	public function format_sermon( $episode, $context ) {
+		$relational_data = $context['relational_data'] ?? [];
+		$speakers_by_id  = $context['speakers_by_id'] ?? [];
+
+		$attr = $episode['attributes'] ?? [];
+
+		$published = $attr['published_to_library_at'] ?? ( $attr['published_live_at'] ?? '' );
+		$date_ts   = $published ? strtotime( $published ) : time();
+
+		// Series ( to_one ).
+		$series     = null;
+		$series_rel = $episode['relationships']['series']['data'] ?? null;
+		if ( ! empty( $series_rel['id'] ) ) {
+			$series_obj = $relational_data['Series'][ $series_rel['id'] ] ?? null;
+			if ( $series_obj && ! empty( $series_obj['attributes']['title'] ) ) {
+				$series = [
+					'id'    => $series_rel['id'],
+					'title' => $series_obj['attributes']['title'],
+					// Series art is its own image, distinct from the episode's — the
+					// series graphic, not the sermon's.
+					'thumbnail_url' => $this->resolve_record_art( $series_obj['attributes'], 'Series', $series_obj['attributes']['title'] ),
+				];
+			}
+		}
+
+		// Channel ( to_one ) — PCO's channel is the closest analogue to a CP Sermons
+		// service type: the recurring program an episode belongs to ( "Worship
+		// Services", "Devotionals" ), as distinct from the series it is part of.
+		// Note the attribute is `name`, not `title` as on Series.
+		$service_type = null;
+		$channel_rel  = $episode['relationships']['channel']['data'] ?? null;
+		if ( ! empty( $channel_rel['id'] ) ) {
+			$channel_obj = $relational_data['Channel'][ $channel_rel['id'] ] ?? null;
+			if ( $channel_obj && ! empty( $channel_obj['attributes']['name'] ) ) {
+				$service_type = [
+					'id'    => $channel_rel['id'],
+					'title' => $channel_obj['attributes']['name'],
+					// CP Sermons uses the service type's featured image as podcast channel
+					// artwork, so a channel's own podcast_art is preferred over its general
+					// art when set ( it is the square, feed-sized image ).
+					'thumbnail_url' => $this->resolve_record_art( $channel_obj['attributes'], 'Channel', $channel_obj['attributes']['name'] ),
+				];
+			}
+		}
+
+		// Speakers ( via speakerships join, resolved through the speaker lookup ).
+		$speakers        = [];
+		$speakership_rel = $episode['relationships']['speakerships']['data'] ?? [];
+		foreach ( (array) $speakership_rel as $sref ) {
+			if ( empty( $sref['id'] ) ) {
+				continue;
+			}
+
+			$speakership = $relational_data['Speakership'][ $sref['id'] ] ?? null;
+			if ( ! $speakership ) {
+				continue;
+			}
+
+			$speaker_id = $speakership['relationships']['speaker']['data']['id'] ?? null;
+			if ( empty( $speaker_id ) ) {
+				continue;
+			}
+
+			$name = $speakers_by_id[ $speaker_id ] ?? '';
+			if ( '' === trim( (string) $name ) ) {
+				continue;
+			}
+
+			$speakers[] = [ 'id' => $speaker_id, 'name' => $name ];
+		}
+
+		// Media: prefer the Church Center library URLs, falling back to the raw video URL.
+		$video_url = $attr['library_video_url'] ?? '';
+		if ( '' === trim( (string) $video_url ) ) {
+			$video_url = $attr['video_url'] ?? '';
+		}
+		$audio_url = $attr['library_audio_url'] ?? '';
+
+		return [
+			'chms_id'       => $episode['id'],
+			'post_status'   => 'publish',
+			'post_title'    => $attr['title'] ?? '',
+			'post_content'  => $attr['description'] ?? '',
+			'thumbnail_url' => $this->get_episode_art( $attr ),
+			'tax_input'     => [],
+			'cpl'           => [
+				'date'         => $date_ts,
+				'series'       => $series,
+				'service_type' => $service_type,
+				'speakers'     => $speakers,
+				'video_url'    => $video_url,
+				'audio_url'    => $audio_url,
+			],
+		];
+	}
+
+	/**
+	 * Whether an `art` payload is PCO's auto-assigned placeholder rather than an upload.
+	 *
+	 * Every episode has `art`, but PCO fills an empty one with a generated abstract
+	 * gradient ( a different one per record, so they cannot be spotted by repetition ).
+	 * On one production calendar 189 of 200 episodes carried one — importing those as
+	 * sermon artwork replaces a meaningful image with noise.
+	 *
+	 * `signed_identifier` is the signal that holds everywhere: an uploaded file has a
+	 * signed blob id, a generated default has an empty one. Verified against all 238
+	 * Episode/Series/Channel records on that calendar, where it agreed exactly with both
+	 * the `source` attribute and the hosting domain. `source` is checked first where it
+	 * exists — it says so outright — but only Episode carries it; Series and Channel art
+	 * objects have no such key, which is why the check cannot rely on it alone.
+	 *
+	 * @since 1.0.0
+	 * @param array $art The `art` File object.
+	 * @return bool
+	 */
+	protected static function is_placeholder_art( $art ) {
+		// Only a File object carries provenance. A bare size hash ( the shape the docs
+		// describe ) has none, so it is taken at face value rather than assumed fake.
+		if ( empty( $art['attributes'] ) || ! is_array( $art['attributes'] ) ) {
+			return false;
+		}
+
+		$source = $art['attributes']['source'] ?? null;
+
+		if ( null !== $source ) {
+			return 'default' === $source;
+		}
+
+		return empty( $art['attributes']['signed_identifier'] );
+	}
+
+	/**
+	 * Resolve a usable image URL out of PCO's `art` attribute.
+	 *
+	 * Shared by Episode and Series, which serve `art` identically — and NOT as the flat
+	 * size hash the docs' "hash" type suggests. It is a File object, with the sizes
+	 * nested two levels down:
+	 *
+	 *     [
+	 *       'type'       => 'File',
+	 *       'id'         => 165919,
+	 *       'attributes' => [
+	 *         'name'              => 'artwork.jpg',
+	 *         'signed_identifier' => '…',
+	 *         'variants'          => [
+	 *           'original' => 'https://images.planningcenterusercontent.com/…',
+	 *           'original_ratio_small' => '…', 'small' => '…', 'medium' => '…', 'large' => '…',
+	 *         ],
+	 *       ],
+	 *     ]
+	 *
+	 * The top level holds only the string 'File', an integer id and a nested array, so
+	 * reading sizes from it — or scanning it for a URL — finds nothing. The flat-hash
+	 * keys are still honored as a fallback in case PCO ever serves the documented shape.
+	 *
+	 * @since 1.0.0
+	 * @param array|string|null $art The `art` attribute.
+	 * @return string The image URL, or '' when none is available.
+	 */
+	protected function resolve_art_url( $art ) {
+		if ( is_string( $art ) ) {
+			return $art;
+		}
+
+		if ( ! is_array( $art ) ) {
+			return '';
+		}
+
+		// A placeholder is not artwork. Treated as "no image" so the theme's own
+		// fallback ( series art, then service type art ) takes over.
+		if ( self::is_placeholder_art( $art ) ) {
+			return '';
+		}
+
+		// Unwrap the File object; fall back to treating $art itself as the size hash.
+		$variants = $art['attributes']['variants'] ?? null;
+		$sizes    = is_array( $variants ) ? $variants : $art;
+
+		// Largest usable rendition first: `original` is the uncropped upload, the rest
+		// descend by size. The trailing keys are the documented flat-hash names.
+		$preferred = [ 'original', 'large', 'medium', 'original_ratio_small', 'small', 'detail', 'thumbnail', '16x9', '1x1' ];
+
+		foreach ( $preferred as $key ) {
+			if ( ! empty( $sizes[ $key ] ) && is_string( $sizes[ $key ] ) ) {
+				return $sizes[ $key ];
+			}
+		}
+
+		foreach ( $sizes as $value ) {
+			if ( is_string( $value ) && filter_var( $value, FILTER_VALIDATE_URL ) ) {
+				return $value;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Resolve the image for a related record ( Series, Channel ), reporting a payload
+	 * whose art is present but unreadable.
+	 *
+	 * `podcast_art` wins where a record has one: PCO serves it as the square,
+	 * feed-sized image, and CP Sermons uses a service type's featured image for
+	 * podcast channel artwork. Series have no podcast_art, so they fall straight
+	 * through to `art`.
+	 *
+	 * The log line matters more than it looks. When this silently returned '' the
+	 * result was indistinguishable from a record that simply has no graphic, which
+	 * is how a completely inert version of this feature shipped once already.
+	 *
+	 * @since 1.0.0
+	 * @param array  $attributes The record's attributes.
+	 * @param string $type       The record type, for the log line ( 'Series', 'Channel' ).
+	 * @param string $label      The record's name/title, for the log line.
+	 * @return string The image URL, or '' when none is available.
+	 */
+	protected function resolve_record_art( $attributes, $type, $label ) {
+		$url = $this->resolve_art_url( $attributes['podcast_art'] ?? null );
+
+		if ( '' === $url ) {
+			$url = $this->resolve_art_url( $attributes['art'] ?? null );
+		}
+
+		$art = $attributes['art'] ?? null;
+
+		// A placeholder resolving to nothing is the intended outcome, not an anomaly.
+		$is_placeholder = is_array( $art ) && self::is_placeholder_art( $art );
+
+		if ( '' === $url && ! empty( $art ) && ! $is_placeholder ) {
+			cp_sync()->logging->log( sprintf(
+				'%s "%s" has art in PCO but no usable image URL could be resolved from it. Payload keys: %s',
+				$type,
+				$label,
+				is_array( $art ) ? implode( ', ', array_keys( $art ) ) : gettype( $art )
+			) );
+		}
+
+		return $url;
+	}
+
+	/**
+	 * Resolve the sermon's own artwork from an episode.
+	 *
+	 * Deliberately returns '' rather than substituting anything when the episode has
+	 * no artwork of its own: CP Sermons' template already falls back to the series
+	 * image and then the service type image, and that cascade only runs while the
+	 * sermon's featured image is empty. Filling it with a video still frame — which
+	 * this did previously — pins every sermon to a frame grab and prevents the
+	 * series graphic from ever showing.
+	 *
+	 * @param array $attr The episode attributes.
+	 * @return string The image URL, or '' to let the template decide.
+	 */
+	protected function get_episode_art( $attr ) {
+		return $this->resolve_art_url( $attr['art'] ?? null );
+	}
+
+	/**
+	 * Filter configuration for the sermons ( episodes ) feed.
+	 *
+	 * @return array
+	 */
+	public function get_sermon_filter_config() {
+		return [
+			'title' => [
+				'label'    => __( 'Title', 'cp-sync' ),
+				'path'     => 'attributes.title',
+				'type'     => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+					'contains',
+					'does_not_contain',
+				],
+			],
+			'description' => [
+				'label'    => __( 'Description', 'cp-sync' ),
+				'path'     => 'attributes.description',
+				'type'     => 'text',
+				'supports' => [
+					'is',
+					'is_not',
+					'contains',
+					'does_not_contain',
+					'is_empty',
+					'is_not_empty',
+				],
+			],
+			'channel' => [
+				'label'    => __( 'Channel', 'cp-sync' ),
+				'path'     => 'relationships.channel.data.id',
+				'type'     => 'select',
+				'supports' => [
+					'is',
+					'is_not',
+					'is_in',
+					'is_not_in',
+				],
+				'options'  => function() {
+					$raw = $this->api()
+						->module( 'publishing' )
+						->table( 'channels' )
+						->get();
+
+					if ( ! empty( $this->api()->errorMessage() ) ) {
+						return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+					}
+
+					$channels = $raw['data'] ?? [];
+
+					$formatted = [];
+					foreach ( $channels as $channel ) {
+						$formatted[] = [
+							'value' => $channel['id'],
+							'label' => $channel['attributes']['name'] ?? '',
+						];
+					}
+
+					return wp_send_json_success( $formatted, 200 );
+				},
+			],
+			'series' => [
+				'label'    => __( 'Series', 'cp-sync' ),
+				'path'     => 'relationships.series.data.id',
+				'type'     => 'select',
+				'supports' => [
+					'is',
+					'is_not',
+					'is_in',
+					'is_not_in',
+					'is_empty',
+					'is_not_empty',
+				],
+				'options'  => function() {
+					$raw = $this->api()
+						->module( 'publishing' )
+						->table( 'series' )
+						->order( '-started_at' )
+						->get();
+
+					if ( ! empty( $this->api()->errorMessage() ) ) {
+						return new ChMSError( 'pco_fetch_error', $this->api()->errorMessage() );
+					}
+
+					$series = $raw['data'] ?? [];
+
+					$formatted = [];
+					foreach ( $series as $item ) {
+						$formatted[] = [
+							'value' => $item['id'],
+							'label' => $item['attributes']['title'] ?? '',
+						];
+					}
+
+					return wp_send_json_success( $formatted, 200 );
+				},
+			],
+		];
 	}
 
 }

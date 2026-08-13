@@ -20,6 +20,7 @@ export default {
 			name: __( 'Groups', 'cp-sync' ),
 			component: (props) => <GroupsTab {...props} />,
 			group: 'groups',
+			type: 'groups',
 			defaultData: {
 				filter: {
 					type: 'all',
@@ -31,6 +32,7 @@ export default {
 			name: __( 'Events', 'cp-sync' ),
 			component: (props) => <EventsTab {...props} />,
 			group: 'events',
+			type: 'events',
 			defaultData: {
 				filter: {
 					type: 'all',

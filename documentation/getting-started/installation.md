@@ -35,7 +35,7 @@ Before installing CP-Sync, ensure your website meets these requirements:
 
 After activating the plugin, you'll need to:
 
-1. Navigate to **Settings → CP Sync**
+1. Navigate to **Church Plugins → CP Sync**
 2. Select and configure your church management system
 3. Connect your ChMS account
 4. Configure synchronization options
@@ -46,7 +46,7 @@ For detailed configuration instructions, see the [API Connections](../configurat
 
 To verify that CP-Sync is installed and working correctly:
 
-1. Navigate to **Settings → CP Sync**
+1. Navigate to **Church Plugins → CP Sync**
 2. Ensure you can access the settings page
 3. Connect to your ChMS
 4. Run a test sync to ensure data is being imported properly

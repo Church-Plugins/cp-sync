@@ -1,50 +1,31 @@
 {
 	"name": "cp-sync",
-	"version": "0.2.0",
+	"version": "1.0.0-beta3",
 	"private": true,
 	"workspaces": [
 		"includes/ChurchPlugins"
 	],
 	"scripts": {
-		"bootstrap": "wpackio-scripts bootstrap",
-		"build": "export NODE_OPTIONS=--openssl-legacy-provider && wpackio-scripts build",
-		"start": "export NODE_OPTIONS=--openssl-legacy-provider && wpackio-scripts start",
-		"archive": "wpackio-scripts pack",
 		"build:wp": "export NODE_ENV=production && wp-scripts build",
 		"start:wp": "export NODE_ENV=development && wp-scripts start",
-		"lint:wp": "wp-scripts lint",
+		"lint:wp": "wp-scripts lint-js",
 		"format:wp": "wp-scripts format",
-		"build:all" : "export NODE_OPTIONS=--openssl-legacy-provider && npm run build && npm run build:wp",
-		"plugin-zip": "wp-scripts plugin-zip"
+		"build:all": "npm run build:wp",
+		"plugin-zip": "wp-scripts plugin-zip && zip -d cp-sync.zip README.md package.json"
 	},
 	"dependencies": {
-		"@emotion/react": "^11.11.4",
-		"@emotion/styled": "^11.11.0",
-		"@fontsource/roboto": "^5.0.12",
-		"@mui/icons-material": "^5.15.14",
-		"@mui/material": "^5.15.11",
-		"@mui/system": "^5.15.14",
-		"@mui/x-date-pickers": "^7.0.0",
 		"@wordpress/api-fetch": "^6.50.0",
 		"@wordpress/compose": "^6.30.0",
 		"@wordpress/element": "^5.30.0",
 		"@wordpress/scripts": "^27.3.0",
-		"@wpackio/entrypoint": "^6.4.0",
-		"@wpackio/scripts": "^6.4.0",
-		"dayjs": "^1.11.10",
-		"react-hot-loader": "^4.13.1",
-		"sass": "^1.42.1",
-		"url-loader": "^4.1.1"
+		"sass": "^1.42.1"
 	},
 	"files": [
 		"assets/images/**",
-		"assets/js/**",
 		"includes/**",
 		"vendor/**",
-		"dist/**",
 		"build/**",
 		"*.php",
-		"*.md",
 		"readme.txt",
 		"languages/**",
 		"LICENSE",

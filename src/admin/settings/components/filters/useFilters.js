@@ -1,5 +1,5 @@
 import { useSelect } from '@wordpress/data';
-import settingsStore from '../../store/settingsStore';
+import globalStore from '../../store/globalStore';
 
 /**
  * React hook for fetching the necessary data for a condition
@@ -23,8 +23,8 @@ const useFilters = (filter, currentPreFilters) => {
 
 		if(filter.optionsFetcher) {
 			return {
-				options: select(settingsStore).getData(filter.optionsFetcher.endpoint) || [],
-				loading: select(settingsStore).getResolutionState('getData', [filter.optionsFetcher.endpoint])?.status === 'resolving'
+				options: select(globalStore).getOptions(filter.optionsFetcher.endpoint) || [],
+				loading: select(globalStore).getResolutionState('getOptions', [filter.optionsFetcher.endpoint])?.status === 'resolving'
 			}
 		}
 

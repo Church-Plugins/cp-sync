@@ -13,6 +13,7 @@ use WP_Error;
 require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/PCO.php';
 require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/CCB.php';
 require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/Tests.php';
+require_once CP_SYNC_PLUGIN_DIR . '/includes/ChMS/cli/Reset.php';
 
 /**
  * Setup integration initialization
@@ -88,6 +89,29 @@ class _Init {
 		return false;
 	}
 
+	/**
+	 * Recursively sanitize a settings data array before persisting.
+	 *
+	 * Walks nested arrays and applies sanitize_text_field() to string leaf values.
+	 * Non-string scalars (bool, int, float) and null are preserved untouched so
+	 * that legitimately typed settings values are not corrupted.
+	 *
+	 * Note: REST request params are not slash-escaped (unlike $_POST), so no
+	 * wp_unslash() is applied here. sanitize_text_field() strips tags and collapses
+	 * whitespace/newlines; none of the stored settings (ChMS slug, license, beta/status
+	 * flags, feed types, post statuses, filter field paths, comparison operators and
+	 * match values) legitimately require HTML or multi-line content, so this is safe
+	 * for every current field.
+	 *
+	 * @param mixed $value The value to sanitize.
+	 * @return mixed The sanitized value.
+	 */
+	protected static function sanitize_settings_data( $value ) {
+		// Canonical implementation lives on the base ChMS class so the per-ChMS
+		// schema walk and the global route share one generic sanitizer.
+		return ChMS::sanitize_settings_recursive( $value );
+	}
+
 	/** Actions ***************************************************/
 
 	/**
@@ -120,6 +144,14 @@ class _Init {
 
 					if ( ! is_array( $data ) ) {
 						return new WP_Error( 'invalid_data', __( 'Invalid data', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
+					// Sanitize every leaf value before persisting.
+					$data = self::sanitize_settings_data( $data );
+
+					// The `chms` field selects a ChMS class, so it must be a safe slug.
+					if ( isset( $data['chms'] ) ) {
+						$data['chms'] = sanitize_key( $data['chms'] );
 					}
 
 					$old_settings = $settings = get_option( 'cp_sync_settings', [] );
@@ -183,6 +215,10 @@ class _Init {
 
 					$chms_class = self::get_chms( $chms );
 
+					if ( ! $chms_class ) {
+						return new WP_Error( 'invalid_chms', __( 'Invalid ChMS', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
 					return get_option( $chms_class->settings_key, [] );
 				},
 				'permission_callback' => function() {
@@ -197,12 +233,30 @@ class _Init {
 			[
 				'methods'  => 'POST',
 				'callback' => function( $request ) {
-					$chms       = $request->get_param( 'chms' );
+					$chms       = sanitize_key( $request->get_param( 'chms' ) ); // selects a ChMS class; must be a safe slug.
 					$chms_class = self::get_chms( $chms );
 					$data       = $request->get_param( 'data' );
 
 					if ( ! is_array( $data ) ) {
 						return new WP_Error( 'invalid_data', __( 'Invalid data', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
+					if ( ! $chms_class ) {
+						return new WP_Error( 'invalid_chms', __( 'Invalid ChMS', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
+					// Schema-driven sanitize + validate walk. The ChMS schema is the single
+					// declaration of per-field server behavior: declared fields dispatch on
+					// their `sanitize`/`validate` rules ( so credentials are control-strip
+					// only, not HTML-sanitized, and a bad subdomain becomes a real 400 ),
+					// while undeclared custom-widget keys fall back to the generic recursive
+					// sanitizer and are never dropped. At-rest encryption stays at the option
+					// layer ( see ChMS::register_schema_option_filters ) so non-REST writers
+					// cannot store plaintext.
+					$data = ChMS::sanitize_settings_by_schema( $chms_class->get_settings_schema(), $data );
+
+					if ( is_wp_error( $data ) ) {
+						return $data;
 					}
 
 					$settings = get_option( $chms_class->settings_key, [] );
@@ -238,6 +292,11 @@ class _Init {
 				'callback' => function( $request ) {
 					$chms       = $request->get_param( 'chms' );
 					$chms_class = self::get_chms( $chms );
+
+					if ( ! $chms_class ) {
+						return new WP_Error( 'invalid_chms', __( 'Invalid ChMS', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
 					$chms_class->setup(); // make sure the integrations are loaded
 					
 					$filter_config = $chms_class->get_formatted_filter_config();
@@ -252,17 +311,27 @@ class _Init {
 
 		register_rest_route(
 			'cp-sync/v1',
-			'/(?P<chms>[a-zA-Z0-9-]+)/compare-options',
+			'/(?P<chms>[a-zA-Z0-9-]+)/schema',
 			[
 				'methods'  => 'GET',
-				'callback' => function() {
-					return rest_ensure_response( \CP_Sync\Setup\DataFilter::get_compare_options() );
+				'callback' => function( $request ) {
+					$chms       = $request->get_param( 'chms' );
+					$chms_class = self::get_chms( $chms );
+
+					if ( ! $chms_class ) {
+						return new WP_Error( 'invalid_chms', __( 'Invalid ChMS', 'cp-sync' ), [ 'status' => 400 ] );
+					}
+
+					$chms_class->setup(); // make sure the integrations are loaded ( filter-builder configs )
+
+					return rest_ensure_response( $chms_class->get_formatted_settings_schema() );
 				},
 				'permission_callback' => function() {
 					return current_user_can( 'manage_options' );
 				},
-			]
+			],
 		);
+
 	}
 
 	/**
@@ -308,12 +377,23 @@ class _Init {
 	 * Handle OAuth redirect
 	 */
 	public function handle_oauth_redirect() {
-		if ( ! isset( $_GET['cp_sync_oauth'] ) ) {
+		if ( ! isset( $_GET['cp_sync_oauth'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- presence check only; the nonce is verified below before anything is trusted.
 			return;
 		}
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
+
+		// CSRF protection: the connect flow sends a `cpSync` nonce to the OAuth bridge
+		// (see chms/pco/connect-tab.js), and the bridge echoes it back as `_nonce` on
+		// this return URL. Without this check, a crafted wp-admin link
+		// (?cp_sync_oauth=1&token=ATTACKER_TOKEN) loaded by a logged-in admin would
+		// silently repoint the ChMS integration at an attacker-controlled account.
+		$nonce = isset( $_GET['_nonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'cpSync' ) ) {
+			return;
+		}
+
 		add_action( 'admin_head', [ $this, 'add_oauth_script' ] );
 	}
 
@@ -327,7 +407,9 @@ class _Init {
 			return;
 		}
 
-		$token = $_GET[ 'token' ] ?? '';
+		// This only runs after handle_oauth_redirect() has verified both the manage_options
+		// capability and the `cpSync` nonce echoed back by the OAuth bridge as `_nonce`.
+		$token = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified in handle_oauth_redirect() before this callback is hooked.
 		/**
 		 * Filter the token
 		 *
@@ -337,7 +419,7 @@ class _Init {
 		 */
 		$token = apply_filters( 'cp_sync_oauth_token', $token, $active_chms );
 
-		$refresh_token = $_GET[ 'refresh_token' ] ?? '';
+		$refresh_token = isset( $_GET['refresh_token'] ) ? sanitize_text_field( wp_unslash( $_GET['refresh_token'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified in handle_oauth_redirect() before this callback is hooked.
 		/**
 		 * Filter the refresh token
 		 *
@@ -351,13 +433,22 @@ class _Init {
 
 		cp_sync()->logging->log( 'OAuth token saved' );
 
-		$target_origin = parse_url( home_url(), PHP_URL_SCHEME ) . '://' . parse_url( home_url(), PHP_URL_HOST );
+		// The opener (settings SPA) lives under wp-admin, so target the admin
+		// origin — on sites where WP_SITEURL differs from WP_HOME, posting to the
+		// home origin would be silently dropped by the browser.
+		$target_origin = parse_url( admin_url(), PHP_URL_SCHEME ) . '://' . parse_url( admin_url(), PHP_URL_HOST );
 		?>
 		<script>
-			window.postMessage({
-				success: true,
-				type: 'cp_sync_oauth',
-			}, '<?php echo esc_url( $target_origin ); ?>');
+			// Post the result to the window that opened this popup, then close.
+			// The opener listens on its own window (see util/oauth.js); this popup's
+			// own listeners were destroyed by the cross-origin OAuth navigations.
+			( function () {
+				var data = { success: true, type: 'cp_sync_oauth' };
+				if ( window.opener && ! window.opener.closed ) {
+					window.opener.postMessage( data, '<?php echo esc_url( $target_origin ); ?>' );
+				}
+				window.close();
+			} )();
 		</script>
 		<?php
 	}

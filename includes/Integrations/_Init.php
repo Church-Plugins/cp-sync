@@ -4,6 +4,7 @@ namespace CP_Sync\Integrations;
 
 use CP_Sync\Admin\Settings;
 use CP_Sync\ChMS\ChMSError;
+use CP_Sync\Setup\Reset;
 use WP_Error;
 
 /**
@@ -34,6 +35,7 @@ class _Init {
 	public static $supported_types = [
 		'groups',
 		'events',
+		'sermons',
 	];
 
 	/**
@@ -73,6 +75,10 @@ class _Init {
 			$integrations[ 'tec' ] = '\CP_Sync\Integrations\TEC';
 		}
 
+		if ( function_exists( 'cp_library' ) ) {
+			$integrations[ 'cp_library' ] = '\CP_Sync\Integrations\CP_Library';
+		}
+
 		foreach( $integrations as $key => $integration ) {
 			if ( ! class_exists( $integration ) ) {
 				continue;
@@ -92,6 +98,54 @@ class _Init {
 	 */
 	public function get_integrations() {
 		return self::$_integrations;
+	}
+
+	/**
+	 * Whether an integration type's required companion plugin is active.
+	 *
+	 * The two pinned conditions ( mirroring includes() ): Groups needs the CP Groups
+	 * plugin ( cp_groups() ), Events needs The Events Calendar ( TRIBE_EVENTS_FILE ).
+	 * Any other type is treated as available ( it is gated elsewhere, e.g. the
+	 * supported-types check in pull_integration() ).
+	 *
+	 * @since 0.4.0
+	 * @param string $type The integration type ( 'groups' | 'events' ).
+	 * @return bool
+	 */
+	public static function is_integration_available( $type ) {
+		switch ( $type ) {
+			case 'groups':
+				return function_exists( 'cp_groups' );
+			case 'events':
+				return defined( 'TRIBE_EVENTS_FILE' );
+			case 'sermons':
+				return function_exists( 'cp_library' );
+			default:
+				return true;
+		}
+	}
+
+	/**
+	 * The user-facing "required plugin missing" explanation for an integration type.
+	 *
+	 * Shared by the schema's disabled-toggle help text and the pull guard's WP_Error so
+	 * both surfaces speak with one voice.
+	 *
+	 * @since 0.4.0
+	 * @param string $type The integration type ( 'groups' | 'events' ).
+	 * @return string
+	 */
+	public static function integration_unavailable_message( $type ) {
+		switch ( $type ) {
+			case 'groups':
+				return __( 'Requires the CP Groups plugin, which is not active on this site.', 'cp-sync' );
+			case 'events':
+				return __( 'Requires The Events Calendar plugin, which is not active on this site.', 'cp-sync' );
+			case 'sermons':
+				return __( 'Requires the CP Sermons plugin, which is not active on this site.', 'cp-sync' );
+			default:
+				return __( 'This integration is not available on this site.', 'cp-sync' );
+		}
 	}
 
 	/**
@@ -121,6 +175,13 @@ class _Init {
 		foreach( self::$supported_types as $type ) {
 			$result = $this->pull_integration( $type );
 			if ( is_wp_error( $result ) ) {
+				// A type that is unavailable ( plugin missing ) or disabled in settings is
+				// a deliberate skip, not a failure — keep pulling the remaining types so a
+				// disabled Groups feed never blocks the Events feed ( and vice versa ) on
+				// the bulk /pull route or the cron run.
+				if ( in_array( $result->get_error_code(), [ 'integration_unavailable', 'integration_disabled' ], true ) ) {
+					continue;
+				}
 				return $result;
 			}
 		}
@@ -137,6 +198,31 @@ class _Init {
 	public function pull_integration( $integration_type ) {
 		if ( ! in_array( $integration_type, self::$supported_types ) ) {
 			return new WP_Error( 'invalid_integration_type', 'Invalid integration type. Supported types are `' . implode( '`, `', self::$supported_types ) . '`' );
+		}
+
+		// (a) Availability: the required companion plugin must be active. Guards the
+		// manual pull buttons, the REST /pull + /pull/{type} routes, and the cron path
+		// ( which funnels through pull_content() → here ).
+		if ( ! self::is_integration_available( $integration_type ) ) {
+			$message = self::integration_unavailable_message( $integration_type );
+			cp_sync()->logging->log( sprintf( 'Skipping %s pull: %s', $integration_type, $message ) );
+			return new WP_Error( 'integration_unavailable', $message );
+		}
+
+		// (b) Enable toggle: the active ChMS's `connect.sync_{type}` setting. The
+		// unstored fallback comes from ChMS::sync_toggle_default() — the single source
+		// shared with the schema FieldDef ( groups/events default ON, preserving
+		// long-standing behavior; sermons default OFF so updates never silently start
+		// syncing them ).
+		$active_chms = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
+		if ( $active_chms && ! $active_chms->get_setting( "sync_{$integration_type}", \CP_Sync\ChMS\ChMS::sync_toggle_default( $integration_type ), 'connect' ) ) {
+			$message = sprintf(
+				/* translators: %s: the integration type being synced (e.g. Groups, Events). */
+				__( '%s sync is disabled in CP Sync settings.', 'cp-sync' ),
+				ucfirst( $integration_type )
+			);
+			cp_sync()->logging->log( sprintf( 'Skipping %s pull: %s', $integration_type, $message ) );
+			return new WP_Error( 'integration_disabled', $message );
 		}
 
 		/**
@@ -212,6 +298,17 @@ class _Init {
 			}
 		));
 
+		// Reset / clear install data. Lives alongside the other cross-cutting
+		// operational routes ( /pull, /get-log, /clear-log ) rather than in the
+		// per-ChMS routes because a reset spans every integration and every ChMS.
+		register_rest_route( 'cp-sync/v1', '/reset', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'handle_reset_request' ],
+			'permission_callback' => function() {
+				return current_user_can( 'manage_options' );
+			},
+		] );
+
 		foreach ( self::$supported_types as $type ) {
 			register_rest_route( 'cp-sync/v1', "/pull/{$type}", [
 				'methods'  => 'POST',
@@ -231,6 +328,51 @@ class _Init {
 		}		
 	}
 
+
+	/**
+	 * Handle a POST /cp-sync/v1/reset request.
+	 *
+	 * Contract:
+	 *   body: { level: 'queue'|'state'|'content'|'connection'|'all',
+	 *           confirm: '<the level string, retyped>' }
+	 *   - unknown level      -> WP_Error( 'invalid_level', 400 )
+	 *   - confirm !== level   -> WP_Error( 'confirm_mismatch', 400 )
+	 *   - success            -> { success: true, level, summary: {...} }
+	 *
+	 * @param \WP_REST_Request $request The request.
+	 * @return \WP_REST_Response|WP_Error
+	 */
+	public function handle_reset_request( $request ) {
+		$level   = sanitize_key( $request->get_param( 'level' ) );
+		$confirm = $request->get_param( 'confirm' );
+
+		if ( ! Reset::is_valid_level( $level ) ) {
+			return new WP_Error(
+				'invalid_level',
+				__( 'Invalid reset level.', 'cp-sync' ),
+				[ 'status' => 400 ]
+			);
+		}
+
+		if ( ! Reset::confirm_matches( $level, $confirm ) ) {
+			return new WP_Error(
+				'confirm_mismatch',
+				__( 'The confirmation does not match the requested level.', 'cp-sync' ),
+				[ 'status' => 400 ]
+			);
+		}
+
+		set_time_limit( 0 );
+
+		$reset   = new Reset();
+		$summary = $reset->run( $level );
+
+		return rest_ensure_response( [
+			'success' => true,
+			'level'   => $level,
+			'summary' => $summary,
+		] );
+	}
 
 	/**
 	 * Schedule the cron to pull data from the ChMS

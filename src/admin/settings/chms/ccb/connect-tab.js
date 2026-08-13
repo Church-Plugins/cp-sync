@@ -1,25 +1,34 @@
-import Alert from '@mui/material/Alert'
+import { Button, Notice, Spinner } from '@wordpress/components'
 import { __ } from '@wordpress/i18n'
-import { useSettings } from '../../contexts/settingsContext'
-import Button from '@mui/material/Button'
-import Box from '@mui/material/Box'
 import { useState, useEffect } from '@wordpress/element'
 import apiFetch from '@wordpress/api-fetch'
-import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
-import InputAdornment from '@mui/material/InputAdornment'
-import IconButton from '@mui/material/IconButton'
-import Visibility from '@mui/icons-material/Visibility'
-import VisibilityOff from '@mui/icons-material/VisibilityOff'
+import { useSelect, useDispatch } from '@wordpress/data'
+import { useSettings } from '../../contexts/settingsContext'
 import globalStore from '../../store/globalStore'
-import { useDispatch } from '@wordpress/data'
+import { SchemaForm } from '../../schema-form'
+import { omitSyncSchema } from '../../components/sync-toggles'
 
+/**
+ * CCB Connect tab.
+ *
+ * The credential fields (subdomain, username, password) render through
+ * <SchemaForm> using the PHP-declared `connect` screen. Everything else — the
+ * client-side subdomain-format validation, the save-then-check-connection flow,
+ * the old-token migration notice, and the connect/disconnect actions with their
+ * store dispatches — stays custom, composed on `@wordpress/components`.
+ */
 export default function ConnectTab({ data, updateField }) {
-	const { isConnected, save, settings } = useSettings()
+	const { isConnected, settings } = useSettings()
+	// The sync toggles are declared on the `connect` screen too, but they are
+	// rendered by the merged Connect tab (always editable, even once connected), so
+	// strip them here to avoid rendering them twice in the credential form.
+	const connectSchema = useSelect(
+		(select) => omitSyncSchema(select(globalStore).getSchema('ccb')?.connect),
+		[]
+	)
 	const [authLoading, setAuthLoading] = useState(false)
 	const [authError, setAuthError] = useState(null)
 	const [showMigrationNotice, setShowMigrationNotice] = useState(false)
-	const [showPassword, setShowPassword] = useState(true)
 	const { invalidateResolutionForStoreSelector, setIsConnected, persistSettings, setSettings } = useDispatch(globalStore)
 
 	// Check if user has old OAuth token (migration detection)
@@ -30,18 +39,17 @@ export default function ConnectTab({ data, updateField }) {
 		}
 	}, [data.token, data.username])
 
-	// Hide password when connected, show when disconnected
-	useEffect(() => {
-		if (isConnected) {
-			setShowPassword(false)
-		} else {
-			setShowPassword(true)
-		}
-	}, [isConnected])
-
 	const handleConnect = async () => {
 		if (!data.subdomain || !data.username || !data.password) {
 			setAuthError(__('Please fill in all fields', 'cp-sync'))
+			return
+		}
+
+		// Subdomains are simple labels. Validate before saving so a malformed
+		// value (which the server rejects for SSRF safety) surfaces a clear
+		// message here instead of a generic connection failure.
+		if (!/^[a-zA-Z0-9-]+$/.test(data.subdomain)) {
+			setAuthError(__('Invalid subdomain. Subdomains may contain only letters, numbers, and hyphens.', 'cp-sync'))
 			return
 		}
 
@@ -111,102 +119,63 @@ export default function ConnectTab({ data, updateField }) {
 	const canConnect = data.subdomain && data.username && data.password
 
 	return (
-		<Box display="flex" flexDirection="column" gap={2} alignItems="start">
-			<h2 style={{ marginTop: 0 }}>Connect to Church Community Builder</h2>
+		<div className="cps-settings-screen cps-ccb-connect">
+			<h2 style={{ marginTop: 0 }}>{__('Connect to Church Community Builder', 'cp-sync')}</h2>
 
 			{showMigrationNotice && (
-				<Alert severity="warning" sx={{ mb: 2 }}>
+				<Notice status="warning" isDismissible={false}>
 					<strong>{__('Authentication Update Required', 'cp-sync')}</strong>
 					<p>{__('CCB has updated their API authentication. Please enter your CCB API username and password below to reconnect.', 'cp-sync')}</p>
 					<p>{__('Your existing sync filters and settings will be preserved.', 'cp-sync')}</p>
-				</Alert>
+				</Notice>
 			)}
 
 			{authError && (
-				<Alert severity="error" sx={{ mb: 2 }}>{authError}</Alert>
+				<Notice status="error" isDismissible={false}>{authError}</Notice>
 			)}
 
-			<Box sx={{ mb: 2 }}>
-				<Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-					{__('Enter your CCB subdomain and API credentials. ', 'cp-sync')}
-					<a
-						href="https://support.pushpay.com/s/article/How-to-Create-and-Manage-API-Users"
-						target="_blank"
-						rel="noopener noreferrer"
-					>
-						{__('Learn how to create API users', 'cp-sync')}
-					</a>
-				</Typography>
-			</Box>
-
-			<Box display="flex" alignItems="center" gap={1} sx={{ width: '100%', maxWidth: '500px' }}>
-				<Typography variant="body1" sx={{ whiteSpace: 'nowrap' }}>
-					https://
-				</Typography>
-				<TextField
-					label={__('Subdomain', 'cp-sync')}
-					value={data.subdomain || ''}
-					onChange={(e) => updateField('subdomain', e.target.value)}
-					sx={{ flex: 1 }}
-					disabled={isConnected}
-					placeholder="yourchurch"
-				/>
-				<Typography variant="body1" sx={{ whiteSpace: 'nowrap' }}>
-					.ccbchurch.com/
-				</Typography>
-			</Box>
-
-			<TextField
-				label={__('API Username', 'cp-sync')}
-				value={data.username || ''}
-				onChange={(e) => updateField('username', e.target.value)}
-				sx={{ width: '500px' }}
-				disabled={isConnected}
-				helperText={__('Your CCB API user username', 'cp-sync')}
-			/>
-
-			<TextField
-				label={__('API Password', 'cp-sync')}
-				type={showPassword ? 'text' : 'password'}
-				value={data.password || ''}
-				onChange={(e) => updateField('password', e.target.value)}
-				sx={{ width: '500px' }}
-				disabled={isConnected}
-				helperText={__('Your CCB API user password', 'cp-sync')}
-				InputProps={!isConnected ? {
-					endAdornment: (
-						<InputAdornment position="end">
-							<IconButton
-								aria-label="toggle password visibility"
-								onClick={() => setShowPassword(!showPassword)}
-								onMouseDown={(e) => e.preventDefault()}
-								edge="end"
-							>
-								{showPassword ? <VisibilityOff /> : <Visibility />}
-							</IconButton>
-						</InputAdornment>
-					)
-				} : undefined}
-			/>
-
-			{authLoading ? (
-				<Button variant="contained" color="info" disabled>
-					{__('Loading...', 'cp-sync')}
-				</Button>
-			) : isConnected ? (
-				<Button variant="contained" color="info" onClick={handleDisconnect}>
-					{__('Disconnect', 'cp-sync')}
-				</Button>
-			) : (
-				<Button
-					variant="contained"
-					color="primary"
-					onClick={handleConnect}
-					disabled={!canConnect}
+			<p>
+				{__('Enter your CCB subdomain and API credentials. ', 'cp-sync')}
+				<a
+					href="https://support.pushpay.com/s/article/How-to-Create-and-Manage-API-Users"
+					target="_blank"
+					rel="noopener noreferrer"
 				>
-					{__('Connect to CCB', 'cp-sync')}
-				</Button>
+					{__('Learn how to create API users', 'cp-sync')}
+				</a>
+			</p>
+
+			{connectSchema ? (
+				<SchemaForm
+					schema={connectSchema}
+					values={data}
+					onChange={updateField}
+					disabled={isConnected}
+				/>
+			) : (
+				<Spinner />
 			)}
-		</Box>
+
+			<div className="cps-ccb-connect__actions">
+				{authLoading ? (
+					<Button variant="primary" disabled>
+						<Spinner />
+						{__('Loading...', 'cp-sync')}
+					</Button>
+				) : isConnected ? (
+					<Button variant="secondary" onClick={handleDisconnect}>
+						{__('Disconnect', 'cp-sync')}
+					</Button>
+				) : (
+					<Button
+						variant="primary"
+						onClick={handleConnect}
+						disabled={!canConnect}
+					>
+						{__('Connect to CCB', 'cp-sync')}
+					</Button>
+				)}
+			</div>
+		</div>
 	)
 }

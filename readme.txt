@@ -4,7 +4,7 @@ Tags: church, ccb, planning-center, sync, events
 Requires at least: 6.0
 Tested up to: 6.7.1
 Requires PHP: 7.4
-Stable tag: 0.3.1
+Stable tag: 1.0.0-beta3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -90,6 +90,48 @@ At **Settings → CP Sync → Logs**. Increase verbosity by setting Log Level to
 Yes. CP Sync exposes action and filter hooks for developers — see the Developer Guide in the plugin's `/documentation/` directory. The new `cp_sync_{$type}_update_item_after` hook in 0.3.0 enables type-specific post-processing for custom integrations.
 
 == Changelog ==
+
+= 1.0.0-beta2 =
+* Fix: A filter group set to "any" with no conditions no longer filters out every item — previews and syncs affected by this returned zero events. The Church Center visibility restriction (events and groups) is also now applied correctly; it was previously skipped due to a mis-keyed internal condition.
+* Fix: Synced events no longer land at 12:00am — event times now persist on both newly created and existing events, and all-day status is kept in sync (including clearing it when an event gains specific times at the source).
+* Fix: A failed Planning Center API request could silently read as "the calendar is empty," which removed previously imported events. Failed fetches now abort the sync with a logged error, and a safety guard refuses to run the removal pass when a fetch unexpectedly returns zero items.
+* Fix: Event previews no longer crawl the entire calendar — they fetch only the handful of items they display, so Generate Preview responds in seconds on large calendars.
+* Fix: Past events are no longer deleted. Because ChMS queries are windowed (Planning Center returns only future events; CCB only the configured date range), an event that ended simply stopped appearing in the sync and was removed as though it had been deleted at the source — permanently, along with its featured image. Cleanup now only removes events that are still inside the query window. Developers who want the old behavior can opt back in with the new `cp_sync_remove_past_events` filter; see the Developer Guide.
+* Removed: The CCB "Remove events outside the date range" setting. It never took effect (it checked a post meta value the plugin never wrote, so past events were deleted regardless) and is superseded by the fix above.
+* Fix: Removing a synced item no longer blanks the image on another item that shares it. Imported images are reused rather than downloaded twice, so one image can belong to several items; deleting one of them took the shared image with it. The image is now kept until the last item using it is gone. The Reset tool's content level follows the same rule, so it no longer deletes images still in use by content it is leaving in place.
+* New: A sermon's Planning Center channel now sets its Service Type in CP Sermons, including the channel artwork — which CP Sermons serves as podcast channel art. Channels are matched by their Planning Center id, so renaming one updates the existing Service Type rather than creating a duplicate. Requires CP Sermons 1.6.3 or later with Service Types enabled; sites without them are unaffected.
+* Fix: Sermon series now import their graphic from Planning Center. The series artwork was fetched with each episode but discarded, so synced series had no featured image. Requires CP Sermons 1.6.3 or later. An image you set on a series by hand is never replaced.
+* Fix: Sermon artwork now comes from Planning Center correctly. Artwork is returned as a file object with named renditions, which the plugin did not read, so sermons silently fell back to a still frame from their video. A sermon now uses the episode image you uploaded; where you haven't uploaded one, its image is left empty so your theme falls back to the series image and then the service type image. Planning Center's auto-generated placeholder artwork (the abstract gradient it assigns to episodes with no image) is ignored rather than imported, for sermons, series and service types alike. Placeholder images imported by an earlier sync are removed on the next run, unless you set the image by hand.
+* Improved: Planning Center rate limits (HTTP 429) are retried automatically with a short back-off instead of failing the sync.
+* Improved: The sync log now records crawl progress page by page, fetch counts, rate-limit waits, and the result of the background dispatch — making stalled imports diagnosable from the log alone.
+
+= 1.0.0 =
+* Security: CCB API credentials are now encrypted at rest (libsodium with OpenSSL fallback, keyed from your site's WordPress salts). Existing plain-text credentials keep working and are re-encrypted on the next save.
+* Security: The CCB subdomain is validated everywhere it is used — malformed values are rejected with a clear error instead of being built into API URLs.
+* Security: OAuth callback tokens and all settings saved over the REST API are now sanitized per field, driven by the new settings schema.
+* Security: Added missing permission checks to the PCO option-lookup REST endpoints (they now require an administrator, matching every other settings route).
+* Security: Raised minimum versions of bundled HTTP libraries past known advisories (Guzzle 7.15.1+).
+* New: Reset tool under Settings → Advanced (and `wp cp-sync reset`) with five levels — clear a stuck sync queue, force a full re-import, delete imported content, remove the ChMS connection, or reset everything. Destructive levels require typed confirmation.
+* New: Per-post sync lock — a "Prevent sync from updating this post" checkbox on every imported post's edit screen. Locked posts are never overwritten or removed by a sync, so manual customizations are preserved; unchecking resumes syncing on the next run.
+* New: Sermon syncing from Planning Center Publishing to CP Sermons — episodes published to your Church Center library import as CP Sermons sermons with series, speakers, media URLs, and artwork. Includes a Sermons settings tab with filtering, and a Sync Sermons toggle on the Connect tab.
+* New: Groups and Events sync can be enabled or disabled per ChMS with toggles on the Connect tab. When a required companion plugin (CP Groups or The Events Calendar) is not active, the toggle is disabled with an explanation, the corresponding settings tab is hidden, and scheduled syncs skip that feed.
+* New: Optional "Delete all data on uninstall" toggle (Settings → Advanced). Off by default, so uninstalling the plugin keeps your data; turn it on to have WordPress permanently remove all CP Sync settings, the ChMS connection, sync state, and imported content when the plugin is deleted.
+* Enhancement: The settings screen was rebuilt on the WordPress component library for a native wp-admin look and feel, dramatically smaller page weight, and reliable browser-tab URLs for each settings tab.
+* Enhancement: Settings screens are now declared in PHP as a schema and rendered by a single form engine — new integrations and fields no longer require custom UI code.
+* Enhancement: Sync filter conditions no longer crash when no comparison options are available, correctly reset their value when switching between comparison types, and use collision-proof identifiers.
+* Bug Fix: Fixed a crash when reading a settings field from a group that had not been saved yet.
+* Bug Fix: Fixed duplicate saves when switching the active ChMS.
+* Bug Fix: Image-cache error messages were never translatable due to a placeholder text domain.
+* Removed: The unfinished Ministry Platform settings UI has been removed while MP support is completed; PCO and CCB are unaffected.
+* Developer: New fast unit-test suite (`composer test`, 83 tests) and security-focused PHPCS gate (`composer lint`); `composer verify` runs both.
+* Developer: The legacy secondary build system (wpackio) was removed — `npm run build:wp` is now the only build.
+
+= 0.3.2 =
+* Bug Fix: Fixed syncs that completed successfully but imported nothing on databases that are not utf8mb4. The queue is now encoded before it is stored, so characters the database cannot represent can no longer corrupt it.
+* Bug Fix: Sync failures are no longer silent — an unreadable queue is now reported in the logs instead of being discarded as though it had been processed.
+* Bug Fix: The queue column charset is now reported in the logs, with a warning when the database is not utf8mb4 and content will be imported with `?` substitutions.
+* Bug Fix: `wp cp-sync ccb process_queue` now clears processed batches correctly on multisite, counts items rather than batches, and no longer stops the run when a single item throws.
+* Documentation: Documented the utf8mb4 database requirement and added troubleshooting steps for syncs that report success but import nothing.
 
 = 0.3.1 =
 * Bug Fix: Fixed incomplete venues created during initial import — venue creation now deferred to enrichment phase where full address data is available.

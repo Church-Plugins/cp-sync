@@ -17,7 +17,228 @@ class TEC extends Integration {
 
 	public function actions() {
 		parent::actions();
-		 add_action( 'tribe_events_single_event_before_the_content', [ $this, 'maybe_add_registration_button'] );
+		// Append via the_content rather than the legacy
+		// `tribe_events_single_event_before_the_content` action: TEC's V2 single-event
+		// views ( default since TEC 5 ) do not fire the legacy action, so it never
+		// rendered. the_content is used by both V2 and classic single templates.
+		add_filter( 'the_content', [ $this, 'maybe_add_registration_button' ] );
+
+		// Past events must survive the sync cleanup. Registered here rather than on a
+		// ChMS class so it applies to every ChMS: this integration owns the
+		// tribe_events post type and its date meta, and is the one place that can
+		// answer "is this event in the past?" without the ChMS being involved.
+		add_filter( 'cp_sync_events_should_remove_item', [ $this, 'preserve_past_events' ], 10, 3 );
+	}
+
+	/**
+	 * Compose a full TEC datetime from the formatter's split date/time keys.
+	 *
+	 * The ChMS formatters emit EventStartDate/EventEndDate as a bare `Y-m-d` with
+	 * the time split into separate Hour ( `G`, 0-23 ) / Minute ( `i` ) keys. TEC's
+	 * ORM parses a bare date as midnight, so the time parts MUST be folded back
+	 * into the `start_date`/`end_date` strings or every event lands at 12:00am.
+	 *
+	 * @param string          $date   The `Y-m-d` date. Empty yields ''.
+	 * @param string|int|null $hour   The 24-hour hour. Null/'' yields the bare date.
+	 * @param string|int|null $minute The minute. Null/'' is treated as 0.
+	 * @return string `Y-m-d H:i:s`, the bare date, or ''.
+	 */
+	public static function compose_datetime( $date, $hour = null, $minute = null ) {
+		if ( empty( $date ) ) {
+			return '';
+		}
+
+		// Hour 0 ( midnight ) is valid — only null/'' mean "no time provided".
+		if ( null === $hour || '' === $hour ) {
+			return $date;
+		}
+
+		return sprintf( '%s %02d:%02d:00', $date, (int) $hour, (int) $minute );
+	}
+
+	/**
+	 * Build the args for updating an existing event via tribe_update_event().
+	 *
+	 * tribe_update_event() routes through the legacy Tribe__Events__API, which
+	 * reads the CamelCase Event* keys — the snake_case ORM keys used on the
+	 * create path are silently dropped on update, and saveEventMeta() re-saves
+	 * the STORED date whenever EventStartDate is absent ( verified TEC 6.15.13 ).
+	 * So updates must be fed the formatter's own CamelCase keys or date/time
+	 * changes ( and the midnight-time fix ) never reach existing events.
+	 *
+	 * @param array $item The formatted item from the ChMS.
+	 * @return array Args for tribe_update_event().
+	 */
+	public static function legacy_update_args( array $item ) {
+		$args = [
+			'post_title'   => $item['post_title'] ?? '',
+			'post_content' => $item['post_content'] ?? '',
+		];
+
+		// Date keys only when the formatter provided a start date: an empty
+		// EventStartDate must be ABSENT ( not '' ) so TEC keeps the stored date.
+		$start = self::split_datetime( $item['EventStartDate'] ?? '', $item['EventStartHour'] ?? null, $item['EventStartMinute'] ?? null );
+
+		if ( $start ) {
+			$end = self::split_datetime(
+				! empty( $item['EventEndDate'] ) ? $item['EventEndDate'] : $item['EventStartDate'],
+				$item['EventEndHour'] ?? null,
+				$item['EventEndMinute'] ?? null
+			) ?: $start;
+
+			$args['EventStartDate']   = $start['date'];
+			$args['EventStartHour']   = $start['hour'];
+			$args['EventStartMinute'] = $start['minute'];
+			$args['EventEndDate']     = $end['date'];
+			$args['EventEndHour']     = $end['hour'];
+			$args['EventEndMinute']   = $end['minute'];
+			// Presence matters: FALSE must be sent so an event that changed from
+			// all-day to timed at the source has its stale all-day flag cleared
+			// ( Tribe__Date_Utils::is_all_day( false ) → 'no' → flag deleted ).
+			$args['EventAllDay']      = ! empty( $item['EventAllDay'] );
+		}
+
+		return $args;
+	}
+
+	/**
+	 * Normalize a formatter date into TEC's legacy date + hour + minute parts.
+	 *
+	 * The formatters emit two shapes: PCO's split shape ( a bare `Y-m-d` date
+	 * with separate Hour/Minute keys ) and CCB's combined shape ( a full
+	 * `Y-m-d H:i:s` datetime with NO Hour/Minute keys ). saveEventMeta() joins
+	 * "{EventStartDate} {Hour}:{Minute}:00", so handing it a datetime AND
+	 * fabricated parts produces an unparseable string — strtotime() fails and
+	 * every date collapses to Jan 1 1970. Explicit parts win; otherwise the
+	 * datetime itself is split.
+	 *
+	 * @param string          $date   The date or datetime string.
+	 * @param string|int|null $hour   Explicit hour, when the formatter split it out.
+	 * @param string|int|null $minute Explicit minute.
+	 * @return array|false { date: Y-m-d, hour: G, minute: i }, or false when unusable.
+	 */
+	public static function split_datetime( $date, $hour = null, $minute = null ) {
+		if ( empty( $date ) ) {
+			return false;
+		}
+
+		// Hour 0 ( midnight ) is valid — only null/'' mean "not provided".
+		if ( null !== $hour && '' !== $hour ) {
+			return [
+				'date'   => $date,
+				'hour'   => (string) (int) $hour,
+				'minute' => sprintf( '%02d', (int) $minute ),
+			];
+		}
+
+		$timestamp = strtotime( $date );
+
+		if ( false === $timestamp ) {
+			return false;
+		}
+
+		return [
+			'date'   => date( 'Y-m-d', $timestamp ),
+			'hour'   => date( 'G', $timestamp ),
+			'minute' => date( 'i', $timestamp ),
+		];
+	}
+
+	/**
+	 * Whether an event's end date has already passed.
+	 *
+	 * Both arguments are site-local, zero-padded `Y-m-d H:i:s` strings ( TEC's
+	 * `_EventEndDate` format and `current_time( 'mysql' )` ), so a plain string
+	 * comparison orders them correctly and avoids strtotime()/timezone round-trips
+	 * entirely — the same class of bug that collapsed dates to Jan 1 1970.
+	 *
+	 * @since 1.0.0
+	 * @param string $end_date The event's end date, `Y-m-d H:i:s`.
+	 * @param string $now      The current site-local time, `Y-m-d H:i:s`.
+	 * @return bool|null True if past, false if current/future, null when undeterminable.
+	 */
+	public static function is_past_event( $end_date, $now ) {
+		if ( empty( $end_date ) || empty( $now ) ) {
+			return null;
+		}
+
+		return $end_date < $now;
+	}
+
+	/**
+	 * Keep past events when they drop out of a ChMS fetch.
+	 *
+	 * ChMS queries are windowed — PCO's calendar crawl is hardcoded to `future`
+	 * event_instances, CCB's to the configured date range — so an event passing its
+	 * end date simply stops appearing in the payload. Integration::process() cannot
+	 * tell that apart from "deleted at the source" and would hand it to remove_item(),
+	 * which force-deletes the post and its featured image with no trash to recover
+	 * from. Churches keep their event history; deletion here is almost always the
+	 * wrong answer, so it is off by default and opt-in via filter rather than a
+	 * setting.
+	 *
+	 * @since 1.0.0
+	 * @param bool        $should_remove Whether to remove the item.
+	 * @param string      $chms_id       The ChMS ID of the event.
+	 * @param Integration $integration   The integration instance.
+	 * @return bool
+	 */
+	public function preserve_past_events( $should_remove, $chms_id, $integration ) {
+		// Something else already vetoed the removal — don't override it.
+		if ( ! $should_remove ) {
+			return $should_remove;
+		}
+
+		// Served from the prime_cache() lookup table, so this is an array hit.
+		$post_id = $integration->get_chms_item_id( $chms_id );
+
+		if ( ! $post_id ) {
+			return $should_remove;
+		}
+
+		/**
+		 * Whether to delete events whose end date has passed once they drop out of
+		 * the ChMS fetch.
+		 *
+		 * Default false: past events are kept. Return true to have the sync clean
+		 * them up instead.
+		 *
+		 * @since 1.0.0
+		 * @param bool   $remove_past Whether to remove past events. Default false.
+		 * @param string $chms_id     The ChMS ID of the event.
+		 * @param int    $post_id     The event post ID.
+		 * @param TEC    $integration The events integration instance.
+		 * @return bool
+		 */
+		$remove_past = apply_filters( 'cp_sync_remove_past_events', false, $chms_id, $post_id, $this );
+
+		if ( $remove_past ) {
+			return $should_remove;
+		}
+
+		// The END date decides: a multi-day or currently-running event is not past.
+		// TEC stores all-day events ending at 23:59:59, so they survive their final day.
+		$end_date = get_post_meta( $post_id, '_EventEndDate', true );
+
+		if ( empty( $end_date ) ) {
+			$end_date = get_post_meta( $post_id, '_EventStartDate', true );
+		}
+
+		$is_past = self::is_past_event( $end_date, current_time( 'mysql' ) );
+
+		if ( null === $is_past ) {
+			// No usable date meta at all. The record is malformed AND gone from the
+			// ChMS, so fall through to the normal removal rather than orphaning it.
+			cp_sync()->logging->log( "Removing event with no date meta (ChMS ID: {$chms_id}, Post ID: {$post_id})" );
+			return $should_remove;
+		}
+
+		if ( $is_past ) {
+			cp_sync()->logging->log( "Preserving past event (ChMS ID: {$chms_id}, ended: {$end_date}) - outside the ChMS query window, not deleted at the source" );
+			return false;
+		}
+
+		return $should_remove;
 	}
 
 	public function update_item( $item ) {
@@ -86,6 +307,12 @@ class TEC extends Integration {
 			}
 
 			if ( $venue ) {
+				// Capture the id to link AFTER the event is saved. Passing
+				// `venue` to tribe_update_event() does NOT link the venue in
+				// current TEC ( verified 6.15.13 — the ORM ignores it on update ),
+				// so we set _EventVenueID directly below, the same way the CCB
+				// integration does. Still set $event['venue'] for the create path.
+				$venue_id       = $venue->ID;
 				$event['venue'] = $venue->ID;
 			} else {
 				cp_sync()->logging->log( 'Error creating venue for post: ' . $item['post_title'] );
@@ -97,9 +324,10 @@ class TEC extends Integration {
 		$event['content'] = $item['post_content'] ?? '';
 		$event['post_content'] = $item['post_content'] ?? '';
 		$event['image'] = $item['thumbnail_url'] ?? '';
-		$event['start_date'] = $item['EventStartDate'] ?? '';
-		$event['end_date'] = $item['EventEndDate'] ?? '';
+		$event['start_date'] = self::compose_datetime( $item['EventStartDate'] ?? '', $item['EventStartHour'] ?? null, $item['EventStartMinute'] ?? null );
+		$event['end_date'] = self::compose_datetime( $item['EventEndDate'] ?? '', $item['EventEndHour'] ?? null, $item['EventEndMinute'] ?? null );
 		$event['timezone'] = $item['EventTimezone'] ?? '';
+		$event['all_day'] = ! empty( $item['EventAllDay'] );
 		$event['url'] = $item['EventURL'] ?? '';
 		$event['recurrence'] = $item['EventRecurrence'] ?? '';
 		$event = array_filter( $event );
@@ -107,7 +335,7 @@ class TEC extends Integration {
 		if ( $existing ) {
 			cp_sync()->logging->log( 'Updating existing event ID: ' . $existing );
 			try {
-				tribe_update_event( $existing, $event );
+				tribe_update_event( $existing, self::legacy_update_args( $item ) );
 				$id = $existing;
 				cp_sync()->logging->log( 'Successfully updated event ID: ' . $id );
 			} catch ( \Exception $e ) {
@@ -128,6 +356,45 @@ class TEC extends Integration {
 			} catch ( \Exception $e ) {
 				cp_sync()->logging->log( 'ERROR creating event: ' . $e->getMessage() );
 				throw $e;
+			}
+		}
+
+		// Set venue + website meta directly. tribe_update_event()/create() do not
+		// reliably persist the `venue`/`url` args on update ( verified TEC 6.15.13 —
+		// the ORM ignores them ), so write the meta explicitly once we have the event
+		// id — matching the CCB integration's approach.
+		if ( ! empty( $id ) ) {
+			if ( ! empty( $venue_id ) ) {
+				update_post_meta( $id, '_EventVenueID', $venue_id );
+				cp_sync()->logging->log( "Linked venue {$venue_id} to event {$id}" );
+			}
+
+			// Post excerpt ( e.g. the PCO calendar `summary` short blurb ). Not a TEC
+			// ORM field, so tribe_update_event()/create() drop it — write the core
+			// post column directly. Left untouched when the source provides none, so
+			// WordPress can still auto-generate one from the content.
+			if ( isset( $item['post_excerpt'] ) && '' !== trim( (string) $item['post_excerpt'] ) ) {
+				wp_update_post( [ 'ID' => $id, 'post_excerpt' => $item['post_excerpt'] ] );
+			}
+
+			// Event website ( TEC "Event Website" field ). Set from the source's public
+			// URL when available, and CLEARED when absent so removing it at the source
+			// ( or switching a feed that no longer provides one ) propagates instead of
+			// leaving a stale link.
+			if ( ! empty( $item['EventURL'] ) ) {
+				update_post_meta( $id, '_EventURL', esc_url_raw( $item['EventURL'] ) );
+			} else {
+				delete_post_meta( $id, '_EventURL' );
+			}
+
+			// Arbitrary post meta the formatter asked us to persist ( e.g. the
+			// registration_url that drives the Register button ). tribe_update_event()
+			// only handles its own known fields, so meta_input was silently dropped
+			// before — write it here.
+			if ( ! empty( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) {
+				foreach ( $item['meta_input'] as $meta_key => $meta_value ) {
+					update_post_meta( $id, $meta_key, $meta_value );
+				}
 			}
 		}
 
@@ -160,46 +427,66 @@ class TEC extends Integration {
 		register_taxonomy( $taxonomy, 'tribe_events', $args );
 	}
 
-	public function maybe_add_registration_button() {
-
-		if ( ! apply_filters( 'cp_sync_show_event_registration_button', false, get_the_ID() ) ) {
-			return;
+	/**
+	 * Append the Register button to a single event's content.
+	 *
+	 * Runs on the_content ( see actions() for why not the legacy action ). Guarded to
+	 * the main single-event query so it never leaks into feeds, excerpts, or secondary
+	 * loops. Visibility is driven by the global `showEventRegisterButton` setting
+	 * ( default on ), still overridable via the `cp_sync_show_event_registration_button`
+	 * filter. Renders only when the event carries a registration_url.
+	 *
+	 * @param string $content The post content.
+	 * @return string
+	 */
+	public function maybe_add_registration_button( $content ) {
+		if ( ! is_singular( 'tribe_events' ) || ! in_the_loop() || ! is_main_query() ) {
+			return $content;
 		}
 
-		if ( ! $registration_url = get_post_meta( get_the_ID(), 'registration_url', true ) ) {
-			return;
+		$post_id = get_the_ID();
+
+		// Visibility is the active ChMS's per-events-tab "Show Register button" setting
+		// ( default on ). The events settings group name differs per ChMS, so ask the
+		// ChMS for it. Still overridable via the filter.
+		$active = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
+		$show   = $active
+			? (bool) $active->get_setting( 'show_register_button', true, $active->get_events_settings_group() )
+			: true;
+
+		if ( ! apply_filters( 'cp_sync_show_event_registration_button', $show, $post_id ) ) {
+			return $content;
 		}
 
-		$button_text = __( 'Register', 'cp-sync' );
+		$registration_url = get_post_meta( $post_id, 'registration_url', true );
+
+		if ( ! $registration_url ) {
+			return $content;
+		}
+
+		$button_text  = __( 'Register', 'cp-sync' );
 		$button_class = 'tribe-common-c-btn';
 
-		if ( get_post_meta( get_the_ID(), 'registration_sold_out', true ) ) {
-			$button_text = __( 'Sold Out', 'cp-sync' );
+		if ( get_post_meta( $post_id, 'registration_sold_out', true ) ) {
+			$button_text   = __( 'Sold Out', 'cp-sync' );
 			$button_class .= ' disabled';
 		}
 
-		?>
-		<div class="tribe-common cp-sync--register-cont">
-			<a href="<?php echo esc_url( $registration_url ); ?>" class="<?php echo esc_attr( $button_class ); ?>"><?php echo esc_html( $button_text ); ?></a>
-		</div>
+		$button = sprintf(
+			'<div class="tribe-common cp-sync--register-cont"><a href="%1$s" class="%2$s">%3$s</a></div>',
+			esc_url( $registration_url ),
+			esc_attr( $button_class ),
+			esc_html( $button_text )
+		);
 
-		<style>
-			.cp-sync--register-cont {
-				margin-bottom: var(--tec-spacer-7);
-				text-align: right;
-			}
+		$button .= '<style>
+			.cp-sync--register-cont { margin-bottom: var(--tec-spacer-7); }
+			.tribe-common.cp-sync--register-cont .tribe-common-c-btn { width: auto; margin-top: var(--tec-spacer-7); }
+			.tribe-common.cp-sync--register-cont .tribe-common-c-btn:hover { color: var(--tec-color-background) !important; }
+			.cp-sync--register-cont .disabled { opacity: 0.5; pointer-events: none; cursor: default; }
+		</style>';
 
-			.tribe-common.cp-sync--register-cont .tribe-common-c-btn {
-				width: auto;
-			}
-
-			.cp-sync--register-cont .disabled {
-				opacity: 0.5;
-				pointer-events: none;
-				cursor: default;
-			}
-		</style>
-		<?php
+		return $content . $button;
 	}
 
 }

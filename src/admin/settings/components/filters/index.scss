@@ -1,0 +1,38 @@
+/**
+ * Filter/condition builder layout (ported off MUI to @wordpress/components).
+ * Prefixed `cps-` to avoid collisions with core admin styles.
+ */
+
+.cps-filters {
+	&__match {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-top: 16px;
+
+		.components-select-control {
+			min-width: 120px;
+		}
+	}
+
+	&__condition {
+		display: flex;
+		align-items: flex-end;
+		flex-wrap: wrap;
+		gap: 12px;
+		margin-top: 16px;
+	}
+
+	&__field {
+		min-width: 180px;
+	}
+
+	&__remove {
+		margin-bottom: 4px;
+	}
+
+	&__add {
+		margin-top: 16px;
+	}
+}

@@ -391,7 +391,12 @@ class CCB_CLI {
 	}
 
 	/**
-	 * Clear the groups store to force re-import
+	 * Clear the sync state to force a full re-import.
+	 *
+	 * Deprecated: delegates to `wp cp-sync reset --level=state`, which clears the
+	 * store options for every type and taxonomy ( not just the four hardcoded
+	 * groups options this used to touch ) plus the queue, charset- and
+	 * multisite-safely.
 	 *
 	 * ## EXAMPLES
 	 *
@@ -400,17 +405,12 @@ class CCB_CLI {
 	 * @when after_wp_load
 	 */
 	public function clear_store( $args, $assoc_args ) {
-		\WP_CLI::line( 'Clearing groups store...' );
+		\WP_CLI::warning( 'clear-store is deprecated. Use: wp cp-sync reset --level=state' );
 
-		// Clear all group-related stores
-		delete_option( 'cp_sync_store_groups' );
-		delete_option( 'cp_sync_store_groups_cp_group_type' );
-		delete_option( 'cp_sync_store_groups_cps_department' );
-		delete_option( 'cp_sync_store_groups_taxonomies' );
+		$summary = ( new \CP_Sync\Setup\Reset() )->reset_sync_state();
 
-		\WP_CLI::success( 'Groups store cleared!' );
-		\WP_CLI::line( '' );
-		\WP_CLI::line( 'Now run: wp cp-sync ccb pull_groups' );
+		\WP_CLI::success( 'Sync state cleared!' );
+		\WP_CLI::line( wp_json_encode( $summary, JSON_PRETTY_PRINT ) );
 	}
 
 	/**
@@ -438,10 +438,18 @@ class CCB_CLI {
 		\WP_CLI::line( '' );
 
 		// Check if items were queued
-		global $wpdb;
-		$queue_count = $wpdb->get_var(
-			"SELECT COUNT(*) FROM $wpdb->options WHERE option_name LIKE '%wp_pull_groups_batch_%'"
-		);
+		$queue_count = 0;
+
+		if ( class_exists( '\CP_Sync\Integrations\CP_Groups' ) ) {
+			$integration = new \CP_Sync\Integrations\CP_Groups();
+
+			foreach ( $integration->get_batches() as $batch ) {
+				if ( is_array( $batch->data ) ) {
+					$queue_count += count( $batch->data );
+				}
+			}
+		}
+
 		\WP_CLI::line( "Items in queue: {$queue_count}" );
 		\WP_CLI::line( '' );
 
@@ -465,41 +473,39 @@ class CCB_CLI {
 		\WP_CLI::line( 'Checking background queue status...' );
 		\WP_CLI::line( '' );
 
-		// Check for queued items
-		global $wpdb;
-		$batch_options = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT option_name, option_value FROM $wpdb->options WHERE option_name LIKE %s",
-				'%wp_pull_groups_batch_%'
-			)
-		);
-
-		if ( empty( $batch_options ) ) {
-			\WP_CLI::warning( 'No items in queue. Run "Pull Now" first to queue items.' );
-			return;
-		}
-
-		\WP_CLI::success( 'Found ' . count( $batch_options ) . ' batch(es) in queue' );
-
-		// Show queue details
-		$total_items = 0;
-		foreach ( $batch_options as $batch ) {
-			$items = maybe_unserialize( $batch->option_value );
-			if ( is_array( $items ) ) {
-				$count = count( $items );
-				$total_items += $count;
-				\WP_CLI::line( "  - {$batch->option_name}: {$count} items" );
-			}
-		}
-		\WP_CLI::line( "  Total items: {$total_items}" );
-		\WP_CLI::line( '' );
-
 		// Instantiate the groups integration
 		if ( ! class_exists( '\CP_Sync\Integrations\CP_Groups' ) ) {
 			\WP_CLI::error( 'CP_Groups integration class not found. Is CP Groups plugin active?' );
 		}
 
 		$groups_integration = new \CP_Sync\Integrations\CP_Groups();
+
+		// Read the queue through the integration so that batches are located and decoded
+		// exactly as the background process reads them.
+		$batches = $groups_integration->get_batches();
+
+		if ( empty( $batches ) ) {
+			\WP_CLI::warning( 'No items in queue. Run "Pull Now" first to queue items.' );
+			return;
+		}
+
+		\WP_CLI::success( 'Found ' . count( $batches ) . ' batch(es) in queue' );
+
+		// Show queue details
+		$total_items = 0;
+		foreach ( $batches as $batch ) {
+			if ( ! is_array( $batch->data ) ) {
+				\WP_CLI::warning( "  - {$batch->key}: unreadable, will be skipped" );
+				continue;
+			}
+
+			$count        = count( $batch->data );
+			$total_items += $count;
+			\WP_CLI::line( "  - {$batch->key}: {$count} items" );
+		}
+		\WP_CLI::line( "  Total items: {$total_items}" );
+		\WP_CLI::line( '' );
+
 		\WP_CLI::line( 'Using integration: ' . $groups_integration->label );
 		\WP_CLI::line( '' );
 
@@ -511,13 +517,12 @@ class CCB_CLI {
 		$processed = 0;
 		$errors = 0;
 
-		foreach ( $batch_options as $batch ) {
-			$items = maybe_unserialize( $batch->option_value );
-			if ( ! is_array( $items ) ) {
+		foreach ( $batches as $batch ) {
+			if ( ! is_array( $batch->data ) ) {
 				continue;
 			}
 
-			foreach ( $items as $key => $item ) {
+			foreach ( $batch->data as $item ) {
 				$processed++;
 
 				$item_name = 'Item';
@@ -535,7 +540,7 @@ class CCB_CLI {
 						// Task returns false when complete (per WP_Background_Process)
 						\WP_CLI::line( '  ✓ Processed successfully' );
 					}
-				} catch ( \Exception $e ) {
+				} catch ( \Throwable $e ) {
 					$errors++;
 					\WP_CLI::warning( '  ✗ Error: ' . $e->getMessage() );
 					error_log( 'CP-Sync Queue Error: ' . $e->getMessage() );
@@ -543,8 +548,9 @@ class CCB_CLI {
 				}
 			}
 
-			// Delete the processed batch
-			delete_option( $batch->option_name );
+			// Delete the processed batch through the integration, which writes to the same
+			// place the queue is stored. delete_option() would miss it on multisite.
+			$groups_integration->delete( $batch->key );
 		}
 
 		\WP_CLI::line( '' );
