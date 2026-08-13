@@ -391,12 +391,42 @@ class Reset {
 		$count = 0;
 
 		foreach ( $ids as $id ) {
+			// Runs AFTER the integrations have removed their content, so anything still
+			// serving as a featured image belongs to a post this reset is not deleting
+			// — a series or speaker an admin created, say. Deleting the attachment
+			// anyway would leave that post pointing at nothing, which is worse than
+			// leaving one image behind.
+			if ( self::attachment_in_use( $id ) ) {
+				continue;
+			}
+
 			if ( wp_delete_attachment( (int) $id, true ) ) {
 				$count++;
 			}
 		}
 
 		return $count;
+	}
+
+	/**
+	 * Is this attachment still the featured image of some surviving post?
+	 *
+	 * @since 1.0.0
+	 * @param int $attachment_id The attachment id.
+	 * @return bool
+	 */
+	protected static function attachment_in_use( $attachment_id ) {
+		global $wpdb;
+
+		return (bool) $wpdb->get_var( $wpdb->prepare(
+			"SELECT pm.post_id
+			FROM $wpdb->postmeta pm
+			JOIN $wpdb->posts p ON p.ID = pm.post_id
+			WHERE pm.meta_key = '_thumbnail_id'
+			AND pm.meta_value = %d
+			LIMIT 1",
+			(int) $attachment_id
+		) );
 	}
 
 	/**

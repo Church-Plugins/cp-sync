@@ -24,6 +24,17 @@ class CP_Library extends Integration {
 	protected $post_type = 'cpl_item';
 
 	/**
+	 * Namespace SermonSync uses for the external ids of records we create.
+	 *
+	 * Every related record ( series, service type, speaker ) is keyed
+	 * `{source}_{kind}_{externalId}`, so this prefix identifies the ones that came
+	 * from this plugin as opposed to another sync source.
+	 *
+	 * @var string
+	 */
+	const SOURCE = 'pco';
+
+	/**
 	 * Create or update a single sermon from a formatted item.
 	 *
 	 * @param array $item The formatted item ( see PCO::format_sermon ).
@@ -40,7 +51,7 @@ class CP_Library extends Integration {
 
 		$args = [
 			'ID'        => $this->get_chms_item_id( $item['chms_id'] ) ?: 0,
-			'source'    => 'pco',
+			'source'    => self::SOURCE,
 			'title'     => $item['post_title'] ?? '',
 			'content'   => $item['post_content'] ?? '',
 			'status'    => $item['post_status'] ?? 'publish',
@@ -63,6 +74,96 @@ class CP_Library extends Integration {
 		}
 
 		return $id;
+	}
+
+	/**
+	 * Remove imported sermons AND the related records created alongside them.
+	 *
+	 * The base implementation only removes posts of this integration's own post type
+	 * carrying a `_chms_id`, which is just the sermons. Series, service types and
+	 * speakers live in their own post types and are marked by SermonSync's external
+	 * id instead, so a content reset left them behind — and, once artwork was being
+	 * imported, left them pointing at attachments the reset then deleted.
+	 *
+	 * Scoped to this plugin's own source prefix so a library also synced from another
+	 * source keeps that source's records.
+	 *
+	 * NOTE: SermonSync adopts an existing post whose title matches rather than creating
+	 * a duplicate, and stamps its external id on it. A series built by hand and later
+	 * adopted therefore carries the marker and IS removed here. That is the intended
+	 * reading of a content reset — remove everything the ChMS is tracking — but it does
+	 * mean the reset can take records the ChMS did not originally create.
+	 *
+	 * @since 1.0.0
+	 * @return array{items:int,terms:int,taxonomies:int} Counts of what was removed.
+	 */
+	public function remove_all_content() {
+		$summary = parent::remove_all_content();
+
+		$summary['items'] += $this->remove_related_records();
+
+		return $summary;
+	}
+
+	/**
+	 * Delete the series / service types / speakers this plugin's syncs are tracking.
+	 *
+	 * @since 1.0.0
+	 * @return int The number of posts removed.
+	 */
+	protected function remove_related_records() {
+		global $wpdb;
+
+		if ( ! class_exists( '\CP_Library\Util\SermonSync' ) ) {
+			return 0;
+		}
+
+		$post_types = array_values( array_filter( [
+			$this->related_post_type( '\CP_Library\Models\ItemType' ),
+			$this->related_post_type( '\CP_Library\Models\ServiceType' ),
+			$this->related_post_type( '\CP_Library\Models\Speaker' ),
+		] ) );
+
+		if ( empty( $post_types ) ) {
+			return 0;
+		}
+
+		// Selected by marker alone and filtered by post type in PHP: the set is bounded
+		// by how many series/speakers a library has, and a fixed query beats
+		// interpolating a variable-length IN list into prepare().
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT p.ID, p.post_type
+			FROM $wpdb->posts p
+			JOIN $wpdb->postmeta pm ON pm.post_id = p.ID
+			WHERE pm.meta_key = %s
+			AND pm.meta_value LIKE %s",
+			\CP_Library\Util\SermonSync::EXTERNAL_ID_META,
+			$wpdb->esc_like( self::SOURCE . '_' ) . '%'
+		) );
+
+		$removed = 0;
+
+		foreach ( (array) $rows as $row ) {
+			if ( ! in_array( $row->post_type, $post_types, true ) ) {
+				continue;
+			}
+
+			wp_delete_post( (int) $row->ID, true );
+			$removed++;
+		}
+
+		return $removed;
+	}
+
+	/**
+	 * The post type a CP Sermons model registers, when that model is available.
+	 *
+	 * @since 1.0.0
+	 * @param string $model Fully-qualified model class name.
+	 * @return string The post type, or '' when the model is not loaded.
+	 */
+	protected function related_post_type( $model ) {
+		return class_exists( $model ) ? (string) $model::get_prop( 'post_type' ) : '';
 	}
 
 	/**
