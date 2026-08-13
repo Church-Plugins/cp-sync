@@ -10,7 +10,7 @@ import PullNow from '../../components/pull-now'
 /**
  * CCB Events tab.
  *
- * `remove_events_outside_range` and `filter` render through <SchemaForm> using
+ * `show_register_button` and `filter` render through <SchemaForm> using
  * the PHP-declared `events` screen. The DateRange widget stays custom (its flat
  * stored keys `date_range_mode` / `date_start` / `date_end` don't fit a single
  * schema field) and writes those keys exactly as before. Pull action + <Preview>

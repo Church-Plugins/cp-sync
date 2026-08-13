@@ -50,12 +50,22 @@ class RemovalGuardIntegration extends Integration {
 	/** @var array|null null = update_store() never called */
 	public $store_updated = null;
 
+	/** @var array chms_id => hash carried forward for deliberately kept leftovers */
+	public $store_retained = [];
+
+	/** @var array chms_ids the removal filter should veto */
+	public $veto = [];
+
+	/** @var array chms_ids that are locked */
+	public $locked = [];
+
 	public function get_store( $group = null ) {
 		return $this->store;
 	}
 
-	public function update_store( $items, $group = null ) {
-		$this->store_updated = $items;
+	public function update_store( $items, $group = null, $retain = [] ) {
+		$this->store_updated  = $items;
+		$this->store_retained = $retain;
 	}
 
 	public function push_to_queue( $data ) {
@@ -68,7 +78,7 @@ class RemovalGuardIntegration extends Integration {
 	}
 
 	public function is_locked( $chms_id ) {
-		return false;
+		return in_array( $chms_id, $this->locked, true );
 	}
 
 	public function save() {
@@ -94,8 +104,21 @@ class IntegrationRemovalGuardTest extends TestCase {
 		parent::setUp();
 		Monkey\setUp();
 
+		// Pass-through, except that the removal filter honors the harness's $veto list
+		// so tests can simulate a guard ( e.g. TEC::preserve_past_events ) keeping an
+		// item that is no longer in the fetch.
 		Functions\when( 'apply_filters' )->alias(
-			static fn( $tag, $value ) => $value
+			static function ( $tag, $value, ...$args ) {
+				if ( 'cp_sync_events_should_remove_item' === $tag ) {
+					[ $chms_id, $integration ] = $args + [ null, null ];
+
+					if ( $integration && in_array( $chms_id, $integration->veto, true ) ) {
+						return false;
+					}
+				}
+
+				return $value;
+			}
 		);
 		Functions\when( 'is_wp_error' )->alias(
 			static fn( $thing ) => $thing instanceof \WP_Error
@@ -158,7 +181,50 @@ class IntegrationRemovalGuardTest extends TestCase {
 		$integration->process( [ [ 'chms_id' => 'evt_1' ] ] );
 
 		$this->assertSame( [ 'evt_gone' ], $integration->removed, 'Leftover removal must still work on a non-empty fetch' );
+		$this->assertSame( [], $integration->store_retained, 'A removed leftover must not be carried forward' );
 		$this->assertTrue( $integration->dispatched );
 		$this->assertNotNull( $integration->store_updated );
+	}
+
+	/* ------------------------------------------------- preserved-leftover retention */
+
+	public function test_vetoed_leftover_is_kept_and_stays_tracked() {
+		// The past-event guard's shape: the item is gone from the fetch, but the
+		// filter says keep it. It must survive AND keep its recorded hash, so later
+		// syncs re-evaluate it instead of silently losing track of it.
+		$integration = $this->integration( [ 'evt_1' => 'hash1', 'evt_past' => 'hash_past' ] );
+		$integration->veto = [ 'evt_past' ];
+
+		$integration->process( [ [ 'chms_id' => 'evt_1' ] ] );
+
+		$this->assertSame( [], $integration->removed, 'A vetoed leftover must not be removed' );
+		$this->assertSame(
+			[ 'evt_past' => 'hash_past' ],
+			$integration->store_retained,
+			'A vetoed leftover keeps its existing hash so it is re-evaluated next sync'
+		);
+	}
+
+	public function test_veto_is_per_item_not_all_or_nothing() {
+		$integration = $this->integration( [ 'evt_past' => 'hash_past', 'evt_gone' => 'hash_gone' ] );
+		$integration->veto = [ 'evt_past' ];
+
+		$integration->process( [ [ 'chms_id' => 'evt_1' ] ] );
+
+		$this->assertSame( [ 'evt_gone' ], $integration->removed, 'Genuinely deleted future items are still removed' );
+		$this->assertSame( [ 'evt_past' => 'hash_past' ], $integration->store_retained );
+	}
+
+	public function test_locked_leftover_is_kept_but_not_tracked() {
+		// Locking deliberately records NO hash: on unlock the next sync must see the
+		// item as changed and re-queue it. A locked leftover must therefore stay out
+		// of the retained set even though it is also not removed.
+		$integration = $this->integration( [ 'evt_locked' => 'hash_locked' ] );
+		$integration->locked = [ 'evt_locked' ];
+
+		$integration->process( [ [ 'chms_id' => 'evt_1' ] ] );
+
+		$this->assertSame( [], $integration->removed, 'A locked leftover must not be removed' );
+		$this->assertSame( [], $integration->store_retained, 'A locked leftover must not be given a recorded hash' );
 	}
 }

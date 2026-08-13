@@ -155,6 +155,13 @@ abstract class Integration extends \WP_Background_Process {
 			unset( $item_store[ $item['chms_id'] ] );
 		}
 
+		// Leftovers a filter chose to keep ( e.g. past events, see
+		// TEC::preserve_past_events ). Their existing hashes are merged back into the
+		// store below so later syncs keep re-evaluating them — otherwise they would
+		// fall out of tracking on the first run and a filter flipped to "remove" later
+		// could never reach them.
+		$preserved = [];
+
 		foreach( $item_store as $chms_id => $hash ) {
 			// Never remove a locked post, even if it has disappeared from the ChMS —
 			// the admin has chosen to keep this post as-is.
@@ -174,6 +181,8 @@ abstract class Integration extends \WP_Background_Process {
 
 			if ( $should_remove ) {
 				$this->remove_item( $chms_id );
+			} else {
+				$preserved[ $chms_id ] = $hash;
 			}
 		}
 
@@ -194,7 +203,7 @@ abstract class Integration extends \WP_Background_Process {
 			);
 		}
 
-		$this->update_store( $items );
+		$this->update_store( $items, null, $preserved );
 
 		$dispatched = $this->save()->dispatch();
 
@@ -1177,16 +1186,25 @@ abstract class Integration extends \WP_Background_Process {
 	 *
 	 * @param array $items The items to update.
 	 * @param string $group The group to update.
+	 * @param array $retain Existing chms_id => hash entries to carry forward for items
+	 *                      that are no longer in the fetch but were deliberately kept.
 	 * @since  1.0.0
 	 * @updated 1.1.0 - Added group parameter
 	 * @author Tanner Moushey
 	 */
-	public function update_store( $items, $group = null ) {
+	public function update_store( $items, $group = null, $retain = [] ) {
 		$store = [];
 
 		foreach( $items as $item ) {
 			$store[ $item['chms_id'] ] = $this->create_store_key( $item );
 		}
+
+		// Union, NOT array_merge(): ChMS IDs are numeric ( PCO instance IDs, CCB event
+		// IDs ), so PHP stores them as integer keys and array_merge() would renumber
+		// them 0,1,2… — silently destroying the chms_id => hash mapping this store
+		// exists to hold. `+` preserves every key, and the left operand wins, so a
+		// freshly fetched hash beats a retained one.
+		$store = $store + $retain;
 
 		$key = "cp_sync_store_{$this->type}";
 

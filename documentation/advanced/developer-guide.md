@@ -53,7 +53,44 @@ apply_filters('cp_sync_pre_import_event', $event_data, $chms_type);
 
 // Filter data mapping configuration
 apply_filters('cp_sync_field_mapping', $mapping, $chms_type, $data_type);
+
+// Whether to delete past events during sync cleanup (default false)
+apply_filters('cp_sync_remove_past_events', false, $chms_id, $post_id, $integration);
 ```
+
+## Preserving Past Events
+
+Every ChMS query is windowed — Planning Center's calendar crawl only asks for future
+event instances, and CCB's is bounded by the configured date range. Once an event's end
+date passes it simply stops appearing in the sync payload, which is indistinguishable
+from the event having been deleted at the source.
+
+By default the sync **keeps** those events. Cleanup only removes events that are still
+inside the query window but missing from the response, which is the case that genuinely
+means "deleted in the ChMS."
+
+If you want past events removed instead, opt in:
+
+```php
+add_filter('cp_sync_remove_past_events', '__return_true');
+```
+
+Removal is permanent — the event post is force-deleted along with its featured image,
+bypassing the trash — so leave this off unless you're certain.
+
+You can also scope the decision per event:
+
+```php
+add_filter('cp_sync_remove_past_events', function($remove_past, $chms_id, $post_id) {
+	// Only prune past events older than two years.
+	$end = get_post_meta($post_id, '_EventEndDate', true);
+
+	return $end && $end < date('Y-m-d H:i:s', strtotime('-2 years'));
+}, 10, 3);
+```
+
+To keep an individual event untouched by sync entirely — past or future — use the lock
+option on the event itself rather than this filter.
 
 ## Creating Custom Data Filters
 

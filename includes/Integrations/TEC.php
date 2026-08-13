@@ -22,6 +22,12 @@ class TEC extends Integration {
 		// views ( default since TEC 5 ) do not fire the legacy action, so it never
 		// rendered. the_content is used by both V2 and classic single templates.
 		add_filter( 'the_content', [ $this, 'maybe_add_registration_button' ] );
+
+		// Past events must survive the sync cleanup. Registered here rather than on a
+		// ChMS class so it applies to every ChMS: this integration owns the
+		// tribe_events post type and its date meta, and is the one place that can
+		// answer "is this event in the past?" without the ChMS being involved.
+		add_filter( 'cp_sync_events_should_remove_item', [ $this, 'preserve_past_events' ], 10, 3 );
 	}
 
 	/**
@@ -136,6 +142,103 @@ class TEC extends Integration {
 			'hour'   => date( 'G', $timestamp ),
 			'minute' => date( 'i', $timestamp ),
 		];
+	}
+
+	/**
+	 * Whether an event's end date has already passed.
+	 *
+	 * Both arguments are site-local, zero-padded `Y-m-d H:i:s` strings ( TEC's
+	 * `_EventEndDate` format and `current_time( 'mysql' )` ), so a plain string
+	 * comparison orders them correctly and avoids strtotime()/timezone round-trips
+	 * entirely — the same class of bug that collapsed dates to Jan 1 1970.
+	 *
+	 * @since 1.0.0
+	 * @param string $end_date The event's end date, `Y-m-d H:i:s`.
+	 * @param string $now      The current site-local time, `Y-m-d H:i:s`.
+	 * @return bool|null True if past, false if current/future, null when undeterminable.
+	 */
+	public static function is_past_event( $end_date, $now ) {
+		if ( empty( $end_date ) || empty( $now ) ) {
+			return null;
+		}
+
+		return $end_date < $now;
+	}
+
+	/**
+	 * Keep past events when they drop out of a ChMS fetch.
+	 *
+	 * ChMS queries are windowed — PCO's calendar crawl is hardcoded to `future`
+	 * event_instances, CCB's to the configured date range — so an event passing its
+	 * end date simply stops appearing in the payload. Integration::process() cannot
+	 * tell that apart from "deleted at the source" and would hand it to remove_item(),
+	 * which force-deletes the post and its featured image with no trash to recover
+	 * from. Churches keep their event history; deletion here is almost always the
+	 * wrong answer, so it is off by default and opt-in via filter rather than a
+	 * setting.
+	 *
+	 * @since 1.0.0
+	 * @param bool        $should_remove Whether to remove the item.
+	 * @param string      $chms_id       The ChMS ID of the event.
+	 * @param Integration $integration   The integration instance.
+	 * @return bool
+	 */
+	public function preserve_past_events( $should_remove, $chms_id, $integration ) {
+		// Something else already vetoed the removal — don't override it.
+		if ( ! $should_remove ) {
+			return $should_remove;
+		}
+
+		// Served from the prime_cache() lookup table, so this is an array hit.
+		$post_id = $integration->get_chms_item_id( $chms_id );
+
+		if ( ! $post_id ) {
+			return $should_remove;
+		}
+
+		/**
+		 * Whether to delete events whose end date has passed once they drop out of
+		 * the ChMS fetch.
+		 *
+		 * Default false: past events are kept. Return true to have the sync clean
+		 * them up instead.
+		 *
+		 * @since 1.0.0
+		 * @param bool   $remove_past Whether to remove past events. Default false.
+		 * @param string $chms_id     The ChMS ID of the event.
+		 * @param int    $post_id     The event post ID.
+		 * @param TEC    $integration The events integration instance.
+		 * @return bool
+		 */
+		$remove_past = apply_filters( 'cp_sync_remove_past_events', false, $chms_id, $post_id, $this );
+
+		if ( $remove_past ) {
+			return $should_remove;
+		}
+
+		// The END date decides: a multi-day or currently-running event is not past.
+		// TEC stores all-day events ending at 23:59:59, so they survive their final day.
+		$end_date = get_post_meta( $post_id, '_EventEndDate', true );
+
+		if ( empty( $end_date ) ) {
+			$end_date = get_post_meta( $post_id, '_EventStartDate', true );
+		}
+
+		$is_past = self::is_past_event( $end_date, current_time( 'mysql' ) );
+
+		if ( null === $is_past ) {
+			// No usable date meta at all. The record is malformed AND gone from the
+			// ChMS, so fall through to the normal removal rather than orphaning it.
+			cp_sync()->logging->log( "Removing event with no date meta (ChMS ID: {$chms_id}, Post ID: {$post_id})" );
+			return $should_remove;
+		}
+
+		if ( $is_past ) {
+			cp_sync()->logging->log( "Preserving past event (ChMS ID: {$chms_id}, ended: {$end_date}) - outside the ChMS query window, not deleted at the source" );
+			return false;
+		}
+
+		return $should_remove;
 	}
 
 	public function update_item( $item ) {

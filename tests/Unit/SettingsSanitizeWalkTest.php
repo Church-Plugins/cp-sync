@@ -88,7 +88,7 @@ class SettingsSanitizeWalkTest extends TestCase {
 				'sections' => [
 					[
 						'fields' => [
-							'remove_events_outside_range' => [ 'type' => 'checkbox' ],
+							'show_register_button' => [ 'type' => 'checkbox' ],
 							'max_items'                   => [ 'type' => 'number' ],
 							'filter'                      => [ 'type' => 'filter-builder' ],
 						],
@@ -173,15 +173,15 @@ class SettingsSanitizeWalkTest extends TestCase {
 	public function test_checkbox_type_infers_bool_cast() {
 		$out = ChMS::sanitize_settings_by_schema(
 			$this->schema(),
-			[ 'events' => [ 'remove_events_outside_range' => '1' ] ]
+			[ 'events' => [ 'show_register_button' => '1' ] ]
 		);
-		$this->assertTrue( $out['events']['remove_events_outside_range'] );
+		$this->assertTrue( $out['events']['show_register_button'] );
 
 		$out = ChMS::sanitize_settings_by_schema(
 			$this->schema(),
-			[ 'events' => [ 'remove_events_outside_range' => 0 ] ]
+			[ 'events' => [ 'show_register_button' => 0 ] ]
 		);
-		$this->assertFalse( $out['events']['remove_events_outside_range'] );
+		$this->assertFalse( $out['events']['show_register_button'] );
 	}
 
 	public function test_number_type_infers_int_cast() {
