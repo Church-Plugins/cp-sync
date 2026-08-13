@@ -2299,6 +2299,22 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			}
 		}
 
+		// Channel ( to_one ) — PCO's channel is the closest analogue to a CP Sermons
+		// service type: the recurring program an episode belongs to ( "Worship
+		// Services", "Devotionals" ), as distinct from the series it is part of.
+		// Note the attribute is `name`, not `title` as on Series.
+		$service_type = null;
+		$channel_rel  = $episode['relationships']['channel']['data'] ?? null;
+		if ( ! empty( $channel_rel['id'] ) ) {
+			$channel_obj = $relational_data['Channel'][ $channel_rel['id'] ] ?? null;
+			if ( $channel_obj && ! empty( $channel_obj['attributes']['name'] ) ) {
+				$service_type = [
+					'id'    => $channel_rel['id'],
+					'title' => $channel_obj['attributes']['name'],
+				];
+			}
+		}
+
 		// Speakers ( via speakerships join, resolved through the speaker lookup ).
 		$speakers        = [];
 		$speakership_rel = $episode['relationships']['speakerships']['data'] ?? [];
@@ -2340,11 +2356,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'thumbnail_url' => $this->get_episode_art( $attr ),
 			'tax_input'     => [],
 			'cpl'           => [
-				'date'      => $date_ts,
-				'series'    => $series,
-				'speakers'  => $speakers,
-				'video_url' => $video_url,
-				'audio_url' => $audio_url,
+				'date'         => $date_ts,
+				'series'       => $series,
+				'service_type' => $service_type,
+				'speakers'     => $speakers,
+				'video_url'    => $video_url,
+				'audio_url'    => $audio_url,
 			],
 		];
 	}

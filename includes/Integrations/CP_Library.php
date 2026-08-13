@@ -46,6 +46,7 @@ class CP_Library extends Integration {
 			'status'    => $item['post_status'] ?? 'publish',
 			'date'      => $cpl['date'] ?? 0,
 			'series'    => $this->resolve_series_art( $cpl['series'] ?? null ),
+			'service_type' => $cpl['service_type'] ?? null,
 			'speakers'  => $cpl['speakers'] ?? [],
 			'video_url' => $cpl['video_url'] ?? '',
 			'audio_url' => $cpl['audio_url'] ?? '',

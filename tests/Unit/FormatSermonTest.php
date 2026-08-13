@@ -283,6 +283,73 @@ class FormatSermonTest extends TestCase {
 	}
 
 	/**
+	 * The episode's channel maps to a service type.
+	 *
+	 * PCO exposes the channel name as `name`, not `title` as on Series — reading the
+	 * wrong key would silently yield no service type at all.
+	 */
+	public function test_channel_maps_to_service_type() {
+		$episode = [
+			'id'            => '110',
+			'attributes'    => [
+				'title'                   => 'Sunday Message',
+				'published_to_library_at' => '2026-06-01T12:00:00Z',
+			],
+			'relationships' => [
+				'channel' => [ 'data' => [ 'type' => 'Channel', 'id' => '1351' ] ],
+			],
+		];
+
+		$context = [
+			'relational_data' => [
+				'Channel' => [ '1351' => [ 'id' => '1351', 'attributes' => [ 'name' => 'Worship Services' ] ] ],
+			],
+			'speakers_by_id'  => [],
+		];
+
+		$result = $this->makePco()->format_sermon( $episode, $context );
+
+		$this->assertSame(
+			[ 'id' => '1351', 'title' => 'Worship Services' ],
+			$result['cpl']['service_type']
+		);
+	}
+
+	/**
+	 * An episode with no channel yields a null service type, which SermonSync reads
+	 * as "clear any existing association" rather than "leave it alone".
+	 */
+	public function test_missing_channel_yields_null_service_type() {
+		$result = $this->makePco()->format_sermon(
+			$this->episodeWithSeriesArt( '111', '61', null ),
+			$this->contextWithSeries( '61', 'Hebrews', null )
+		);
+
+		$this->assertNull( $result['cpl']['service_type'] );
+	}
+
+	/**
+	 * A channel reference whose record is absent from the included payload must not
+	 * produce a half-built service type.
+	 */
+	public function test_unresolvable_channel_yields_null_service_type() {
+		$episode = [
+			'id'            => '112',
+			'attributes'    => [
+				'title'                   => 'Orphan Channel',
+				'published_to_library_at' => '2026-06-08T12:00:00Z',
+			],
+			'relationships' => [
+				'channel' => [ 'data' => [ 'type' => 'Channel', 'id' => '9999' ] ],
+			],
+		];
+
+		$result = $this->makePco()->format_sermon( $episode, [ 'relational_data' => [], 'speakers_by_id' => [] ] );
+
+		$this->assertNull( $result['cpl']['service_type'] );
+	}
+
+	/**
 	 * Build a minimal episode that references a series.
 	 *
 	 * @param string     $episode_id The episode id.
