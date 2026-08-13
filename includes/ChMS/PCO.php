@@ -2284,18 +2284,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 					'title' => $series_obj['attributes']['title'],
 					// Series art is its own image, distinct from the episode's — the
 					// series graphic, not the sermon's.
-					'thumbnail_url' => $this->resolve_art_url( $series_obj['attributes']['art'] ?? null ),
+					'thumbnail_url' => $this->resolve_record_art( $series_obj['attributes'], 'Series', $series_obj['attributes']['title'] ),
 				];
-
-				// Art present but unreadable means PCO changed the payload shape. Without
-				// this the failure is silent: the series just quietly has no graphic.
-				if ( '' === $series['thumbnail_url'] && ! empty( $series_obj['attributes']['art'] ) ) {
-					cp_sync()->logging->log( sprintf(
-						'Series "%s" has art in PCO but no usable image URL could be resolved from it. Payload keys: %s',
-						$series['title'],
-						is_array( $series_obj['attributes']['art'] ) ? implode( ', ', array_keys( $series_obj['attributes']['art'] ) ) : gettype( $series_obj['attributes']['art'] )
-					) );
-				}
 			}
 		}
 
@@ -2311,6 +2301,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				$service_type = [
 					'id'    => $channel_rel['id'],
 					'title' => $channel_obj['attributes']['name'],
+					// CP Sermons uses the service type's featured image as podcast channel
+					// artwork, so a channel's own podcast_art is preferred over its general
+					// art when set ( it is the square, feed-sized image ).
+					'thumbnail_url' => $this->resolve_record_art( $channel_obj['attributes'], 'Channel', $channel_obj['attributes']['name'] ),
 				];
 			}
 		}
@@ -2424,6 +2418,44 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		return '';
+	}
+
+	/**
+	 * Resolve the image for a related record ( Series, Channel ), reporting a payload
+	 * whose art is present but unreadable.
+	 *
+	 * `podcast_art` wins where a record has one: PCO serves it as the square,
+	 * feed-sized image, and CP Sermons uses a service type's featured image for
+	 * podcast channel artwork. Series have no podcast_art, so they fall straight
+	 * through to `art`.
+	 *
+	 * The log line matters more than it looks. When this silently returned '' the
+	 * result was indistinguishable from a record that simply has no graphic, which
+	 * is how a completely inert version of this feature shipped once already.
+	 *
+	 * @since 1.0.0
+	 * @param array  $attributes The record's attributes.
+	 * @param string $type       The record type, for the log line ( 'Series', 'Channel' ).
+	 * @param string $label      The record's name/title, for the log line.
+	 * @return string The image URL, or '' when none is available.
+	 */
+	protected function resolve_record_art( $attributes, $type, $label ) {
+		$url = $this->resolve_art_url( $attributes['podcast_art'] ?? null );
+
+		if ( '' === $url ) {
+			$url = $this->resolve_art_url( $attributes['art'] ?? null );
+		}
+
+		if ( '' === $url && ! empty( $attributes['art'] ) ) {
+			cp_sync()->logging->log( sprintf(
+				'%s "%s" has art in PCO but no usable image URL could be resolved from it. Payload keys: %s',
+				$type,
+				$label,
+				is_array( $attributes['art'] ) ? implode( ', ', array_keys( $attributes['art'] ) ) : gettype( $attributes['art'] )
+			) );
+		}
+
+		return $url;
 	}
 
 	/**

@@ -45,8 +45,8 @@ class CP_Library extends Integration {
 			'content'   => $item['post_content'] ?? '',
 			'status'    => $item['post_status'] ?? 'publish',
 			'date'      => $cpl['date'] ?? 0,
-			'series'    => $this->resolve_series_art( $cpl['series'] ?? null ),
-			'service_type' => $cpl['service_type'] ?? null,
+			'series'    => $this->resolve_art_attachment( $cpl['series'] ?? null ),
+			'service_type' => $this->resolve_art_attachment( $cpl['service_type'] ?? null ),
 			'speakers'  => $cpl['speakers'] ?? [],
 			'video_url' => $cpl['video_url'] ?? '',
 			'audio_url' => $cpl['audio_url'] ?? '',
@@ -66,47 +66,50 @@ class CP_Library extends Integration {
 	}
 
 	/**
-	 * Swap a series' source art URL for a local attachment id.
+	 * Swap a related record's source art URL for a local attachment id.
 	 *
-	 * SermonSync owns series post creation, so it is the only side that can set the
-	 * featured image — but it is a data facade and should not be doing HTTP. This
-	 * plugin already has the downloader ( with normalization, media-library reuse and
-	 * MIME sniffing ), so the URL is resolved to an attachment id here and handed over
-	 * as data.
+	 * Used for both the series and the service type. SermonSync owns creation of those
+	 * posts, so it is the only side that can set the featured image — but it is a data
+	 * facade and should not be doing HTTP. This plugin already has the downloader ( with
+	 * normalization, media-library reuse and MIME sniffing ), so the URL is resolved to
+	 * an attachment id here and handed over as data.
 	 *
 	 * The download happens at most once per distinct art URL: sideload_image() returns
-	 * an existing attachment when one is already recorded for the normalized URL, so
-	 * the second and later sermons in a series cost a lookup, not a fetch.
+	 * an existing attachment when one is already recorded for the normalized URL, so the
+	 * second and later sermons sharing a series or channel cost a lookup, not a fetch.
+	 * That matters here — PCO art URLs are signed and rotate, and it is
+	 * normalize_thumbnail_url() keying them on their `key` parameter that keeps a
+	 * re-sync from re-downloading the same image.
 	 *
 	 * @since 1.0.0
-	 * @param array|null $series The formatted series ( see PCO::format_sermon ), or null.
-	 * @return array|null The series with `thumbnail_id` set when art was resolved.
+	 * @param array|null $record The formatted series or service type, or null.
+	 * @return array|null The record with `thumbnail_id` set when art was resolved.
 	 */
-	protected function resolve_series_art( $series ) {
-		if ( empty( $series ) || empty( $series['thumbnail_url'] ) ) {
-			return $series;
+	protected function resolve_art_attachment( $record ) {
+		if ( empty( $record ) || empty( $record['thumbnail_url'] ) ) {
+			return $record;
 		}
 
 		// sideload_image() reads thumbnail_url and post_title off the item it is given;
-		// the series has no post yet, so pass 0 as the attachment parent.
+		// the record has no post yet, so pass 0 as the attachment parent.
 		$thumb_id = $this->sideload_image(
 			[
-				'thumbnail_url' => $series['thumbnail_url'],
-				'post_title'    => $series['title'] ?? '',
+				'thumbnail_url' => $record['thumbnail_url'],
+				'post_title'    => $record['title'] ?? '',
 			],
 			0
 		);
 
 		if ( is_wp_error( $thumb_id ) ) {
-			cp_sync()->logging->log( 'Could not import series art for "' . ( $series['title'] ?? '' ) . '": ' . $thumb_id->get_error_message() );
-			return $series;
+			cp_sync()->logging->log( 'Could not import art for "' . ( $record['title'] ?? '' ) . '": ' . $thumb_id->get_error_message() );
+			return $record;
 		}
 
 		if ( $thumb_id ) {
-			$series['thumbnail_id'] = (int) $thumb_id;
+			$record['thumbnail_id'] = (int) $thumb_id;
 		}
 
-		return $series;
+		return $record;
 	}
 
 	/**

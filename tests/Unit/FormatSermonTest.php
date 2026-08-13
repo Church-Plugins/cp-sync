@@ -302,7 +302,15 @@ class FormatSermonTest extends TestCase {
 
 		$context = [
 			'relational_data' => [
-				'Channel' => [ '1351' => [ 'id' => '1351', 'attributes' => [ 'name' => 'Worship Services' ] ] ],
+				'Channel' => [
+					'1351' => [
+						'id'         => '1351',
+						'attributes' => [
+							'name' => 'Worship Services',
+							'art'  => $this->fileObject( 'https://example.com/channel.jpg' ),
+						],
+					],
+				],
 			],
 			'speakers_by_id'  => [],
 		];
@@ -310,9 +318,99 @@ class FormatSermonTest extends TestCase {
 		$result = $this->makePco()->format_sermon( $episode, $context );
 
 		$this->assertSame(
-			[ 'id' => '1351', 'title' => 'Worship Services' ],
+			[ 'id' => '1351', 'title' => 'Worship Services', 'thumbnail_url' => 'https://example.com/channel.jpg' ],
 			$result['cpl']['service_type']
 		);
+	}
+
+	/**
+	 * A channel's podcast_art outranks its general art.
+	 *
+	 * CP Sermons serves the service type's featured image as podcast channel artwork,
+	 * and podcast_art is the square, feed-sized rendition PCO keeps for exactly that.
+	 */
+	public function test_channel_prefers_podcast_art_over_general_art() {
+		$episode = [
+			'id'            => '113',
+			'attributes'    => [
+				'title'                   => 'Podcast Art',
+				'published_to_library_at' => '2026-06-15T12:00:00Z',
+			],
+			'relationships' => [
+				'channel' => [ 'data' => [ 'type' => 'Channel', 'id' => '1367' ] ],
+			],
+		];
+
+		$context = [
+			'relational_data' => [
+				'Channel' => [
+					'1367' => [
+						'id'         => '1367',
+						'attributes' => [
+							'name'        => 'Devotionals',
+							'art'         => $this->fileObject( 'https://example.com/general.jpg' ),
+							'podcast_art' => $this->fileObject( 'https://example.com/podcast.jpg' ),
+						],
+					],
+				],
+			],
+			'speakers_by_id'  => [],
+		];
+
+		$result = $this->makePco()->format_sermon( $episode, $context );
+
+		$this->assertSame( 'https://example.com/podcast.jpg', $result['cpl']['service_type']['thumbnail_url'] );
+	}
+
+	/**
+	 * A channel with no podcast_art falls back to its general art.
+	 */
+	public function test_channel_falls_back_to_general_art() {
+		$episode = [
+			'id'            => '114',
+			'attributes'    => [
+				'title'                   => 'General Art',
+				'published_to_library_at' => '2026-06-22T12:00:00Z',
+			],
+			'relationships' => [
+				'channel' => [ 'data' => [ 'type' => 'Channel', 'id' => '1367' ] ],
+			],
+		];
+
+		$context = [
+			'relational_data' => [
+				'Channel' => [
+					'1367' => [
+						'id'         => '1367',
+						'attributes' => [
+							'name'        => 'Devotionals',
+							'art'         => $this->fileObject( 'https://example.com/general.jpg' ),
+							// PCO returns null here on every channel observed in practice.
+							'podcast_art' => null,
+						],
+					],
+				],
+			],
+			'speakers_by_id'  => [],
+		];
+
+		$result = $this->makePco()->format_sermon( $episode, $context );
+
+		$this->assertSame( 'https://example.com/general.jpg', $result['cpl']['service_type']['thumbnail_url'] );
+	}
+
+	/**
+	 * Build PCO's File-object art payload around a single `original` variant.
+	 *
+	 * @param string $url The original rendition URL.
+	 * @return array
+	 */
+	private function fileObject( $url ) {
+		return [
+			'type'       => 'File',
+			'id'         => 1,
+			'attributes' => [ 'variants' => [ 'original' => $url ] ],
+		];
 	}
 
 	/**
