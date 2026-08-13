@@ -49,6 +49,16 @@ class CP_Library extends Integration {
 
 		$cpl = $item['cpl'] ?? [];
 
+		// Service Types are a CP Sermons Pro feature. When they are off, SermonSync
+		// discards the service type entirely — so resolving its artwork first would
+		// download an image and park it in the media library for a record that is never
+		// created. Hand the service type over unresolved in that case.
+		$service_type = $cpl['service_type'] ?? null;
+
+		if ( $this->service_types_enabled() ) {
+			$service_type = $this->resolve_art_attachment( $service_type );
+		}
+
 		$args = [
 			'ID'        => $this->get_chms_item_id( $item['chms_id'] ) ?: 0,
 			'source'    => self::SOURCE,
@@ -57,7 +67,7 @@ class CP_Library extends Integration {
 			'status'    => $item['post_status'] ?? 'publish',
 			'date'      => $cpl['date'] ?? 0,
 			'series'    => $this->resolve_art_attachment( $cpl['series'] ?? null ),
-			'service_type' => $this->resolve_art_attachment( $cpl['service_type'] ?? null ),
+			'service_type' => $service_type,
 			'speakers'  => $cpl['speakers'] ?? [],
 			'video_url' => $cpl['video_url'] ?? '',
 			'audio_url' => $cpl['audio_url'] ?? '',
@@ -185,10 +195,20 @@ class CP_Library extends Integration {
 			return;
 		}
 
-		// Only remove an image THIS plugin attached. maybe_sideload_thumb() records
-		// `_thumbnail_url` whenever it sets one, so its absence means the image was
-		// chosen by hand and must survive.
-		if ( ! get_post_meta( $id, '_thumbnail_url', true ) ) {
+		$synced_url = get_post_meta( $id, '_thumbnail_url', true );
+
+		// Only remove an image THIS plugin attached, and only while it is still the one
+		// attached. `_thumbnail_url` records what a sync last set, but WordPress leaves
+		// it alone when an admin swaps the featured image in the editor — so its mere
+		// presence would let a later sync delete a hand-picked image. Confirm the
+		// attachment currently in the slot is the one sideloaded for that URL.
+		if ( ! $synced_url ) {
+			return;
+		}
+
+		$thumb_id = get_post_thumbnail_id( $id );
+
+		if ( ! $thumb_id || get_post_meta( $thumb_id, '_cp_sync_normalized_url', true ) !== $synced_url ) {
 			return;
 		}
 
@@ -199,6 +219,29 @@ class CP_Library extends Integration {
 			'Cleared synced artwork from sermon %d ( the episode has none of its own in PCO ); the template will fall back to series, then service type.',
 			$id
 		) );
+	}
+
+	/**
+	 * Whether CP Sermons has Service Types turned on.
+	 *
+	 * Guarded rather than called directly: this runs inside the queue worker, where CP
+	 * Sermons may be a different version than the one this was written against.
+	 *
+	 * @since 1.0.0
+	 * @return bool
+	 */
+	protected function service_types_enabled() {
+		if ( ! function_exists( 'cp_library' ) ) {
+			return false;
+		}
+
+		$post_types = cp_library()->setup->post_types ?? null;
+
+		if ( ! $post_types || ! method_exists( $post_types, 'service_type_enabled' ) ) {
+			return false;
+		}
+
+		return (bool) $post_types->service_type_enabled();
 	}
 
 	/**

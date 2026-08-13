@@ -65,9 +65,16 @@ event instances, and CCB's is bounded by the configured date range. Once an even
 date passes it simply stops appearing in the sync payload, which is indistinguishable
 from the event having been deleted at the source.
 
-By default the sync **keeps** those events. Cleanup only removes events that are still
-inside the query window but missing from the response, which is the case that genuinely
-means "deleted in the ChMS."
+By default the sync **keeps** those events. The rule is based on the event's own end
+date, not on the query window: an event whose end date has passed is preserved when it
+goes missing from the response, and an event that has not yet ended is removed — the
+latter being the case that genuinely means "deleted in the ChMS."
+
+One consequence worth knowing: if your date range extends into the past (CCB's
+`include_past_30` or a custom range with an earlier start), an event you delete in the
+ChMS *after* it has already happened will not be removed from WordPress, because the
+sync cannot distinguish it from one that simply aged out of the window. Delete it in
+WordPress too, or opt into the filter below.
 
 If you want past events removed instead, opt in:
 

@@ -380,6 +380,17 @@ class Reset {
 	 *
 	 * @return int Number of attachments deleted.
 	 */
+	/**
+	 * Absolute paths of files belonging to attachments the sweep deliberately kept.
+	 *
+	 * Populated by delete_sideloaded_attachments() and read by remove_directory(), which
+	 * runs immediately afterwards over the same directory tree.
+	 *
+	 * @since 1.0.0
+	 * @var array<string,bool> Normalized path => true.
+	 */
+	protected $preserved_files = [];
+
 	protected function delete_sideloaded_attachments() {
 		global $wpdb;
 
@@ -397,6 +408,16 @@ class Reset {
 			// anyway would leave that post pointing at nothing, which is worse than
 			// leaving one image behind.
 			if ( Convenience::attachment_in_use( $id ) ) {
+				// Keeping the attachment row is only half the job — the file it points at
+				// lives under the image cache directory that remove_image_cache_dir()
+				// wipes next, which would leave the surviving post pointing at an
+				// attachment with no file. Record it so the wipe steps around it.
+				$file = get_attached_file( (int) $id );
+
+				if ( $file ) {
+					$this->preserved_files[ wp_normalize_path( $file ) ] = true;
+				}
+
 				continue;
 			}
 
@@ -447,11 +468,18 @@ class Reset {
 
 		foreach ( $items as $item ) {
 			if ( $item->isDir() ) {
+				// rmdir() only succeeds on an empty directory, so a directory holding a
+				// preserved file is left in place by the failure itself.
 				rmdir( $item->getPathname() );
-			} else {
-				unlink( $item->getPathname() );
-				$count++;
+				continue;
 			}
+
+			if ( isset( $this->preserved_files[ wp_normalize_path( $item->getPathname() ) ] ) ) {
+				continue;
+			}
+
+			unlink( $item->getPathname() );
+			$count++;
 		}
 
 		rmdir( $path );
