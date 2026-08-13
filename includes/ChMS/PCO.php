@@ -2282,6 +2282,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				$series = [
 					'id'    => $series_rel['id'],
 					'title' => $series_obj['attributes']['title'],
+					// Series art is its own `art` hash, distinct from the episode's —
+					// the series graphic, not the sermon's.
+					'thumbnail_url' => $this->resolve_art_url( $series_obj['attributes']['art'] ?? null ),
 				];
 			}
 		}
@@ -2337,17 +2340,17 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Resolve a usable image URL from an episode's art hash / thumbnail fields.
+	 * Resolve a usable image URL out of PCO's `art` attribute.
 	 *
-	 * PCO returns `art` as a variable-shape hash; fall back to the video thumbnail URLs
-	 * when no direct art URL is present.
+	 * Both Episode and Series expose `art` as a hash of the same shape, so this is
+	 * shared by both. PCO does not guarantee which sizes are present, hence the
+	 * preference order followed by a scan for any URL-valued key.
 	 *
-	 * @param array $attr The episode attributes.
+	 * @since 1.0.0
+	 * @param array|string|null $art The `art` attribute.
 	 * @return string The image URL, or '' when none is available.
 	 */
-	protected function get_episode_art( $attr ) {
-		$art = $attr['art'] ?? null;
-
+	protected function resolve_art_url( $art ) {
 		if ( is_array( $art ) ) {
 			foreach ( [ 'original', 'detail', 'thumbnail', '16x9', '1x1' ] as $key ) {
 				if ( ! empty( $art[ $key ] ) && is_string( $art[ $key ] ) ) {
@@ -2362,6 +2365,25 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			}
 		} elseif ( is_string( $art ) && '' !== $art ) {
 			return $art;
+		}
+
+		return '';
+	}
+
+	/**
+	 * Resolve a usable image URL from an episode's art hash / thumbnail fields.
+	 *
+	 * Falls back to the video thumbnail URLs when no direct art URL is present —
+	 * episode-only fallbacks, since a Series has no video.
+	 *
+	 * @param array $attr The episode attributes.
+	 * @return string The image URL, or '' when none is available.
+	 */
+	protected function get_episode_art( $attr ) {
+		$art_url = $this->resolve_art_url( $attr['art'] ?? null );
+
+		if ( '' !== $art_url ) {
+			return $art_url;
 		}
 
 		if ( ! empty( $attr['library_video_thumbnail_url'] ) ) {
