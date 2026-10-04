@@ -1,6 +1,6 @@
 {
 	"name": "cp-sync",
-	"version": "1.0.0-beta3",
+	"version": "1.0.0",
 	"private": true,
 	"workspaces": [
 		"includes/ChurchPlugins"
