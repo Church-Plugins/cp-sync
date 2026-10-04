@@ -401,7 +401,7 @@ class _Init {
 	 * @param array $old_settings The old settings
 	 */
 	public function reschedule_cron( $settings, $old_settings ) {
-		if ( $settings['updateInterval'] !== $old_settings['updateInterval'] ) {
+		if ( ( $settings['updateInterval'] ?? 'hourly' ) !== ( $old_settings['updateInterval'] ?? 'hourly' ) ) {
 			wp_clear_scheduled_hook( self::$_cron_hook );
 			$this->schedule_cron();
 		}

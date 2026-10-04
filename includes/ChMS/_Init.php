@@ -160,6 +160,8 @@ class _Init {
 						$settings[ $key ] = $value;
 					}
 
+					update_option( 'cp_sync_settings', $settings );
+
 					/**
 					 * CP Sync global settings updated
 					 *
@@ -167,8 +169,6 @@ class _Init {
 					 * @param array $old_settings The old settings
 					 */
 					do_action( 'cp_sync_global_settings_updated', $settings, $old_settings );
-
-					update_option( 'cp_sync_settings', $settings );
 
 					return rest_ensure_response( [ 'success' => true ] );
 				},
