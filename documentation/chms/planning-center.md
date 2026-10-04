@@ -12,7 +12,7 @@ CP-Sync provides deep integration with Planning Center Online (PCO), allowing yo
 
 ### Connect to Planning Center
 
-1. Navigate to **Settings → CP Sync** in your WordPress admin dashboard
+1. Navigate to **Church Plugins → CP Sync** in your WordPress admin dashboard
 2. Select the **PCO** tab
 3. Click the **Connect to Planning Center** button
 4. Follow the OAuth authentication process

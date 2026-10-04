@@ -6,6 +6,17 @@ use CP_Sync\Exception;
 abstract class Integration extends \WP_Background_Process {
 
 	/**
+	 * Post meta key that, when truthy, locks a post against sync updates and removal.
+	 *
+	 * A site admin sets this from the post edit screen after customizing an imported
+	 * post so a later sync never overwrites or deletes their changes. Honored in
+	 * task() ( no update ), process() ( no queue, no removal ), and is_locked().
+	 *
+	 * @var string
+	 */
+	const LOCK_META_KEY = '_cp_sync_lock';
+
+	/**
 	 * @var | Unique ID for this integration
 	 */
 	public $id;
@@ -77,7 +88,7 @@ abstract class Integration extends \WP_Background_Process {
 		 * @param array $items The items to process.
 		 * @param \CP_Sync\Integrations\Integration $integration The integration instance.
 		 * @return array
-		 * @since 1.1.0
+		 * @since 1.0.0
 		 */
 		$items = apply_filters( 'cp_sync_process_items', $items, $this );
 
@@ -96,7 +107,32 @@ abstract class Integration extends \WP_Background_Process {
 
 		$item_store = $this->get_store();
 
+		// Safety net: zero items fetched while the store tracks existing imports is
+		// far more likely a silent upstream failure than a genuinely emptied ChMS —
+		// and proceeding would delete every previously imported post as "leftover".
+		// Abort untouched ( no queue, no removals, store intact ); a legitimately
+		// emptied ChMS can be reflected with the Reset tool's content level.
+		if ( empty( $items ) && ! empty( $item_store ) ) {
+			cp_sync()->logging->log( sprintf(
+				'ABORTING %s sync: fetch returned 0 items while %d are tracked locally. Treating this as a failed fetch, not a mass removal. If you really removed everything in your ChMS, use the Reset tool (content level) to clear imported content.',
+				$this->label,
+				count( $item_store )
+			) );
+			return;
+		}
+
+		$locked_ids = [];
+
 		foreach( $items as $item ) {
+			// A locked post has been customized by an admin who does not want sync to
+			// touch it. Never queue it for update, and unset it from the leftover store
+			// so the removal pass below cannot delete it either.
+			if ( $this->is_locked( $item['chms_id'] ) ) {
+				$locked_ids[ $item['chms_id'] ] = true;
+				unset( $item_store[ $item['chms_id'] ] );
+				continue;
+			}
+
 			$store = $item_store[ $item['chms_id'] ] ?? false;
 
 			if ( $hard_refresh ) {
@@ -119,7 +155,20 @@ abstract class Integration extends \WP_Background_Process {
 			unset( $item_store[ $item['chms_id'] ] );
 		}
 
+		// Leftovers a filter chose to keep ( e.g. past events, see
+		// TEC::preserve_past_events ). Their existing hashes are merged back into the
+		// store below so later syncs keep re-evaluating them — otherwise they would
+		// fall out of tracking on the first run and a filter flipped to "remove" later
+		// could never reach them.
+		$preserved = [];
+
 		foreach( $item_store as $chms_id => $hash ) {
+			// Never remove a locked post, even if it has disappeared from the ChMS —
+			// the admin has chosen to keep this post as-is.
+			if ( $this->is_locked( $chms_id ) ) {
+				continue;
+			}
+
 			/**
 			 * Filter whether an item should be removed.
 			 *
@@ -132,14 +181,43 @@ abstract class Integration extends \WP_Background_Process {
 
 			if ( $should_remove ) {
 				$this->remove_item( $chms_id );
+			} else {
+				$preserved[ $chms_id ] = $hash;
 			}
 		}
 
-		$this->update_store( $items );
+		// Record hashes for everything EXCEPT locked items. While locked, an item's
+		// hash must not be tracked — otherwise unlocking would compare the incoming
+		// hash to the one recorded during the lock, see "unchanged", and never queue
+		// the post, leaving it silently diverged ("uncheck to resume syncing" would
+		// be a lie). With no recorded hash, the first sync after unlocking always
+		// queues the item and brings the post back in line with the ChMS.
+		if ( ! empty( $locked_ids ) ) {
+			$items = array_values(
+				array_filter(
+					$items,
+					function ( $item ) use ( $locked_ids ) {
+						return empty( $locked_ids[ $item['chms_id'] ] );
+					}
+				)
+			);
+		}
 
-		$this->save()->dispatch();
+		$this->update_store( $items, null, $preserved );
 
-		cp_sync()->logging->log( 'Process disbatched for ' . $this->label );
+		$dispatched = $this->save()->dispatch();
+
+		// dispatch() fires a short-timeout, non-blocking loopback POST that starts
+		// the queue worker. A WP_Error here USUALLY means the request could not be
+		// sent ( blocked loopback, security plugin, DNS ) — but a busy worker pool
+		// can also time out the handoff even though the worker still starts, so
+		// this is a diagnostic breadcrumb, not proof of failure. Either way the
+		// health-check cron re-dispatches a stalled queue.
+		if ( is_wp_error( $dispatched ) ) {
+			cp_sync()->logging->log( 'Process dispatched for ' . $this->label . ', but the loopback request did not confirm delivery (' . $dispatched->get_error_message() . '). If no items import, the worker likely never started; the health-check cron will retry the queue.' );
+		} else {
+			cp_sync()->logging->log( 'Process dispatched for ' . $this->label );
+		}
 	}
 
 	/**
@@ -257,6 +335,13 @@ abstract class Integration extends \WP_Background_Process {
 		$title = $item['post_title'] ?? 'unknown';
 		cp_sync()->logging->log( "Processing group {$chms_id}: {$title}" );
 
+		// Authoritative lock guard: whatever queued this item, a locked post is never
+		// written. Mirrors the process() guards so no code path can overwrite it.
+		if ( $this->is_locked( $chms_id ) ) {
+			cp_sync()->logging->log( "Skipping locked item {$chms_id}: {$title} ( sync disabled for this post )" );
+			return false;
+		}
+
 		$tax_input = $item['tax_input'] ?? [];
 
 		unset( $item['tax_input'] ); // child classes don't need access to this
@@ -309,6 +394,269 @@ abstract class Integration extends \WP_Background_Process {
 
 	protected function complete() {
 		parent::complete();
+	}
+
+	/**
+	 * Keys already reported as unreadable, to keep the log to one entry per batch.
+	 *
+	 * @var array
+	 */
+	protected $reported_corrupt_batches = [];
+
+	/**
+	 * Whether the queue column charset has been reported yet this run.
+	 *
+	 * @var bool
+	 */
+	protected $charset_logged = false;
+
+	/**
+	 * Encode a batch into a form that survives any column charset.
+	 *
+	 * A serialized array records the byte length of every string it contains. If MySQL
+	 * converts the value on the way in, because the column charset cannot represent a
+	 * character, those lengths no longer match their strings and the batch can never be
+	 * unserialized again. handle() then treats the unreadable batch as an empty one and
+	 * deletes it without calling task(), so the sync reports success and imports nothing.
+	 *
+	 * Base64 output is plain ASCII, which every charset stores identically, so the value
+	 * read back is byte for byte the value written.
+	 *
+	 * @param array $data The batch.
+	 * @return string
+	 */
+	protected function encode_batch( $data ) {
+		return base64_encode( serialize( $data ) );
+	}
+
+	/**
+	 * Decode a batch, accepting batches queued before encoding was introduced.
+	 *
+	 * @param mixed $data The stored batch.
+	 * @return mixed The batch, or the raw value when it cannot be read.
+	 */
+	protected function decode_batch( $data ) {
+		// Batches queued by an older version were stored as arrays.
+		if ( is_array( $data ) || ! is_string( $data ) ) {
+			return $data;
+		}
+
+		$decoded = base64_decode( $data, true );
+
+		if ( false === $decoded ) {
+			return $data;
+		}
+
+		$unserialized = @unserialize( $decoded ); // phpcs:ignore
+
+		return false === $unserialized ? $data : $unserialized;
+	}
+
+	/**
+	 * Report the charset of the column the queue is stored in.
+	 *
+	 * Anything other than utf8mb4 means MySQL will replace characters it cannot represent
+	 * when items are written to wp_posts, so titles and content import with substitutions.
+	 * The queue itself is protected by encode_batch(), but the database still needs
+	 * converting for the content to arrive intact.
+	 *
+	 * @return void
+	 */
+	protected function log_queue_charset() {
+		global $wpdb;
+
+		if ( $this->charset_logged ) {
+			return;
+		}
+
+		$this->charset_logged = true;
+
+		list( $table, $key_column, $value_column ) = $this->get_batch_table();
+
+		// Reads the collation of the column itself, not DB_CHARSET.
+		$charset = $wpdb->get_col_charset( $table, $value_column );
+
+		if ( is_wp_error( $charset ) || empty( $charset ) ) {
+			return;
+		}
+
+		cp_sync()->logging->log( "Queue column {$table}.{$value_column} charset: {$charset}" );
+
+		if ( 'utf8mb4' !== $charset ) {
+			cp_sync()->logging->log( "WARNING: The database is {$charset} rather than utf8mb4. Characters it cannot represent, such as bullets and curly quotes, will be replaced with '?' when content is imported. Converting the database to utf8mb4 will preserve them." );
+		}
+	}
+
+	/**
+	 * Save the queue, encoded, and confirm it actually reached the database.
+	 *
+	 * Mirrors WP_Background_Process::save() so that the batch can be encoded on the way in
+	 * and the key kept for verification. The parent ignores the result of
+	 * update_site_option(), so a write that never lands leaves the queue silently empty.
+	 *
+	 * @return $this
+	 */
+	public function save() {
+		$count = count( $this->data );
+
+		$this->log_queue_charset();
+
+		if ( ! $count ) {
+			cp_sync()->logging->log( "WARNING: Nothing was queued for {$this->label}, so there is nothing to import." );
+			$this->data = [];
+			return $this;
+		}
+
+		$key = $this->generate_key();
+
+		update_site_option( $key, $this->encode_batch( $this->data ) );
+
+		$this->data = [];
+
+		$this->verify_batch_persisted( $key, $count );
+
+		return $this;
+	}
+
+	/**
+	 * Keep the stored batch encoded as handle() works through it.
+	 *
+	 * @param string $key  The batch key.
+	 * @param array  $data The remaining items.
+	 * @return $this
+	 */
+	public function update( $key, $data ) {
+		if ( ! empty( $data ) ) {
+			update_site_option( $key, $this->encode_batch( $data ) );
+		}
+
+		return $this;
+	}
+
+	/**
+	 * Read a freshly saved batch back out of the database and confirm it survived.
+	 *
+	 * @param string|null $key            The batch key.
+	 * @param int         $expected_count Number of items handed to save().
+	 * @return void
+	 */
+	protected function verify_batch_persisted( $key, $expected_count ) {
+		global $wpdb;
+
+		if ( empty( $key ) ) {
+			return;
+		}
+
+		list( $table, $column, $value_column ) = $this->get_batch_table();
+
+		// Query the database directly. get_site_option() would return the value from
+		// the object cache even when the write never reached MySQL.
+		$raw = $wpdb->get_var(
+			$wpdb->prepare( "SELECT {$value_column} FROM {$table} WHERE {$column} = %s", $key ) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		);
+
+		if ( null === $raw ) {
+			cp_sync()->logging->log( "ERROR: Queued {$expected_count} items for {$this->label} but batch {$key} was not saved to the database. Nothing will be imported." );
+
+			if ( ! empty( $wpdb->last_error ) ) {
+				cp_sync()->logging->log( "ERROR: Database reported: {$wpdb->last_error}" );
+			}
+
+			return;
+		}
+
+		$decoded = $this->decode_batch( $raw );
+
+		if ( ! is_array( $decoded ) ) {
+			cp_sync()->logging->log( "ERROR: Batch {$key} for {$this->label} was saved but cannot be read back. Nothing will be imported." );
+			$this->report_corrupt_batch( $key, $raw );
+			return;
+		}
+
+		if ( count( $decoded ) !== $expected_count ) {
+			cp_sync()->logging->log( "WARNING: Queued {$expected_count} items for {$this->label} but only " . count( $decoded ) . " were saved." );
+		}
+	}
+
+	/**
+	 * Report batches that cannot be unserialized.
+	 *
+	 * handle() treats a batch whose data fails to unserialize as an empty, fully
+	 * processed batch and deletes it without ever calling task(). Log it on the way
+	 * past so the failure is visible rather than silent.
+	 *
+	 * @param int $limit Number of batches to return.
+	 * @return array
+	 */
+	public function get_batches( $limit = 0 ) {
+		$batches = parent::get_batches( $limit );
+
+		foreach ( $batches as $batch ) {
+			$batch->data = $this->decode_batch( $batch->data );
+
+			if ( is_array( $batch->data ) ) {
+				continue;
+			}
+
+			cp_sync()->logging->log( "ERROR: Batch {$batch->key} for {$this->label} is unreadable and will be discarded without importing. This usually means the queue was corrupted when it was written to the database." );
+			$this->report_corrupt_batch( $batch->key );
+		}
+
+		return $batches;
+	}
+
+	/**
+	 * Log diagnostics for an unreadable batch and keep a copy of the raw value.
+	 *
+	 * The batch is left for handle() to delete. Retaining it in the queue would
+	 * stall every future sync behind data that can never be unserialized.
+	 *
+	 * @param string      $key The batch key.
+	 * @param string|null $raw The raw value, looked up when not supplied.
+	 * @return void
+	 */
+	protected function report_corrupt_batch( $key, $raw = null ) {
+		global $wpdb;
+
+		if ( isset( $this->reported_corrupt_batches[ $key ] ) ) {
+			return;
+		}
+
+		$this->reported_corrupt_batches[ $key ] = true;
+
+		if ( null === $raw ) {
+			list( $table, $column, $value_column ) = $this->get_batch_table();
+
+			$raw = $wpdb->get_var(
+				$wpdb->prepare( "SELECT {$value_column} FROM {$table} WHERE {$column} = %s", $key ) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			);
+		}
+
+		if ( null === $raw ) {
+			return;
+		}
+
+		cp_sync()->logging->log( 'Corrupt batch is ' . strlen( $raw ) . ' bytes, is_serialized: ' . ( is_serialized( $raw ) ? 'true' : 'false' ) );
+		cp_sync()->logging->log( 'Corrupt batch starts: ' . substr( $raw, 0, 200 ) );
+
+		// Keep the most recent corrupt batch for inspection. One option per integration
+		// so repeated failures cannot grow unbounded.
+		update_option( "cp_sync_corrupt_batch_{$this->action}", $raw, false );
+	}
+
+	/**
+	 * The table and columns the queue is stored in, matching WP_Background_Process.
+	 *
+	 * @return array [ table, key column, value column ]
+	 */
+	protected function get_batch_table() {
+		global $wpdb;
+
+		if ( is_multisite() ) {
+			return [ $wpdb->sitemeta, 'meta_key', 'meta_value' ];
+		}
+
+		return [ $wpdb->options, 'option_name', 'option_value' ];
 	}
 
 	/**
@@ -440,18 +788,18 @@ abstract class Integration extends \WP_Background_Process {
 
 		// Validate URL
 		if ( ! filter_var( $thumbnail_url, FILTER_VALIDATE_URL ) ) {
-			return new \WP_Error( 'invalid_url', __( 'The provided thumbnail URL is invalid.', 'your-text-domain' ) );
+			return new \WP_Error( 'invalid_url', __( 'The provided thumbnail URL is invalid.', 'cp-sync' ) );
 		}
 
 		$upload_dir = wp_upload_dir();
 		if ( ! empty( $upload_dir['error'] ) ) {
-			return new \WP_Error( 'upload_error', __( 'Unable to retrieve upload directory.', 'your-text-domain' ) );
+			return new \WP_Error( 'upload_error', __( 'Unable to retrieve upload directory.', 'cp-sync' ) );
 		}
 
 		// Ensure the directory exists
 		$image_cache_path = trailingslashit( $upload_dir['basedir'] ) . $this->image_cache_dir;
 		if ( ! file_exists( $image_cache_path ) && ! wp_mkdir_p( $image_cache_path ) ) {
-			return new \WP_Error( 'directory_creation_failed', __( 'Failed to create cache directory.', 'your-text-domain' ) );
+			return new \WP_Error( 'directory_creation_failed', __( 'Failed to create cache directory.', 'cp-sync' ) );
 		}
 		chmod( $image_cache_path, 0755 );
 
@@ -462,7 +810,7 @@ abstract class Integration extends \WP_Background_Process {
 		] );
 
 		if ( is_wp_error( $response ) ) {
-			return new \WP_Error( 'http_request_failed', __( 'Failed to fetch the image from the URL.', 'your-text-domain' ) );
+			return new \WP_Error( 'http_request_failed', __( 'Failed to fetch the image from the URL.', 'cp-sync' ) );
 		}
 
 		// Retrieve image content
@@ -473,7 +821,7 @@ abstract class Integration extends \WP_Background_Process {
 		$save_path     = trailingslashit( $image_cache_path ) . $temp_file_name;
 
 		if ( false === file_put_contents( $save_path, $image_content ) ) {
-			return new \WP_Error( 'file_save_failed', __( 'Failed to save the image locally.', 'your-text-domain' ) );
+			return new \WP_Error( 'file_save_failed', __( 'Failed to save the image locally.', 'cp-sync' ) );
 		}
 
 		// Detect MIME type
@@ -495,7 +843,7 @@ abstract class Integration extends \WP_Background_Process {
 		if ( ! array_key_exists( $mime_type, $supported_mime_types ) ) {
 			unlink( $save_path );
 
-			return new \WP_Error( 'unsupported_mime_type', __( 'The MIME type is not supported.', 'your-text-domain' ) );
+			return new \WP_Error( 'unsupported_mime_type', __( 'The MIME type is not supported.', 'cp-sync' ) );
 		}
 
 		// Rename the file with the correct extension
@@ -508,7 +856,7 @@ abstract class Integration extends \WP_Background_Process {
 		if ( ! getimagesize( $final_save_path ) ) {
 			unlink( $final_save_path );
 
-			return new \WP_Error( 'invalid_image', __( 'The saved file is not a valid image.', 'your-text-domain' ) );
+			return new \WP_Error( 'invalid_image', __( 'The saved file is not a valid image.', 'cp-sync' ) );
 		}
 
 		// Prepare attachment data
@@ -617,6 +965,65 @@ abstract class Integration extends \WP_Background_Process {
 	}
 
 	/**
+	 * Remove every piece of content this integration has imported.
+	 *
+	 * Deletes all posts of this integration's post type that carry a `_chms_id`
+	 * (via the existing public remove_item() helper) and every taxonomy this
+	 * integration registered (via remove_taxonomy(), which also deletes the
+	 * taxonomy's terms and its stored definition).
+	 *
+	 * This lives on the Integration rather than in the Reset service because the
+	 * post type ( protected $post_type ) and the taxonomy definitions
+	 * ( cp_sync_taxonomies_{id} ) are the integration's own encapsulated state.
+	 * Exposing a single thin wrapper keeps that knowledge here and avoids widening
+	 * the public surface of the lower-level helpers.
+	 *
+	 * @since 1.0.0
+	 * @return array{items:int,terms:int,taxonomies:int} Counts of what was removed.
+	 */
+	public function remove_all_content() {
+		global $wpdb;
+
+		$summary = [
+			'items'      => 0,
+			'terms'      => 0,
+			'taxonomies' => 0,
+		];
+
+		$chms_ids = $wpdb->get_col( $wpdb->prepare(
+			"SELECT pm.meta_value
+			FROM $wpdb->postmeta pm
+			JOIN $wpdb->posts p ON pm.post_id = p.ID
+			WHERE pm.meta_key = '_chms_id'
+			AND p.post_type = %s",
+			$this->post_type
+		) );
+
+		foreach ( array_unique( $chms_ids ) as $chms_id ) {
+			$this->remove_item( $chms_id );
+			$summary['items']++;
+		}
+
+		$taxonomies = get_option( "cp_sync_taxonomies_{$this->id}", [] );
+
+		foreach ( array_keys( (array) $taxonomies ) as $taxonomy ) {
+			if ( taxonomy_exists( $taxonomy ) ) {
+				$terms = get_terms( [ 'taxonomy' => $taxonomy, 'hide_empty' => false ] );
+
+				if ( ! is_wp_error( $terms ) ) {
+					$summary['terms'] += count( $terms );
+				}
+			}
+
+			// remove_taxonomy() deletes the terms, the stored definition, and unregisters it.
+			$this->remove_taxonomy( $taxonomy );
+			$summary['taxonomies']++;
+		}
+
+		return $summary;
+	}
+
+	/**
 	 * Remove all posts associated with this chms_id, there should only be one
 	 *
 	 * @param $chms_id
@@ -628,8 +1035,14 @@ abstract class Integration extends \WP_Background_Process {
 	public function remove_item( $chms_id ) {
 		$id = $this->get_chms_item_id( $chms_id );
 
+		// Only delete the image if nothing else is using it. Sideloaded attachments are
+		// deduplicated by source URL, so this one may equally be the featured image of
+		// another synced post — deleting it with this post would break that one.
+		// $id is excluded from the check because it still references the attachment here.
 		if ( $thumb = get_post_thumbnail_id( $id ) ) {
-			wp_delete_attachment( $thumb, true );
+			if ( ! \CP_Sync\Setup\Convenience::attachment_in_use( $thumb, $id ) ) {
+				wp_delete_attachment( $thumb, true );
+			}
 		}
 
 		wp_delete_post( $id, true );
@@ -654,13 +1067,14 @@ abstract class Integration extends \WP_Background_Process {
 
 		// get all chms_ids for this post type using a join
 		// this is so we only get the meta for the correct post type
-		$chms_ids = $wpdb->get_results( "
-			SELECT pm.meta_value AS chms_id, pm.post_id
+		$chms_ids = $wpdb->get_results( $wpdb->prepare(
+			"SELECT pm.meta_value AS chms_id, pm.post_id
 			FROM $wpdb->postmeta pm
 			JOIN $wpdb->posts p ON pm.post_id = p.ID
 			WHERE pm.meta_key = '_chms_id'
-			AND p.post_type = '{$this->post_type}'
-		" );
+			AND p.post_type = %s",
+			$this->post_type
+		) );
 
 		$this->chms_id_cache = [];
 
@@ -685,6 +1099,37 @@ abstract class Integration extends \WP_Background_Process {
 	public function get_chms_item_id( $chms_id ) {
 		$this->prime_cache();
 		return $this->chms_id_cache[ $chms_id ] ?? null;
+	}
+
+	/**
+	 * Whether the imported post for a ChMS id is locked against sync.
+	 *
+	 * A locked post ( see LOCK_META_KEY ) has been customized by an admin who does
+	 * not want sync to update or remove it. Returns false for items that have not
+	 * been imported yet ( no post to lock ).
+	 *
+	 * @param string $chms_id The ChMS id.
+	 * @return bool
+	 */
+	public function is_locked( $chms_id ) {
+		$post_id = $this->get_chms_item_id( $chms_id );
+
+		if ( ! $post_id ) {
+			return false;
+		}
+
+		$locked = (bool) get_post_meta( $post_id, self::LOCK_META_KEY, true );
+
+		/**
+		 * Filter whether an imported post is locked against sync.
+		 *
+		 * @param bool        $locked      Whether the post is locked.
+		 * @param int         $post_id     The post id.
+		 * @param string      $chms_id     The ChMS id.
+		 * @param Integration $integration The integration instance.
+		 * @since 1.0.0
+		 */
+		return (bool) apply_filters( 'cp_sync_item_is_locked', $locked, $post_id, $chms_id, $this );
 	}
 
 	/**
@@ -747,16 +1192,25 @@ abstract class Integration extends \WP_Background_Process {
 	 *
 	 * @param array $items The items to update.
 	 * @param string $group The group to update.
+	 * @param array $retain Existing chms_id => hash entries to carry forward for items
+	 *                      that are no longer in the fetch but were deliberately kept.
 	 * @since  1.0.0
 	 * @updated 1.1.0 - Added group parameter
 	 * @author Tanner Moushey
 	 */
-	public function update_store( $items, $group = null ) {
+	public function update_store( $items, $group = null, $retain = [] ) {
 		$store = [];
 
 		foreach( $items as $item ) {
 			$store[ $item['chms_id'] ] = $this->create_store_key( $item );
 		}
+
+		// Union, NOT array_merge(): ChMS IDs are numeric ( PCO instance IDs, CCB event
+		// IDs ), so PHP stores them as integer keys and array_merge() would renumber
+		// them 0,1,2… — silently destroying the chms_id => hash mapping this store
+		// exists to hold. `+` preserves every key, and the left operand wins, so a
+		// freshly fetched hash beats a retained one.
+		$store = $store + $retain;
 
 		$key = "cp_sync_store_{$this->type}";
 
@@ -922,7 +1376,7 @@ abstract class Integration extends \WP_Background_Process {
 		 *
 		 * @param string $taxonomy The taxonomy to register.
 		 * @param array  $args     The arguments to register the taxonomy with.
-		 * @since 1.1.0
+		 * @since 1.0.0
 		 */
 		do_action( "cp_sync_load_taxonomy_{$this->id}", $taxonomy, $args );
 
@@ -931,7 +1385,7 @@ abstract class Integration extends \WP_Background_Process {
 
 	/**
 	 * Load all taxonomies.
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 */
 	public function load_taxonomies() {
 		$taxonomies = get_option( "cp_sync_taxonomies_{$this->id}", [] );

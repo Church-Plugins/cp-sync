@@ -17,7 +17,7 @@ CP-Sync supports scheduling different types of sync operations:
 
 ## Accessing Sync Scheduling
 
-1. Navigate to **Settings → CP Sync → Advanced**
+1. Navigate to **Church Plugins → CP Sync → Advanced**
 2. Scroll to the "Sync Scheduling" section
 
 ## Setting Up a Basic Schedule
@@ -68,7 +68,7 @@ For technical users who need more specific scheduling:
 
 In addition to scheduled syncs, you can always run manual syncs:
 
-1. Navigate to **Settings → CP Sync**
+1. Navigate to **Church Plugins → CP Sync**
 2. Select your ChMS tab
 3. Go to the relevant data tab (Groups, Events)
 4. Click "Sync Now" to run an immediate synchronization
@@ -77,7 +77,7 @@ In addition to scheduled syncs, you can always run manual syncs:
 
 To check on your sync operations:
 
-1. Navigate to **Settings → CP Sync → Logs**
+1. Navigate to **Church Plugins → CP Sync → Logs**
 2. View the sync operation logs
 3. Check when the last sync ran and what was processed
 4. Look for any errors or warnings

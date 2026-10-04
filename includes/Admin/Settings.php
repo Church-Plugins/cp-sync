@@ -26,6 +26,13 @@ class Settings {
 	public $license;
 
 	/**
+	 * The settings page hook suffix, returned by add_submenu_page().
+	 *
+	 * @var string|false
+	 */
+	protected $hook_suffix = false;
+
+	/**
 	 * Only make one instance of \CP_Sync\Settings
 	 *
 	 * @return Settings
@@ -78,26 +85,17 @@ class Settings {
 	}
 
 	/**
-	 * Get advanced options
-	 *
-	 * @param string $key Option key.
-	 * @param mixed  $default Default value.
-	 *
-	 * @return mixed|void
-	 * @since  1.0.0
-	 *
-	 * @author Tanner Moushey
-	 */
-	public static function get_advanced( $key, $default = '' ) {
-		return self::get( $key, $default, 'cps_advanced_options' );
-	}
-
-	/**
 	 * Class constructor. Add admin hooks and actions
 	 */
 	protected function __construct() {
+		// Opt into the shared "Church Plugins" parent menu. Declared here (before
+		// `admin_menu` fires) so the parent is registered and our submenu can
+		// attach to it in settings_page().
+		\ChurchPlugins\Admin\Menu::add_support();
+
 		add_action( 'admin_menu', [ $this, 'settings_page' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
+		add_filter( 'admin_body_class', [ $this, 'admin_body_class' ] );
 
 		\ChurchPlugins\Admin\Options::register_rest_route( 'cp-sync/v1', 'cps_' );
 
@@ -110,9 +108,9 @@ class Settings {
 	 * @since 1.1.0
 	 */
 	public function settings_page() {
-		add_submenu_page(
-			'options-general.php',
-			__( 'Settings', 'cp-sync' ),
+		$this->hook_suffix = add_submenu_page(
+			\ChurchPlugins\Admin\Menu::get_slug(),
+			__( 'CP Sync', 'cp-sync' ),
 			__( 'CP Sync', 'cp-sync' ),
 			'manage_options',
 			'cps_settings',
@@ -170,8 +168,8 @@ class Settings {
 		</style>
 		<div
 			class="cp_settings_root cp-sync"
-			data-settings='<?php echo wp_json_encode( $global_settings ); ?>'
-			data-compare-options='<?php echo wp_json_encode( $compare_options ); ?>'
+			data-settings="<?php echo esc_attr( wp_json_encode( $global_settings ) ); ?>"
+			data-compare-options="<?php echo esc_attr( wp_json_encode( $compare_options ) ); ?>"
 		>
 			<div class="cp-sync-loading">
 				<h1><?php esc_html_e( 'CP Sync', 'cp-sync' ); ?></h1>
@@ -187,17 +185,43 @@ class Settings {
 	}
 
 	/**
+	 * Add a stable body class on the settings screen.
+	 *
+	 * WordPress derives the screen id ( and matching body class ) from the parent
+	 * menu's title, so it changed when the page moved under the shared Church
+	 * Plugins menu — the stylesheet targets this class instead of the generated one.
+	 *
+	 * @param string $classes Space-separated admin body classes.
+	 * @return string
+	 */
+	public function admin_body_class( $classes ) {
+		$screen = get_current_screen();
+
+		if ( $screen && $screen->id === $this->hook_suffix ) {
+			$classes .= ' cp-sync-settings';
+		}
+
+		return $classes;
+	}
+
+	/**
 	 * Enqueue scripts and styles for the settings page.
 	 *
 	 * @since 1.1.0
 	 */
 	public function enqueue_scripts() {
 		$screen = get_current_screen();
-		if ( 'settings_page_cps_settings' !== $screen->id ) {
+		if ( ! $screen || $screen->id !== $this->hook_suffix ) {
 			return;
 		}
 
 		global $cp_sync;
+
+		// The settings SPA now renders `@wordpress/components` controls, which need
+		// the core `wp-components` stylesheet or they render unstyled. The build's
+		// `.asset.php` records `wp-components` as a SCRIPT dependency only, so the
+		// matching STYLE must be enqueued explicitly here.
+		wp_enqueue_style( 'wp-components' );
 
 		$cp_sync->enqueue_asset( 'admin-settings' );
 		$cp_sync->enqueue_asset( 'admin-settings', [], false, true );

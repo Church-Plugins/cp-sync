@@ -18,31 +18,51 @@ export const launchOauth = (url, args = {}) => {
 	}
 
 	return new Promise((resolve, reject) => {
-		const onClosed = () => {
-			reject('Authentication window was closed');
-		}
+		let settled = false;
 
-		authWindow.addEventListener('close', onClosed);
-		authWindow.addEventListener('beforeunload', onClosed);
+		const cleanup = () => {
+			window.removeEventListener('message', onMessage);
+			clearInterval(closedTimer);
+		};
 
-		authWindow.addEventListener('message', (event) => {
+		// The popup navigates cross-origin (WP → OAuth bridge → PCO → back) and
+		// replaces its document — and any listeners on it — several times before
+		// returning. So we listen on OUR OWN window, which never navigates: the
+		// callback page (add_oauth_script) posts its result to `window.opener`.
+		const onMessage = (event) => {
 			if (event.origin !== window.location.origin) {
-				return reject('There was an error communicating with the authentication window');
-			}
-
-			if(event.data?.type !== 'cp_sync_oauth') {
 				return;
 			}
 
-			authWindow.removeEventListener('close', onClosed);
-			authWindow.removeEventListener('beforeunload', onClosed);
-			authWindow.close();
+			if (event.data?.type !== 'cp_sync_oauth') {
+				return;
+			}
+
+			settled = true;
+			cleanup();
+
+			try {
+				authWindow.close();
+			} catch (e) {} // eslint-disable-line no-empty
 
 			if (event.data?.success) {
 				resolve();
 			} else {
 				reject(event.data?.message || 'Failed to authenticate');
 			}
-		})
+		};
+
+		window.addEventListener('message', onMessage);
+
+		// Fallback: if the user closes the popup without completing (or it lands
+		// somewhere that never posts back), settle as cancelled instead of
+		// spinning forever.
+		const closedTimer = setInterval(() => {
+			if (authWindow.closed && ! settled) {
+				settled = true;
+				cleanup();
+				reject('Authentication window was closed');
+			}
+		}, 500);
 	})
 }

@@ -36,6 +36,16 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	public $settings_key = 'cp_sync_ccb_settings';
 
 	/**
+	 * At-rest credential encryption ( username/password ) and subdomain validation are
+	 * now schema-driven: the `encrypt: true` / `validate: 'subdomain'` attributes in
+	 * get_settings_schema() drive the generic option filters registered by the base
+	 * class ( ChMS::register_schema_option_filters(), attached in the base constructor ).
+	 * The bespoke pre_update_settings() / decrypt_settings() filters this class used to
+	 * hand-write were removed in Increment 3 — behavior is identical ( encrypt on save,
+	 * transparent decrypt on read, legacy plaintext passthrough, subdomain strip ).
+	 */
+
+	/**
 	 * Setup
 	 */
 	public function setup() {
@@ -58,8 +68,8 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			]
 		);
 
-		// Add filter to handle past event removal
-		add_filter( 'cp_sync_events_should_remove_item', [ $this, 'should_remove_event' ], 10, 3 );
+		// Past-event preservation is handled ChMS-agnostically by
+		// TEC::preserve_past_events(), which reads the event's own date meta.
 
 		// Hook enrichment after event updates to fetch full location and images
 		add_action( 'cp_sync_events_update_item_after', [ $this, 'maybe_enrich_event_after_update' ], 10, 2 );
@@ -108,65 +118,6 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			'end'   => $date_end,
 			'mode'  => $mode,
 		];
-	}
-
-	/**
-	 * Determine if an event should be removed
-	 *
-	 * Only removes events outside the configured date range if the user has opted in.
-	 * This prevents accidentally deleting events that fall outside the sync window.
-	 *
-	 * @param bool $should_remove Whether to remove the item (default true)
-	 * @param string $chms_id The ChMS ID of the event
-	 * @param \CP_Sync\Integrations\Integration $integration The integration instance
-	 * @return bool
-	 */
-	public function should_remove_event( $should_remove, $chms_id, $integration ) {
-		// Get the remove_events_outside_range setting (default false)
-		$remove_outside_range = $this->get_setting( 'remove_events_outside_range', false, 'events' );
-
-		// If the setting is enabled, remove all events not in the response
-		if ( $remove_outside_range ) {
-			return true;
-		}
-
-		// Otherwise, only remove events that fall WITHIN the configured date range
-		// Events outside the range are preserved since we didn't query for them
-
-		// Get the configured date range (must match fetch_events logic)
-		$date_range = $this->get_active_date_range();
-		$date_start = $date_range['start'];
-		$date_end   = $date_range['end'];
-
-		// Get the WordPress post ID for this ChMS ID
-		$post_id = $integration->get_chms_item_id( $chms_id );
-
-		if ( ! $post_id ) {
-			// If we can't find the post, allow removal
-			return true;
-		}
-
-		// Get the event start date from post meta
-		$event_start = get_post_meta( $post_id, 'event_start', true );
-
-		if ( empty( $event_start ) ) {
-			// If there's no start date, allow removal
-			return true;
-		}
-
-		// Check if the event falls within the configured date range
-		$event_date = strtotime( date( 'Y-m-d', strtotime( $event_start ) ) );
-		$range_start = strtotime( $date_start );
-		$range_end = strtotime( $date_end );
-
-		// If event is outside the configured date range, preserve it
-		if ( $event_date < $range_start || $event_date > $range_end ) {
-			cp_sync()->logging->log( "Preserving event outside date range (ChMS ID: {$chms_id}, Date: " . date( 'Y-m-d', $event_date ) . ") - not queried from CCB" );
-			return false;
-		}
-
-		// Event is within the date range but not in API response - it was deleted in CCB
-		return true;
 	}
 
 	/**
@@ -446,6 +397,110 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		}
 
 		return $args;
+	}
+
+	/**
+	 * Declare the CCB settings screens as schema data.
+	 *
+	 * Screen keys equal the stored settings groups the current tabs write to
+	 * ( `connect`, `groups`, `events` ); field keys equal the exact stored setting
+	 * keys ( verified against the tab `updateField()` calls ). Additive only —
+	 * nothing consumes this yet.
+	 *
+	 * Credential fields carry inert server-side metadata ( `sanitize`, `encrypt`,
+	 * `validate` ) for Increment 3's schema-driven save handling. The serializer
+	 * strips those before the schema reaches the client.
+	 *
+	 * The events date-range controls ( `date_range_mode` / `date_start` / `date_end` )
+	 * are driven by a custom DateRange widget and are intentionally NOT declared here
+	 * ( see the report / tab-migration batch ).
+	 *
+	 * @since 0.4.0
+	 * @return array
+	 */
+	public function get_settings_schema() {
+		return [
+			'connect' => [
+				'label'    => __( 'Connect', 'cp-sync' ),
+				'sections' => [
+					[
+						'fields' => [
+							'subdomain' => [
+								'type'     => 'text',
+								'label'    => __( 'Subdomain', 'cp-sync' ),
+								'help'     => __( 'Your CCB subdomain (the part before .ccbchurch.com).', 'cp-sync' ),
+								'default'  => '',
+								'validate' => 'subdomain',
+							],
+							'username' => [
+								'type'     => 'text',
+								'label'    => __( 'API Username', 'cp-sync' ),
+								'help'     => __( 'Your CCB API user username', 'cp-sync' ),
+								'default'  => '',
+								'sanitize' => 'raw_credential',
+								'encrypt'  => true,
+							],
+							'password' => [
+								'type'      => 'text',
+								'inputType' => 'password',
+								'label'     => __( 'API Password', 'cp-sync' ),
+								'help'      => __( 'Your CCB API user password', 'cp-sync' ),
+								'default'   => '',
+								'sanitize'  => 'raw_credential',
+								'encrypt'   => true,
+							],
+						],
+					],
+					// Sync-enable toggles ( stored under connect.sync_groups /
+					// connect.sync_events ), kept in their own titled section so they are
+					// visually separate from the credential fields above.
+					[
+						'title'  => __( 'Sync', 'cp-sync' ),
+						'fields' => $this->get_sync_toggle_fields(),
+					],
+				],
+			],
+			'groups' => [
+				'label'    => __( 'Groups', 'cp-sync' ),
+				'sections' => [
+					[
+						'fields' => [
+							'filter' => [
+								'type'        => 'filter-builder',
+								'label'       => __( 'Groups', 'cp-sync' ),
+								'filterGroup' => 'groups',
+							],
+						],
+					],
+				],
+			],
+			'events' => [
+				'label'    => __( 'Events', 'cp-sync' ),
+				'sections' => [
+					[
+						'title'  => __( 'Event Options', 'cp-sync' ),
+						'fields' => [
+							'show_register_button' => [
+								'type'    => 'toggle',
+								'label'   => __( 'Show Register button on events', 'cp-sync' ),
+								'default' => true,
+								'help'    => __( 'Adds a Register button to synced events that have a registration link. Turn off to hide it.', 'cp-sync' ),
+							],
+						],
+					],
+					[
+						'title'  => __( 'Event Filters', 'cp-sync' ),
+						'fields' => [
+							'filter' => [
+								'type'        => 'filter-builder',
+								'label'       => __( 'Events', 'cp-sync' ),
+								'filterGroup' => 'events',
+							],
+						],
+					],
+				],
+			],
+		];
 	}
 
 	/**
@@ -868,6 +923,21 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * Whether a start/end pair is CCB's representation of an all-day event.
+	 *
+	 * CCB has no explicit all-day flag — an all-day event arrives as a span
+	 * from midnight to 23:59 ( single- or multi-day ). Detect that shape so
+	 * TEC can render "All Day" instead of a literal 12:00am - 11:59pm range.
+	 *
+	 * @param \DateTime $start The event start.
+	 * @param \DateTime $end   The event end.
+	 * @return bool
+	 */
+	public static function is_all_day_span( \DateTime $start, \DateTime $end ) {
+		return '00:00' === $start->format( 'H:i' ) && '23:59' === $end->format( 'H:i' );
+	}
+
+	/**
 	 * Format event
 	 *
 	 * @param array $event The event data.
@@ -902,6 +972,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			// Event Data
 			'EventStartDate' => $start_date->format( 'Y-m-d H:i:s' ),
 			'EventEndDate'   => $end_date->format( 'Y-m-d H:i:s' ),
+			'EventAllDay'    => self::is_all_day_span( $start_date, $end_date ),
 			'EventTimezone'  => $event['timezone'] ?? $start_date->getTimezone()->getName(),
 			'EventURL'       => $event_url,
 
@@ -1006,17 +1077,6 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	}
 	
 	/**
-	 * Get the settings entrypoint data
-	 *
-	 * @param array $entrypoint_data The entrypoint data.
-	 * @return array
-	 */
-	public function settings_entrypoint_data( $entrypoint_data ) {
-		return $entrypoint_data;
-	}
-
-
-	/**
 	 * Register rest API routes
 	 */
 	public function register_rest_routes() {
@@ -1033,6 +1093,16 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 
 		if ( empty( $username ) || empty( $password ) || empty( $subdomain ) ) {
 			return [ 'status' => 'error', 'message' => 'Missing credentials' ];
+		}
+
+		// Validate the subdomain format before it is ever used to build a URL.
+		// This is the primary user-facing surface for the validation error: the
+		// message is rendered ( escaped ) in the React connect tab's alert.
+		if ( ! API\CCB::is_valid_subdomain( $subdomain ) ) {
+			return [
+				'status'  => 'error',
+				'message' => __( 'Invalid subdomain. Subdomains may contain only letters, numbers, and hyphens.', 'cp-sync' ),
+			];
 		}
 
 		// Test the connection by making a simple API call

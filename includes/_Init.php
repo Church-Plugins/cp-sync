@@ -15,8 +15,6 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 	 */
 	public $setup;
 
-	public $enqueue;
-
 	/**
 	 * @var \ChurchPlugins\Logging
 	 */
@@ -46,8 +44,10 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 	 */
 	protected function __construct() {
 		parent::__construct();
-		$this->enqueue = new \WPackio\Enqueue( 'cpSync', 'dist', $this->get_version(), 'plugin', CP_SYNC_PLUGIN_FILE );
-		add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue' ] );
+		// Attach the `window.cpSync` localization to the settings SPA bundle
+		// (`cp-sync-admin-settings`, enqueued by Admin\Settings). Late priority so
+		// the handle is already registered by the time we add the inline script.
+		add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue' ], 20 );
 	}
 
 	/**
@@ -63,30 +63,33 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 	}
 
 	/**
-	 * `wp_enqueue_scripts` actions for the app's compiled sources
+	 * Localize `window.cpSync` onto the settings SPA bundle.
 	 *
-	 * @return void
-	 * @author costmo
-	 */
-	public function app_enqueue() {
-		$this->enqueue->enqueue( 'styles', 'main', [] );
-		$this->enqueue->enqueue( 'scripts', 'main', [] );
-	}
-
-	/**
-	 * `admin_enqueue_scripts` actions for the app's compiled sources
+	 * The React settings app (built by wp-scripts, enqueued as
+	 * `cp-sync-admin-settings` in Admin\Settings) still consumes
+	 * `window.cpSync.{ajaxUrl,nonce,oauthURL,adminUrl}` (e.g. the PCO OAuth
+	 * connect flow). We attach it as an inline script only when that handle is
+	 * actually enqueued (the settings screen), so it is a no-op elsewhere.
 	 *
 	 * @return void
 	 */
 	public function admin_enqueue() {
-		$this->enqueue->enqueue( 'styles', 'admin', [] );
-		$assets = $this->enqueue->enqueue( 'scripts', 'admin', [ 'js_dep' => [ 'jquery' ] ] );
-		wp_localize_script( $assets['js'][0]['handle'], 'cpSync', [
+		if ( ! wp_script_is( 'cp-sync-admin-settings', 'enqueued' ) ) {
+			return;
+		}
+
+		$data = [
 			'ajaxUrl'  => admin_url( 'admin-ajax.php' ),
 			'nonce'    => wp_create_nonce( 'cpSync' ),
 			'oauthURL' => CP_SYNC_OAUTH_URL,
 			'adminUrl' => admin_url(),
-		] );
+		];
+
+		wp_add_inline_script(
+			'cp-sync-admin-settings',
+			'window.cpSync = ' . wp_json_encode( $data ) . ';',
+			'before'
+		);
 	}
 
 	/**
@@ -110,7 +113,7 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 	 * @return void
 	 */
 	public function required_plugins() {
-		printf( '<div class="error"><p>%s</p></div>', __( 'Your system does not meet the requirements for Church Plugins - Staff', 'cp-sync' ) );
+		printf( '<div class="error"><p>%s</p></div>', esc_html__( 'Your system does not meet the requirements for Church Plugins - Staff', 'cp-sync' ) );
 	}
 
 	/** Helper Methods **************************************/

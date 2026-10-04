@@ -1,203 +1,261 @@
-import { createRoot, useState, useEffect, useRef } from '@wordpress/element';
-import './index.scss';
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
-import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
-import Skeleton from '@mui/material/Skeleton';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import platforms from './platforms';
+import { createRoot, useState, useEffect } from '@wordpress/element';
+import { Button, Card, CardBody, Notice } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
-import { chmsTab } from './components/chms-tab';
+import { useSelect } from '@wordpress/data';
+import './index.scss';
+import platforms from './platforms';
+import globalStore from './store/globalStore';
+import { connectTab } from './components/connect-tab';
 import { licenseTab } from './components/license-tab';
 import { logTab } from './components/log-tab';
 import { advancedTab } from './components/advanced-tab';
 import { SyncStatusIndicator } from './components/sync-status';
 import SettingsProvider, { useSettings } from './contexts/settingsContext';
-import '@fontsource/roboto/300.css';
-import '@fontsource/roboto/400.css';
-import '@fontsource/roboto/500.css';
-import '@fontsource/roboto/700.css';
 
-const theme = createTheme({
-	palette: {
-		mode: "light"
-	},
-})
+/**
+ * Renders a single tab's registered component.
+ *
+ * The DynamicTab contract is unchanged: the registered `component` receives
+ * `{ data, updateField, save }` scoped to the tab's `group`. Tabs without a
+ * settings slice (the merged connectTab has no `group` and derives its own
+ * scoping from the active ChMS; logTab's `logTab` group has no slice) are
+ * handled gracefully — spreading `settings[undefined]` / `settings.logTab` is
+ * a harmless no-op and those tabs read the global store directly via
+ * `useSettings()`.
+ *
+ * @param {Object} props
+ * @param {Object} props.tab The tab registration.
+ */
+function DynamicTab( { tab } ) {
+	const { group, defaultData = {}, component } = tab;
 
-function DynamicTab({ tab, value, index }) {
-	const { group, defaultData = {}, component } = tab
+	const { settings, save, updateField, isDirty } = useSettings();
 
-	const { settings, save, updateField, isDirty, isHydrating } = useSettings()
+	// Warn on navigation away while there are unsaved changes.
+	useEffect( () => {
+		if ( isDirty ) {
+			const handleBeforeUnload = ( e ) => {
+				e.preventDefault();
+				return false;
+			};
 
-	useEffect(() => {
-		if(isDirty) {
-			const handleBeforeUnload = (e) => {
-				e.preventDefault()
-				return false
-			}
-
-			window.addEventListener('beforeunload', handleBeforeUnload)
+			window.addEventListener( 'beforeunload', handleBeforeUnload );
 
 			return () => {
-				window.removeEventListener('beforeunload', handleBeforeUnload)
-			}
+				window.removeEventListener(
+					'beforeunload',
+					handleBeforeUnload
+				);
+			};
 		}
-	}, [isDirty])
+	}, [ isDirty ] );
 
 	return (
-		<TabPanel value={value} index={index}>
-			<Box>
-				{
-					isHydrating &&
-					<>
-						<Skeleton variant="text" width={500} />
-						<Skeleton variant="text" width={200} />
-						<Skeleton variant="text" width={250} />
-						<Skeleton variant="text" width={300} height={40} />
-						<Skeleton variant="text" width={300} height={40} />
-						<Skeleton variant="text" width={300} height={40} />
-					</>
-				}
-				{
-					!isHydrating &&
-					component({
-						data: { ...defaultData, ...settings[group] },
-						updateField: (field, value) => updateField(group, field, value),
-						save,
-					})
-				}
-			</Box>
-		</TabPanel>
-	)
-}
-
-function TabPanel(props) {
-	const { children, value, index, ...other } = props;
-
-	return (
-		<div
-			role="tabpanel"
-			hidden={value !== index}
-			id={`simple-tabpanel-${index}`}
-			aria-labelledby={`simple-tab-${index}`}
-			{...other}
-			style={{ height: '100%' }}
-		>
-			{value === index && (
-				<Card sx={{ p: 4, overflowY: 'auto', maxHeight: '100%', boxSizing: 'border-box' }} variant="outlined">
-					<Typography component="div">{children}</Typography>
-				</Card>
-			)}
-		</div>
+		<Card className="cps-tab-panel">
+			<CardBody>
+				{ component( {
+					data: { ...defaultData, ...settings[ group ] },
+					updateField: ( field, value ) =>
+						updateField( group, field, value ),
+					save,
+				} ) }
+			</CardBody>
+		</Card>
 	);
 }
 
 function Settings() {
-	const { globalSettings, save, isSaving, isDirty, error, isConnected } = useSettings()
+	const {
+		globalSettings,
+		settings,
+		save,
+		isSaving,
+		isDirty,
+		error,
+		isConnected,
+	} = useSettings();
 
-	const chmsData = platforms[globalSettings.chms] || { tabs: [] }
-	const tabs     = chmsData.tabs.filter(tab => isConnected ? true : tab.group === 'connect')
+	const chmsData = platforms[ globalSettings.chms ] || { tabs: [] };
 
-	// creates a list of tabs based on the selected ChMS
-	const tabNames = [
-		'select',
-		...tabs.map(tab => tab.group),
-		'log',
-		'license',
-		'advanced'
-	]
+	// The served `connect` screen schema for the active ChMS. Its per-field
+	// `disabled` flag is the availability signal for the sync toggles (set when the
+	// companion plugin is inactive). Selecting it also triggers the schema resolver.
+	const connectSchema = useSelect(
+		( select ) =>
+			globalSettings.chms
+				? select( globalStore ).getSchema( globalSettings.chms )?.connect
+				: undefined,
+		[ globalSettings.chms ]
+	);
 
-	const openTab = (index) => {
-		const url = new URL(window.location.href)
-		url.searchParams.set('tab', tabNames[index])
-		window.history.pushState({}, '', url)
-		setCurrentTab(index)
-	}
+	// A per-feed tab (one carrying a `type`) is shown only when its feed is BOTH
+	// enabled (the `connect.sync_<type>` setting is not explicitly false —
+	// default-true semantics) AND available (its schema toggle is not `disabled`).
+	// A missing schema is treated as available so tabs are not hidden mid-load.
+	const connectValues = settings.connect || {};
 
-	const getTabIndex = () => {
-		const url = new URL(window.location.href)
-		const tab = url.searchParams.get('tab')
+	const isTypeVisible = ( type ) => {
+		const stored = connectValues[ 'sync_' + type ];
 
-		if (tab) {
-			const tabIndex = tabNames.indexOf(tab)
-			if (tabIndex !== -1) {
-				return tabIndex
+		if ( stored === false ) {
+			return false;
+		}
+
+		if ( connectSchema && Array.isArray( connectSchema.sections ) ) {
+			for ( const section of connectSchema.sections ) {
+				const field = section.fields?.[ 'sync_' + type ];
+				if ( field ) {
+					// Unavailable (companion plugin inactive) → hidden.
+					if ( field.disabled ) {
+						return false;
+					}
+					// Nothing stored yet → the schema's declared default decides
+					// (e.g. sermons default OFF so updates don't surface the tab
+					// until the admin opts in).
+					if ( stored === undefined && field.default === false ) {
+						return false;
+					}
+				}
 			}
 		}
 
-		return 0
-	}
+		return true;
+	};
 
-	const [currentTab, setCurrentTab] = useState(getTabIndex)
+	// The merged Connect tab owns the picker + the active platform's connect
+	// screen, so the platform's own `connect` tab is never surfaced separately.
+	// The remaining per-feed tabs (groups, events, …) only appear once
+	// connected, and each typed feed tab is additionally gated on enabled+available.
+	const platformTabs = isConnected
+		? chmsData.tabs
+				.filter( ( tab ) => tab.group !== 'connect' )
+				.filter( ( tab ) => ! tab.type || isTypeVisible( tab.type ) )
+		: [];
 
-	useEffect(() => {
-		if(isConnected) {
-			setCurrentTab(getTabIndex())
+	// SLUG-KEYED tab list. A tab's identity is a stable slug (not its numeric
+	// array position), so `?tab=` URLs round-trip correctly and stay valid even
+	// if tabs are reordered. The merged Connect tab takes the `connect` slug
+	// (legacy `?tab=select` aliases to it — see getInitialSlug); logTab keeps
+	// the historical `log` slug (its `group` is `logTab`).
+	const allTabs = [
+		{
+			slug: 'connect',
+			label: __( 'Connect', 'cp-sync' ),
+			tab: connectTab,
+		},
+		...platformTabs.map( ( tab ) => ( {
+			slug: tab.group,
+			label: tab.name,
+			tab,
+		} ) ),
+		{ slug: 'log', label: __( 'Log', 'cp-sync' ), tab: logTab },
+		{ slug: 'license', label: __( 'License', 'cp-sync' ), tab: licenseTab },
+		{
+			slug: 'advanced',
+			label: __( 'Advanced', 'cp-sync' ),
+			tab: advancedTab,
+		},
+	];
+
+	const slugs = allTabs.map( ( t ) => t.slug );
+
+	const getInitialSlug = () => {
+		const url = new URL( window.location.href );
+		let tab = url.searchParams.get( 'tab' );
+		// Legacy bookmarks used the standalone picker slug; it now lives inside
+		// the merged Connect tab.
+		if ( tab === 'select' ) {
+			tab = 'connect';
 		}
-	}, [isConnected])
+		return tab && slugs.includes( tab ) ? tab : 'connect';
+	};
+
+	const [ currentTab, setCurrentTab ] = useState( getInitialSlug );
+
+	const openTab = ( slug ) => {
+		const url = new URL( window.location.href );
+		url.searchParams.set( 'tab', slug );
+		window.history.pushState( {}, '', url );
+		setCurrentTab( slug );
+	};
+
+	// Connection state changes the set of available tabs. If the active slug is
+	// no longer valid (e.g. we were on a per-feed tab and just disconnected),
+	// re-derive it from the URL — reorder/length independent, unlike the old
+	// index-based reset.
+	useEffect( () => {
+		if ( ! slugs.includes( currentTab ) ) {
+			setCurrentTab( getInitialSlug() );
+		}
+	}, [ isConnected ] );
+
+	const activeEntry =
+		allTabs.find( ( t ) => t.slug === currentTab ) || allTabs[ 0 ];
 
 	return (
-		<ThemeProvider theme={theme}>
-			<Box sx={{ height: '100%', p: 2, maxHeight: '100%', display: 'flex', flexDirection: 'column', gap: 0 }}>
-				<h1>CP Sync</h1>
-				<SyncStatusIndicator chms={globalSettings.chms} />
-				<Tabs value={currentTab} onChange={(_, value) => openTab(value)} sx={{ px: 2, mb: '-2px', mt: 4 }}>
-					<Tab label={__( 'Select a ChMS', 'cp-sync' )} key="select" />
-					{
-						tabs.map((tab) => (
-							<Tab key={tab.group} label={tab.name} />
-						))
-					}
-					<Tab label={__( 'Log', 'cp-sync' )} key={logTab.group} />
-					<Tab label={__( 'License', 'cp-sync' )} key={licenseTab.group} />
-					<Tab label={__( 'Advanced', 'cp-sync' )} key={advancedTab.group} />
-				</Tabs>
-				<Box sx={{ flexGrow: 1, minHeight: 0 }}>
-					<DynamicTab tab={chmsTab} value={currentTab} index={0} key={chmsTab.group} />
-					{
-						tabs.map((tab, index) => (
-							<DynamicTab
-								key={tab.group}
-								tab={tab}
-								value={currentTab}
-								index={index + 1}
-							/>
-						))
-					}
-					<DynamicTab tab={logTab} value={currentTab} index={tabs.length + 1} key={logTab.group} />
-					<DynamicTab tab={licenseTab} value={currentTab} index={tabs.length + 2} key={licenseTab.group} />
-					<DynamicTab tab={advancedTab} value={currentTab} index={tabs.length + 3} key={advancedTab.group} />
-				</Box>
-				{
-					error &&
-					<Alert severity="error">{error}</Alert>
-				}
-				<Button
-					sx={{ mt: 4, alignSelf: 'flex-start' }}
-					variant="contained"
-					onClick={save}
-					disabled={isSaving || !isDirty}
-				>{ isSaving ? __( 'Saving...', 'cp-sync' ) : __( 'Save all Settings', 'cp-sync' ) }</Button>
-			</Box>
-		</ThemeProvider>
-	)
+		<div className="cps-app">
+			<h1 className="cps-app__title">CP Sync</h1>
+			<SyncStatusIndicator chms={ globalSettings.chms } />
+
+			<div className="cps-tab-bar" role="tablist">
+				{ allTabs.map( ( { slug, label } ) => (
+					<Button
+						key={ slug }
+						role="tab"
+						aria-selected={ currentTab === slug }
+						className={
+							'cps-tab-bar__tab' +
+							( currentTab === slug ? ' is-active' : '' )
+						}
+						onClick={ () => openTab( slug ) }
+					>
+						{ label }
+					</Button>
+				) ) }
+			</div>
+
+			<div className="cps-tab-content">
+				<DynamicTab tab={ activeEntry.tab } key={ activeEntry.slug } />
+			</div>
+
+			{ error && (
+				<Notice
+					status="error"
+					isDismissible={ false }
+					className="cps-app__error"
+				>
+					{ error }
+				</Notice>
+			) }
+
+			<Button
+				className="cps-save"
+				variant="primary"
+				onClick={ save }
+				disabled={ isSaving || ! isDirty }
+			>
+				{ isSaving
+					? __( 'Saving...', 'cp-sync' )
+					: __( 'Save all Settings', 'cp-sync' ) }
+			</Button>
+		</div>
+	);
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-	const root = document.querySelector('.cp_settings_root.cp-sync')
+document.addEventListener( 'DOMContentLoaded', function () {
+	const root = document.querySelector( '.cp_settings_root.cp-sync' );
 
-	const globalSettings = JSON.parse(root.dataset.settings) // get the initial data from the root element
-	const compareOptions = JSON.parse(root.dataset.compareOptions)
+	if ( root ) {
+		const globalSettings = JSON.parse( root.dataset.settings ); // get the initial data from the root element
+		const compareOptions = JSON.parse( root.dataset.compareOptions );
 
-	if (root) {
-		createRoot(root).render(
-			<SettingsProvider globalSettings={globalSettings} compareOptions={compareOptions}>
+		createRoot( root ).render(
+			<SettingsProvider
+				globalSettings={ globalSettings }
+				compareOptions={ compareOptions }
+			>
 				<Settings />
 			</SettingsProvider>
-		)
+		);
 	}
-})
+} );

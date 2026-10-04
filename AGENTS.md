@@ -1,40 +1,27 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+Project conventions live in `CLAUDE.md` — read it first. This file covers how to
+*finish* a unit of work cleanly.
 
-## Quick Reference
+## Verifying your work
+
+There is no CI. Before claiming a change is done, run the local gates yourself:
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
+composer test        # PHPUnit (once the harness lands — see ai/1.0-release-plan.md)
+composer lint        # PHPCS (WordPress standard)
+npm run build:wp     # compiles the React settings app — the ONLY command that does
 ```
 
-## Landing the Plane (Session Completion)
+Do not report work as complete on "it looks right." If a gate does not exist yet,
+say so explicitly rather than implying it passed.
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+## Landing the plane (session completion)
 
-**MANDATORY WORKFLOW:**
+When wrapping up a work session:
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-
+1. **File follow-ups** — capture anything left undone in `ai/` (see the existing
+   `ai/follow-ups-*.md` pattern) so the next session has context.
+2. **Run the gates above** if code changed.
+3. **Report honestly** — what was verified at runtime vs. only traced through code.
+4. **Commit/push only when asked.** Don't push to `master`; branch first.

@@ -13,7 +13,7 @@ Data filters act as rules that determine whether a specific group, event, or oth
 
 ## Accessing Data Filters
 
-1. Navigate to **Settings → CP Sync**
+1. Navigate to **Church Plugins → CP Sync**
 2. Select your ChMS tab (PCO or CCB)
 3. Go to the relevant tab (Groups or Events)
 4. Scroll to the "Advanced Filters" section

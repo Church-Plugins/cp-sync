@@ -48,6 +48,33 @@ This guide provides solutions for common issues you might encounter when using C
 3. **API Permissions**:
    - Ensure your ChMS account has permission to access the data you're trying to import
 
+4. **Database Character Set**:
+   - If the preview shows your data but the sync imports nothing, check the logs for a line like `Queue column wp_options.option_value charset: latin1`
+   - Anything other than `utf8mb4` means the database cannot store some of the characters in your ChMS data — see [System Requirements](../getting-started/requirements.md#database-character-set)
+
+### Sync Reports Success but Nothing Is Imported
+
+This usually means the sync is queueing items correctly but the queue cannot be read back. Preview will look completely normal, because it reads from the ChMS directly and never touches the queue.
+
+1. **Check the Logs** at **Church Plugins → CP Sync → Logs** for either of these:
+   - `Queue column ... charset: latin1` (or `utf8`) — the database cannot represent characters in your data
+   - `Batch ... is unreadable and will be discarded without importing` — the queue was corrupted after it was stored
+
+2. **Confirm Items Are Being Processed**:
+   - A healthy sync logs a line per item, such as `Processing event: "Summer Series"` followed by `created with ID: 123`
+   - If the log stops at `Process disbatched` with no per-item lines, nothing is draining the queue
+
+3. **Check Background Processing**:
+   - Imports run in a background request after the sync is triggered, so the site must be able to make loopback requests to itself
+   - Confirm loopback requests are working under **Tools → Site Health**
+   - Verify WP-Cron is running, as it retries the queue if the background request does not complete
+
+### Content Imported with `?` Characters
+
+Titles or descriptions arriving as `Summer Series ? Week 1` mean the database cannot represent the original character — usually a bullet (`•`) or curly quote (`’`). The data in your ChMS is fine; it is being altered as it is stored.
+
+Converting the database to `utf8mb4` resolves this. See [System Requirements](../getting-started/requirements.md#database-character-set).
+
 ### Only Partial Data Imported
 
 1. **Filter Settings**:
@@ -119,12 +146,12 @@ This guide provides solutions for common issues you might encounter when using C
 
 ### Enabling Debug Logs
 
-1. Navigate to **Settings → CP Sync → Advanced**
+1. Navigate to **Church Plugins → CP Sync → Advanced**
 2. Set "Log Level" to "Debug"
 3. Enable "Detailed API Logging" if needed
 4. Save settings
 5. Perform the operation that's having issues
-6. Check logs at **Settings → CP Sync → Logs**
+6. Check logs at **Church Plugins → CP Sync → Logs**
 
 ### Common Log Error Messages
 

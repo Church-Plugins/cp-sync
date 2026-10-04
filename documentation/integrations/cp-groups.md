@@ -23,7 +23,7 @@ When enabled, CP-Sync will:
 
 ### Enable Integration
 
-1. Navigate to **Settings → CP Sync**
+1. Navigate to **Church Plugins → CP Sync**
 2. Select your ChMS tab (PCO or CCB)
 3. Go to the **Groups** tab
 4. Check the box to "Enable CP Groups Integration"
@@ -62,7 +62,7 @@ For advanced users, additional settings are available:
 
 To manually synchronize groups:
 
-1. Navigate to **Settings → CP Sync**
+1. Navigate to **Church Plugins → CP Sync**
 2. Go to your ChMS tab and then the **Groups** tab
 3. Click the "Sync Groups Now" button
 4. Wait for the synchronization to complete
@@ -71,7 +71,7 @@ To manually synchronize groups:
 
 Configure automatic synchronization:
 
-1. Navigate to **Settings → CP Sync → Advanced**
+1. Navigate to **Church Plugins → CP Sync → Advanced**
 2. In the "Sync Schedule" section, enable automatic synchronization
 3. Select the frequency (daily, weekly, etc.)
 4. Save your settings

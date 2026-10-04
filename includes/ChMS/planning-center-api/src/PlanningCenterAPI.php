@@ -15,6 +15,57 @@ use GuzzleHttp\Client;
 class PlanningCenterAPI
 {
     /**
+     * Rate-limit ( HTTP 429 ) retry policy. PCO's limit is a short rolling
+     * window ( 100 requests / 20 seconds ), so a brief, bounded back-off almost
+     * always succeeds. Local fork addition.
+     */
+    const MAX_RATE_LIMIT_RETRIES = 2;
+    const DEFAULT_RATE_LIMIT_WAIT = 5;
+
+    /**
+     * PCO's rate window is 20 seconds total, so no legitimate Retry-After
+     * exceeds it — a larger value is pathological and better failed fast than
+     * slept on: sleep holds a PHP worker slot for its full wall-clock time,
+     * and host-level wall-clock limits ( request_terminate_timeout, gateway
+     * timeouts, LVE ) kill long sleepers regardless of PHP's own limits.
+     */
+    const MAX_RATE_LIMIT_WAIT = 20;
+
+    /**
+     * Ceiling on TOTAL seconds slept for rate limits across one get() crawl
+     * ( two full PCO windows ). The per-page retry counter resets every page,
+     * so on a heavily throttled multi-page crawl the sleeps could otherwise
+     * accumulate to minutes and push a synchronous request into its host's
+     * kill threshold — the very failure the retry exists to avoid. Tripping
+     * the cap fails loudly and safely ( logged 429, sync aborts, no removals ).
+     */
+    const MAX_RATE_LIMIT_SLEEP_TOTAL = 40;
+
+    /**
+     * Seconds slept for rate limits during the current get() crawl.
+     * @var int
+     */
+    private $rateLimitSleptTotal = 0;
+
+    /**
+     * Bound a Retry-After header value to a sane wait in seconds.
+     *
+     * @param mixed $retryAfter The raw Retry-After header value ( seconds ).
+     * @return int Seconds to wait: header value clamped to [1, MAX_RATE_LIMIT_WAIT],
+     *             or DEFAULT_RATE_LIMIT_WAIT when the header is absent/unusable.
+     */
+    public static function rateLimitWait($retryAfter)
+    {
+        $seconds = is_numeric($retryAfter) ? (int) $retryAfter : 0;
+
+        if ($seconds <= 0) {
+            $seconds = self::DEFAULT_RATE_LIMIT_WAIT;
+        }
+
+        return max(1, min($seconds, self::MAX_RATE_LIMIT_WAIT));
+    }
+
+    /**
      * Application ID from PCO - Personal Access Token part 1
      * HTTP Basic Auth
      *
@@ -117,6 +168,49 @@ class PlanningCenterAPI
      * @var null
      */
     private $parameters = null;
+
+    /**
+     * Optional callable invoked after each page of a paginated get() crawl,
+     * with ( string $table, int $totalRowsSoFar, int $pageRows ). Local fork
+     * addition: lets the caller surface crawl progress ( e.g. into a log ) so
+     * a request killed mid-crawl leaves a trail of how far it got.
+     *
+     * @var callable|null
+     */
+    private $pageProgressCallback = null;
+
+    /**
+     * Register a page-progress callback ( see $pageProgressCallback ).
+     *
+     * @param callable $callback
+     * @return $this
+     */
+    public function onPageProgress(callable $callback)
+    {
+        $this->pageProgressCallback = $callback;
+        return $this;
+    }
+
+    /**
+     * Optional callable invoked when a request is rate limited ( HTTP 429 ) and
+     * about to be retried, with ( int $waitSeconds, int $attempt ). Local fork
+     * addition, paired with the bounded retry in execute().
+     *
+     * @var callable|null
+     */
+    private $rateLimitCallback = null;
+
+    /**
+     * Register a rate-limit callback ( see $rateLimitCallback ).
+     *
+     * @param callable $callback
+     * @return $this
+     */
+    public function onRateLimit(callable $callback)
+    {
+        $this->rateLimitCallback = $callback;
+        return $this;
+    }
 
     /**
      * POST data being sent to Planning Center
@@ -334,6 +428,22 @@ class PlanningCenterAPI
     }
 
     /**
+     * Set an arbitrary GET parameter on the request. Useful for JSON:API options
+     * that have no dedicated helper, e.g. sparse fieldsets: param('fields[Signup]',
+     * 'name,at_maximum_capacity'). The key/value are appended verbatim to the URL.
+     *
+     * @param $key
+     * @param $value
+     * @return $this
+     */
+    public function param($key, $value)
+    {
+        $this->parameters[$key] = $value;
+
+        return $this;
+    }
+
+    /**
      * Specify the data to be used in the POST or PUT operations
      *
      * @param $data
@@ -375,6 +485,7 @@ class PlanningCenterAPI
         // Initialize the Guzzle client
         $client = new Client(); //GuzzleHttp\Client
         $this->errorMessage = null;
+        $this->rateLimitSleptTotal = 0;
 
         $results['data'] = [];
         $results['included'] = [];
@@ -397,8 +508,39 @@ class PlanningCenterAPI
             $results['data'] = array_merge($results['data'], $r['data']);
             $results['included'] = array_merge($results['included'], $r['included']);
 
-            // Set offset and per_page for next iteration, if any
-            $this->setRequestWindow($numRows);
+            // Surface crawl progress before deciding whether to continue, so even
+            // a crawl killed by the host leaves a log trail of its last page.
+            if (null !== $this->pageProgressCallback) {
+                call_user_func($this->pageProgressCallback, $this->table, count($results['data']), $numRows);
+            }
+
+            // Continue paging based on the API's OWN pagination signals
+            // (meta.next.offset / links.next) instead of inferring from row
+            // counts. The old `numRows == per_page` heuristic silently stopped
+            // after one page whenever PCO returned fewer rows than the requested
+            // per_page — which it does when an endpoint caps the page size
+            // server-side (observed: groups pages capped at 50 while per_page
+            // was 100, truncating every sync to 50 items).
+            $totalRows  = count($results['data']);
+            $nextOffset = isset($r['meta']['next']['offset']) ? (int) $r['meta']['next']['offset'] : null;
+
+            if (null === $nextOffset && ! empty($r['links']['next']) && $numRows > 0) {
+                // Fallback when meta.next is absent but a next link exists.
+                $nextOffset = $this->parameters['offset'] + $numRows;
+            }
+
+            if (null !== $nextOffset && $numRows > 0 && $totalRows < $this->maxRows) {
+                $this->parameters['offset'] = $nextOffset;
+
+                // Never fetch past maxRows.
+                $remaining = $this->maxRows - $totalRows;
+                if ($remaining < $this->parameters['per_page']) {
+                    $this->parameters['per_page'] = $remaining;
+                }
+            } else {
+                // No next page (or maxRows reached) - we are done.
+                $this->parameters['offset'] = 0;
+            }
 
         } while ($this->parameters['offset'] > 0);
 
@@ -661,37 +803,62 @@ class PlanningCenterAPI
             $this->authorization
         ];
 
-        try {
-            $response = $client->request('GET', $endpoint, [
-                'headers' => $this->headers,
-                'curl' => $this->setGetCurlopts(),
+        $attempt = 0;
+
+        do {
+            try {
+                $response = $client->request('GET', $endpoint, [
+                    'headers' => $this->headers,
+                    'curl' => $this->setGetCurlopts(),
 //                'auth' => [
 //                    $this->pcoApplicationId,
 //                    $this->pcoSecret
 //                ]
-            ]);
+                ]);
 
-        } catch (\GuzzleHttp\Exception\ClientException $e) {
-            $error = $e->getResponse()->getBody()->getContents();
-            $this->saveErrorMessage($error);
-            return false;
+                return json_decode($response->getBody(), true);
 
-        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
-            $error = $e->getResponse()->getBody()->getContents();
-            $this->saveErrorMessage($error);
-            return false;
+            } catch (\GuzzleHttp\Exception\ClientException $e) {
+                // 429: PCO's rate limit is a short rolling window ( 100 req/20s ),
+                // so honor Retry-After with a bounded wait and retry a couple of
+                // times before treating it as a hard failure. Local fork addition.
+                if (
+                    429 === $e->getResponse()->getStatusCode()
+                    && $attempt < self::MAX_RATE_LIMIT_RETRIES
+                    && $this->rateLimitSleptTotal < self::MAX_RATE_LIMIT_SLEEP_TOTAL
+                ) {
+                    $attempt++;
+                    $wait = self::rateLimitWait($e->getResponse()->getHeaderLine('Retry-After'));
+                    $this->rateLimitSleptTotal += $wait;
 
-        }  catch (\GuzzleHttp\Exception\ServerException $e) {
-            $error = $e->getResponse()->getBody()->getContents();
-            $this->saveErrorMessage($error);
-            return false;
+                    if (null !== $this->rateLimitCallback) {
+                        call_user_func($this->rateLimitCallback, $wait, $attempt);
+                    }
 
-        } catch (Exception $e) {
-            $error = 'Unknown Exception in Guzzle request';
-            $this->saveErrorMessage($error);
-        }
+                    sleep($wait);
+                    continue;
+                }
 
-        return json_decode($response->getBody(), true);
+                $error = $e->getResponse()->getBody()->getContents();
+                $this->saveErrorMessage($error);
+                return false;
+
+            } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+                $error = $e->getResponse()->getBody()->getContents();
+                $this->saveErrorMessage($error);
+                return false;
+
+            }  catch (\GuzzleHttp\Exception\ServerException $e) {
+                $error = $e->getResponse()->getBody()->getContents();
+                $this->saveErrorMessage($error);
+                return false;
+
+            } catch (Exception $e) {
+                $error = 'Unknown Exception in Guzzle request';
+                $this->saveErrorMessage($error);
+                return false;
+            }
+        } while (true);
 
     }
 

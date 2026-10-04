@@ -59,6 +59,13 @@ class CCB {
 	/**
 	 * Set the API credentials
 	 *
+	 * The subdomain is interpolated into the API base URL, so it is validated
+	 * against a strict allowlist ( letters, numbers, hyphens ) before use. This
+	 * prevents an attacker-controlled subdomain from redirecting requests to an
+	 * arbitrary host ( SSRF ) via values such as "evil.com/x#", "evil.com/",
+	 * "@evil.com", or path-traversal sequences. Validation also happens where the
+	 * setting is saved; this is the defensive last line before the value is used.
+	 *
 	 * @param string $username The API username
 	 * @param string $password The API password
 	 * @param string $subdomain The CCB subdomain
@@ -67,7 +74,36 @@ class CCB {
 	public function set_credentials( $username, $password, $subdomain ) {
 		$this->username = $username;
 		$this->password = $password;
-		$this->base_url = "https://{$subdomain}.ccbchurch.com/api.php";
+
+		if ( self::is_valid_subdomain( $subdomain ) ) {
+			$this->base_url = "https://{$subdomain}.ccbchurch.com/api.php";
+			$this->error    = null;
+		} else {
+			// Refuse to build a URL from an invalid subdomain. request() will bail.
+			$this->base_url = '';
+
+			// Only flag an explicit error for a non-empty (i.e. malformed) value;
+			// an empty subdomain simply means credentials are not configured yet.
+			if ( is_string( $subdomain ) && '' !== $subdomain ) {
+				$this->error = new \WP_Error(
+					'ccb_invalid_subdomain',
+					'Invalid CCB subdomain. Subdomains may contain only letters, numbers, and hyphens.'
+				);
+			}
+		}
+	}
+
+	/**
+	 * Validate a CCB subdomain.
+	 *
+	 * CCB subdomains are simple DNS labels, so anything outside the allowed
+	 * character set is rejected.
+	 *
+	 * @param string $subdomain The subdomain to validate.
+	 * @return bool
+	 */
+	public static function is_valid_subdomain( $subdomain ) {
+		return is_string( $subdomain ) && (bool) preg_match( '/^[a-zA-Z0-9-]+\z/', $subdomain );
 	}
 
 	/**
@@ -79,6 +115,18 @@ class CCB {
 	 * @return array|WP_Error
 	 */
 	public function request( $method, $service, $args = [] ) {
+		// Refuse to make a request when the base URL was not built from a valid
+		// subdomain. This closes the SSRF vector at the point of use, even if an
+		// invalid subdomain somehow reached set_credentials().
+		if ( empty( $this->base_url ) ) {
+			$error = $this->error instanceof \WP_Error
+				? $this->error
+				: new \WP_Error( 'ccb_no_base_url', 'CCB API base URL is not configured' );
+
+			$this->error = $error;
+			return $error;
+		}
+
 		// CCB API uses query parameters with 'srv' for the service
 		if ( ! empty( $service ) ) {
 			$args['srv'] = $service;

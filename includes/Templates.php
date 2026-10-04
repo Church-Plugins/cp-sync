@@ -17,7 +17,8 @@ namespace CP_Sync;
  **/
 function get_template_hierarchy( $template, $args = [] ) {
 	if ( ! is_array( $args ) ) {
-		$passed        = func_get_args();
+		// func_get_args() is read before any parameter is reassigned below, so it reflects the original values passed to this function; the PHP 7+ current-value behavior does not apply here.
+		$passed        = func_get_args(); // phpcs:ignore PHPCompatibility.FunctionUse.ArgumentFunctionsReportCurrentValue.NeedsInspection
 		$args          = [];
 		$backwards_map = [ 'namespace', 'plugin_path' ];
 		$count         = count( $passed );
@@ -92,7 +93,15 @@ function get_template_hierarchy( $template, $args = [] ) {
 			}
 			$file = locate_template( $files, false, false );
 			if ( $file ) {
-				_deprecated_function( sprintf( esc_html__( 'Template overrides should be moved to the correct subdirectory: %s', 'cp-sync' ), str_replace( get_stylesheet_directory() . '/cp-sync/', '', $file ) ), '3.2', $template );
+				_deprecated_function(
+					sprintf(
+						/* translators: %s: path to the template override file, relative to the theme's cp-sync/ directory */
+						esc_html__( 'Template overrides should be moved to the correct subdirectory: %s', 'cp-sync' ),
+						esc_html( str_replace( get_stylesheet_directory() . '/cp-sync/', '', $file ) )
+					),
+					'3.2',
+					esc_html( $template )
+				);
 			}
 		} else {
 			$file = apply_filters( 'cp_sync_template', $file, $template );

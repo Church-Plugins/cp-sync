@@ -1,93 +1,46 @@
-import Alert from '@mui/material/Alert';
-import Button from '@mui/material/Button';
-import Typography from '@mui/material/Typography';
-import CloudOutlined from '@mui/icons-material/CloudOutlined';
-import FilterAltOutlined from '@mui/icons-material/FilterAltOutlined';
-import Box from '@mui/material/Box';
-import { __ } from '@wordpress/i18n';
-import { useState } from '@wordpress/element';
-import Filters from '../../components/filters';
-import Preview from '../../components/preview';
-import Divider from '@mui/material/Divider';
-import apiFetch from '@wordpress/api-fetch';
+import { Spinner } from '@wordpress/components'
+import { __ } from '@wordpress/i18n'
+import { useSelect } from '@wordpress/data'
+import globalStore from '../../store/globalStore'
+import { SchemaForm } from '../../schema-form'
+import Preview from '../../components/preview'
+import PullNow from '../../components/pull-now'
 
+/**
+ * CCB Groups tab.
+ *
+ * The `filter` setting renders through <SchemaForm> using the PHP-declared
+ * `groups` screen (a single `filter-builder` field). The pull action and the
+ * <Preview> panel stay custom, composed on `@wordpress/components`.
+ */
 export default function GroupsTab({ data, updateField }) {
-	const [pulling, setPulling] = useState(false)
-	const [pullSuccess, setPullSuccess] = useState(false)
-	const [error, setError] = useState(null)
-
-	const updateFilters = (newData) => {
-		updateField('filter', {
-			...data.filter,
-			...newData
-		})
-	}
-
-	const handlePull = () => {
-		setPulling(true)
-		apiFetch({
-			path: '/cp-sync/v1/pull/groups',
-			method: 'POST',
-		}).then(response => {
-			if(response.success) {
-				setPullSuccess(true)
-			} else {
-				setError(response.message)
-			}
-		}).catch(err => {
-			setError(err.message)
-		}).finally(() => {
-			setPulling(false)
-		})
-	}
+	const groupsSchema = useSelect(
+		(select) => select(globalStore).getSchema('ccb')?.groups,
+		[]
+	)
 
 	return (
-		<Box sx={{ display: 'flex', minHeight: '30rem' }} gap={2}>
-			<Box sx={{ flex: '3 1 auto' }}>
-				<Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
-					<CloudOutlined sx={{ mr: 1 }} />
-					{ __( 'Select data to pull from Church Community Builder', 'cp-sync' ) }
-				</Typography>
+		<div className="cps-feed-tab" style={{ display: 'flex', gap: '16px', minHeight: '30rem' }}>
+			<div className="cps-settings-screen" style={{ flex: '3 1 auto' }}>
+				<h3>{__('Select data to pull from Church Community Builder', 'cp-sync')}</h3>
 
-				<Typography variant="h6" sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
-					<FilterAltOutlined sx={{ mr: 1 }} />
-					{ __( 'Filters', 'cp-sync' ) }
-				</Typography>
+				{groupsSchema ? (
+					<SchemaForm
+						schema={groupsSchema}
+						values={data}
+						onChange={updateField}
+					/>
+				) : (
+					<Spinner />
+				)}
 
-				<Filters
-					label={__( 'Groups', 'cp-sync' )}
-					filterGroup="groups"
-					filter={data.filter}
-					onChange={updateFilters}
-				/>
-
-				<Button
-					variant="contained"
-					sx={{ mt: 2 }}
-					onClick={handlePull}
-					disabled={pulling}
-				>
-					{ pulling ? __( 'Starting import', 'cp-sync' ) : __( 'Pull Now', 'cp-sync' ) }
-				</Button>
-
-				{
-					pullSuccess &&
-					<Alert severity='success' sx={{ mt: 2 }}>
-						{ __( 'Import started', 'cp-sync' ) }
-					</Alert>
-				}
-
-				{
-					error &&
-					<Alert severity='error' sx={{ mt: 2 }}>
-						<div dangerouslySetInnerHTML={{ __html: error }} />
-					</Alert>
-				}
-
-			</Box>
-			<Box sx={{ flex: '2 1 50%', background: '#eee', p: 2 }}>
+				<div className="cps-feed-tab__actions">
+					<PullNow type="groups" />
+				</div>
+			</div>
+			<div style={{ flex: '2 1 50%', background: '#eee', padding: '16px' }}>
 				<Preview type="groups" optionGroup="groups" />
-			</Box>
-		</Box>
+			</div>
+		</div>
 	)
 }

@@ -1,104 +1,131 @@
-import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import FormControlLabel from '@mui/material/FormControlLabel'
-import Switch from '@mui/material/Switch'
-import TextField from '@mui/material/TextField'
-import { __ } from '@wordpress/i18n'
-import apiFetch from '@wordpress/api-fetch'
-import { useState } from '@wordpress/element'
-import { useSettings } from '../contexts/settingsContext'
+import { Button, Notice, Spinner, TextControl } from '@wordpress/components';
+import { __ } from '@wordpress/i18n';
+import apiFetch from '@wordpress/api-fetch';
+import { useState } from '@wordpress/element';
+import { useSettings } from '../contexts/settingsContext';
+import { SchemaForm } from '../schema-form';
+import licenseSchema from '../schema-form/schemas/license';
 
-function LicenseTab({ save }) {
-	const [pending, setPending] = useState(false)
-	const [error, setError] = useState(null)
-	const [success, setSuccess] = useState(false)
-	const { globalSettings, updateGlobalSettings } = useSettings()
+// License key activate/deactivate widget.
+//
+// This is an ACTION widget, not a pure setting: it talks to the
+// `/churchplugins/v1/license/cps_license` REST endpoint and surfaces status
+// feedback. It stays a custom component (composed alongside <SchemaForm>) rather
+// than becoming a schema field. It writes the `license` and `status` global
+// settings keys — unchanged from the previous MUI implementation.
+function LicenseActions( { save } ) {
+	const [ pending, setPending ] = useState( false );
+	const [ error, setError ] = useState( null );
+	const [ success, setSuccess ] = useState( false );
+	const { globalSettings, updateGlobalSettings } = useSettings();
 
-	const { license, status, beta } = globalSettings
+	const { license, status } = globalSettings;
 
 	const activateLicense = () => {
-		setSuccess(null)
-		setError(null)
-		setPending(true)
-		apiFetch({
+		setSuccess( null );
+		setError( null );
+		setPending( true );
+		apiFetch( {
 			path: '/churchplugins/v1/license/cps_license',
 			method: 'POST',
-			data: { license: globalSettings.license }
-		}).then(data => {
-			updateGlobalSettings('status', data.status)
-			setSuccess(data.message)
-			setError(null)
-			save()
-		}).catch(e => {
-			setError(e.message)
-		}).finally(() => {
-			setPending(false)
-		})
-	}
+			data: { license: globalSettings.license },
+		} )
+			.then( ( data ) => {
+				updateGlobalSettings( 'status', data.status );
+				setSuccess( data.message );
+				setError( null );
+				save();
+			} )
+			.catch( ( e ) => {
+				setError( e.message );
+			} )
+			.finally( () => {
+				setPending( false );
+			} );
+	};
 
 	const deactivateLicense = () => {
-		setSuccess(null)
-		setError(null)
-		setPending(true)
-		apiFetch({
+		setSuccess( null );
+		setError( null );
+		setPending( true );
+		apiFetch( {
 			path: '/churchplugins/v1/license/cps_license',
-			method: 'DELETE'
-		}).then(data => {
-			updateGlobalSettings('status', data.status)
-			setSuccess(data.message)
-			setError(null)
-			save()
-		}).catch(e => {
-			setError(e.message)
-		}).finally(() => {
-			setPending(false)
-		})
-	}
+			method: 'DELETE',
+		} )
+			.then( ( data ) => {
+				updateGlobalSettings( 'status', data.status );
+				setSuccess( data.message );
+				setError( null );
+				save();
+			} )
+			.catch( ( e ) => {
+				setError( e.message );
+			} )
+			.finally( () => {
+				setPending( false );
+			} );
+	};
 
 	return (
-		<Box display="flex" flexDirection="column" gap={2}>
-			{
-				!!error &&
-				<Alert severity="error">{error}</Alert>
-			}
+		<div className="cps-license-actions">
+			{ !! error && (
+				<Notice status="error" isDismissible={ false }>
+					{ error }
+				</Notice>
+			) }
+			{ success && (
+				<Notice status="success" isDismissible={ false }>
+					{ success }
+				</Notice>
+			) }
 
-			{
-				success &&
-				<Alert severity="success">{success}</Alert>
-			}
-
-			<Box display="flex" alignItems="center" gap={2}>
-				<TextField
-					label="License Key"
-					value={license}
-					onChange={(e) => updateGlobalSettings('license', e.target.value)}
-					variant="outlined"
-					disabled={status === 'valid'}
-					sx={{ width: '300px' }}
-				/>
-				<Button disabled={pending} onClick={status === 'valid' ? deactivateLicense : activateLicense}>
-					{
-						pending ?
-						__( 'Processing', 'cp-sync' ) :
-						status === 'valid' ?
-						__( 'Deactivate', 'cp-sync' ) :
-						__( 'Activate', 'cp-sync' )
+			<div className="cps-license-actions__row">
+				<TextControl
+					label={ __( 'License Key', 'cp-sync' ) }
+					value={ license || '' }
+					onChange={ ( value ) =>
+						updateGlobalSettings( 'license', value )
 					}
+					disabled={ status === 'valid' }
+					__nextHasNoMarginBottom
+					__next40pxDefaultSize
+				/>
+				<Button
+					variant="secondary"
+					disabled={ pending }
+					onClick={
+						status === 'valid' ? deactivateLicense : activateLicense
+					}
+				>
+					{ pending && <Spinner /> }
+					{ pending
+						? __( 'Processing', 'cp-sync' )
+						: status === 'valid'
+						? __( 'Deactivate', 'cp-sync' )
+						: __( 'Activate', 'cp-sync' ) }
 				</Button>
-			</Box>
-			
-			<FormControlLabel
-				control={<Switch checked={beta} onChange={(e) => updateGlobalSettings('beta', e.target.checked)} />}
-				label={__( 'Enable beta updates', 'cp-sync' )}
-				sx={{ maxWidth: 'fit-content' }}
+			</div>
+		</div>
+	);
+}
+
+function LicenseTab( { save } ) {
+	const { globalSettings, updateGlobalSettings } = useSettings();
+
+	return (
+		<div className="cps-settings-screen">
+			<LicenseActions save={ save } />
+			<SchemaForm
+				schema={ licenseSchema }
+				values={ globalSettings }
+				onChange={ updateGlobalSettings }
 			/>
-		</Box>		
-	)
+		</div>
+	);
 }
 
 export const licenseTab = {
 	name: 'License',
 	group: 'license',
-	component: (props) => <LicenseTab {...props} />,
-}
+	component: ( props ) => <LicenseTab { ...props } />,
+};

@@ -426,7 +426,12 @@ class Tests_CLI {
 	}
 
 	/**
-	 * Clear all event queue batches
+	 * Clear the background-process queue.
+	 *
+	 * Deprecated: delegates to `wp cp-sync reset --level=queue`. The previous
+	 * implementation read the wrong option names ( wp_cp_sync_events_batch_%
+	 * instead of wp_pull_events_batch_% ) and treated the process lock as a plain
+	 * option, so it never actually cleared anything.
 	 *
 	 * ## EXAMPLES
 	 *
@@ -435,34 +440,12 @@ class Tests_CLI {
 	 * @when after_wp_load
 	 */
 	public function clear_queue( $args, $assoc_args ) {
-		\WP_CLI::line( 'Clearing event queue...' );
-		\WP_CLI::line( '' );
+		\WP_CLI::warning( 'clear-queue is deprecated. Use: wp cp-sync reset --level=queue' );
 
-		global $wpdb;
-		$batch_options = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT option_name FROM $wpdb->options WHERE option_name LIKE %s",
-				'%wp_cp_sync_events_batch_%'
-			)
-		);
+		$summary = ( new \CP_Sync\Setup\Reset() )->clear_queue();
 
-		if ( empty( $batch_options ) ) {
-			\WP_CLI::warning( 'No batches found in queue' );
-			return;
-		}
-
-		\WP_CLI::line( 'Found ' . count( $batch_options ) . ' batch(es)' );
-
-		foreach ( $batch_options as $batch ) {
-			delete_option( $batch->option_name );
-			\WP_CLI::line( "  ✓ Deleted {$batch->option_name}" );
-		}
-
-		// Also clear the process lock
-		delete_option( 'wp_cp_sync_events_process_lock' );
-
-		\WP_CLI::line( '' );
 		\WP_CLI::success( 'Queue cleared successfully!' );
+		\WP_CLI::line( wp_json_encode( $summary, JSON_PRETTY_PRINT ) );
 	}
 
 	/**

@@ -13,7 +13,7 @@ CP-Sync provides integration with Church Community Builder (CCB), allowing you t
 
 ### Connect to Church Community Builder
 
-1. Navigate to **Settings → CP Sync** in your WordPress admin dashboard
+1. Navigate to **Church Plugins → CP Sync** in your WordPress admin dashboard
 2. Select the **CCB** tab
 3. Enter your CCB subdomain (the part before `.ccbchurch.com`)
 4. Enter your API Username and API Password
