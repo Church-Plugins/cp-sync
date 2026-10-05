@@ -1,6 +1,6 @@
 # Data Mapping
 
-Data mapping allows you to control how information from your church management system is imported into WordPress. CP-Sync provides mapping options to ensure your data appears correctly on your website.
+Data mapping allows you to control how information from your church management system is imported into WordPress. CP Sync provides mapping options to ensure your data appears correctly on your website.
 
 ## Understanding Data Mapping
 
@@ -12,7 +12,7 @@ Data mapping creates relationships between fields in your ChMS and fields in Wor
 
 ## Default Mappings
 
-CP-Sync includes sensible default mappings for common data types:
+CP Sync includes sensible default mappings for common data types:
 
 ### Groups Mapping
 
@@ -31,12 +31,15 @@ CP-Sync includes sensible default mappings for common data types:
 | ChMS Field | WordPress Field |
 |------------|------------------|
 | Title | Event Title |
-| Description | Event Content |
+| Description | Event Content (event page body) |
+| Summary (Planning Center) | Short text / excerpt used in some calendar listings |
 | Start Date/Time | Event Start |
 | End Date/Time | Event End |
 | Location | Event Venue |
 | Image | Featured Image |
 | Category | Event Category |
+
+For Planning Center calendar events, **Summary** and **Description** map differently. See [Planning Center Online Integration](../chms/planning-center.md#how-event-text-maps-from-planning-center) and [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-how-event-text-maps).
 
 ## Field Mapping Configuration
 
@@ -57,6 +60,8 @@ Data filters allow you to control which records are imported based on criteria:
    - Field values (e.g., only active groups)
    - Date ranges (e.g., future events only)
    - Custom conditions
+
+For Planning Center Calendar events, Church Center **Visibility** under **Calendar Settings** is separate from the Calendar Filters builder. An empty Calendar Filters builder does not turn Visibility off.
 
 ## Ministry Platform Custom Mapping
 

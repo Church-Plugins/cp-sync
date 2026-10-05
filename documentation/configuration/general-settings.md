@@ -1,12 +1,14 @@
 # General Settings
 
-The General Settings section of CP-Sync allows you to configure basic plugin options and global behaviors. This page explains how to access and configure these settings.
+The General Settings section of CP Sync allows you to configure basic plugin options and global behaviors. This page explains how to access and configure these settings.
 
 ## Accessing General Settings
 
 1. Log in to your WordPress admin dashboard
-2. Navigate to **Church Plugins → CP Sync**
+2. Navigate to **Church Plugins → CP Sync** (`admin.php?page=cps_settings`)
 3. Click on the **General** tab (this is typically the default tab)
+
+> **Note (CP Sync 1.0.0):** Settings moved under **Church Plugins > CP Sync**. The old **Settings → CP Sync** link no longer works. For a full list of 1.0.0 changes and known issues, see [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md).
 
 ## Available Settings
 
@@ -21,6 +23,8 @@ The General Settings section of CP-Sync allows you to configure basic plugin opt
 - **Sync Frequency**: Choose how often the sync should run (Hourly, Twice Daily, Daily, Weekly)
 - **Sync Time**: For daily and weekly syncs, choose what time the sync should run
 - **Sync Day**: For weekly syncs, choose what day the sync should run
+
+If you changed the sync interval before upgrading to 1.0.0 and the new interval does not take effect, set it to a different interval once, save, then set it back and save again. Interval changes you make on 1.0.0 work normally. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#sync-interval-doesnt-take-effect-after-upgrading).
 
 ### Logging
 
@@ -60,4 +64,4 @@ If you encounter issues with your general settings:
 - Verify that your WordPress cron system is functioning properly for auto-sync features
 - Check the logs (if enabled) for any error messages
 
-For more detailed troubleshooting, see the [Troubleshooting](../advanced/troubleshooting.md) section.
+For more detailed troubleshooting, see the [Troubleshooting](https://docs.churchplugins.com/knowledge-base/advanced-troubleshooting-cp-sync/) section.

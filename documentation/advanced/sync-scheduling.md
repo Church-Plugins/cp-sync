@@ -1,6 +1,6 @@
 # Sync Scheduling
 
-CP-Sync allows you to configure automated synchronization schedules to keep your WordPress site up-to-date with your church management system. This guide explains how to set up and manage sync schedules.
+CP Sync allows you to configure automated synchronization schedules to keep your WordPress site up-to-date with your church management system. This guide explains how to set up and manage sync schedules.
 
 ## Understanding Sync Scheduling
 
@@ -8,7 +8,7 @@ Automated sync scheduling ensures that your WordPress site regularly pulls the l
 
 ## Types of Sync Operations
 
-CP-Sync supports scheduling different types of sync operations:
+CP Sync supports scheduling different types of sync operations:
 
 - **Full Sync**: Imports all data from your ChMS, updating existing items and adding new ones
 - **Incremental Sync**: Only imports data that has changed since the last sync
@@ -19,6 +19,8 @@ CP-Sync supports scheduling different types of sync operations:
 
 1. Navigate to **Church Plugins → CP Sync → Advanced**
 2. Scroll to the "Sync Scheduling" section
+
+You can also set the main auto-sync frequency under **Church Plugins → CP Sync → General**.
 
 ## Setting Up a Basic Schedule
 
@@ -33,6 +35,10 @@ To create a basic sync schedule:
 3. For daily or weekly syncs, select the time of day
 4. For weekly syncs, select the day of the week
 5. Save your settings
+
+### After Upgrading to 1.0.0
+
+If you changed the sync interval before upgrading to 1.0.0 and the new interval does not take effect, set it to a different interval once after upgrading and save, then set it back to the interval you want and save again. Saving the same value again does not fix it. Interval changes you make on 1.0.0 work normally. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#sync-interval-doesnt-take-effect-after-upgrading).
 
 ## Advanced Scheduling Options
 
@@ -97,6 +103,6 @@ If WordPress cron is unreliable on your hosting:
 
 1. Disable WordPress cron by adding `define('DISABLE_WP_CRON', true);` to your wp-config.php
 2. Set up a server cron job to call wp-cron.php directly
-3. Detailed instructions for this setup can be found in the [Developer Guide](developer-guide.md)
+3. Detailed instructions for this setup can be found in the [Developer Guide](https://docs.churchplugins.com/knowledge-base/advanced-developer-guide-cp-sync/)
 
-For more detailed troubleshooting of sync issues, see the [Troubleshooting](troubleshooting.md) guide.
+For more detailed troubleshooting of sync issues, see the [Troubleshooting](https://docs.churchplugins.com/knowledge-base/advanced-troubleshooting-cp-sync/) guide.
