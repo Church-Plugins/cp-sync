@@ -28,4 +28,4 @@ CP-Sync also integrates with popular third-party plugins like The Events Calenda
 
 ## Next Steps
 
-Continue to [Installation](installation.md) to get started with CP-Sync.
+Continue to [Installation](installation.md) to get started with CP-Sync. If you are upgrading, see [What's New in CP Sync 1.0.0](whats-new-1-0-0.md).

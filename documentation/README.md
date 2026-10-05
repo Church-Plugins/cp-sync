@@ -8,6 +8,7 @@ Welcome to the CP-Sync documentation. This guide will help you set up and use th
 - [Introduction](getting-started/introduction.md) - Overview of CP-Sync and its benefits
 - [Installation](getting-started/installation.md) - How to install and activate the plugin
 - [Requirements](getting-started/requirements.md) - System requirements and dependencies
+- [What's New in CP Sync 1.0.0](getting-started/whats-new-1-0-0.md) - Changes, settings behavior, and known issues after upgrading
 
 ### Configuration
 - [General Settings](configuration/general-settings.md) - Basic plugin configuration
