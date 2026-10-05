@@ -104,11 +104,25 @@ class EncryptionCompatTest extends TestCase {
 	}
 
 	public function test_corrupted_ciphertext_does_not_return_plaintext(): void {
-		$secret    = 'secret';
-		$encrypted = Encryption::encrypt( $secret );
-		$tampered  = substr( $encrypted, 0, -2 ) . ( 'A' === substr( $encrypted, -2, 1 ) ? 'B' : 'A' ) . substr( $encrypted, -1 );
+		$secret  = 'secret';
+		$prefix  = Encryption::SODIUM_PREFIX;
+		$encoded = Encryption::encrypt( $secret );
+		$raw     = base64_decode( substr( $encoded, strlen( $prefix ) ), true );
 
-		$this->assertNotSame( $secret, $tampered );
+		$this->assertNotFalse( $raw );
+		$this->assertGreaterThan( SODIUM_CRYPTO_SECRETBOX_NONCEBYTES, strlen( $raw ) );
+
+		// Flip one byte of the secretbox ciphertext, past the nonce. Re-encoding
+		// the same-length buffer leaves the decoded payload length unchanged,
+		// so decrypt fails the MAC check instead of the short-payload check.
+		$original_length = strlen( $raw );
+		$index           = $original_length - 1;
+		$raw[ $index ]   = chr( ord( $raw[ $index ] ) ^ 0x01 );
+		$tampered        = $prefix . base64_encode( $raw );
+		$tampered_raw    = base64_decode( substr( $tampered, strlen( $prefix ) ), true );
+
+		$this->assertNotFalse( $tampered_raw );
+		$this->assertSame( $original_length, strlen( $tampered_raw ) );
 		$this->assertSame( '', Encryption::decrypt( $tampered ) );
 	}
 
