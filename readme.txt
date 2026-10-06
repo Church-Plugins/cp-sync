@@ -93,6 +93,7 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 
 = Unreleased =
 * Security hardening: Adds capability and nonce checks to admin request actions.
+* Stricter checks when an admin request action is called with a single argument.
 
 = 1.0.0-beta2 =
 * Fix: A filter group set to "any" with no conditions no longer filters out every item — previews and syncs affected by this returned zero events. The Church Center visibility restriction (events and groups) is also now applied correctly; it was previously skipped due to a mis-keyed internal condition.

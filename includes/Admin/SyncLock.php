@@ -61,8 +61,8 @@ class SyncLock {
 	 * @param \WP_Post $post      The current post.
 	 * @return void
 	 */
-	public function register_meta_box( $post_type, $post ) {
-		if ( ! $post instanceof \WP_Post ) {
+	public function register_meta_box( $post_type = '', $post = null ) {
+		if ( RequestAction::from_dispatcher( $post_type ) || ! $post instanceof \WP_Post ) {
 			return;
 		}
 
@@ -115,7 +115,11 @@ class SyncLock {
 	 * @param \WP_Post $post    The post object.
 	 * @return void
 	 */
-	public function save( $post_id, $post ) {
+	public function save( $post_id = 0, $post = null ) {
+		if ( RequestAction::from_dispatcher( $post_id ) || ! is_numeric( $post_id ) ) {
+			return;
+		}
+
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
 			return;
 		}

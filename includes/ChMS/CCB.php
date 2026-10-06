@@ -1133,8 +1133,9 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @param array $item Formatted event data
 	 * @param int $post_id WordPress post ID
 	 */
-	public function maybe_enrich_event_after_update( $item, $post_id ) {
-		if ( RequestAction::should_skip( 'cp_sync_events_update_item_after', $item ) ) {
+	public function maybe_enrich_event_after_update( $item = array(), $post_id = 0 ) {
+		// The admin request dispatcher passes one argument. Do not enrich from that call.
+		if ( RequestAction::from_dispatcher( $item ) || func_num_args() < 2 || ! is_array( $item ) ) {
 			return;
 		}
 

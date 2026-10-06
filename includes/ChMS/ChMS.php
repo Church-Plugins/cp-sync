@@ -7,6 +7,7 @@
 
 namespace CP_Sync\ChMS;
 
+use CP_Sync\Admin\RequestAction;
 use CP_Sync\Admin\Settings;
 use CP_Sync\Setup\RateLimiter;
 
@@ -724,8 +725,8 @@ abstract class ChMS {
 	 * @param mixed $old_value The previously stored ( already decrypted ) settings.
 	 * @return mixed
 	 */
-	public function pre_update_settings( $value, $old_value = false ) {
-		if ( ! is_array( $value ) ) {
+	public function pre_update_settings( $value = null, $old_value = false ) {
+		if ( RequestAction::from_dispatcher( $value ) || ! is_array( $value ) ) {
 			return $value;
 		}
 
@@ -775,8 +776,8 @@ abstract class ChMS {
 	 * @param mixed $value The raw stored settings array.
 	 * @return mixed
 	 */
-	public function decrypt_settings( $value ) {
-		if ( ! is_array( $value ) ) {
+	public function decrypt_settings( $value = null ) {
+		if ( RequestAction::from_dispatcher( $value ) || ! is_array( $value ) ) {
 			return $value;
 		}
 
@@ -1515,7 +1516,12 @@ abstract class ChMS {
 	 * @param number $limit The number of items to pull.
 	 * @return array|ChMSError
 	 */
-	public function get_formatted_data( $existing_data, $integration_type, $limit = 0 ) {
+	public function get_formatted_data( $existing_data = null, $integration_type = '', $limit = 0 ) {
+		// The admin request dispatcher passes one argument, for example cp_sync_pull_groups.
+		if ( RequestAction::from_dispatcher( $existing_data ) || ! is_string( $integration_type ) || '' === $integration_type ) {
+			return null;
+		}
+
 		$integration_args = $this->supported_integrations[ $integration_type ];
 
 		if ( ! is_callable( $integration_args['fetch_callback'] ) ) {

@@ -194,7 +194,11 @@ class Settings {
 	 * @param string $classes Space-separated admin body classes.
 	 * @return string
 	 */
-	public function admin_body_class( $classes ) {
+	public function admin_body_class( $classes = '' ) {
+		if ( RequestAction::from_dispatcher( $classes ) || ! is_string( $classes ) ) {
+			return $classes;
+		}
+
 		$screen = get_current_screen();
 
 		if ( $screen && $screen->id === $this->hook_suffix ) {

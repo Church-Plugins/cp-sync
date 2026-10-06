@@ -2,6 +2,7 @@
 
 namespace CP_Sync\Integrations;
 
+use CP_Sync\Admin\RequestAction;
 use CP_Sync\Exception;
 
 class CP_Groups extends Integration {
@@ -94,7 +95,11 @@ class CP_Groups extends Integration {
 	 * @param array $facets Facet taxonomy objects ( ->taxonomy, ->single_label, ->plural_label ).
 	 * @return array
 	 */
-	public function add_synced_facets( $facets ) {
+	public function add_synced_facets( $facets = array() ) {
+		if ( RequestAction::from_dispatcher( $facets ) || ! is_array( $facets ) ) {
+			return is_array( $facets ) ? $facets : array();
+		}
+
 		$existing   = wp_list_pluck( $facets, 'taxonomy' );
 		$taxonomies = get_option( "cp_sync_taxonomies_{$this->id}", [] );
 

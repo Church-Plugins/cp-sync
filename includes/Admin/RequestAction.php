@@ -88,6 +88,34 @@ class RequestAction {
 	}
 
 	/**
+	 * Whether $payload is the single argument from the admin request dispatcher.
+	 *
+	 * The dispatcher passes one request array. Callbacks that normally receive
+	 * several arguments should run this check first and return without changing
+	 * state. The capability and nonce guard runs here.
+	 *
+	 * @since 1.0.1
+	 *
+	 * @param mixed $payload First argument received by the callback.
+	 * @return bool
+	 */
+	public static function from_dispatcher( $payload ) {
+		if ( ! is_array( $payload ) || ! isset( $payload['cp_action'] ) || ! is_scalar( $payload['cp_action'] ) ) {
+			return false;
+		}
+
+		$action = sanitize_key( (string) $payload['cp_action'] );
+
+		if ( '' === $action || ! self::is_admin_request( $action, $payload ) ) {
+			return false;
+		}
+
+		self::should_skip( $action, $payload );
+
+		return true;
+	}
+
+	/**
 	 * Whether the nonce on an admin request action is valid.
 	 *
 	 * @since 1.0.1

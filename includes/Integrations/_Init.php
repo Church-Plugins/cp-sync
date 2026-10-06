@@ -433,8 +433,13 @@ class _Init {
 	 * @param array $settings The new settings
 	 * @param array $old_settings The old settings
 	 */
-	public function reschedule_cron( $settings, $old_settings ) {
-		if ( RequestAction::should_skip( 'cp_sync_global_settings_updated', $settings ) ) {
+	public function reschedule_cron( $settings = array(), $old_settings = array() ) {
+		// The admin request dispatcher passes one argument. Do not reschedule from that call.
+		if ( RequestAction::from_dispatcher( $settings ) || func_num_args() < 2 ) {
+			return;
+		}
+
+		if ( ! is_array( $settings ) || ! is_array( $old_settings ) ) {
 			return;
 		}
 

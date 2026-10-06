@@ -2,6 +2,7 @@
 
 namespace CP_Sync\Integrations;
 
+use CP_Sync\Admin\RequestAction;
 use CP_Sync\Exception;
 use TEC\Events\Custom_Tables\V1\Models\Occurrence;
 
@@ -183,7 +184,11 @@ class TEC extends Integration {
 	 * @param Integration $integration   The integration instance.
 	 * @return bool
 	 */
-	public function preserve_past_events( $should_remove, $chms_id, $integration ) {
+	public function preserve_past_events( $should_remove = false, $chms_id = '', $integration = null ) {
+		if ( RequestAction::from_dispatcher( $should_remove ) || ! $integration instanceof Integration ) {
+			return is_bool( $should_remove ) ? $should_remove : false;
+		}
+
 		// Something else already vetoed the removal — don't override it.
 		if ( ! $should_remove ) {
 			return $should_remove;
@@ -439,7 +444,11 @@ class TEC extends Integration {
 	 * @param string $content The post content.
 	 * @return string
 	 */
-	public function maybe_add_registration_button( $content ) {
+	public function maybe_add_registration_button( $content = '' ) {
+		if ( RequestAction::from_dispatcher( $content ) || ! is_string( $content ) ) {
+			return $content;
+		}
+
 		if ( ! is_singular( 'tribe_events' ) || ! in_the_loop() || ! is_main_query() ) {
 			return $content;
 		}
