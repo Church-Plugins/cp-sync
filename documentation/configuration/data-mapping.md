@@ -54,7 +54,7 @@ Each ChMS integration includes specific field mapping options:
 
 Data filters allow you to control which records are imported based on criteria:
 
-1. Navigate to **Church Plugins → CP Sync → Advanced**
+1. Go to **Church Plugins → CP Sync** and open the **Groups**, **Events**, or **Sermons** tab
 2. Configure filters based on:
    - Field values (e.g., only active groups)
    - Date ranges (e.g., future events only)

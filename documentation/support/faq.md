@@ -6,7 +6,7 @@
 CP-Sync is a WordPress plugin that synchronizes data between your church management system (ChMS) and your WordPress website, allowing you to display groups, events, and other information from your ChMS directly on your website.
 
 ### Which church management systems does CP-Sync support?
-CP-Sync currently supports Planning Center Online (PCO) and Church Community Builder (CCB). We plan to add more integrations in future updates.
+CP-Sync supports Planning Center Online (PCO) and Church Community Builder (CCB).
 
 ### Do I need technical expertise to use CP-Sync?
 No, CP-Sync is designed to be user-friendly. The setup process is guided, and most configurations can be done through the WordPress admin interface without coding knowledge.
@@ -17,7 +17,7 @@ You can configure the sync frequency (hourly, twice daily, daily, or weekly) in 
 ## Installation and Setup
 
 ### What are the system requirements for CP-Sync?
-CP-Sync requires WordPress 5.3 or higher, PHP 7.2 or higher, and MySQL 5.6 or higher. You also need an active account with one of the supported church management systems.
+CP-Sync requires WordPress 6.0 or higher, PHP 7.4 or higher, and MySQL 5.6 or higher. You also need an active account with one of the supported church management systems.
 
 ### How do I install CP-Sync?
 You can install CP-Sync through the WordPress plugin directory or by uploading the plugin ZIP file through your WordPress admin dashboard. Detailed instructions are in the [Installation Guide](../getting-started/installation.md).
@@ -34,7 +34,7 @@ Yes, CP-Sync uses secure API connections and follows WordPress security best pra
 Yes, CP-Sync provides extensive filtering options. You can filter by group type, status, name, and more. See the [Data Filters Guide](../advanced/data-filters.md) for details.
 
 ### Can I map custom fields from my ChMS?
-The Ministry Platform integration supports custom field mapping. For PCO and CCB, you can map standard fields to WordPress, but custom field mapping capabilities are limited to the fields specifically supported by the plugin.
+No. CP Sync copies a fixed set of fields. There is no field-mapping setting.
 
 ### How does CP-Sync handle recurring events?
 For The Events Calendar integration, CP-Sync can import recurring events according to the patterns defined in your ChMS. The exact handling depends on the capabilities of your church management system and the event plugin used.
@@ -59,7 +59,7 @@ While CP-Sync is specifically designed to work with The Events Calendar and CP G
 Check the logs in CP-Sync settings to identify the issue. Common problems include API rate limiting, connection issues, or PHP timeout errors. The [Troubleshooting Guide](../advanced/troubleshooting.md) provides solutions for these issues.
 
 ### How can I optimize CP-Sync for a large number of groups/events?
-Use incremental syncing, adjust batch sizes, and schedule syncs during low-traffic periods. For detailed optimization strategies, see the [Developer Guide](../advanced/developer-guide.md).
+Schedule syncs during low-traffic periods. For detailed optimization strategies, see the [Developer Guide](../advanced/developer-guide.md).
 
 ### Why are some fields not being imported correctly?
 Field mapping issues usually occur due to inconsistent data formats or missing fields in the source data. Review your field mapping configuration and check the data format in your ChMS.

@@ -37,16 +37,9 @@ You can map group types from your ChMS to CP Groups taxonomies:
 2. In the "Group Type Mapping" section, assign each ChMS group type to a CP Groups taxonomy term
 3. This ensures your groups are properly categorized in WordPress
 
-### Group Fields Mapping
+### What Is Copied
 
-Map fields from your ChMS to CP Groups fields:
-
-1. In the "Group Fields Mapping" section
-2. Configure how each field from your ChMS maps to CP Groups:
-   - Group Name → Group Title
-   - Description → Group Content
-   - Location → Group Location
-   - Schedule → Group Schedule
+CP Sync copies a fixed set of fields. There is no field-mapping setting.
 
 ### Advanced Configuration
 
@@ -80,7 +73,7 @@ Configure automatic synchronization:
 Common issues and solutions:
 
 - **Groups not importing**: Check your group type filters in the settings
-- **Missing information**: Review field mapping configuration
-- **Duplicate groups**: Make sure you have properly set up the unique identifier settings
+- **Missing information**: CP Sync copies a fixed set of fields. There is no field-mapping setting.
+- **Duplicate groups**: Imported groups are matched by their ChMS ID. There is no unique-identifier setting.
 
 For more detailed troubleshooting, see the [Troubleshooting](../advanced/troubleshooting.md) guide.

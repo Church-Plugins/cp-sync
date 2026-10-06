@@ -56,7 +56,7 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
 
 This usually means the sync is queueing items correctly but the queue cannot be read back. Preview will look completely normal, because it reads from the ChMS directly and never touches the queue.
 
-1. **Check the Logs** at **Church Plugins → CP Sync → Log** for either of these:
+1. **Check the Logs** at **Church Plugins → CP Sync → Log** for either of these. Set **Enable Debug Mode** to **Enable** and click **Save all Settings** first; nothing is logged while it is off:
    - `Queue column ... charset: latin1` (or `utf8`) — the database cannot represent characters in your data
    - `Batch ... is unreadable and will be discarded without importing` — the queue was corrupted after it was stored
 
@@ -99,7 +99,7 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
    - Update both plugins to the latest versions
 
 2. **Venue and Organizer Settings**:
-   - For CCB: venue addresses and event images are populated via an enrichment step that runs after each event imports. If venues are missing, look in the log for `Skipping enrichment` or `Failed to fetch event_profile`. Recurring event occurrences without a numeric event ID are not enriched.
+   - For CCB: venue addresses and event images are populated via an enrichment step that runs after each event imports. If venues are missing, set **Enable Debug Mode** to **Enable** on the **Log** tab, click **Save all Settings**, run the sync again, and look in **Log File Content** for `Skipping enrichment` or `Failed to fetch event_profile`. Recurring event occurrences without a numeric event ID are not enriched.
 
 ## Error Messages
 
@@ -113,9 +113,10 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
 
 ### Enabling Debug Logs
 
-1. Navigate to **Church Plugins → CP Sync → Log**
-2. Perform the operation that's having issues
-3. Check **Log File Content**
+1. Go to **Church Plugins → CP Sync** and open the **Log** tab.
+2. Set **Enable Debug Mode** to **Enable**, then click **Save all Settings**.
+3. Perform the operation that's having issues.
+4. Read **Log File Content** on the **Log** tab.
 
 ## Getting Additional Help
 
