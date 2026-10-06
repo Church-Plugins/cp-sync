@@ -39,16 +39,30 @@ If the companion plugin is not active, that toggle is disabled. Its help text is
 
 ### Groups Synchronization
 
-1. Go to the **Groups** tab in the PCO settings
-2. Configure which group types to import
-3. Set up field mapping for:
-   - Group name
-   - Description
-   - Location
-   - Meeting time
-   - Leaders
-4. Configure group taxonomy assignments
-5. Save your settings
+Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Planning Center, while **Sync Groups** is on. If CP Groups is not active, that toggle is disabled and this tab stays hidden.
+
+1. Open the **Groups** tab.
+2. Under **Group Tags to Sync**, choose the Planning Center tag groups you want on your site. Each selected tag group becomes a group category and is shown as a filter on the groups page. For example, a "Life Stage" tag group becomes a Life Stage filter.
+3. Choose **Visibility**: **Only Visible in Church Center** (default) syncs only groups published on Church Center; **Show All** does not filter on Church Center visibility.
+4. Optionally, use the **Groups** filter to limit which groups sync. You can add conditions on **Name**, **Description**, **Group Type**, **Location**, **Enrollment Status**, **Enrollment Strategy**, or **Visibility**. For example, to sync only some group types, click **Add Condition**, set **Selector** to **Group Type**, and set **Compare** to **Is in**. With no conditions, every group allowed by Visibility syncs.
+5. Click **Save all Settings**. The button stays disabled until you change a setting.
+
+#### What Syncs for Each Group
+
+There is no field mapping to set up. CP Sync fills in each group automatically. Where the [Data Mapping](../configuration/data-mapping.md) page already names a CP Groups field, the table uses that name.
+
+| Planning Center | CP Groups |
+|-----------------|-----------|
+| Name | Post Title |
+| Description | Post Content |
+| Header image | Featured Image |
+| Location full address | Meeting Location |
+| Schedule | Meeting Time. The same schedule text is also saved as the meeting frequency. |
+| Contact email | Group Leader(s). The email is the contact email. The leader name is left blank. |
+| Group type | Group Type |
+| Tags in the tag groups you selected | The matching group category |
+| Church Center URL | Public URL |
+| Enrollment closed, or enrollment auto-closed | Marked full |
 
 ### Events Synchronization
 
