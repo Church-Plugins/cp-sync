@@ -16,13 +16,13 @@ There are five levels, ordered least to most destructive. Each level includes th
 
 ## Using the Danger Zone (Admin UI)
 
-1. Navigate to the CP Sync settings page (under the **Church Plugins** admin menu)
-2. Open the **Advanced** tab and find the **Danger Zone** panel
-3. Select a reset level — each level shows a description of exactly what it removes
-4. For the destructive levels (`content`, `connection`, `all`) you must **retype the level keyword** to unlock the reset button
-5. Click the reset button and confirm
+1. Go to **Church Plugins → CP Sync** (you need an account that can manage options).
+2. Open the **Advanced** tab and find **Danger Zone**.
+3. Under **Reset level**, choose **Queue**, **Sync state**, **Content**, **Connection**, or **Everything**. Each choice shows a short description under its name.
+4. For **Content**, **Connection**, and **Everything**, type `content`, `connection`, or `all` in the box. The label reads **Type "content" to confirm this destructive reset** (or `connection` or `all`). The button stays disabled until the word matches.
+5. Click **Reset: Queue**, **Reset: Sync state**, **Reset: Content**, **Reset: Connection**, or **Reset: Everything**. **Queue** and **Sync state** ask you to confirm in a browser dialog first.
 
-After the reset completes, a summary of what was removed is displayed.
+When the reset finishes, the tab shows **Reset complete.** and a summary of what was removed. **Connection** and **Everything** show **Reset complete. Reloading…** and then reload the page.
 
 ## Using WP-CLI
 

@@ -1,100 +1,53 @@
 # Sync Scheduling
 
-CP Sync allows you to configure automated synchronization schedules to keep your WordPress site up-to-date with your church management system. This guide explains how to set up and manage sync schedules.
+CP Sync runs one schedule for every feed that is turned on. Groups, events, and sermons share that schedule.
 
-## Understanding Sync Scheduling
+## Set the Interval
 
-Automated sync scheduling ensures that your WordPress site regularly pulls the latest data from your ChMS without manual intervention. This keeps your groups, events, and other information current.
+1. Go to **Church Plugins → CP Sync**.
+2. Open the **Advanced** tab.
+3. Set **Update Interval** to **Hourly**, **Daily**, or **Weekly**. **Hourly** is the default.
+4. Click **Save all Settings**.
 
-## Types of Sync Operations
+The first run is scheduled about an hour after the plugin loads. The choices are **Hourly**, **Daily**, and **Weekly** only.
 
-CP Sync supports scheduling different types of sync operations:
+Which feeds run is set on the **Connect** tab:
 
-- **Full Sync**: Imports all data from your ChMS, updating existing items and adding new ones
-- **Incremental Sync**: Only imports data that has changed since the last sync
-- **Groups Sync**: Only synchronizes group data
-- **Events Sync**: Only synchronizes event data
+- **Sync Groups** and **Sync Events** are on until you turn them off.
+- **Sync Sermons** is shown for Planning Center, and it is off until you turn it on.
+- A toggle is disabled when its plugin is missing: CP Groups, The Events Calendar, or CP Sermons.
 
-## Accessing Sync Scheduling
-
-1. Navigate to **Church Plugins → CP Sync → Advanced**
-2. Scroll to the "Sync Scheduling" section
-
-You can also set the main auto-sync frequency under **Church Plugins → CP Sync → General**.
-
-## Setting Up a Basic Schedule
-
-To create a basic sync schedule:
-
-1. Set **Update Interval** to **Hourly**, **Daily**, or **Weekly**.
-2. Click **Save all Settings**.
+A turned-off feed is skipped. See [API Connections](../configuration/api-connections.md).
 
 ### After Upgrading to 1.0.0
 
 If you changed the sync interval before upgrading to 1.0.0 and the new interval does not take effect, set it to a different interval once after upgrading and save, then set it back to the interval you want and save again. Saving the same value again does not fix it. Interval changes you make on 1.0.0 work normally. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#sync-interval-doesnt-take-effect-after-upgrading).
 
-## Advanced Scheduling Options
+## Start a Sync
 
-For more control over your sync schedule, additional options are available:
+- On **Advanced**, click **Pull now**. This pulls every feed that is turned on. The tab shows **Hard pull started successfully**.
+- On **Groups**, **Events**, or **Sermons**, click **Pull Now**. The tab shows **Import started**.
 
-### Per-Module Scheduling
+Those tabs appear after you are connected, the matching **Sync** toggle is on, and the companion plugin is active.
 
-You can set different schedules for different types of data:
+While a sync is running, the page shows **A sync is currently in progress** and **Cancel Sync**.
 
-1. In the "Advanced Scheduling" section
-2. Configure separate schedules for:
-   - Groups synchronization
-   - Events synchronization
-3. Each can have its own frequency and timing
+## Read the Log
 
-### Limiting Sync Size
+1. Open the **Log** tab.
+2. Set **Enable Debug Mode** to **Enable** when you need the debug log, then click **Save all Settings**.
+3. Read **Log File Content**. **Clear Log File** empties it.
 
-To manage server resources for large data sets:
+## If Scheduled Syncs Do Not Run
 
-1. Enable "Limit Sync Size"
-2. Set the maximum number of items to process per sync operation
-3. If there are more items than the limit, the remaining items will be processed in the next scheduled sync
+- Confirm WordPress cron is running on the server.
+- Confirm the church management system is still connected on the **Connect** tab.
+- On the **Log** tab, set **Enable Debug Mode** to **Enable**, click **Pull now** on **Advanced**, and read **Log File Content**.
 
-## Custom WP-Cron Schedules
+### WordPress Cron on the Server
 
-For technical users who need more specific scheduling:
+If WordPress cron does not run on your host:
 
-1. Navigate to the "Custom Schedules" section
-2. Create custom intervals not provided by default (e.g., every 4 hours)
-3. Apply these custom schedules to your sync operations
-
-## Manual Sync Controls
-
-In addition to scheduled syncs, you can always run manual syncs:
-
-1. Go to **Church Plugins → CP Sync** and open the **Groups** or **Events** tab.
-2. Click **Pull Now**. The tab shows **Import started**.
-
-## Monitoring Sync Status
-
-To check on your sync operations:
-
-1. Navigate to **Church Plugins → CP Sync → Log**
-2. Set **Enable Debug Mode** to **Enable** and click **Save all Settings**; nothing is logged while it is off.
-3. View the sync operation logs
-4. Check when the last sync ran and what was processed
-5. Look for any errors or warnings
-
-## Troubleshooting Scheduled Syncs
-
-If your scheduled syncs aren't running properly:
-
-- Verify WordPress cron is working correctly on your server
-- Check for PHP timeout issues during large syncs
-- Ensure your ChMS API credentials remain valid
-- Review server error logs for any related issues
-
-### WordPress Cron Alternatives
-
-If WordPress cron is unreliable on your hosting:
-
-1. Disable WordPress cron by adding `define('DISABLE_WP_CRON', true);` to your wp-config.php
-2. Set up a server cron job to call wp-cron.php directly
-3. Detailed instructions for this setup can be found in the [Developer Guide](https://docs.churchplugins.com/knowledge-base/advanced-developer-guide-cp-sync/)
-
-For more detailed troubleshooting of sync issues, see the [Troubleshooting](https://docs.churchplugins.com/knowledge-base/advanced-troubleshooting-cp-sync/) guide.
+1. Add `define('DISABLE_WP_CRON', true);` to wp-config.php.
+2. Set a server cron job to call wp-cron.php.
+3. The commands are in the [Developer Guide](developer-guide.md).

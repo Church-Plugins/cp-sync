@@ -22,31 +22,37 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
 
 ### Unable to Connect to Church Community Builder
 
-1. **API Credentials**:
-   - Verify your API Username and Password
-   - Check that your CCB subdomain is correct
+1. **Credentials**:
+   - On the **Connect** tab, set **Church Management System** to **Church Community Builder**.
+   - Under **Connect to Church Community Builder**, check **Subdomain**, **API Username**, and **API Password**.
+   - Click **Connect to CCB**. The button stays disabled until all three fields have a value. A failed check shows **Connection failed** or the message returned by CCB.
 
-2. **API Access**:
-   - Ensure your CCB account has API access enabled
-   - Contact your CCB administrator if necessary
+2. **Subdomain**:
+   - Enter the part before `.ccbchurch.com`, such as `churchname`.
+   - Anything other than letters, numbers, and hyphens shows **Invalid subdomain. Subdomains may contain only letters, numbers, and hyphens.**
 
-3. **Incorrect URL Format**:
-   - Only enter the subdomain part, not the full URL
-   - Example: enter "churchname" not "churchname.ccbchurch.com"
+3. **API access**:
+   - Ask your CCB administrator to confirm the API user can sign in.
 
 ## Sync Issues
 
 ### No Data Being Imported
 
-1. **Check Connection Status**:
-   - Verify your ChMS connection is active
+1. **Check the connection**:
+   - Planning Center: the **Connect** tab shows **Connected**, or **Connected to {organization} as {person}** after you reload.
+   - Church Community Builder: the button reads **Disconnect** and **Subdomain**, **API Username**, and **API Password** are locked.
+   - Under **Sync**, the feed you want is on. **Sync Groups** needs CP Groups. **Sync Events** needs The Events Calendar. **Sync Sermons** (Planning Center) needs CP Sermons and is off until you turn it on.
 
-2. **Review Filters**:
-   - Check if you have filters that might be excluding all data
-   - Try disabling filters temporarily to test
+2. **Review filters**:
+   - Planning Center groups: **Visibility** and the **Groups** filter on the **Groups** tab.
+   - Planning Center events: **Event source**, **Visibility**, **Calendar Filters**, and **Registration Filters** on the **Events** tab.
+   - Planning Center sermons: the **Sermons** filter. Only episodes published to the Church Center library are imported.
+   - Church Community Builder groups: the **Groups** filter. Groups that are inactive or not listed in public search are skipped.
+   - Church Community Builder events: **Date Range** and the **Events** filter.
+   - Remove a condition with the trash icon on that row, then click **Generate Preview**.
 
-3. **API Permissions**:
-   - Ensure your ChMS account has permission to access the data you're trying to import
+3. **API permissions**:
+   - The church management system account has to be allowed to read the groups, events, or sermons you expect.
 
 4. **Database Character Set**:
    - If the preview shows your data but the sync imports nothing, check the logs for a line like `Queue column wp_options.option_value charset: latin1`
@@ -56,7 +62,7 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
 
 This usually means the sync is queueing items correctly but the queue cannot be read back. Preview will look completely normal, because it reads from the ChMS directly and never touches the queue.
 
-1. **Check the Logs** at **Church Plugins → CP Sync → Log** for either of these. Set **Enable Debug Mode** to **Enable** and click **Save all Settings** first; nothing is logged while it is off:
+1. **Check the log** at **Church Plugins → CP Sync → Log**. Set **Enable Debug Mode** to **Enable**, click **Save all Settings**, and run the sync again. Look for either of these:
    - `Queue column ... charset: latin1` (or `utf8`) — the database cannot represent characters in your data
    - `Batch ... is unreadable and will be discarded without importing` — the queue was corrupted after it was stored
 
@@ -76,9 +82,9 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
 
 ### Only Partial Data Imported
 
-1. **Filter Settings**:
-   - Review your filter configurations
-   - Check for unintended exclusions
+1. **Filters**:
+   - Open the **Groups**, **Events**, or **Sermons** tab and read the filter. Remove conditions that exclude the records you want.
+   - On Church Community Builder events, widen **Date Range**. **Current and upcoming events (Recommended)** is today through one year ahead. **All future events** is today through 10 years ahead. **Custom date range** stops at **End Date**.
 
 2. **PHP Timeout**:
    - Check your PHP max_execution_time setting
@@ -88,35 +94,45 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
 
 ### CP Groups Integration Problems
 
-1. **Plugin Activation**:
-   - Verify CP Groups plugin is installed and activated
-   - Check compatible versions
+1. **Plugin and toggle**:
+   - CP Groups is installed and activated.
+   - On the **Connect** tab, **Sync Groups** is on. If CP Groups is inactive, the toggle is disabled and the help text reads **Requires the CP Groups plugin, which is not active on this site.**
+
+2. **Filters**:
+   - On the **Groups** tab, check **Visibility** (Planning Center) and the **Groups** filter.
+   - Church Community Builder skips groups that are inactive or not listed in public search.
 
 ### The Events Calendar Integration Issues
 
-1. **Plugin Compatibility**:
-   - Verify you're using a compatible version of The Events Calendar
-   - Update both plugins to the latest versions
+1. **Plugin and toggle**:
+   - The Events Calendar is installed and activated.
+   - On the **Connect** tab, **Sync Events** is on. If The Events Calendar is inactive, the toggle is disabled and the help text reads **Requires The Events Calendar plugin, which is not active on this site.**
 
-2. **Venue and Organizer Settings**:
-   - For CCB: venue addresses and event images are populated via an enrichment step that runs after each event imports. If venues are missing, set **Enable Debug Mode** to **Enable** on the **Log** tab, click **Save all Settings**, run the sync again, and look in **Log File Content** for `Skipping enrichment` or `Failed to fetch event_profile`. Recurring event occurrences without a numeric event ID are not enriched.
+2. **Church Community Builder venues**:
+   - Venue name, street, city, state, zip, and the event image are filled in after import, for events that have a numeric CCB id.
+   - On the **Log** tab, set **Enable Debug Mode** to **Enable** and look for `Skipping enrichment` or `Failed to fetch event_profile`. Occurrences without a numeric event id are not enriched.
 
 ## Error Messages
 
-### "PHP Memory Limit Exceeded"
+### PHP runs out of memory
 
-1. **Increase Memory Limit**:
-   - Modify your PHP memory_limit setting
-   - Contact your hosting provider if necessary
+1. **Increase the memory limit**:
+   - Raise PHP's `memory_limit`.
+   - Ask your host if you cannot change it.
+
+### Planning Center rate limits
+
+The log can include `PCO rate limited (429): waiting`. CP Sync waits and retries that request. If syncs overlap, set **Update Interval** on the **Advanced** tab to **Daily** or **Weekly**.
 
 ## Logging and Debugging
 
 ### Enabling Debug Logs
 
 1. Go to **Church Plugins → CP Sync** and open the **Log** tab.
-2. Set **Enable Debug Mode** to **Enable**, then click **Save all Settings**.
-3. Perform the operation that's having issues.
-4. Read **Log File Content** on the **Log** tab.
+2. Set **Enable Debug Mode** to **Enable**.
+3. Click **Save all Settings**.
+4. Run the sync (**Pull now** on **Advanced**, or **Pull Now** on **Groups**, **Events**, or **Sermons**).
+5. Read **Log File Content** on the **Log** tab. **Clear Log File** empties it.
 
 ## Getting Additional Help
 
