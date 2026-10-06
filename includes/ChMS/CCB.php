@@ -2,6 +2,7 @@
 
 namespace CP_Sync\ChMS;
 
+use CP_Sync\Admin\RequestAction;
 use CP_Sync_Dependencies\RRule\RRule;
 
 /**
@@ -1133,6 +1134,10 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @param int $post_id WordPress post ID
 	 */
 	public function maybe_enrich_event_after_update( $item, $post_id ) {
+		if ( RequestAction::should_skip( 'cp_sync_events_update_item_after', $item ) ) {
+			return;
+		}
+
 		// Extract event ID and modified timestamp
 		$event_id = $item['chms_id'] ?? null;
 

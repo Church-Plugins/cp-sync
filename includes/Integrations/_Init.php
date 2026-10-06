@@ -2,6 +2,7 @@
 
 namespace CP_Sync\Integrations;
 
+use CP_Sync\Admin\RequestAction;
 use CP_Sync\Admin\Settings;
 use CP_Sync\ChMS\ChMSError;
 use CP_Sync\Setup\Reset;
@@ -159,10 +160,40 @@ class _Init {
 		add_action( 'init', [ $this, 'schedule_cron' ], 999 );
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
 		add_action( 'cp_sync_global_settings_updated', [ $this, 'reschedule_cron' ], 10, 2 );
-		add_action( self::$_cron_hook, [ $this, 'pull_content' ] );
+		// Admin request actions require manage_options and a nonce. Cron is exempt.
+		add_action( self::$_cron_hook, [ $this, 'handle_pull_action' ] );
 	}
 
 	/** Actions ***************************************************/
+
+	/**
+	 * Callback for the cp_sync_pull action.
+	 *
+	 * Adds capability and nonce checks to admin request actions. An admin
+	 * request runs the pull only when the current user can manage options and
+	 * a valid nonce is present. Scheduled cron calls this hook with no request
+	 * payload and still runs the pull.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param array|null $request Request vars when dispatched as an admin request action.
+	 * @return true|WP_Error|null True or WP_Error from the pull, null when the request does nothing.
+	 */
+	public function handle_pull_action( $request = null ) {
+		if ( RequestAction::is_admin_request( self::$_cron_hook, $request ) ) {
+			if ( ! RequestAction::user_can_run( self::$_cron_hook, $request ) ) {
+				return null;
+			}
+
+			return $this->pull_content();
+		}
+
+		if ( RequestAction::doing_cron() ) {
+			return $this->pull_content();
+		}
+
+		return null;
+	}
 
 	/**
 	 * trigger the contant pull
@@ -401,6 +432,10 @@ class _Init {
 	 * @param array $old_settings The old settings
 	 */
 	public function reschedule_cron( $settings, $old_settings ) {
+		if ( RequestAction::should_skip( 'cp_sync_global_settings_updated', $settings ) ) {
+			return;
+		}
+
 		if ( ( $settings['updateInterval'] ?? 'hourly' ) !== ( $old_settings['updateInterval'] ?? 'hourly' ) ) {
 			wp_clear_scheduled_hook( self::$_cron_hook );
 			$this->schedule_cron();
