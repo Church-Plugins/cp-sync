@@ -751,6 +751,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->table( 'tag_groups' )
 			->get();
 
+		// A timeout returns false. Indexing that as ['data'] looks like "no
+		// tags", and the integration would then delete every synced taxonomy.
+		$tag_groups_error = $this->groups_fetch_error( $tag_groups, 'tag_groups' );
+		if ( null !== $tag_groups_error ) {
+			return $tag_groups_error;
+		}
+
 		$tag_groups = $tag_groups['data'] ?? [];
 
 		$include_tag_groups = $this->get_setting( 'tag_groups', [], 'cp_groups' );
@@ -767,6 +774,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				->id( $tag_group['id'] )
 				->associations( 'tags' )
 				->get();
+
+			$tags_error = $this->groups_fetch_error( $tags, 'tag_group tags' );
+			if ( null !== $tags_error ) {
+				return $tags_error;
+			}
 
 			$tags = $tags['data'] ?? [];
 
@@ -853,8 +865,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		// One paginated memberships crawl, not one request per group. get()
 		// already walks pages and honors 429s. A full sync asks for every
 		// leader. Preview ( $limit > 0 ) asks only for the groups it will show,
-		// via filter=group&group_id=. null means the request failed; [] means
-		// it succeeded and there were no leaders.
+		// via filter=group&group_id=&where[role]=leader. null means the request
+		// failed; [] means it succeeded and there were no leaders.
 		$leaders_by_group = [];
 		if ( ! empty( $items ) ) {
 			$only_ids = null;
@@ -889,8 +901,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * memberships with role "leader", and the name/email live on the included
 	 * Person. A full sync uses GET /groups/v2/memberships?filter=leader&include=person.
 	 * A preview passes the group ids being shown and uses the documented
-	 * filter=group&group_id= list instead, so it does not crawl the whole
-	 * organization. The client pages and honors 429s.
+	 * filter=group&group_id= list plus where[role]=leader, so it does not crawl
+	 * the whole organization. The client pages and honors 429s.
 	 *
 	 * @param array|null $group_ids Group ids to limit to, or null for every leader.
 	 * @return array|null Leader rows keyed by group id, [] when there are none, null when the request failed.
@@ -912,7 +924,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->includes( 'person' );
 
 		if ( is_array( $ids ) ) {
-			$api->filter( 'group' )->param( 'group_id', implode( ',', $ids ) );
+			$api->filter( 'group' )->param( 'group_id', implode( ',', $ids ) )->where( 'role', '=', 'leader' );
 		} else {
 			$api->filter( 'leader' );
 		}
@@ -962,6 +974,33 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		return array_keys( $ids );
+	}
+
+	/**
+	 * Turn a failed Groups API response into an error that aborts the sync.
+	 *
+	 * get() returns false on a timeout or HTTP error. Reading ['data'] off
+	 * that value looks like an empty tag list, and the integration would
+	 * delete every synced cps_* taxonomy and its terms.
+	 *
+	 * @param mixed  $response Value returned by get().
+	 * @param string $what     Short label for the log.
+	 * @return ChMSError|null Null when the response can be used.
+	 */
+	protected function groups_fetch_error( $response, $what ) {
+		if ( false !== $response && empty( $this->api()->errorMessage() ) ) {
+			return null;
+		}
+
+		$detail = self::leader_fetch_error_text( $this->api()->errorMessage() );
+
+		if ( '' === $detail ) {
+			$detail = $what . ' request failed with no error detail';
+		}
+
+		cp_sync()->logging->log( 'Groups fetch FAILED (' . $what . '): ' . $detail );
+
+		return new ChMSError( 'pco_fetch_error', $detail );
 	}
 
 	/**
@@ -1088,34 +1127,43 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Use the group's contact address when no leader has an email.
+	 * Choose the address stored as leader_email.
 	 *
-	 * CP Groups 1.2 stores the `leaders` list and drops `leader_email`, so the
-	 * fallback is also written onto the first leader row when every row lacks
-	 * an address. Otherwise that version would lose the contact address.
+	 * The group's own contact_email wins when it is set. The first leader
+	 * address is used only when the group has no contact_email. A group with
+	 * no leader rows still does not invent a `leaders` list here: CP Groups
+	 * 1.2 folds the empty name plus this address into one contact-only row.
+	 * When rows exist but none of them has an address, the chosen email is
+	 * copied onto the first row so 1.2 ( which drops leader_email ) keeps it.
 	 *
 	 * @param array  $leader_meta   Result of group_leader_meta().
 	 * @param string $contact_email Group attributes.contact_email.
+	 * @param array  $group         Planning Center group resource.
 	 * @return array
 	 */
-	public static function apply_contact_email_fallback( $leader_meta, $contact_email ) {
+	public static function apply_contact_email_fallback( $leader_meta, $contact_email, $group = [] ) {
 		if ( ! is_array( $leader_meta ) ) {
 			return $leader_meta;
 		}
 
-		$email = isset( $leader_meta['leader_email'] ) && is_string( $leader_meta['leader_email'] ) ? $leader_meta['leader_email'] : '';
+		$contact      = is_string( $contact_email ) ? trim( $contact_email ) : '';
+		$leader_email = isset( $leader_meta['leader_email'] ) && is_string( $leader_meta['leader_email'] ) ? trim( $leader_meta['leader_email'] ) : '';
+		$chosen       = '' !== $contact ? $contact : $leader_email;
 
-		if ( '' !== $email ) {
-			return $leader_meta;
+		/**
+		 * Filters the email stored as a Planning Center group's leader email.
+		 *
+		 * @param string $chosen      contact_email when set, otherwise the first leader email.
+		 * @param array  $group       Planning Center group resource.
+		 * @param array  $leader_meta Leader name, email, and rows before this choice is applied.
+		 */
+		$filtered = apply_filters( 'cp_sync_pco_group_leader_email', $chosen, is_array( $group ) ? $group : [], $leader_meta );
+
+		if ( is_string( $filtered ) ) {
+			$chosen = trim( $filtered );
 		}
 
-		$contact = is_string( $contact_email ) ? trim( $contact_email ) : '';
-
-		if ( '' === $contact ) {
-			return $leader_meta;
-		}
-
-		$leader_meta['leader_email'] = $contact;
+		$leader_meta['leader_email'] = $chosen;
 
 		if ( empty( $leader_meta['leaders'] ) || ! is_array( $leader_meta['leaders'] ) ) {
 			return $leader_meta;
@@ -1127,8 +1175,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			}
 		}
 
-		if ( isset( $leader_meta['leaders'][0] ) && is_array( $leader_meta['leaders'][0] ) ) {
-			$leader_meta['leaders'][0]['email'] = $contact;
+		if ( '' !== $chosen && isset( $leader_meta['leaders'][0] ) && is_array( $leader_meta['leaders'][0] ) ) {
+			$leader_meta['leaders'][0]['email'] = $chosen;
 		}
 
 		return $leader_meta;
@@ -1296,9 +1344,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->associations( 'tags' )
 			->get();
 
-		if ( $this->api()->errorMessage() ) {
+		$group_tags_error = $this->groups_fetch_error( $group_tags, 'group tags' );
+		if ( null !== $group_tags_error ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Always caught in ChMS::get_formatted_data() and only written to the log via error_log() (never echoed to the browser); HTML-escaping would corrupt the log output.
-			throw new ChMSException( 'pco_fetch_error', $this->api()->errorMessage() );
+			throw new ChMSException( $group_tags_error->get_error_code(), $group_tags_error->get_error_message() );
 		}
 
 		$group_tags = $group_tags['data'] ?? [];
@@ -1355,7 +1404,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$leaders_by_group = ( isset( $context['leaders_by_group'] ) && is_array( $context['leaders_by_group'] ) ) ? $context['leaders_by_group'] : [];
 			$group_leaders    = ( isset( $group['id'] ) && isset( $leaders_by_group[ $group['id'] ] ) && is_array( $leaders_by_group[ $group['id'] ] ) ) ? $leaders_by_group[ $group['id'] ] : [];
 			$leader_meta      = self::group_leader_meta( $group_leaders );
-			$leader_meta      = self::apply_contact_email_fallback( $leader_meta, $group['attributes']['contact_email'] ?? '' );
+			$leader_meta      = self::apply_contact_email_fallback( $leader_meta, $group['attributes']['contact_email'] ?? '', $group );
 
 			$args['meta_input']['leader']       = $leader_meta['leader'];
 			$args['meta_input']['leader_email'] = $leader_meta['leader_email'];

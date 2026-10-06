@@ -15,6 +15,7 @@ namespace CP_Sync\Tests\Unit;
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use CP_Sync\ChMS\PCO;
+use CP_Sync\Integrations\CP_Groups;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -28,12 +29,31 @@ class FormatGroupLeadersTest extends TestCase {
 	/** @var array */
 	private $logged = [];
 
+	/**
+	 * When set, cp_sync_pco_group_leader_email returns this instead of the chosen address.
+	 *
+	 * @var string|null
+	 */
+	private $leader_email_override = null;
+
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
 
-		$this->logged = [];
-		$logged       = &$this->logged;
+		$this->logged                = [];
+		$this->leader_email_override = null;
+		$logged                      = &$this->logged;
+		$override                    = &$this->leader_email_override;
+
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $tag, $value ) use ( &$override ) {
+				if ( 'cp_sync_pco_group_leader_email' === $tag && is_string( $override ) ) {
+					return $override;
+				}
+
+				return $value;
+			}
+		);
 
 		$logger          = new class( $logged ) {
 			public $sink;
@@ -114,6 +134,11 @@ class FormatGroupLeadersTest extends TestCase {
 
 			public function param( $key, $value ) {
 				$this->calls[] = [ 'param', $key, $value ];
+				return $this;
+			}
+
+			public function where( $field, $operator, $value ) {
+				$this->calls[] = [ 'where', $field, $operator, $value ];
 				return $this;
 			}
 
@@ -329,6 +354,7 @@ class FormatGroupLeadersTest extends TestCase {
 				[ 'includes', 'person' ],
 				[ 'filter', 'group' ],
 				[ 'param', 'group_id', '10,11' ],
+				[ 'where', 'role', '=', 'leader' ],
 				[ 'get' ],
 			],
 			$api->calls
@@ -371,7 +397,7 @@ class FormatGroupLeadersTest extends TestCase {
 		);
 
 		$this->assertSame( 'Jane Doe, John Smith', $formatted['meta_input']['leader'] );
-		$this->assertSame( 'jane@example.com', $formatted['meta_input']['leader_email'] );
+		$this->assertSame( 'group@example.com', $formatted['meta_input']['leader_email'] );
 		$this->assertSame(
 			[
 				[ 'name' => 'Jane Doe', 'email' => 'jane@example.com' ],
@@ -427,6 +453,17 @@ class FormatGroupLeadersTest extends TestCase {
 		$this->assertSame( 'group@example.com', $no_leaders['meta_input']['leader_email'] );
 		$this->assertArrayNotHasKey( 'leaders', $no_leaders['meta_input'] );
 
+		$folded = CP_Groups::prepare_leader_meta( $no_leaders['meta_input'], '1.2.0' );
+		$this->assertSame(
+			[
+				[ 'name' => '', 'email' => 'group@example.com' ],
+			],
+			$folded['leaders']
+		);
+		$this->assertArrayNotHasKey( 'leader', $folded );
+		$this->assertArrayNotHasKey( 'leader_email', $folded );
+		$this->assertSame( $no_leaders['meta_input']['start_date'], $folded['start_date'] );
+
 		$named = $pco->format_group(
 			$this->group( '22', [ 'contact_email' => 'group@example.com' ] ),
 			[
@@ -447,6 +484,44 @@ class FormatGroupLeadersTest extends TestCase {
 			],
 			$named['meta_input']['leaders']
 		);
+	}
+
+	public function test_leader_email_uses_the_first_leader_when_the_group_has_no_contact_email() {
+		$payload = $this->membershipsPayload();
+		$pco     = $this->makePco();
+		$pco->api = $this->fakeApi( [ 'data' => [] ] );
+
+		$formatted = $pco->format_group(
+			$this->group( '10' ),
+			[
+				'relational_data'  => [],
+				'leaders_by_group' => PCO::leaders_from_memberships( $payload['data'], $payload['included'] ),
+			]
+		);
+
+		$this->assertSame( 'jane@example.com', $formatted['meta_input']['leader_email'] );
+		$this->assertSame( 'jane@example.com', $formatted['meta_input']['leaders'][0]['email'] );
+	}
+
+	public function test_leader_email_filter_can_replace_the_chosen_address() {
+		$pco      = $this->makePco();
+		$pco->api = $this->fakeApi( [ 'data' => [] ] );
+		$this->leader_email_override = 'desk@example.com';
+
+		$formatted = $pco->format_group(
+			$this->group( '22', [ 'contact_email' => 'group@example.com' ] ),
+			[
+				'relational_data'  => [],
+				'leaders_by_group' => [
+					'22' => [
+						[ 'name' => 'John Smith', 'email' => '' ],
+					],
+				],
+			]
+		);
+
+		$this->assertSame( 'desk@example.com', $formatted['meta_input']['leader_email'] );
+		$this->assertSame( 'desk@example.com', $formatted['meta_input']['leaders'][0]['email'] );
 	}
 
 	public function test_format_group_marks_closed_enrollment_full() {

@@ -38,4 +38,29 @@ class PlanningCenterConnectFailureTest extends TestCase {
 		$this->assertFalse( $result );
 		$this->assertSame( 'Connection refused', $api->errorMessage() );
 	}
+
+	public function test_send_data_connection_failure_returns_false_and_keeps_the_message() {
+		$api = new class() extends PlanningCenterAPI {
+			protected function httpClient() {
+				return new class() {
+					public function request() {
+						throw new ConnectException(
+							'Connection refused',
+							new Request( 'POST', 'https://api.planningcenteronline.com/groups/v2/groups' )
+						);
+					}
+				};
+			}
+		};
+
+		$api->module( 'groups' )->table( 'groups' );
+
+		$send = new \ReflectionMethod( PlanningCenterAPI::class, 'sendData' );
+		$send->setAccessible( true );
+
+		$result = $send->invoke( $api, 'POST' );
+
+		$this->assertFalse( $result );
+		$this->assertSame( 'Connection refused', $api->errorMessage() );
+	}
 }

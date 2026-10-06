@@ -636,13 +636,23 @@ class PlanningCenterAPI
     }
 
     /**
+     * HTTP client for write requests. Overridden in tests to simulate failures.
+     *
+     * @return Client
+     */
+    protected function httpClient()
+    {
+        return new Client();
+    }
+
+    /**
      * Exeucte a POST or PUT request
      *
      */
     private function sendData($verb)
     {
         // Initialize the Guzzle client
-        $client = new Client(); //GuzzleHttp\Client
+        $client = $this->httpClient();
         $this->errorMessage = null;
 
         $endpoint = $this->buildEndpoint();
@@ -670,7 +680,8 @@ class PlanningCenterAPI
             $error = true;
 
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
-            $error = $e->getResponse()->getBody()->getContents();
+            // ConnectException has no response. Same guard as execute().
+            $error = $this->messageFromGuzzleException($e);
             $this->saveErrorMessage($error);
             $error = true;
 
