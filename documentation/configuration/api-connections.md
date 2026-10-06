@@ -53,6 +53,8 @@ Before connecting to Church Community Builder:
 
 **Connect to CCB** saves the fields and checks them. When the check succeeds, that button changes to **Disconnect** and the three fields lock. If the check fails, the tab shows **Connection failed** or the message returned by CCB.
 
+> **Note (CP Sync 1.0.0):** On some hosts without PHP's sodium extension, saving CCB settings can fail after upgrading. Credentials saved before upgrading may keep syncing. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#ccb-settings-wont-save-on-some-hosts).
+
 **Connect to CCB** stays disabled until **Subdomain**, **API Username**, and **API Password** all have a value. A subdomain with anything other than letters, numbers, and hyphens shows **Invalid subdomain. Subdomains may contain only letters, numbers, and hyphens.**
 
 To disconnect, click **Disconnect**.

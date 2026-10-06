@@ -21,7 +21,7 @@ Open the **License** tab.
 Open the **Log** tab.
 
 - **Enable Debug Mode**: **Enable** or **Disable**. **Disable** is the default.
-- **Log File Content**: the sync log.
+- **Log File Content**: the sync log. CP Sync writes to it only while **Enable Debug Mode** is set to **Enable**.
 - **Clear Log File**: empties the log.
 
 Click **Save all Settings** after you change **Enable Debug Mode**.

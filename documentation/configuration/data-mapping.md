@@ -40,7 +40,7 @@ CP Sync imports groups that are not inactive and that are listed in public searc
 | Public signup form URL | **Registration Action** |
 | Group page on CCB | **Group Details** |
 
-Campus or area is stored as a location term. The term is used when CP Locations is active.
+When CP Locations is active, campus or area is assigned as the group's location term. Without CP Locations it is not stored.
 
 ## Events
 

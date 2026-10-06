@@ -35,7 +35,7 @@ While a sync is running, the page shows **A sync is currently in progress** and 
 ## Read the Log
 
 1. Open the **Log** tab.
-2. Set **Enable Debug Mode** to **Enable** when you need the debug log, then click **Save all Settings**.
+2. Set **Enable Debug Mode** to **Enable**, then click **Save all Settings**. CP Sync writes to the log only while debug mode is on.
 3. Read **Log File Content**. **Clear Log File** empties it.
 
 ## If Scheduled Syncs Do Not Run

@@ -63,6 +63,6 @@ Set **Update Interval** on the **Advanced** tab (**Hourly**, **Daily**, or **Wee
 
 - **Events not importing**: Confirm The Events Calendar is active and **Sync Events** is on. On Planning Center, check **Event source**, **Visibility**, and the filter for that source. On Church Community Builder, widen **Date Range**.
 - **A field is missing on the event**: Compare the event with [Data Mapping](../configuration/data-mapping.md#events).
-- **CCB venues have no address**: Events without a numeric CCB id are not enriched. On the **Log** tab, set **Enable Debug Mode** to **Enable** and look for `Skipping enrichment` or `Failed to fetch event_profile`.
+- **CCB events have no venue or image**: CP Sync adds the venue and image only for events with a numeric CCB id. On the **Log** tab, set **Enable Debug Mode** to **Enable** and look for `Skipping enrichment` or `Failed to fetch event_profile`.
 
 To keep hand edits on one imported event, see [Preventing Sync Updates](../configuration/preventing-sync-updates.md).
