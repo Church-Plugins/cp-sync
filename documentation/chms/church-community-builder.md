@@ -29,8 +29,10 @@ Group sync needs the **CP Groups** plugin to be active. If it isn't, the **Sync 
 Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Church Community Builder, while **Sync Groups** is on.
 
 1. Open the **Groups** tab.
-2. Optionally, use the **Groups** filter to limit which groups sync. You can add conditions on **Name**, **Group Type**, **Inactive**, **Group is full**, **Membership Type**, **Leader Name**, **Leader Email**, **Department**, **Campus**, or **Childcare Provided**. With no conditions, this filter does not remove any more groups. Groups still have to be active and have **Public Search** checked, as described under Which Groups Sync.
+2. Optionally, limit which groups sync. On screen the filter reads **Pull Groups where** **All** or **Any** **of the following match**. There is no separate Groups heading. Click **Add Condition** to add a condition on **Name**, **Group Type**, **Inactive**, **Group is full**, **Membership Type**, **Leader Name**, **Leader Email**, **Department**, **Campus**, or **Childcare Provided**. With no conditions, this filter does not remove any more groups. Groups still have to be active and have **Public Search** checked, as described under Which Groups Sync.
 3. Click **Save all Settings**. The button stays disabled until you change a setting.
+
+Groups that stop matching your filter are deleted from your site, and come back as new posts if they match again later.
 
 #### What Syncs for Each Group
 
@@ -43,14 +45,13 @@ There is no field mapping to set up. CP Sync fills in each group automatically. 
 | Image | Featured Image. An image address that contains `group-default` is skipped. |
 | Meeting day and meeting time | Meeting Time. A time that can be read is saved like 7:00pm. With a meeting day, the text is the day, an added "s", then " at ", then the time (Monday becomes Mondays at 7:00pm). The day is also saved on its own. If the time cannot be read, meeting time is left unset. |
 | Childcare provided | Kid friendly. This is on only when childcare provided is the text `true`. Otherwise it is off. |
-| Campus | Location. A plain-text campus is used. If campus is not plain text, the area name is used when that name is present. |
+| Campus | The group's location in CP Locations, only when the CP Locations plugin is active. This is not the Meeting Location field. A plain-text campus is used. If campus is not plain text, the area name is used when that name is present. |
 | Group type | Group Type, when the group type is plain text |
 | Department | Group category, when the department is plain text |
 | Main leader name | Group Leader(s) name |
 | Main leader email | Group Leader(s) email |
-| Full | Marked full when the full value is present and not empty |
 | Public signup form URL | Registration URL |
-| Group page on your CCB site | Public URL: `https://{subdomain}.ccbchurch.com/group_detail.php?group_id=` plus the group id, when a subdomain is saved. Blank when no subdomain is saved. |
+| Group page on your CCB site | Group Details (the View Details link). The address is `https://{subdomain}.ccbchurch.com/group_detail.php?group_id=` plus the group id when a subdomain is saved, and blank when no subdomain is saved. |
 
 #### Which Groups Sync
 
