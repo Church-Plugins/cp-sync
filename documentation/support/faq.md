@@ -67,10 +67,10 @@ Missing fields usually occur because of inconsistent data formats or missing fie
 ## Support and Updates
 
 ### How do I get support for CP-Sync?
-Support is available through our [support portal](https://churchplugins.com/support). Premium license holders receive priority support. See the [Getting Help Guide](getting-help.md) for more information.
+Support is available through our [support portal](https://churchplugins.com/support) for customers with an active license. See the [Getting Help Guide](getting-help.md) for more information.
 
 ### How often is CP-Sync updated?
 We release updates regularly to improve functionality, fix bugs, and add new features. You can update the plugin through your WordPress dashboard when new versions are available.
 
-### Is there a premium version of CP-Sync?
-Yes, CP-Sync offers both free and premium versions. The premium version includes additional features such as advanced filtering, priority support, and additional ChMS integrations.
+### Is there a premium version of CP Sync?
+No. CP Sync is a paid Church Plugins product. There is no free version, and there is no separate free/premium feature split. You can buy CP Sync on its own or with the All Access Pass from [churchplugins.com](https://churchplugins.com/).
