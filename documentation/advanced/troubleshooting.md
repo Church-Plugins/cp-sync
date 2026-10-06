@@ -17,7 +17,7 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
 
 2. **Reconnect**:
    - Click **Disconnect**, then **Connect**, and sign in to Planning Center again in the window that opens.
-   - If disconnect does not finish, the tab shows **Failed to disconnect**.
+   - If the **Connect** button does not come back, reload the page and click **Disconnect** again.
    - After a successful sign-in, the tab shows **Connected**. Reload the page to see **Connected to {organization} as {person}** or **Connected to {organization}** when Planning Center returns those names.
 
 ### Unable to Connect to Church Community Builder

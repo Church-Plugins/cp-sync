@@ -23,7 +23,7 @@ CP Sync connects to Planning Center through Church Plugins. On the **Connect** t
 
 Reload the CP Sync page to see which account is connected. The notice then reads **Connected to {organization} as {person}** when Planning Center returns both names, or **Connected to {organization}** when only the organization name is available. `{organization}` and `{person}` are those names, not text you type.
 
-To disconnect, click **Disconnect**. The **Connect** button comes back. Click **Connect** to sign in again. If disconnect does not finish, the tab shows **Failed to disconnect**.
+To disconnect, click **Disconnect**. The **Connect** button comes back. Click **Connect** to sign in again. If the **Connect** button does not come back, reload the page and click **Disconnect** again. To disconnect Planning Center while another system is selected, switch **Church Management System** back to **Planning Center Online** first, then click **Disconnect**.
 
 Changing **Church Management System** while you are connected leaves the Planning Center connection in place. CP Sync only syncs from the system currently selected. The tab says **Switching platforms does not disconnect Planning Center Online — its connection and settings are preserved.**
 
