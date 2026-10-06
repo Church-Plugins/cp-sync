@@ -24,7 +24,7 @@ Each filter named above — **Groups**, **Calendar Filters**, **Registration Fil
 1. Open the **Groups**, **Events**, or **Sermons** tab, as in [Accessing Data Filters](#accessing-data-filters).
 2. Click **Add Condition**.
 3. Set **Selector**, **Compare**, and **Value**.
-4. Click **Add Condition** again for another condition. Each condition has a **Remove** button.
+4. Click **Add Condition** again for another condition. Each condition has a trash-can **Remove** button.
 5. The line reads **Pull Groups where**, **Pull Calendar Filters where**, **Pull Registration Filters where**, **Pull Events where**, or **Pull Sermons where**, then **All** or **Any**, then **of the following match**.
 6. Click **Save all Settings**.
 

@@ -56,7 +56,7 @@ Preview will look completely normal, because it reads from the ChMS directly and
    - `Nothing was queued for ...` — the sync found nothing to import; check your filters and the connection
    - `... was not saved to the database. Nothing will be imported.` — the queue could not be written; a `Database reported: ...` line follows when MySQL returned an error
    - `... was saved but cannot be read back. Nothing will be imported.` — the queue was corrupted when it was stored
-   - `Batch ... is unreadable and will be discarded without importing` — the queue was corrupted after it was stored
+   - `Batch ... is unreadable and will be discarded without importing` — the queue was corrupted when it was stored
 
 2. **Confirm Items Are Being Processed**:
    - A healthy sync logs a line per item, such as `Processing group 123: Summer Series` followed by `Group 123 created with ID: 456`

@@ -32,6 +32,11 @@ do_action("cp_sync_{$type}_update_item_after", $item, $post_id);
 ```php
 // Whether to delete past events during sync cleanup (default false)
 apply_filters('cp_sync_remove_past_events', false, $chms_id, $post_id, $integration);
+
+// Force debug logging on (same as Log → Enable Debug Mode). Add this from a plugin or
+// mu-plugin, not a theme: it is read once when CP Sync loads. Defining the
+// CP_SYNC_DEBUG constant as true also works.
+apply_filters('cp_sync_debug_mode', $debug_mode);
 ```
 
 ## Preserving Past Events
@@ -78,11 +83,13 @@ option on the event itself rather than this filter.
 
 CP-Sync provides REST API endpoints for programmatic access:
 
-- `GET /wp-json/cp-sync/v1/status` - Get sync status
-- `POST /wp-json/cp-sync/v1/sync` - Trigger a sync operation
-- `GET /wp-json/cp-sync/v1/logs` - Retrieve sync logs
+- `POST /wp-json/cp-sync/v1/pull`: pull all content types
+- `POST /wp-json/cp-sync/v1/pull/{type}`: pull one type (groups, events or sermons)
+- `GET /wp-json/cp-sync/v1/get-log`: read the sync log
+- `POST /wp-json/cp-sync/v1/clear-log`: clear the sync log
+- `POST /wp-json/cp-sync/v1/reset`: reset or clear install data at level `queue`, `state`, `content`, `connection`, or `all` (`confirm` must match `level`)
 
-Authentication is required using WordPress REST API authentication.
+Every route requires a logged-in user with the manage_options capability (an administrator), using WordPress REST API authentication.
 
 ## Custom Cron Implementation
 
@@ -96,11 +103,6 @@ For websites with unreliable WordPress cron:
 2. Set up a server cron job to call WordPress cron:
    ```
    */15 * * * * wget -q -O /dev/null https://your-site.com/wp-cron.php?doing_wp_cron
-   ```
-
-3. For more granular control, you can directly trigger specific CP-Sync operations:
-   ```
-   0 0 * * * wget -q -O /dev/null "https://your-site.com/wp-json/cp-sync/v1/sync?type=pco&data=groups"
    ```
 
 For more advanced development information, consult the inline code documentation or contact our developer support team.
