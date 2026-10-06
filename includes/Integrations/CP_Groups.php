@@ -28,17 +28,11 @@ class CP_Groups extends Integration {
 			$item['post_content'] = '';
 		}
 
-		// If the plugin version is 1.2.0 or greater, we need to update the leader meta
-		if ( defined( 'CP_GROUPS_PLUGIN_VERSION' ) && version_compare( CP_GROUPS_PLUGIN_VERSION, '1.2.0', '>=' ) ) {
-			$item['meta_input']['leaders'] = [
-				[
-					'name' => $item['meta_input']['leader'] ?? '',
-					'email' => $item['meta_input']['leader_email'] ?? ''
-				]
-			];
-
-			unset( $item['meta_input']['leader'] );
-			unset( $item['meta_input']['leader_email'] );
+		// CP Groups 1.2 replaced the single leader fields with a `leaders` list.
+		// A ChMS that already built that list ( Planning Center can have several
+		// leaders ) keeps it; otherwise fold leader / leader_email into one row.
+		if ( defined( 'CP_GROUPS_PLUGIN_VERSION' ) && version_compare( CP_GROUPS_PLUGIN_VERSION, '1.2.0', '>=' ) && isset( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) {
+			$item['meta_input'] = self::prepare_leader_meta( $item['meta_input'], CP_GROUPS_PLUGIN_VERSION );
 		}
 
 		$id = wp_insert_post( $item );
@@ -77,6 +71,72 @@ class CP_Groups extends Integration {
 		}
 
 		return $id;
+	}
+
+	/**
+	 * Shape leader meta for the installed CP Groups version.
+	 *
+	 * Below 1.2 the plugin displays `leader` and `leader_email`, so those keys
+	 * are left as the ChMS formatter set them. From 1.2 the plugin stores a
+	 * `leaders` list of name/email rows. An existing list is kept ( so every
+	 * Planning Center leader survives ); a single leader/leader_email pair is
+	 * folded into one row, matching the previous behavior for CCB.
+	 *
+	 * @param array  $meta_input     Group meta destined for wp_insert_post().
+	 * @param string $plugin_version CP_GROUPS_PLUGIN_VERSION.
+	 * @return array
+	 */
+	public static function prepare_leader_meta( $meta_input, $plugin_version ) {
+		if ( ! is_array( $meta_input ) ) {
+			return [];
+		}
+
+		if ( ! is_string( $plugin_version ) || version_compare( $plugin_version, '1.2.0', '<' ) ) {
+			return $meta_input;
+		}
+
+		if ( ! self::leader_rows_present( $meta_input['leaders'] ?? null ) ) {
+			$meta_input['leaders'] = [
+				[
+					'name'  => $meta_input['leader'] ?? '',
+					'email' => $meta_input['leader_email'] ?? '',
+				],
+			];
+		}
+
+		unset( $meta_input['leader'] );
+		unset( $meta_input['leader_email'] );
+
+		return $meta_input;
+	}
+
+	/**
+	 * Whether `leaders` is a non-empty list of name/email rows.
+	 *
+	 * @param mixed $leaders Candidate meta value.
+	 * @return bool
+	 */
+	protected static function leader_rows_present( $leaders ) {
+		if ( ! is_array( $leaders ) || array() === $leaders ) {
+			return false;
+		}
+
+		$found = false;
+
+		foreach ( $leaders as $leader ) {
+			if ( ! is_array( $leader ) ) {
+				return false;
+			}
+
+			$name  = isset( $leader['name'] ) && is_string( $leader['name'] ) ? trim( $leader['name'] ) : '';
+			$email = isset( $leader['email'] ) && is_string( $leader['email'] ) ? trim( $leader['email'] ) : '';
+
+			if ( '' !== $name || '' !== $email ) {
+				$found = true;
+			}
+		}
+
+		return $found;
 	}
 
 	public function actions() {

@@ -506,7 +506,10 @@ class PlanningCenterAPI
 
             // Append the result set to the previous results
             $results['data'] = array_merge($results['data'], $r['data']);
-            $results['included'] = array_merge($results['included'], $r['included']);
+            // `included` is optional. An empty collection (no leaders, no
+            // related records) omits it, and array_merge() rejects null on PHP 8.
+            $pageIncluded = (isset($r['included']) && is_array($r['included'])) ? $r['included'] : [];
+            $results['included'] = array_merge($results['included'], $pageIncluded);
 
             // Surface crawl progress before deciding whether to continue, so even
             // a crawl killed by the host leaves a log trail of its last page.
