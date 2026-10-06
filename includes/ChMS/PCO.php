@@ -850,12 +850,26 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			return new ChMSError( 'pco_filter_error', $error->get_error_message() );
 		}
 
-		// One paginated crawl of leader memberships for the whole organization,
-		// not one request per group. get() already walks pages and honors 429s.
-		// A failure here must not abort the group sync.
+		// One paginated memberships crawl, not one request per group. get()
+		// already walks pages and honors 429s. A full sync asks for every
+		// leader. Preview ( $limit > 0 ) asks only for the groups it will show,
+		// via filter=group&group_id=. null means the request failed; [] means
+		// it succeeded and there were no leaders.
 		$leaders_by_group = [];
 		if ( ! empty( $items ) ) {
-			$leaders_by_group = $this->fetch_group_leaders();
+			$only_ids = null;
+
+			if ( $limit > 0 ) {
+				$only_ids = [];
+
+				foreach ( array_slice( $items, 0, (int) $limit ) as $preview_item ) {
+					if ( is_array( $preview_item ) && isset( $preview_item['id'] ) ) {
+						$only_ids[] = $preview_item['id'];
+					}
+				}
+			}
+
+			$leaders_by_group = $this->fetch_group_leaders( $only_ids );
 		}
 
 		return [
@@ -869,29 +883,115 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * Fetch every group leader in the organization.
+	 * Fetch group leaders.
 	 *
 	 * Planning Center has no leader name on the group itself. Leaders are
 	 * memberships with role "leader", and the name/email live on the included
-	 * Person. GET /groups/v2/memberships?filter=leader&include=person returns
-	 * them in one paginated crawl ( the client rate-limits and pages ).
+	 * Person. A full sync uses GET /groups/v2/memberships?filter=leader&include=person.
+	 * A preview passes the group ids being shown and uses the documented
+	 * filter=group&group_id= list instead, so it does not crawl the whole
+	 * organization. The client pages and honors 429s.
 	 *
-	 * @return array Leader rows keyed by PCO group id. See leaders_from_memberships().
+	 * @param array|null $group_ids Group ids to limit to, or null for every leader.
+	 * @return array|null Leader rows keyed by group id, [] when there are none, null when the request failed.
 	 */
-	public function fetch_group_leaders() {
-		$raw = $this->api()
+	public function fetch_group_leaders( $group_ids = null ) {
+		$ids = null;
+
+		if ( is_array( $group_ids ) ) {
+			$ids = self::membership_group_ids( $group_ids );
+
+			if ( empty( $ids ) ) {
+				return [];
+			}
+		}
+
+		$api = $this->api()
 			->module( 'groups' )
 			->table( 'memberships' )
-			->includes( 'person' )
-			->filter( 'leader' )
-			->get();
+			->includes( 'person' );
+
+		if ( is_array( $ids ) ) {
+			$api->filter( 'group' )->param( 'group_id', implode( ',', $ids ) );
+		} else {
+			$api->filter( 'leader' );
+		}
+
+		$raw = $api->get();
 
 		if ( ! is_array( $raw ) ) {
-			cp_sync()->logging->log( 'PCO group leaders could not be fetched; groups will sync without leader names.' );
-			return [];
+			$detail  = self::leader_fetch_error_text( $this->api()->errorMessage() );
+			$message = 'PCO group leaders could not be fetched; existing leader names and emails will be left unchanged.';
+
+			if ( '' !== $detail ) {
+				$message .= ' ' . $detail;
+			}
+
+			cp_sync()->logging->log( $message );
+			return null;
 		}
 
 		return self::leaders_from_memberships( $raw['data'] ?? [], $raw['included'] ?? [] );
+	}
+
+	/**
+	 * Unique group ids for a filter=group&group_id= memberships query.
+	 *
+	 * @param array $group_ids Raw ids.
+	 * @return array
+	 */
+	public static function membership_group_ids( $group_ids ) {
+		$ids = [];
+
+		if ( ! is_array( $group_ids ) ) {
+			return $ids;
+		}
+
+		foreach ( $group_ids as $id ) {
+			if ( ! is_string( $id ) && ! is_numeric( $id ) ) {
+				continue;
+			}
+
+			$id = (string) $id;
+
+			if ( '' === $id || isset( $ids[ $id ] ) ) {
+				continue;
+			}
+
+			$ids[ $id ] = true;
+		}
+
+		return array_keys( $ids );
+	}
+
+	/**
+	 * A short string for a Planning Center error payload, for the log.
+	 *
+	 * @param mixed $error Value from PlanningCenterAPI::errorMessage().
+	 * @return string
+	 */
+	public static function leader_fetch_error_text( $error ) {
+		if ( is_string( $error ) ) {
+			return trim( $error );
+		}
+
+		if ( ! is_array( $error ) ) {
+			return '';
+		}
+
+		$first = isset( $error['errors'][0] ) && is_array( $error['errors'][0] ) ? $error['errors'][0] : [];
+
+		if ( isset( $first['detail'] ) && is_string( $first['detail'] ) && '' !== trim( $first['detail'] ) ) {
+			return trim( $first['detail'] );
+		}
+
+		if ( isset( $first['title'] ) && is_string( $first['title'] ) && '' !== trim( $first['title'] ) ) {
+			return trim( $first['title'] );
+		}
+
+		$encoded = json_encode( $error );
+
+		return is_string( $encoded ) ? $encoded : '';
 	}
 
 	/**
@@ -972,6 +1072,66 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		return $by_group;
+	}
+
+	/**
+	 * Whether the leader memberships request failed.
+	 *
+	 * null is the failure sentinel from fetch_group_leaders(). An array is a
+	 * successful result, including an empty one.
+	 *
+	 * @param array $context format_group() context.
+	 * @return bool
+	 */
+	public static function leader_fetch_failed( $context ) {
+		return is_array( $context ) && array_key_exists( 'leaders_by_group', $context ) && null === $context['leaders_by_group'];
+	}
+
+	/**
+	 * Use the group's contact address when no leader has an email.
+	 *
+	 * CP Groups 1.2 stores the `leaders` list and drops `leader_email`, so the
+	 * fallback is also written onto the first leader row when every row lacks
+	 * an address. Otherwise that version would lose the contact address.
+	 *
+	 * @param array  $leader_meta   Result of group_leader_meta().
+	 * @param string $contact_email Group attributes.contact_email.
+	 * @return array
+	 */
+	public static function apply_contact_email_fallback( $leader_meta, $contact_email ) {
+		if ( ! is_array( $leader_meta ) ) {
+			return $leader_meta;
+		}
+
+		$email = isset( $leader_meta['leader_email'] ) && is_string( $leader_meta['leader_email'] ) ? $leader_meta['leader_email'] : '';
+
+		if ( '' !== $email ) {
+			return $leader_meta;
+		}
+
+		$contact = is_string( $contact_email ) ? trim( $contact_email ) : '';
+
+		if ( '' === $contact ) {
+			return $leader_meta;
+		}
+
+		$leader_meta['leader_email'] = $contact;
+
+		if ( empty( $leader_meta['leaders'] ) || ! is_array( $leader_meta['leaders'] ) ) {
+			return $leader_meta;
+		}
+
+		foreach ( $leader_meta['leaders'] as $row ) {
+			if ( is_array( $row ) && isset( $row['email'] ) && is_string( $row['email'] ) && '' !== $row['email'] ) {
+				return $leader_meta;
+			}
+		}
+
+		if ( isset( $leader_meta['leaders'][0] ) && is_array( $leader_meta['leaders'][0] ) ) {
+			$leader_meta['leaders'][0]['email'] = $contact;
+		}
+
+		return $leader_meta;
 	}
 
 	/**
@@ -1188,17 +1348,21 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			],
 		];
 
-		// CP Groups 1.1 displays `leader` / `leader_email`. 1.2 stores `leaders`
-		// as name/email rows; the integration keeps that list when it is set.
-		$leaders_by_group = ( isset( $context['leaders_by_group'] ) && is_array( $context['leaders_by_group'] ) ) ? $context['leaders_by_group'] : [];
-		$group_leaders    = ( isset( $group['id'] ) && isset( $leaders_by_group[ $group['id'] ] ) && is_array( $leaders_by_group[ $group['id'] ] ) ) ? $leaders_by_group[ $group['id'] ] : [];
-		$leader_meta      = self::group_leader_meta( $group_leaders );
+		// null means the memberships request failed. Leave leader, leader_email,
+		// and leaders off the item so a later save does not erase stored values.
+		// An array ( including [] ) is a successful fetch: no leaders clears them.
+		if ( ! self::leader_fetch_failed( $context ) ) {
+			$leaders_by_group = ( isset( $context['leaders_by_group'] ) && is_array( $context['leaders_by_group'] ) ) ? $context['leaders_by_group'] : [];
+			$group_leaders    = ( isset( $group['id'] ) && isset( $leaders_by_group[ $group['id'] ] ) && is_array( $leaders_by_group[ $group['id'] ] ) ) ? $leaders_by_group[ $group['id'] ] : [];
+			$leader_meta      = self::group_leader_meta( $group_leaders );
+			$leader_meta      = self::apply_contact_email_fallback( $leader_meta, $group['attributes']['contact_email'] ?? '' );
 
-		$args['meta_input']['leader']       = $leader_meta['leader'];
-		$args['meta_input']['leader_email'] = $leader_meta['leader_email'];
+			$args['meta_input']['leader']       = $leader_meta['leader'];
+			$args['meta_input']['leader_email'] = $leader_meta['leader_email'];
 
-		if ( ! empty( $leader_meta['leaders'] ) ) {
-			$args['meta_input']['leaders'] = $leader_meta['leaders'];
+			if ( ! empty( $leader_meta['leaders'] ) ) {
+				$args['meta_input']['leaders'] = $leader_meta['leaders'];
+			}
 		}
 
 		// Meeting frequency

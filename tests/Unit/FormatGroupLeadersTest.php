@@ -112,6 +112,11 @@ class FormatGroupLeadersTest extends TestCase {
 				return $this;
 			}
 
+			public function param( $key, $value ) {
+				$this->calls[] = [ 'param', $key, $value ];
+				return $this;
+			}
+
 			public function get() {
 				$this->calls[] = [ 'get' ];
 				return $this->response;
@@ -301,13 +306,33 @@ class FormatGroupLeadersTest extends TestCase {
 		$this->assertSame( [], $this->logged );
 	}
 
-	public function test_failed_leader_fetch_syncs_without_leaders() {
+	public function test_failed_leader_fetch_is_distinct_from_no_leaders() {
 		$api      = $this->fakeApi( false, [ 'errors' => [ [ 'detail' => 'nope' ] ] ] );
 		$pco      = $this->makePco();
 		$pco->api = $api;
 
-		$this->assertSame( [], $pco->fetch_group_leaders() );
+		$this->assertNull( $pco->fetch_group_leaders() );
 		$this->assertNotEmpty( $this->logged );
+		$this->assertStringContainsString( 'nope', $this->logged[0] );
+	}
+
+	public function test_preview_fetches_only_the_given_groups() {
+		$api      = $this->fakeApi( [ 'data' => [], 'included' => [] ] );
+		$pco      = $this->makePco();
+		$pco->api = $api;
+
+		$this->assertSame( [], $pco->fetch_group_leaders( [ '10', '11', '10', '' ] ) );
+		$this->assertSame(
+			[
+				[ 'module', 'groups' ],
+				[ 'table', 'memberships' ],
+				[ 'includes', 'person' ],
+				[ 'filter', 'group' ],
+				[ 'param', 'group_id', '10,11' ],
+				[ 'get' ],
+			],
+			$api->calls
+		);
 	}
 
 	public function test_format_group_stores_leader_name_and_email() {
@@ -358,7 +383,7 @@ class FormatGroupLeadersTest extends TestCase {
 		$this->assertSame( [ '3' ], $formatted['tax_input']['cp_group_type'] );
 	}
 
-	public function test_format_group_without_leaders_or_related_records() {
+	public function test_failed_fetch_leaves_leader_fields_off_the_group() {
 		$pco      = $this->makePco();
 		$pco->api = $this->fakeApi( [ 'data' => [] ] );
 
@@ -374,16 +399,54 @@ class FormatGroupLeadersTest extends TestCase {
 			),
 			[
 				'relational_data'  => [],
-				'leaders_by_group' => [],
+				'leaders_by_group' => null,
 			]
 		);
 
-		$this->assertSame( '', $formatted['meta_input']['leader'] );
-		$this->assertSame( '', $formatted['meta_input']['leader_email'] );
+		$this->assertArrayNotHasKey( 'leader', $formatted['meta_input'] );
+		$this->assertArrayNotHasKey( 'leader_email', $formatted['meta_input'] );
 		$this->assertArrayNotHasKey( 'leaders', $formatted['meta_input'] );
 		$this->assertArrayNotHasKey( 'is_group_full', $formatted['meta_input'] );
 		$this->assertArrayNotHasKey( 'cp_group_type', $formatted['tax_input'] );
 		$this->assertArrayNotHasKey( 'location', $formatted['meta_input'] );
+	}
+
+	public function test_group_with_no_leader_email_uses_contact_email() {
+		$pco      = $this->makePco();
+		$pco->api = $this->fakeApi( [ 'data' => [] ] );
+
+		$no_leaders = $pco->format_group(
+			$this->group( '21', [ 'contact_email' => 'group@example.com' ] ),
+			[
+				'relational_data'  => [],
+				'leaders_by_group' => [],
+			]
+		);
+
+		$this->assertSame( '', $no_leaders['meta_input']['leader'] );
+		$this->assertSame( 'group@example.com', $no_leaders['meta_input']['leader_email'] );
+		$this->assertArrayNotHasKey( 'leaders', $no_leaders['meta_input'] );
+
+		$named = $pco->format_group(
+			$this->group( '22', [ 'contact_email' => 'group@example.com' ] ),
+			[
+				'relational_data'  => [],
+				'leaders_by_group' => [
+					'22' => [
+						[ 'name' => 'John Smith', 'email' => '' ],
+					],
+				],
+			]
+		);
+
+		$this->assertSame( 'John Smith', $named['meta_input']['leader'] );
+		$this->assertSame( 'group@example.com', $named['meta_input']['leader_email'] );
+		$this->assertSame(
+			[
+				[ 'name' => 'John Smith', 'email' => 'group@example.com' ],
+			],
+			$named['meta_input']['leaders']
+		);
 	}
 
 	public function test_format_group_marks_closed_enrollment_full() {

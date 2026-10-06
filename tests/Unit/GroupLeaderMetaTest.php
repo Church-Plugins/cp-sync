@@ -75,6 +75,36 @@ class GroupLeaderMetaTest extends TestCase {
 		);
 	}
 
+	public function test_version_1_2_clears_leaders_when_the_fields_are_present_but_empty() {
+		$meta = CP_Groups::prepare_leader_meta(
+			[
+				'leader'       => '',
+				'leader_email' => '',
+				'start_date'   => '2024-06-01',
+			],
+			'1.2.0'
+		);
+
+		$this->assertSame(
+			[
+				'start_date' => '2024-06-01',
+				'leaders'    => [
+					[ 'name' => '', 'email' => '' ],
+				],
+			],
+			$meta
+		);
+	}
+
+	public function test_version_1_2_does_not_invent_an_empty_row_when_leader_fields_are_absent() {
+		$meta = [
+			'start_date' => '2024-06-01',
+			'public_url' => 'https://example.org/groups/tuesday',
+		];
+
+		$this->assertSame( $meta, CP_Groups::prepare_leader_meta( $meta, '1.2.0' ) );
+	}
+
 	public function test_version_1_2_ignores_an_empty_leaders_list() {
 		$meta = CP_Groups::prepare_leader_meta(
 			[

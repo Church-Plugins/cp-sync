@@ -96,6 +96,12 @@ class CP_Groups extends Integration {
 		}
 
 		if ( ! self::leader_rows_present( $meta_input['leaders'] ?? null ) ) {
+			// Absent keys mean the ChMS did not supply leaders ( a failed PCO
+			// fetch ). Do not invent an empty row; that would wipe stored leaders.
+			if ( ! array_key_exists( 'leader', $meta_input ) && ! array_key_exists( 'leader_email', $meta_input ) ) {
+				return $meta_input;
+			}
+
 			$meta_input['leaders'] = [
 				[
 					'name'  => $meta_input['leader'] ?? '',
