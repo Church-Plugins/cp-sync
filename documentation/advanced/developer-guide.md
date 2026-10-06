@@ -1,6 +1,6 @@
 # Developer Guide
 
-This guide is intended for developers who want to extend or customize the CP-Sync plugin. It covers the hooks the plugin runs, the REST API, and cron.
+This guide is intended for developers who want to extend or customize the CP-Sync plugin. It covers hooks, filters, the API, and cron.
 
 ## Plugin Architecture
 
@@ -14,43 +14,25 @@ CP-Sync follows an object-oriented architecture with clear separation of concern
 
 ## Available Hooks
 
-Names and arguments below are the ones the plugin passes.
+CP-Sync provides various action and filter hooks for customization.
 
-### Actions
+### Action Hooks
 
-- `do_action( "cp_sync_{$this->type}_update_item_after", $item, $id )` — `$this->type` is `groups`, `events`, or `sermons`. `$item` is the item array. `$id` is the post ID. CCB hooks `cp_sync_events_update_item_after`.
-- `do_action( 'cp_update_item_after', $item, $id, $this )` — `$this` is the integration instance. `$id` is the post ID. Runs at the same point as the type action above.
-- `do_action( 'cp_' . $this->id . '_update_item_after', $item, $id )` — `$this->id` is the integration id (`tec`, `cp_groups`, or `cp_library`). `$id` is the post ID.
-- `do_action( 'cp_sync_global_settings_updated', $settings, $old_settings )` — `$settings` is the global settings array just saved. `$old_settings` is that array before the save.
-- `do_action( "cp_sync_load_taxonomy_{$this->id}", $taxonomy, $args )` — `$this->id` is the integration id. `$taxonomy` is the taxonomy slug. `$args` is the array passed to `register_taxonomy()`.
+```php
+// Fires after any item of a given type is created or updated.
+// $type matches the integration type (e.g. 'events', 'groups').
+// Useful for type-specific post-processing such as fetching additional
+// data from the source API. CCB uses this hook to enrich events with
+// full venue addresses and images from the event_profile endpoint.
+do_action("cp_sync_{$type}_update_item_after", $item, $post_id);
+```
 
-### Filters
+### Filter Hooks
 
-- `apply_filters( 'cp_sync_remove_past_events', false, $chms_id, $post_id, $this )` — `$this` is the events integration. See [Preserving Past Events](#preserving-past-events).
-- `apply_filters( "cp_sync_{$this->type}_should_remove_item", true, $chms_id, $this )` — `$chms_id` is the ChMS id. `$this` is the integration instance.
-- `apply_filters( "cp_sync_{$this->type}_item", $item, $this )` — `$item` is the item array about to be queued.
-- `apply_filters( 'cp_sync_process_items', $items, $this )` — `$items` is the array of items about to be processed.
-- `apply_filters( 'cp_sync_process_hard_refresh', true, $items, $this )` and `apply_filters( 'cp_sync_process_hard_refresh', true, $taxonomies, $this )` — the second argument is the items array in one call and the taxonomies array in the other.
-- `apply_filters( 'cp_sync_pull_items', $posts, $this )` — `$posts` is the posts array from the formatted ChMS payload.
-- `apply_filters( 'cp_sync_pull_taxonomies', $taxonomies, $this )` — `$taxonomies` is the taxonomies array from that payload.
-- `apply_filters( "cp_sync_pull_{$integration_type}", null, $integration_type )` — `$integration_type` is `groups`, `events`, or `sermons`.
-- `apply_filters( 'cp_sync_item_is_locked', $locked, $post_id, $chms_id, $this )` — `$locked` is whether the post has the lock meta.
-- `apply_filters( 'cp_sync_show_event_registration_button', $show, $post_id )` — `$show` is the current register-button flag. `$post_id` is the event post ID.
-- `apply_filters( 'cp_sync_debug_mode', $debug_mode )` — `$debug_mode` is true when **Enable Debug Mode** is **Enable**, or when the `CP_SYNC_DEBUG` constant is true.
-- `apply_filters( 'cp_sync_active_chms', $chms )` — `$chms` is the active ChMS slug stored in settings. The default passed in is `pco`.
-- `apply_filters( 'cp_sync_global_settings', $settings )` — `$settings` is the global settings array passed into the settings page.
-- `apply_filters( 'cp_sync_oauth_token', $token, $active_chms )` — `$token` is the token from the OAuth redirect. `$active_chms` is the active ChMS object.
-- `apply_filters( 'cp_sync_oauth_refresh_token', $refresh_token, $active_chms )` — `$refresh_token` is the refresh token from that redirect.
-- `apply_filters( 'cp_sync_congregation_map', array() )` — a map from a ChMS congregation id to a location.
-- `apply_filters( 'cp_sync_cron_args', $args )` — `$args` has `timestamp` and `recurrence`.
-- `apply_filters( 'cp_sync_image_cache_dir', 'cp-sync' )` — directory name under uploads. Default `cp-sync`. The import integration appends `/` and its type.
-- `apply_filters( 'cp_sync_image_mime_types', $types )` — `$types` maps a MIME type to an extension: `image/jpeg`, `image/jpg`, and `image/jpe` to `jpg`; `image/png` to `png`; `image/gif` to `gif`; `image/webp` to `webp`.
-- `apply_filters( 'cp_sync_normalize_thumbnail_url', explode( '?', $url )[0], $url, $this )` — `$url` is the original thumbnail URL. A Planning Center URL that contains a `key` query parameter returns before this filter runs.
-- `apply_filters( 'cp_sync_template_paths', $paths )` — `$paths` is a list of base directories. The default is the plugin path.
-- `apply_filters( 'cp_sync_template', $file, $template )` — `$file` is a candidate template path. `$template` is the requested template.
-- `apply_filters( 'cp_sync_template_' . $template, $file )` — `$file` is the resolved template path, or false. `$template` has `.php` appended when the request did not already end in `.php` and did not contain `.json`.
-- `apply_filters( 'churchplugins_fallback_mime_type', $types )` — `$types` defaults to `application/xml` and `application/octet-stream`.
-- `apply_filters( 'cps_settings_get', $value, $key, $group )` — `$value` is the stored option or the default. `$key` is the option key. `$group` is the option group.
+```php
+// Whether to delete past events during sync cleanup (default false)
+apply_filters('cp_sync_remove_past_events', false, $chms_id, $post_id, $integration);
+```
 
 ## Preserving Past Events
 
@@ -61,7 +43,7 @@ from the event having been deleted at the source.
 
 By default the sync **keeps** those events. The rule is based on the event's own end
 date, not on the query window: an event whose end date has passed is preserved when it
-goes missing from the response, and an event that has not ended is removed — the
+goes missing from the response, and an event that has not yet ended is removed — the
 latter being the case that genuinely means "deleted in the ChMS."
 
 One consequence worth knowing: if your date range extends into the past (CCB's
