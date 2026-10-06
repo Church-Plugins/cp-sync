@@ -8,31 +8,28 @@ Setting up API connections is a crucial step in configuring CP Sync. This guide 
 
 Before connecting to Planning Center Online:
 
-- Ensure you have an active Planning Center Online account
-- Make sure you have administrative access to your account
-- Have your PCO login credentials ready
+- Have an active Planning Center Online account you can sign in to
+- Have administrator access to your WordPress site
+- Have your Planning Center login ready
 
 ### Connection Steps
 
-1. Navigate to **Church Plugins → CP Sync** in your WordPress admin dashboard
-2. Click on the **PCO** tab
-3. In the **Connect** sub-tab, click the **Connect to Planning Center** button
-4. You'll be redirected to the Planning Center Online login page
-5. Enter your Planning Center credentials and authorize the connection
-6. Upon successful authorization, you'll be redirected back to your WordPress admin
-7. Verify that the connection status shows as "Connected"
+CP Sync connects to Planning Center through Church Plugins. The **Connect** tab has no Client ID, Client Secret, or callback URL field. More detail is in [Planning Center Online](../chms/planning-center.md#connect-to-planning-center).
 
-### Advanced: Manual API Setup
+1. In your WordPress admin, go to **Church Plugins → CP Sync**.
+2. Open the **Connect** tab.
+3. Set **Church Management System** to **Planning Center Online**.
+4. Under **PCO API Configuration**, click **Connect**. The line above the button reads **Click the button below to initiate the OAuth flow and connect to Planning Center Online.**
+5. A new window opens at churchplugins.com, which sends you to Planning Center. Sign in there and authorize the connection. The window returns to WordPress and closes.
+6. The **Connect** tab shows a success notice that reads **Connected**.
 
-For those who prefer to set up their own API application in Planning Center:
+Reload the CP Sync page to see which account is connected. The notice then reads **Connected to {organization} as {person}** when Planning Center returns both names, or **Connected to {organization}** when only the organization name is available.
 
-1. Go to the [Planning Center Developer Portal](https://api.planningcenteronline.com/oauth/applications)
-2. Create a new application
-3. Set the Redirect URI to: `https://your-site.com/wp-json/cp-sync/v1/pco/oauth`
-4. Copy the Client ID and Client Secret
-5. In your WordPress admin, navigate to **Church Plugins → CP Sync → PCO → Connect**
-6. Enter the Client ID and Client Secret in the corresponding fields
-7. Click "Save API Settings" and then "Connect to Planning Center"
+To disconnect, click **Disconnect**, then click **Connect** to sign in again. If the **Connect** button does not come back, reload the page and click **Disconnect** again. To disconnect Planning Center while another system is selected, switch **Church Management System** back to **Planning Center Online** first, then click **Disconnect**.
+
+Changing **Church Management System** while you are connected leaves the Planning Center connection in place. CP Sync only syncs from the system currently selected. The tab says **Switching platforms does not disconnect Planning Center Online — its connection and settings are preserved.**
+
+After you are connected, the same tab shows a **Sync** section (**Sync Groups**, **Sync Events**, and **Sync Sermons**). Click **Save all Settings** after you change those toggles.
 
 ## Church Community Builder (CCB) Connection
 
@@ -60,9 +57,15 @@ Before connecting to Church Community Builder:
 
 ## Testing Connections
 
+### Planning Center Online
+
+There is no separate test button. After you authorize, the **Connect** tab shows **Connected**. Reload the page and the notice names the account when Planning Center returns it: **Connected to {organization} as {person}**, or **Connected to {organization}**.
+
+### Church Community Builder
+
 After setting up your connection, it's important to test it:
 
-1. Navigate to your ChMS tab (PCO or CCB)
+1. Navigate to your ChMS tab (CCB)
 2. Find the "Test Connection" button
 3. Click to test the connection
 4. The system will attempt to retrieve data and report success or failure
@@ -73,10 +76,9 @@ If you encounter connection problems:
 
 ### Planning Center Online
 
-- Ensure your OAuth redirect URI is correct
-- Check that you have the necessary permissions in Planning Center
-- Verify that your WordPress site is accessible from the internet
-- Clear your browser cache and try reconnecting
+- On the **Connect** tab, click **Connect** again. If the browser blocks the window, the tab shows **Failed to open authentication window. Make sure your browser allows popups.** Allow popups for your site and click **Connect** again.
+- If you close the window before finishing, the tab shows **Authentication window was closed**. Click **Connect** to start again.
+- To sign in again, click **Disconnect**, then **Connect**. If the **Connect** button does not come back, reload the page and click **Disconnect** again.
 
 ### Church Community Builder
 

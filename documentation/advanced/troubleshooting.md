@@ -6,18 +6,19 @@ This guide provides solutions for common issues you might encounter when using C
 
 ### Unable to Connect to Planning Center Online
 
-1. **Check OAuth Redirect URI**:
-   - Verify the redirect URI is correct: `https://your-domain.com/wp-json/cp-sync/v1/pco/oauth`
-   - Ensure there are no typos in the domain
+Connection uses the **Connect** button. The **Connect** tab has no Client ID, Client Secret, or callback URL field. See [Planning Center Online](../chms/planning-center.md#connect-to-planning-center).
 
-2. **API Credentials**:
-   - Confirm your Client ID and Secret are entered correctly
-   - Try reconnecting through the OAuth process
+1. **Open the sign-in window**:
+   - Go to **Church Plugins → CP Sync** and open the **Connect** tab.
+   - Set **Church Management System** to **Planning Center Online**.
+   - Under **PCO API Configuration**, click **Connect**.
+   - If the browser blocks the window, the tab shows **Failed to open authentication window. Make sure your browser allows popups.** Allow popups for your site and click **Connect** again.
+   - If you close the window before finishing, the tab shows **Authentication window was closed**. Click **Connect** to start again.
 
-3. **SSL Issues**:
-   - PCO requires a secure connection
-   - Verify your site has a valid SSL certificate installed
-   - Check that WordPress Site URL is using https://
+2. **Reconnect**:
+   - Click **Disconnect**, then **Connect**, and sign in to Planning Center again in the window that opens.
+   - If the **Connect** button does not come back, reload the page and click **Disconnect** again.
+   - After a successful sign-in, the tab shows **Connected**. Reload the page to see **Connected to {organization} as {person}** or **Connected to {organization}** when Planning Center returns those names.
 
 ### Unable to Connect to Church Community Builder
 
