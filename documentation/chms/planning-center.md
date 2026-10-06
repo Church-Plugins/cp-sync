@@ -6,26 +6,34 @@ CP Sync provides deep integration with Planning Center Online (PCO), allowing yo
 
 ### Prerequisites
 
-- An active Planning Center Online account with API access
+- An active Planning Center Online account you can sign in to
 - Administrator access to your WordPress website
 - CP Sync plugin installed and activated
 
 ### Connect to Planning Center
 
-1. Navigate to **Church Plugins → CP Sync** in your WordPress admin dashboard
-2. Select the **PCO** tab
-3. Click the **Connect to Planning Center** button
-4. Follow the OAuth authentication process
-5. Grant necessary permissions when prompted
+CP Sync connects to Planning Center through Church Plugins. On the **Connect** tab there is no Client ID, Client Secret, or callback URL field.
 
-### API Application Settings
+1. In your WordPress admin, go to **Church Plugins → CP Sync**.
+2. Open the **Connect** tab.
+3. Set **Church Management System** to **Planning Center Online**.
+4. Under **PCO API Configuration**, click **Connect**. The line above the button reads **Click the button below to initiate the OAuth flow and connect to Planning Center Online.**
+5. A new window opens at churchplugins.com, which sends you to Planning Center. Sign in there and authorize the connection. The window returns to WordPress and closes.
+6. The **Connect** tab shows a success notice that reads **Connected**.
 
-For advanced users who want to create their own PCO API application:
+Reload the CP Sync page to see which account is connected. The notice then reads **Connected to {organization} as {person}** when Planning Center returns both names, or **Connected to {organization}** when only the organization name is available. `{organization}` and `{person}` are those names, not text you type.
 
-1. Go to [Planning Center Developer Dashboard](https://api.planningcenteronline.com/oauth/applications)
-2. Create a new application
-3. Set the redirect URI to: `https://your-domain.com/wp-json/cp-sync/v1/pco/oauth`
-4. Copy the Client ID and Secret to the PCO settings in CP Sync
+To disconnect, click **Disconnect**. The **Connect** button comes back. Click **Connect** to sign in again. If disconnect does not finish, the tab shows **Failed to disconnect**.
+
+Changing **Church Management System** while you are connected leaves the Planning Center connection in place. The tab says **Switching platforms does not disconnect Planning Center Online — its connection and settings are preserved.**
+
+After you are connected, the same tab shows a **Sync** section. Choose what to sync, then click **Save all Settings**:
+
+- **Sync Groups** — When enabled, groups are synced from your ChMS to CP Groups.
+- **Sync Events** — When enabled, events are synced from your ChMS to The Events Calendar.
+- **Sync Sermons** — When enabled, sermons are synced from your ChMS to CP Sermons. This toggle is off until you turn it on.
+
+If the companion plugin is not active, that toggle is disabled. Its help text is **Requires the CP Groups plugin, which is not active on this site.**, **Requires The Events Calendar plugin, which is not active on this site.**, or **Requires the CP Sermons plugin, which is not active on this site.**
 
 ## Configuring Data Synchronization
 
@@ -84,7 +92,7 @@ For a short release summary, see [What's New in CP Sync 1.0.0](../getting-starte
 
 ## Troubleshooting PCO Integration
 
-- **Authentication Errors**: Check your API credentials and permissions
+- **Connection window**: On the **Connect** tab, click **Connect**. If the browser blocks the window, the tab shows **Failed to open authentication window. Make sure your browser allows popups.** Allow popups for your site and click **Connect** again. If you close the window before finishing, the tab shows **Authentication window was closed.** Click **Connect** to start again. To sign in with a different Planning Center account, click **Disconnect**, then **Connect**.
 - **Missing Data**: Verify that your PCO account has the necessary modules, and review Visibility and Calendar Filters if Calendar events are missing
 - **Rate Limiting**: PCO limits API requests; adjust your sync frequency if needed
 
