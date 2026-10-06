@@ -1,6 +1,6 @@
 # API Connections
 
-Setting up API connections is a crucial step in configuring CP-Sync. This guide will walk you through connecting your WordPress site to your church management system's API.
+Setting up API connections is a crucial step in configuring CP Sync. This guide will walk you through connecting your WordPress site to your church management system's API.
 
 ## Planning Center Online (PCO) Connection
 
@@ -56,6 +56,8 @@ Before connecting to Church Community Builder:
 5. Click "Test Connection" to verify your credentials
 6. If successful, you'll see a success message
 
+> **Note (CP Sync 1.0.0):** On some hosts without PHP's sodium extension, saving CCB settings can fail after upgrading. Credentials saved before upgrading may keep syncing. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#ccb-settings-wont-save-on-some-hosts).
+
 ## Testing Connections
 
 After setting up your connection, it's important to test it:
@@ -92,4 +94,4 @@ Your API connection credentials grant access to potentially sensitive informatio
 - Limit admin access to trusted individuals
 - Regularly review who has access to your ChMS accounts
 
-For further assistance with connection issues, please see the [Troubleshooting](../advanced/troubleshooting.md) guide.
+For further assistance with connection issues, please see the [Troubleshooting](https://docs.churchplugins.com/knowledge-base/advanced-troubleshooting-cp-sync/) guide.

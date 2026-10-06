@@ -1,10 +1,10 @@
 # Installation
 
-This guide will walk you through the process of installing and activating the CP-Sync plugin on your WordPress website.
+This guide will walk you through the process of installing and activating the CP Sync plugin on your WordPress website.
 
 ## Requirements
 
-Before installing CP-Sync, ensure your website meets these requirements:
+Before installing CP Sync, ensure your website meets these requirements:
 
 - WordPress 5.3 or higher
 - PHP 7.2 or higher
@@ -35,16 +35,18 @@ Before installing CP-Sync, ensure your website meets these requirements:
 
 After activating the plugin, you'll need to:
 
-1. Navigate to **Church Plugins → CP Sync**
+1. Navigate to **Church Plugins → CP Sync** (`admin.php?page=cps_settings`)
 2. Select and configure your church management system
 3. Connect your ChMS account
 4. Configure synchronization options
+
+> **Note (CP Sync 1.0.0):** Settings live under **Church Plugins > CP Sync**. The old Settings link no longer works. See [What's New in CP Sync 1.0.0](whats-new-1-0-0.md).
 
 For detailed configuration instructions, see the [API Connections](../configuration/api-connections.md) guide.
 
 ## Verifying Installation
 
-To verify that CP-Sync is installed and working correctly:
+To verify that CP Sync is installed and working correctly:
 
 1. Navigate to **Church Plugins → CP Sync**
 2. Ensure you can access the settings page
@@ -60,4 +62,4 @@ If you encounter issues during installation:
 - Verify you have the latest version of the plugin
 - Check your PHP error logs for any related errors
 
-For further assistance, see the [Getting Help](../support/getting-help.md) section.
+For further assistance, see the [Getting Help](https://docs.churchplugins.com/knowledge-base/getting-help-cp-sync/) section.

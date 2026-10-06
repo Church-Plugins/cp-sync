@@ -1,6 +1,6 @@
 # Church Community Builder Integration
 
-CP-Sync provides integration with Church Community Builder (CCB), allowing you to synchronize groups, events, and other data with your WordPress website.
+CP Sync provides integration with Church Community Builder (CCB), allowing you to synchronize groups, events, and other data with your WordPress website.
 
 ## Setting Up the CCB Integration
 
@@ -8,7 +8,7 @@ CP-Sync provides integration with Church Community Builder (CCB), allowing you t
 
 - An active Church Community Builder account with API access
 - Administrator access to your WordPress website
-- CP-Sync plugin installed and activated
+- CP Sync plugin installed and activated
 - API credentials (username and password) from your CCB administrator
 
 ### Connect to Church Community Builder
@@ -25,33 +25,40 @@ CP-Sync provides integration with Church Community Builder (CCB), allowing you t
 ### Groups Synchronization
 
 1. Go to the **Groups** tab in the CCB settings
-2. Configure which group types to import:
-   - Small Groups
-   - Ministries
-   - Departments
-   - Other group types available in your CCB setup
-3. Set up field mapping for:
-   - Group name
-   - Description
-   - Location
-   - Meeting time
-   - Leaders
+2. Configure which group types to import
+3. Set up field mapping as needed
 4. Configure group taxonomy assignments
 5. Save your settings
+
+#### Which Groups Sync
+
+Only groups that are not marked Inactive and have **Public Search** checked in CCB are synced. In CCB, you'll find this under **Group Actions > Edit Group Settings > Options**.
 
 ### Events Synchronization
 
 1. Go to the **Events** tab in the CCB settings
-2. Select which calendars to import
-3. Configure event fields mapping
-4. Set the sync frequency
-5. Save your settings
+2. Configure event field mapping as needed
+3. Choose how far ahead events sync with **Date Range** (see below)
+4. Save your settings
+
+#### How Far Ahead Events Sync
+
+Use the **Date Range** setting on the CCB **Events** tab:
+
+| Option | What syncs |
+|--------|------------|
+| Current and upcoming events (Recommended) | Today through one year ahead. This is the default. |
+| Include past 30 days | The past 30 days plus upcoming events. |
+| All future events | Up to 10 years ahead. |
+| Custom date range | The Start and End Dates you choose. |
+
+If you use **Custom date range**, the Start and End Dates do not move on their own. Check that the End Date is far enough out, or events after it won't sync.
 
 ### Event Enrichment
 
-CCB exposes event data through two endpoints with different levels of detail. CP-Sync uses both: the calendar listing for the initial import, then the event profile to fill in details that the listing omits.
+CCB exposes event data through two endpoints with different levels of detail. CP Sync uses both: the calendar listing for the initial import, then the event profile to fill in details that the listing omits.
 
-After each event is imported or updated, CP-Sync automatically fetches the event profile to populate:
+After each event is imported or updated, CP Sync automatically fetches the event profile to populate:
 
 - **Full venue address** — street, city, state, and zip (the calendar listing only provides a venue name)
 - **Event image** — the featured image from the event's profile
@@ -59,6 +66,16 @@ After each event is imported or updated, CP-Sync automatically fetches the event
 Enrichment runs once per event on first import, then re-runs only when CCB reports the event has been modified, so subsequent syncs stay fast. Venues are deduplicated within a sync so events sharing a location don't trigger redundant updates.
 
 **Limitation:** Recurring event occurrences from the calendar listing don't include a numeric event ID and can't be enriched. These events will import with the venue name only. Master events with a numeric ID enrich normally.
+
+### Keeping Hand Edits on Synced Posts
+
+Changes you make by hand in WordPress to CCB-synced events and groups are replaced on the next sync unless you lock the post. On CP Sync 1.0.0 or later:
+
+1. Open the event or group in WordPress.
+2. In the **CP Sync** box, check **Prevent sync from updating this post**.
+3. Save the post.
+
+See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#hand-edits-on-ccb-synced-events-and-groups-are-overwritten).
 
 ## Advanced Settings
 
@@ -77,7 +94,8 @@ CCB uses an XML-based API which has some limitations:
 ## Troubleshooting CCB Integration
 
 - **Authentication Errors**: Check your API credentials and permissions
-- **Missing Data**: Verify that your CCB account has the necessary modules and permissions
+- **Missing Data**: Verify that your CCB account has the necessary modules and permissions; for groups, confirm **Public Search** and that the group is not Inactive
+- **Settings won't save on some hosts**: On servers without PHP's sodium extension, saving CCB settings can fail after upgrading to 1.0.0. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#ccb-settings-wont-save-on-some-hosts)
 - **Rate Limiting**: CCB limits API requests; adjust your sync frequency if needed
 - **XML Parsing Errors**: These can occur if the CCB API response format changes
 
@@ -86,4 +104,4 @@ CCB uses an XML-based API which has some limitations:
 - [CCB API Documentation](https://designccb.s3.amazonaws.com/helpdesk/files/official_api_specifications.pdf) (PDF)
 - Contact your CCB administrator for specific questions about your CCB implementation
 
-For more help, see the [Troubleshooting](../advanced/troubleshooting.md) guide.
+For more help, see the [Troubleshooting](https://docs.churchplugins.com/knowledge-base/advanced-troubleshooting-cp-sync/) guide.
