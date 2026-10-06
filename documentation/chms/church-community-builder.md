@@ -48,8 +48,8 @@ There is no field mapping to set up. CP Sync fills in each group automatically. 
 | Campus | The group's location in CP Locations, only when the CP Locations plugin is active. This is not the Meeting Location field. A plain-text campus is used. If campus is not plain text, the area name is used when that name is present. |
 | Group type | Group Type, when the group type is plain text |
 | Department | Group category, when the department is plain text |
-| Main leader name | Group Leader(s) name |
-| Main leader email | Group Leader(s) email |
+| Main leader name | Group Leader |
+| Main leader email | Group Leader Email |
 | Public signup form URL | Registration URL |
 | Group page on your CCB site | Group Details (the View Details link). The address is `https://{subdomain}.ccbchurch.com/group_detail.php?group_id=` plus the group id when a subdomain is saved, and blank when no subdomain is saved. |
 
