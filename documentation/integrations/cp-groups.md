@@ -1,88 +1,57 @@
 # CP Groups Integration
 
-CP-Sync integrates seamlessly with the CP Groups plugin, allowing you to import groups from your church management system directly into your WordPress site.
+CP-Sync imports groups from Planning Center or Church Community Builder into the CP Groups plugin.
 
 ## Prerequisites
 
 Before using the CP Groups integration:
 
-- CP Groups plugin must be installed and activated
-- CP-Sync plugin must be installed and activated
-- Your church management system (PCO or CCB) must be connected
+- CP Groups must be installed and activated
+- CP-Sync must be installed and activated
+- Your church management system must be connected
+- You need an account that can manage options (an Administrator)
 
-## How the Integration Works
+## Turn On Group Sync
 
-When enabled, CP-Sync will:
+1. Go to **Church Plugins → CP Sync**.
+2. On the **Connect** tab, connect Planning Center or Church Community Builder. See [API Connections](../configuration/api-connections.md).
+3. Under **Sync**, turn on **Sync Groups**.
+4. Click **Save all Settings**.
 
-1. Import groups from your ChMS
-2. Create or update corresponding CP Groups in WordPress
-3. Maintain synchronization between your ChMS and WordPress
-4. Map group attributes properly between systems
+If CP Groups is not active, **Sync Groups** is disabled and the help text reads **Requires the CP Groups plugin, which is not active on this site.**
 
-## Configuring the CP Groups Integration
+**Sync Groups** is on until you turn it off. The **Groups** tab appears after you are connected and the toggle is on.
 
-### Enable Integration
+## Planning Center
 
-1. Navigate to **Church Plugins → CP Sync**
-2. Select your ChMS tab (PCO or CCB)
-3. Go to the **Groups** tab
-4. Check the box to "Enable CP Groups Integration"
-5. Save your settings
+On the **Groups** tab:
 
-### Group Type Mapping
+- **Group Tags to Sync**: each selected tag group is added as a category and shown as a filter on the groups page.
+- **Visibility**: **Only Visible in Church Center** (the default) or **Show All**.
+- **Groups**: include or exclude groups. The line reads **Pull Groups where**, then **All** or **Any**, then **of the following match**. Add a rule with **Add Condition**.
+- **Generate Preview**: shows a sample of the groups that match.
+- **Pull Now**: imports now. The tab shows **Import started**.
 
-You can map group types from your ChMS to CP Groups taxonomies:
+## Church Community Builder
 
-1. Navigate to the **Groups** tab of your ChMS settings
-2. In the "Group Type Mapping" section, assign each ChMS group type to a CP Groups taxonomy term
-3. This ensures your groups are properly categorized in WordPress
+On the **Groups** tab, the heading reads **Select data to pull from Church Community Builder**.
 
-### Group Fields Mapping
+- **Groups**: the same **Pull Groups where** filter, **All** or **Any**, and **Add Condition**.
+- **Generate Preview** and **Pull Now** work the same way. **Pull Now** shows **Import started**.
 
-Map fields from your ChMS to CP Groups fields:
+CP Sync imports groups that are not inactive and that are listed in public search. Your filter runs after that.
 
-1. In the "Group Fields Mapping" section
-2. Configure how each field from your ChMS maps to CP Groups:
-   - Group Name → Group Title
-   - Description → Group Content
-   - Location → Group Location
-   - Schedule → Group Schedule
-   - Leaders → Group Leaders
+## What Is Copied
 
-### Advanced Configuration
+See [Data Mapping](../configuration/data-mapping.md#groups).
 
-For advanced users, additional settings are available:
+## Schedule
 
-- **Group Status**: Configure which status groups should have when imported (Published, Draft, etc.)
-- **Group Image**: Option to import group images as featured images
-- **Group Filtering**: Filter which groups are imported based on criteria
-- **Custom Taxonomies**: Map additional ChMS data to custom taxonomies in CP Groups
-
-## Manual Synchronization
-
-To manually synchronize groups:
-
-1. Navigate to **Church Plugins → CP Sync**
-2. Go to your ChMS tab and then the **Groups** tab
-3. Click the "Sync Groups Now" button
-4. Wait for the synchronization to complete
-
-## Scheduled Synchronization
-
-Configure automatic synchronization:
-
-1. Navigate to **Church Plugins → CP Sync → Advanced**
-2. In the "Sync Schedule" section, enable automatic synchronization
-3. Select the frequency (daily, weekly, etc.)
-4. Save your settings
+Set **Update Interval** on the **Advanced** tab (**Hourly**, **Daily**, or **Weekly**). See [Sync Scheduling](../advanced/sync-scheduling.md).
 
 ## Troubleshooting
 
-Common issues and solutions:
+- **Groups not importing**: Confirm CP Groups is active and **Sync Groups** is on. On Planning Center, check **Visibility** and clear the **Groups** filter. On Church Community Builder, the group must be active and listed in public search.
+- **A field is missing on the group**: Compare the group with [Data Mapping](../configuration/data-mapping.md#groups).
 
-- **Groups not importing**: Check your group type filters in the settings
-- **Missing information**: Review field mapping configuration
-- **Duplicate groups**: Make sure you have properly set up the unique identifier settings
-- **Leaders not showing**: Verify leader mapping configuration
-
-For more detailed troubleshooting, see the [Troubleshooting](../advanced/troubleshooting.md) guide.
+To keep hand edits on one imported group, see [Preventing Sync Updates](../configuration/preventing-sync-updates.md).

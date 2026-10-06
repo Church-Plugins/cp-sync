@@ -14,9 +14,8 @@ Data filters act as rules that determine whether a specific group, event, or oth
 ## Accessing Data Filters
 
 1. Navigate to **Church Plugins → CP Sync**
-2. Select your ChMS tab (PCO or CCB)
-3. Go to the relevant tab (Groups or Events)
-4. Scroll to the "Advanced Filters" section
+2. Open the **Groups**, **Events**, or **Sermons** tab
+3. Use the filter there (**Groups**, **Calendar Filters**, **Registration Filters**, **Events**, or **Sermons**)
 
 ## Creating Basic Filters
 
@@ -62,15 +61,6 @@ You can create multiple condition groups to build complex filters. For example:
 
 This would import all active small groups and active ministry teams.
 
-## Filter Testing
-
-Before applying filters to your actual imports, you can test them:
-
-1. Create your filters
-2. Click "Test Filters" at the bottom of the filter section
-3. The system will show you a preview of which items would be imported with these filters
-4. Adjust your filters as needed based on the results
-
 ## Common Filter Examples
 
 ### Groups Filters
@@ -94,6 +84,5 @@ If your filters aren't working as expected:
 - Check the logical operators (AND/OR) between conditions
 - Verify field names match exactly what's in your ChMS
 - Test with simpler filters first, then add complexity
-- Use the "Test Filters" function to debug
 
 For more complex filtering needs or issues, see the [Developer Guide](developer-guide.md) for information on creating custom filter functions.

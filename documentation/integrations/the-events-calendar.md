@@ -1,91 +1,68 @@
 # The Events Calendar Integration
 
-CP-Sync integrates with The Events Calendar plugin by Modern Tribe, allowing you to import events from your church management system directly into your WordPress calendar.
+CP-Sync imports events from Planning Center or Church Community Builder into The Events Calendar.
 
 ## Prerequisites
 
 Before using The Events Calendar integration:
 
-- The Events Calendar plugin must be installed and activated
-- CP-Sync plugin must be installed and activated
-- Your church management system (PCO or CCB) must be connected
+- The Events Calendar must be installed and activated
+- CP-Sync must be installed and activated
+- Your church management system must be connected
+- You need an account that can manage options (an Administrator)
 
-## How the Integration Works
+## Turn On Event Sync
 
-When enabled, CP-Sync will:
+1. Go to **Church Plugins → CP Sync**.
+2. On the **Connect** tab, connect Planning Center or Church Community Builder. See [API Connections](../configuration/api-connections.md).
+3. Under **Sync**, turn on **Sync Events**.
+4. Click **Save all Settings**.
 
-1. Import events from your ChMS
-2. Create or update corresponding events in The Events Calendar
-3. Maintain synchronization between your ChMS and WordPress calendar
-4. Map event attributes properly between systems
+If The Events Calendar is not active, **Sync Events** is disabled and the help text reads **Requires The Events Calendar plugin, which is not active on this site.**
 
-## Configuring The Events Calendar Integration
+**Sync Events** is on until you turn it off. The **Events** tab appears after you are connected and the toggle is on.
 
-### Enable Integration
+## Planning Center
 
-1. Navigate to **Church Plugins → CP Sync**
-2. Select your ChMS tab (PCO or CCB)
-3. Go to the **Events** tab
-4. Check the box to "Enable The Events Calendar Integration"
-5. Save your settings
+On the **Events** tab:
 
-### Calendar Mapping
+- **Event source**: **Pull from Calendar** (the default), **Pull from Registrations**, or **Calendar AND Registrations**.
+- **Show Register button on events**: on until you turn it off. Synced events that have a registration link get a **Register** button. When the signup is at capacity, the button reads **Sold Out**.
+- **Calendar Settings** (shown for **Pull from Calendar** and **Calendar AND Registrations**):
+  - **Tag groups**: selected tag groups become taxonomies on the event.
+  - **Visibility**: **Only Visible in Church Center** (the default) or **Show All**.
+  - **Calendar Filters**: **Pull Calendar Filters where**, then **All** or **Any**, and **Add Condition**.
+- **Registration Settings** (shown for **Pull from Registrations** and **Calendar AND Registrations**):
+  - **Registration Filters**: **Pull Registration Filters where**, then **All** or **Any**, and **Add Condition**.
+- **Generate Preview** and **Pull Now**. **Pull Now** shows **Import started**.
 
-You can choose which calendars from your ChMS to import:
+When **Event source** is **Calendar AND Registrations**, the tab shows **Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.**
 
-1. Navigate to the **Events** tab of your ChMS settings
-2. In the "Calendars to Import" section, select the calendars you want to import
-3. This ensures only relevant events are imported into your WordPress site
+Calendar sync imports future event instances. **Visibility** is separate from **Calendar Filters**. An empty **Calendar Filters** builder does not turn **Visibility** off.
 
-### Event Fields Mapping
+## Church Community Builder
 
-Map fields from your ChMS to The Events Calendar fields:
+On the **Events** tab, the heading reads **Select data to pull from Church Community Builder**.
 
-1. In the "Event Fields Mapping" section
-2. Configure how each field from your ChMS maps to The Events Calendar:
-   - Event Title → Event Title
-   - Description → Event Content
-   - Start Date/Time → Event Start
-   - End Date/Time → Event End
-   - Location → Event Venue
-   - Categories → Event Categories
+- **Date Range**: **Current and upcoming events (Recommended)** (the default; today through one year ahead), **Include past 30 days** (30 days ago through one year ahead), **All future events** (today through 10 years ahead), or **Custom date range**. **Custom date range** shows **Start Date** and **End Date**.
+- **Show Register button on events**: on until you turn it off.
+- **Events**, under **Event Filters**: **Pull Events where**, then **All** or **Any**, and **Add Condition**.
+- **Generate Preview** and **Pull Now**. **Pull Now** shows **Import started**.
 
-For CCB, venue records are populated with the full address (street, city, state, zip) and event images via a follow-up call to the event profile after import. See the [CCB Event Enrichment](../chms/church-community-builder.md#event-enrichment) section for details and limitations.
+Each occurrence is imported as its own event. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
 
-### Advanced Configuration
+## What Is Copied
 
-For advanced users, additional settings are available:
+See [Data Mapping](../configuration/data-mapping.md#events).
 
-- **Event Status**: Configure which status events should have when imported (Published, Draft, etc.)
-- **Event Image**: Option to import event images as featured images
-- **Event Filtering**: Filter which events are imported based on date range or other criteria
-- **Recurring Events**: Configure how recurring events are handled
+## Schedule
 
-## Manual Synchronization
-
-To manually synchronize events:
-
-1. Navigate to **Church Plugins → CP Sync**
-2. Go to your ChMS tab and then the **Events** tab
-3. Click the "Sync Events Now" button
-4. Wait for the synchronization to complete
-
-## Scheduled Synchronization
-
-Configure automatic synchronization:
-
-1. Navigate to **Church Plugins → CP Sync → Advanced**
-2. In the "Sync Schedule" section, enable automatic synchronization
-3. Select the frequency (daily, weekly, etc.)
-4. Save your settings
+Set **Update Interval** on the **Advanced** tab (**Hourly**, **Daily**, or **Weekly**). See [Sync Scheduling](../advanced/sync-scheduling.md).
 
 ## Troubleshooting
 
-Common issues and solutions:
+- **Events not importing**: Confirm The Events Calendar is active and **Sync Events** is on. On Planning Center, check **Event source**, **Visibility**, and the filter for that source. On Church Community Builder, widen **Date Range**.
+- **A field is missing on the event**: Compare the event with [Data Mapping](../configuration/data-mapping.md#events).
+- **CCB events have no venue or image**: CP Sync adds the venue and image only for events with a numeric CCB id. On the **Log** tab, set **Enable Debug Mode** to **Enable** and look for `Skipping enrichment` or `Failed to fetch event_profile`.
 
-- **Events not importing**: Check your calendar selection and date range filters
-- **Missing information**: Review field mapping configuration
-- **Duplicate events**: Make sure you have properly set up the unique identifier settings
-- **Location issues**: Verify venue mapping configuration
-
-For more detailed troubleshooting, see the [Troubleshooting](../advanced/troubleshooting.md) guide.
+To keep hand edits on one imported event, see [Preventing Sync Updates](../configuration/preventing-sync-updates.md).

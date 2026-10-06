@@ -1,81 +1,109 @@
 # Data Mapping
 
-Data mapping allows you to control how information from your church management system is imported into WordPress. CP Sync provides mapping options to ensure your data appears correctly on your website.
+CP Sync copies fields from your church management system into WordPress on a fixed map. What you can change is which records are included, on the **Groups**, **Events**, and **Sermons** tabs.
 
-## Understanding Data Mapping
+## Groups
 
-Data mapping creates relationships between fields in your ChMS and fields in WordPress. For example:
+Groups are created as CP Groups. Turn on **Sync Groups** on the **Connect** tab, with CP Groups active. See [CP Groups](../integrations/cp-groups.md).
 
-- A PCO group name maps to a WordPress post title
-- A CCB event description maps to a WordPress post content
-- Schedule information maps to meeting time meta data
+### Planning Center
 
-## Default Mappings
+| Planning Center | CP Groups |
+|-----------------|-----------|
+| Name | Title |
+| Description | Content |
+| Header image | Featured image |
+| Schedule | **Meeting Time Desc** |
+| Location address | **Meeting Location** |
+| Group type | Type (default label **Type**) |
+| Tag groups selected under **Group Tags to Sync** | Extra filters on the groups page |
+| Church Center web address | **Group Details** |
 
-CP Sync includes sensible default mappings for common data types:
+A closed enrollment is stored as **Group is Full**.
 
-### Groups Mapping
+### Church Community Builder
 
-| ChMS Field | WordPress Field |
-|------------|------------------|
-| Name | Post Title |
-| Description | Post Content |
-| Image | Featured Image |
-| Leader(s) | Group Leader(s) |
-| Schedule | Meeting Time |
-| Location | Meeting Location |
-| Type/Category | Group Type Taxonomy |
+CP Sync imports groups that are not inactive and that are listed in public search.
 
-### Events Mapping
+| Church Community Builder | CP Groups |
+|--------------------------|-----------|
+| Name | Title |
+| Description | Content |
+| Image | Featured image |
+| Main leader name | **Group Leader** |
+| Main leader email | **Group Leader Email** |
+| Meeting day and time | **Meeting Time Desc** |
+| Group type | Type (default label **Type**) |
+| Department | Category (default label **Category**) |
+| Childcare provided | **Kid Friendly** |
+| Group is full | **Group is Full** |
+| Public signup form URL | **Registration Action** |
+| Group page on CCB | **Group Details** |
 
-| ChMS Field | WordPress Field |
-|------------|------------------|
-| Title | Event Title |
-| Description | Event Content (event page body) |
-| Summary (Planning Center) | Short text / excerpt used in some calendar listings |
-| Start Date/Time | Event Start |
-| End Date/Time | Event End |
-| Location | Event Venue |
-| Image | Featured Image |
-| Category | Event Category |
+When CP Locations is active, campus or area is assigned as the group's location term. Without CP Locations it is not stored.
 
-For Planning Center calendar events, **Summary** and **Description** map differently. See [Planning Center Online Integration](../chms/planning-center.md#how-event-text-maps-from-planning-center) and [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-how-event-text-maps).
+## Events
 
-## Field Mapping Configuration
+Events are created in The Events Calendar. Turn on **Sync Events** on the **Connect** tab, with The Events Calendar active. See [The Events Calendar](../integrations/the-events-calendar.md).
 
-Each ChMS integration includes specific field mapping options:
+### Planning Center Calendar
 
-1. Navigate to **Church Plugins → CP Sync**
-2. Select your ChMS tab (PCO or CCB)
-3. Go to the related tab (Groups, Events, etc.)
-4. Configure the available mapping options
-5. Save your settings
+On the **Events** tab, set **Event source** to **Pull from Calendar** or **Calendar AND Registrations**.
 
-## Data Filters
+| Planning Center | The Events Calendar |
+|-----------------|---------------------|
+| Name | Event title |
+| Description | Event page body |
+| Summary | Excerpt, used by listings that show a summary |
+| Start and end | Event start and end |
+| Location | Venue |
+| Image | Featured image |
+| Tag groups selected under **Tag groups** | Taxonomies on the event |
 
-Data filters allow you to control which records are imported based on criteria:
+**Summary** and **Description** are described in [Planning Center Online](../chms/planning-center.md#how-event-text-maps-from-planning-center) and [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-how-event-text-maps).
 
-1. Navigate to **Church Plugins → CP Sync → Advanced**
-2. Configure filters based on:
-   - Field values (e.g., only active groups)
-   - Date ranges (e.g., future events only)
-   - Custom conditions
+Calendar sync imports future event instances.
 
-For Planning Center Calendar events, Church Center **Visibility** under **Calendar Settings** is separate from the Calendar Filters builder. An empty Calendar Filters builder does not turn Visibility off.
+### Planning Center Registrations
 
-## Ministry Platform Custom Mapping
+Set **Event source** to **Pull from Registrations** or **Calendar AND Registrations**.
 
-For Ministry Platform integration only:
+| Planning Center | The Events Calendar |
+|-----------------|---------------------|
+| Name | Event title |
+| Description | Event page body |
+| Signup start and end | Event start and end |
+| Signup location | Venue |
+| Logo | Featured image |
+| Categories | Event categories |
 
-1. Navigate to **Church Plugins → CP Sync → MP → Configure**
-2. Under the Custom Field Mapping section, you can map MP fields to standard WordPress fields
-3. Field mappings are specific to the Ministry Platform integration
+When **Event source** is **Calendar AND Registrations**, the **Events** tab shows **Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.**
 
-## Regenerating Mappings
+### Church Community Builder
 
-If you need to reset mappings to defaults:
+| Church Community Builder | The Events Calendar |
+|--------------------------|---------------------|
+| Name | Event title |
+| Description | Event page body |
+| Start and end | Event start and end |
+| Image | Featured image |
 
-1. Go to **Church Plugins → CP Sync → Advanced**
-2. Click **Reset Mappings**
-3. Select which mappings to reset (Groups, Events, or All)
-4. Confirm the reset
+Each occurrence is imported as its own event. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
+
+## Sermons
+
+Planning Center Publishing episodes that are published to the Church Center library are created as CP Sermons. See [CP Sermons](../integrations/cp-library.md).
+
+## Filters
+
+Open the feed tab and use its filter:
+
+- Planning Center **Groups**: **Groups**, plus **Visibility** (**Only Visible in Church Center** or **Show All**)
+- Planning Center **Events**: **Calendar Filters** and **Visibility** under **Calendar Settings**, and **Registration Filters** under **Registration Settings**
+- Planning Center **Sermons**: **Sermons**
+- Church Community Builder **Groups**: **Groups**
+- Church Community Builder **Events**: **Date Range**, then **Events** under **Event Filters**
+
+The filter line reads **Pull Groups where**, **Pull Events where**, **Pull Sermons where**, **Pull Calendar Filters where**, or **Pull Registration Filters where**, then **All** or **Any**, then **of the following match**. Add a rule with **Add Condition**.
+
+For Planning Center Calendar events, **Visibility** under **Calendar Settings** is separate from the **Calendar Filters** builder. An empty **Calendar Filters** builder does not turn **Visibility** off.

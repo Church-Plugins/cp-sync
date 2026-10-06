@@ -27,9 +27,11 @@ Reload the CP Sync page to see which account is connected. The notice then reads
 
 To disconnect, click **Disconnect**, then click **Connect** to sign in again. If the **Connect** button does not come back, reload the page and click **Disconnect** again. To disconnect Planning Center while another system is selected, switch **Church Management System** back to **Planning Center Online** first, then click **Disconnect**.
 
-Changing **Church Management System** while you are connected leaves the Planning Center connection in place. CP Sync only syncs from the system currently selected. The tab says **Switching platforms does not disconnect Planning Center Online — its connection and settings are preserved.**
+Changing **Church Management System** while you are connected leaves the Planning Center connection in place. CP Sync syncs from the system selected in **Church Management System**. The tab says **Switching platforms does not disconnect Planning Center Online — its connection and settings are preserved.**
 
 After you are connected, the same tab shows a **Sync** section (**Sync Groups**, **Sync Events**, and **Sync Sermons**). Click **Save all Settings** after you change those toggles.
+
+**Sync Groups** is disabled until CP Groups is active. The help text then reads **Requires the CP Groups plugin, which is not active on this site.** **Sync Events** is disabled until The Events Calendar is active, with the same kind of help text. **Sync Sermons** is disabled until CP Sermons is active. **Sync Groups** and **Sync Events** are on until you turn them off. **Sync Sermons** is off until you turn it on. The **Groups**, **Events**, and **Sermons** tabs appear after you are connected, the matching toggle is on, and that plugin is active.
 
 ## Church Community Builder (CCB) Connection
 
@@ -37,23 +39,31 @@ After you are connected, the same tab shows a **Sync** section (**Sync Groups**,
 
 Before connecting to Church Community Builder:
 
-- Ensure you have an active CCB account with API access
-- Obtain your API Username and API Password from CCB
-- Your CCB admin may need to grant you API access
+- Have an active CCB account with API access
+- Have an API username and API password from CCB
+- Have administrator access to your WordPress site
 
 ### Connection Steps
 
-1. Navigate to **Church Plugins → CP Sync** in your WordPress admin dashboard
-2. Click on the **CCB** tab
-3. In the **Connect** sub-tab, enter the following information:
-   - CCB Church Subdomain (the part before `.ccbchurch.com`)
-   - API Username
-   - API Password
-4. Click "Save API Settings"
-5. Click "Test Connection" to verify your credentials
-6. If successful, you'll see a success message
+1. In your WordPress admin, go to **Church Plugins → CP Sync**.
+2. Open the **Connect** tab.
+3. Set **Church Management System** to **Church Community Builder**.
+4. Under **Connect to Church Community Builder**, enter **Subdomain** (the part before `.ccbchurch.com`), **API Username**, and **API Password**.
+5. Click **Connect to CCB**.
+
+**Connect to CCB** saves the fields and checks them. When the check succeeds, that button changes to **Disconnect** and the three fields lock. If the check fails, the tab shows **Connection failed** or the message returned by CCB.
 
 > **Note (CP Sync 1.0.0):** On some hosts without PHP's sodium extension, saving CCB settings can fail after upgrading. Credentials saved before upgrading may keep syncing. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#ccb-settings-wont-save-on-some-hosts).
+
+**Connect to CCB** stays disabled until **Subdomain**, **API Username**, and **API Password** all have a value. A subdomain with anything other than letters, numbers, and hyphens shows **Invalid subdomain. Subdomains may contain only letters, numbers, and hyphens.**
+
+To disconnect, click **Disconnect**.
+
+Changing **Church Management System** while you are connected leaves the Church Community Builder connection in place. CP Sync syncs from the system selected in **Church Management System**. The tab says **Switching platforms does not disconnect Church Community Builder — its connection and settings are preserved.**
+
+After you are connected, the same tab shows a **Sync** section (**Sync Groups** and **Sync Events**). Click **Save all Settings** after you change those toggles.
+
+**Sync Groups** is disabled until CP Groups is active. **Sync Events** is disabled until The Events Calendar is active. Both toggles are on until you turn them off. The **Groups** and **Events** tabs appear after you are connected, the matching toggle is on, and that plugin is active.
 
 ## Testing Connections
 
@@ -63,12 +73,7 @@ There is no separate test button. After you authorize, the **Connect** tab shows
 
 ### Church Community Builder
 
-After setting up your connection, it's important to test it:
-
-1. Navigate to your ChMS tab (CCB)
-2. Find the "Test Connection" button
-3. Click to test the connection
-4. The system will attempt to retrieve data and report success or failure
+**Connect to CCB** checks the credentials. A working connection replaces that button with **Disconnect**.
 
 ## Troubleshooting Connection Issues
 
@@ -82,10 +87,9 @@ If you encounter connection problems:
 
 ### Church Community Builder
 
-- Double-check your API username and password
-- Ensure your CCB subdomain is correct
-- Verify with your CCB administrator that API access is enabled for your account
-- Check that the API services you need are enabled in CCB
+- Check **API Username**, **API Password**, and **Subdomain**
+- Enter only the subdomain, such as `churchname`, not `churchname.ccbchurch.com`
+- Ask your CCB administrator to confirm the API user can sign in
 
 ## Security Considerations
 

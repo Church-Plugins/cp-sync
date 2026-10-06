@@ -1,67 +1,46 @@
 # General Settings
 
-The General Settings section of CP Sync allows you to configure basic plugin options and global behaviors. This page explains how to access and configure these settings.
+License, logging, and the sync schedule live under **Church Plugins → CP Sync** (`admin.php?page=cps_settings`). You need an account that can manage options (an Administrator).
 
-## Accessing General Settings
-
-1. Log in to your WordPress admin dashboard
-2. Navigate to **Church Plugins → CP Sync** (`admin.php?page=cps_settings`)
-3. Click on the **General** tab (this is typically the default tab)
+The screen opens on the **Connect** tab. The other tabs on every visit are **Log**, **License**, and **Advanced**. After you connect a church management system, **Groups**, **Events**, and (Planning Center only) **Sermons** appear when that sync is turned on. See [API Connections](api-connections.md).
 
 > **Note (CP Sync 1.0.0):** Settings moved under **Church Plugins > CP Sync**. The old **Settings → CP Sync** link no longer works. For a full list of 1.0.0 changes and known issues, see [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md).
 
-## Available Settings
+## License
 
-### Plugin Activation
+Open the **License** tab.
 
-- **License Key**: Enter your license key to activate the plugin and receive updates
-- **License Status**: View the current status of your license (Active, Inactive, or Expired)
+- **License Key**: paste your key.
+- **Activate**: checks the key. After it succeeds, the key field locks and the button reads **Deactivate**.
+- **Enable beta updates**: receive beta releases. Off until you turn it on.
 
-### Sync Settings
+**Activate** and **Deactivate** save on their own. Click **Save all Settings** after you change **Enable beta updates**.
 
-- **Auto Sync**: Enable or disable automatic synchronization
-- **Sync Frequency**: Choose how often the sync should run (Hourly, Twice Daily, Daily, Weekly)
-- **Sync Time**: For daily and weekly syncs, choose what time the sync should run
-- **Sync Day**: For weekly syncs, choose what day the sync should run
+## Log
+
+Open the **Log** tab.
+
+- **Enable Debug Mode**: **Enable** or **Disable**. **Disable** is the default.
+- **Log File Content**: the sync log. CP Sync writes to it only while **Enable Debug Mode** is set to **Enable**.
+- **Clear Log File**: empties the log.
+
+Click **Save all Settings** after you change **Enable Debug Mode**.
+
+## Sync Schedule
+
+Open the **Advanced** tab.
+
+- **Update Interval**: **Hourly** (the default), **Daily**, or **Weekly**.
+- **Pull now**: starts a sync of every feed that is turned on. The tab shows **Hard pull started successfully**.
+- **Delete all data on uninstall**: off until you turn it on. See [Reset Tool](../advanced/reset-tool.md).
+- **Danger Zone**: reset install data. See [Reset Tool](../advanced/reset-tool.md).
+
+Click **Save all Settings** after you change **Update Interval** or **Delete all data on uninstall**.
 
 If you changed the sync interval before upgrading to 1.0.0 and the new interval does not take effect, set it to a different interval once, save, then set it back and save again. Interval changes you make on 1.0.0 work normally. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#sync-interval-doesnt-take-effect-after-upgrading).
 
-### Logging
+While a sync is running, the top of the page shows **A sync is currently in progress** and **Cancel Sync**.
 
-- **Enable Logs**: Turn logging on or off
-- **Log Level**: Select the level of detail for logs (Error, Warning, Info, Debug)
-- **Log Retention**: Choose how long to keep logs before they are automatically deleted
+## Saving
 
-### Error Notifications
-
-- **Admin Email**: The email address that will receive error notifications
-- **Notification Frequency**: How often to send notification emails (Immediately, Daily Summary, Weekly Summary)
-- **Error Threshold**: The minimum error level that triggers a notification
-
-## Applying Settings
-
-After adjusting your settings:
-
-1. Click the **Save Changes** button at the bottom of the page
-2. The page will refresh and display a success message if your settings were saved correctly
-
-## Testing Your Configuration
-
-After saving your settings, you can test your configuration by:
-
-1. Navigating to the **Advanced** tab
-2. Scrolling to the **Testing Tools** section
-3. Clicking the **Test Configuration** button
-
-This will verify that your settings are properly configured and that the plugin can function with the current settings.
-
-## Troubleshooting
-
-If you encounter issues with your general settings:
-
-- Check your license key for accuracy
-- Ensure your server can send emails if you've enabled error notifications
-- Verify that your WordPress cron system is functioning properly for auto-sync features
-- Check the logs (if enabled) for any error messages
-
-For more detailed troubleshooting, see the [Troubleshooting](https://docs.churchplugins.com/knowledge-base/advanced-troubleshooting-cp-sync/) section.
+**Save all Settings** sits at the bottom of every tab. It stays disabled until you change something, and the label changes to **Saving...** while the save runs. A failed save shows an error under the tabs. A successful save leaves you on the same page.

@@ -11,18 +11,18 @@ There are five levels, ordered least to most destructive. Each level includes th
 | `queue` | Background-process batches, status flags, process locks, and health-check crons | Unstick a stalled or stuck sync |
 | `state` | Everything in `queue`, plus the sync-state options | Make the next pull re-import everything (existing posts update in place — no duplicates) |
 | `content` | All imported posts, terms, and taxonomies, plus sideloaded images and the image cache directory | Remove imported content but keep your connection and settings |
-| `connection` | ChMS credentials/tokens, the connection-test message, and the active ChMS selection | Disconnect and start the connection over |
+| `connection` | The saved Planning Center and Church Community Builder settings (credentials and the other fields stored for each system), the connection-test message, and the active Church Management System selection | Disconnect and start the connection over |
 | `all` | State + content + connection, plus the plugin settings, debug log, and every scheduled event | Full wipe — the uninstall-equivalent reset |
 
 ## Using the Danger Zone (Admin UI)
 
-1. Navigate to the CP Sync settings page (under the **Church Plugins** admin menu)
-2. Open the **Advanced** tab and find the **Danger Zone** panel
-3. Select a reset level — each level shows a description of exactly what it removes
-4. For the destructive levels (`content`, `connection`, `all`) you must **retype the level keyword** to unlock the reset button
-5. Click the reset button and confirm
+1. Go to **Church Plugins → CP Sync** (you need an account that can manage options).
+2. Open the **Advanced** tab and find **Danger Zone**.
+3. Under **Reset level**, choose **Queue**, **Sync state**, **Content**, **Connection**, or **Everything**. Each choice shows a short description under its name.
+4. For **Content**, **Connection**, and **Everything**, type `content`, `connection`, or `all` in the box. The label reads **Type "content" to confirm this destructive reset** (or `connection` or `all`). The button stays disabled until the word matches.
+5. Click **Reset: Queue**, **Reset: Sync state**, **Reset: Content**, **Reset: Connection**, or **Reset: Everything**. **Queue** and **Sync state** ask you to confirm in a browser dialog first.
 
-After the reset completes, a summary of what was removed is displayed.
+When the reset finishes, the tab shows **Reset complete.** and a summary of what was removed. **Connection** and **Everything** show **Reset complete. Reloading…** and then reload the page.
 
 ## Using WP-CLI
 
@@ -43,7 +43,7 @@ If `--level` is omitted, it defaults to `state`.
 
 ## REST API
 
-The Danger Zone UI posts to `POST /cp-sync/v1/reset`. The endpoint requires the `manage_options` capability, and destructive levels require a matching confirmation value alongside the level.
+The Danger Zone UI posts to `POST /cp-sync/v1/reset`. The endpoint requires the `manage_options` capability, and every level requires a `confirm` value that matches the level.
 
 ## Reset vs. Uninstall
 

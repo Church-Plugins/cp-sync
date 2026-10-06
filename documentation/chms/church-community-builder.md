@@ -13,22 +13,19 @@ CP Sync provides integration with Church Community Builder (CCB), allowing you t
 
 ### Connect to Church Community Builder
 
-1. Navigate to **Church Plugins → CP Sync** in your WordPress admin dashboard
-2. Select the **CCB** tab
-3. Enter your CCB subdomain (the part before `.ccbchurch.com`)
-4. Enter your API Username and API Password
-5. Click "Save API Settings"
-6. Click "Test Connection" to verify your credentials work
+1. In your WordPress admin, go to **Church Plugins → CP Sync**.
+2. Open the **Connect** tab.
+3. Set **Church Management System** to **Church Community Builder**.
+4. Under **Connect to Church Community Builder**, enter **Subdomain** (the part before `.ccbchurch.com`), **API Username**, and **API Password**.
+5. Click **Connect to CCB**. It saves the fields and checks them. When the check succeeds, the button changes to **Disconnect** and the fields lock. If it fails, the tab shows **Connection failed** or the error message.
 
 ## Configuring Data Synchronization
 
 ### Groups Synchronization
 
 1. Go to the **Groups** tab in the CCB settings
-2. Configure which group types to import
-3. Set up field mapping as needed
-4. Configure group taxonomy assignments
-5. Save your settings
+2. Set the **Groups** filter
+3. Click **Save all Settings**
 
 #### Which Groups Sync
 
@@ -37,9 +34,8 @@ Only groups that are not marked Inactive and have **Public Search** checked in C
 ### Events Synchronization
 
 1. Go to the **Events** tab in the CCB settings
-2. Configure event field mapping as needed
-3. Choose how far ahead events sync with **Date Range** (see below)
-4. Save your settings
+2. Choose how far ahead events sync with **Date Range** (see below)
+3. Click **Save all Settings**
 
 #### How Far Ahead Events Sync
 
