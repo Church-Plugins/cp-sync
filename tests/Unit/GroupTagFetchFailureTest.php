@@ -42,11 +42,16 @@ class TaxonomyGuardIntegration extends Integration {
 
 	public $id = 'cp_groups';
 
+	public $label = 'Groups';
+
 	/** @var array */
 	public $removed_taxonomies = [];
 
 	/** @var array */
 	public $removed_terms = [];
+
+	/** @var array */
+	public $queued = [];
 
 	/** @var bool */
 	public $store_updated = false;
@@ -54,13 +59,26 @@ class TaxonomyGuardIntegration extends Integration {
 	public function get_store( $group = null ) {
 		if ( 'taxonomies' === $group ) {
 			return [
-				'cps_campus' => [ 'chms_id' => 'cps_campus' ],
+				'cps_campus'    => [ 'chms_id' => 'cps_campus' ],
+				'cp_group_type' => [ 'chms_id' => 'cp_group_type' ],
 			];
 		}
 
 		if ( 'cps_campus' === $group ) {
 			return [
 				'55' => [ 'name' => 'North' ],
+			];
+		}
+
+		if ( 'cp_group_type' === $group ) {
+			return [
+				'3' => [ 'name' => 'Small Group' ],
+			];
+		}
+
+		if ( null === $group ) {
+			return [
+				'10' => 'hash',
 			];
 		}
 
@@ -71,6 +89,11 @@ class TaxonomyGuardIntegration extends Integration {
 		$this->store_updated = true;
 	}
 
+	public function push_to_queue( $data ) {
+		$this->queued[] = $data;
+		return $this;
+	}
+
 	public function remove_term( $chms_id ) {
 		$this->removed_terms[] = $chms_id;
 	}
@@ -78,6 +101,8 @@ class TaxonomyGuardIntegration extends Integration {
 	protected function remove_taxonomy( $taxonomy ) {
 		$this->removed_taxonomies[] = $taxonomy;
 	}
+
+	protected function create_taxonomy( $taxonomy ) {}
 
 	public function update_item( $item ) {}
 
@@ -107,6 +132,15 @@ class GroupTagFetchFailureTest extends TestCase {
 				}
 
 				return array_column( $list, $field );
+			}
+		);
+		// A groups-list failure that is not aborted still builds the Group Type
+		// labels. Without this, that path dies here instead of reaching the
+		// taxonomy assertions.
+		Functions\when( '__' )->returnArg( 1 );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $tag, $value ) {
+				return $value;
 			}
 		);
 
@@ -142,6 +176,63 @@ class GroupTagFetchFailureTest extends TestCase {
 				'server exploded',
 			],
 		];
+	}
+
+	/**
+	 * @return array
+	 */
+	public function groupsListFailures() {
+		return [
+			'timeout' => [ 'Connection refused', 'Connection refused' ],
+			'false'   => [ null, 'groups request failed with no error detail' ],
+			'client error' => [
+				[
+					'errors' => [
+						[
+							'status' => '404',
+							'detail' => 'not found',
+						],
+					],
+				],
+				'not found',
+			],
+		];
+	}
+
+	/**
+	 * Tag groups still succeed. The groups-list failure has to abort by itself,
+	 * or the sync builds an empty Group Type list and prunes stored terms.
+	 *
+	 * @dataProvider groupsListFailures
+	 * @param mixed  $error    Value errorMessage() returns after the groups get().
+	 * @param string $expected Fragment that must survive on the ChMSError.
+	 */
+	public function test_groups_list_failure_keeps_existing_taxonomies( $error, $expected ) {
+		$pco = $this->pco(
+			[
+				[ 'response' => false, 'error' => $error ],
+				[ 'response' => [ 'data' => [] ], 'error' => null ],
+			]
+		);
+		$pco->add_support(
+			'groups',
+			[
+				'fetch_callback'  => [ $pco, 'fetch_groups' ],
+				'format_callback' => [ $pco, 'format_group' ],
+			]
+		);
+
+		$result      = $pco->get_formatted_data( null, 'groups' );
+		$integration = ( new ReflectionClass( TaxonomyGuardIntegration::class ) )->newInstanceWithoutConstructor();
+		$integration->process_formatted_data( $result );
+
+		$this->assertSame( [], $integration->removed_terms );
+		$this->assertSame( [], $integration->removed_taxonomies );
+		$this->assertSame( [], $integration->queued );
+		$this->assertFalse( $integration->store_updated );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'pco_fetch_error', $result->get_error_code() );
+		$this->assertStringContainsString( $expected, $result->get_error_message() );
 	}
 
 	/**

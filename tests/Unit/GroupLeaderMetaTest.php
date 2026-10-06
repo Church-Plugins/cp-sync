@@ -88,9 +88,29 @@ class GroupLeaderMetaTest extends TestCase {
 		$this->assertSame(
 			[
 				'start_date' => '2024-06-01',
-				'leaders'    => [
+				'leaders'    => [],
+			],
+			$meta
+		);
+	}
+
+	public function test_version_1_2_stores_an_empty_list_when_a_leader_has_neither_name_nor_email() {
+		$meta = CP_Groups::prepare_leader_meta(
+			[
+				'leader'       => '',
+				'leader_email' => '',
+				'leaders'      => [
 					[ 'name' => '', 'email' => '' ],
 				],
+				'start_date'   => '2024-06-01',
+			],
+			'1.2.0'
+		);
+
+		$this->assertSame(
+			[
+				'leaders'    => [],
+				'start_date' => '2024-06-01',
 			],
 			$meta
 		);

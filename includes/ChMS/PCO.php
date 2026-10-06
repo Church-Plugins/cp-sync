@@ -724,6 +724,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		$raw = $api->get();
 
+		// A timeout or HTTP error returns false. An empty item list would still
+		// build taxonomies, and those get pruned before the zero-item guard.
+		$groups_error = $this->groups_fetch_error( $raw, 'groups' );
+		if ( null !== $groups_error ) {
+			return $groups_error;
+		}
+
 		// Collapse and normalize the response
 		$items = [];
 

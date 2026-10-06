@@ -80,7 +80,9 @@ class CP_Groups extends Integration {
 	 * are left as the ChMS formatter set them. From 1.2 the plugin stores a
 	 * `leaders` list of name/email rows. An existing list is kept ( so every
 	 * Planning Center leader survives ); a single leader/leader_email pair is
-	 * folded into one row, matching the previous behavior for CCB.
+	 * folded into one row, matching the previous behavior for CCB. A pair with
+	 * neither a name nor an email becomes an empty list, matching CP Groups'
+	 * 1.2 migrator, which skips that group instead of writing a blank row.
 	 *
 	 * @param array  $meta_input     Group meta destined for wp_insert_post().
 	 * @param string $plugin_version CP_GROUPS_PLUGIN_VERSION.
@@ -102,12 +104,20 @@ class CP_Groups extends Integration {
 				return $meta_input;
 			}
 
-			$meta_input['leaders'] = [
-				[
-					'name'  => $meta_input['leader'] ?? '',
-					'email' => $meta_input['leader_email'] ?? '',
-				],
-			];
+			$name  = $meta_input['leader'] ?? '';
+			$email = $meta_input['leader_email'] ?? '';
+
+			// CP Groups 1.2 Migrator skips a leader that has neither value.
+			if ( ! $name && ! $email ) {
+				$meta_input['leaders'] = [];
+			} else {
+				$meta_input['leaders'] = [
+					[
+						'name'  => $name,
+						'email' => $email,
+					],
+				];
+			}
 		}
 
 		unset( $meta_input['leader'] );
