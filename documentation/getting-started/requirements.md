@@ -23,7 +23,7 @@ Your database should use the `utf8mb4` character set. This is the WordPress defa
 
 Church management systems routinely contain characters these older character sets cannot represent: bullets (`•`), curly quotes (`’`), and emoji are all common in group and event titles. When the database cannot store a character, MySQL replaces it with `?`, so content imports with substitutions like `Summer Series ? Week 1`.
 
-To check your character set, go to **Tools → Site Health → Info → Database** and look at **Database charset**. CP Sync records it in **Log File Content** on the **Log** tab, and only while **Enable Debug Mode** is set to **Enable**:
+To check your character set, look in **Log File Content** on the **Log** tab after a sync. CP Sync records it there only while **Enable Debug Mode** is set to **Enable**. Don't rely on **Database charset** under **Tools → Site Health → Info → Database**: it shows the connection setting, not the character set of your tables, so it can read `utf8mb4` on a site whose tables are still `latin1`.
 
 ```
 Queue column wp_options.option_value charset: utf8mb4
@@ -38,7 +38,6 @@ If this reports anything other than `utf8mb4`, ask your host to convert the data
 - An active Planning Center Online account
 - API access enabled for your account
 - Permissions to access PCO Groups and/or Calendar modules
-- (Optional) Admin access to create an application in the PCO Developer portal
 
 ### Church Community Builder (CCB)
 
