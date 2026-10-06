@@ -29,14 +29,6 @@ When enabled, CP-Sync will:
 4. Check the box to "Enable CP Groups Integration"
 5. Save your settings
 
-### Group Type Mapping
-
-You can map group types from your ChMS to CP Groups taxonomies:
-
-1. Navigate to the **Groups** tab of your ChMS settings
-2. In the "Group Type Mapping" section, assign each ChMS group type to a CP Groups taxonomy term
-3. This ensures your groups are properly categorized in WordPress
-
 ### What Is Copied
 
 CP Sync copies a fixed set of fields. There is no field-mapping setting.

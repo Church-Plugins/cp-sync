@@ -20,7 +20,7 @@ You can configure the sync frequency (hourly, twice daily, daily, or weekly) in 
 CP-Sync requires WordPress 6.0 or higher, PHP 7.4 or higher, and MySQL 5.6 or higher. You also need an active account with one of the supported church management systems.
 
 ### How do I install CP-Sync?
-You can install CP-Sync through the WordPress plugin directory or by uploading the plugin ZIP file through your WordPress admin dashboard. Detailed instructions are in the [Installation Guide](../getting-started/installation.md).
+Install CP-Sync by uploading the plugin ZIP file through your WordPress admin dashboard. Detailed instructions are in the [Installation Guide](../getting-started/installation.md).
 
 ### Why can't I connect to my ChMS?
 Connection issues usually stem from incorrect API credentials or permission issues. Make sure you've entered the correct information and that your ChMS account has API access. See the [Troubleshooting Guide](../advanced/troubleshooting.md) for more help.
@@ -56,13 +56,13 @@ While CP-Sync is specifically designed to work with The Events Calendar and CP G
 ## Troubleshooting
 
 ### What should I do if the sync process fails?
-Check the logs in CP-Sync settings to identify the issue. Common problems include API rate limiting, connection issues, or PHP timeout errors. The [Troubleshooting Guide](../advanced/troubleshooting.md) provides solutions for these issues.
+Check the logs in CP-Sync settings to identify the issue. Common problems include connection issues or PHP timeout errors. The [Troubleshooting Guide](../advanced/troubleshooting.md) provides solutions for these issues.
 
 ### How can I optimize CP-Sync for a large number of groups/events?
 Schedule syncs during low-traffic periods. For detailed optimization strategies, see the [Developer Guide](../advanced/developer-guide.md).
 
 ### Why are some fields not being imported correctly?
-Field mapping issues usually occur due to inconsistent data formats or missing fields in the source data. Review your field mapping configuration and check the data format in your ChMS.
+Missing fields usually occur because of inconsistent data formats or missing fields in the source data. Check the data format in your ChMS.
 
 ## Support and Updates
 
