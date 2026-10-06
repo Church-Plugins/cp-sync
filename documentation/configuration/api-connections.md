@@ -53,8 +53,6 @@ Before connecting to Church Community Builder:
 5. Click "Test Connection" to verify your credentials
 6. If successful, you'll see a success message
 
-> **Note (CP Sync 1.0.0):** On some hosts without PHP's sodium extension, saving CCB settings can fail after upgrading. Credentials saved before upgrading may keep syncing. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#ccb-settings-wont-save-on-some-hosts).
-
 ## Testing Connections
 
 ### Planning Center Online

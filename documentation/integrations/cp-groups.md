@@ -47,7 +47,6 @@ Map fields from your ChMS to CP Groups fields:
    - Description → Group Content
    - Location → Group Location
    - Schedule → Group Schedule
-   - Leaders → Group Leaders
 
 ### Advanced Configuration
 
@@ -83,6 +82,5 @@ Common issues and solutions:
 - **Groups not importing**: Check your group type filters in the settings
 - **Missing information**: Review field mapping configuration
 - **Duplicate groups**: Make sure you have properly set up the unique identifier settings
-- **Leaders not showing**: Verify leader mapping configuration
 
 For more detailed troubleshooting, see the [Troubleshooting](../advanced/troubleshooting.md) guide.

@@ -21,7 +21,6 @@ CP Sync includes sensible default mappings for common data types:
 | Name | Post Title |
 | Description | Post Content |
 | Image | Featured Image |
-| Leader(s) | Group Leader(s) |
 | Schedule | Meeting Time |
 | Location | Meeting Location |
 | Type/Category | Group Type Taxonomy |
@@ -62,20 +61,3 @@ Data filters allow you to control which records are imported based on criteria:
    - Custom conditions
 
 For Planning Center Calendar events, Church Center **Visibility** under **Calendar Settings** is separate from the Calendar Filters builder. An empty Calendar Filters builder does not turn Visibility off.
-
-## Ministry Platform Custom Mapping
-
-For Ministry Platform integration only:
-
-1. Navigate to **Church Plugins → CP Sync → MP → Configure**
-2. Under the Custom Field Mapping section, you can map MP fields to standard WordPress fields
-3. Field mappings are specific to the Ministry Platform integration
-
-## Regenerating Mappings
-
-If you need to reset mappings to defaults:
-
-1. Go to **Church Plugins → CP Sync → Advanced**
-2. Click **Reset Mappings**
-3. Select which mappings to reset (Groups, Events, or All)
-4. Confirm the reset

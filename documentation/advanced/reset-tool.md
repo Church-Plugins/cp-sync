@@ -11,7 +11,7 @@ There are five levels, ordered least to most destructive. Each level includes th
 | `queue` | Background-process batches, status flags, process locks, and health-check crons | Unstick a stalled or stuck sync |
 | `state` | Everything in `queue`, plus the sync-state options | Make the next pull re-import everything (existing posts update in place — no duplicates) |
 | `content` | All imported posts, terms, and taxonomies, plus sideloaded images and the image cache directory | Remove imported content but keep your connection and settings |
-| `connection` | ChMS credentials/tokens, the connection-test message, and the active ChMS selection | Disconnect and start the connection over |
+| `connection` | The saved Planning Center or Church Community Builder settings (credentials and the other fields stored for that system), the connection-test message, and the active Church Management System selection | Disconnect and start the connection over |
 | `all` | State + content + connection, plus the plugin settings, debug log, and every scheduled event | Full wipe — the uninstall-equivalent reset |
 
 ## Using the Danger Zone (Admin UI)
@@ -43,7 +43,7 @@ If `--level` is omitted, it defaults to `state`.
 
 ## REST API
 
-The Danger Zone UI posts to `POST /cp-sync/v1/reset`. The endpoint requires the `manage_options` capability, and destructive levels require a matching confirmation value alongside the level.
+The Danger Zone UI posts to `POST /cp-sync/v1/reset`. The endpoint requires the `manage_options` capability, and every level requires a `confirm` value that matches the level.
 
 ## Reset vs. Uninstall
 

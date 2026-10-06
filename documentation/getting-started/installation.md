@@ -6,21 +6,13 @@ This guide will walk you through the process of installing and activating the CP
 
 Before installing CP Sync, ensure your website meets these requirements:
 
-- WordPress 5.3 or higher
-- PHP 7.2 or higher
+- WordPress 6.0 or higher
+- PHP 7.4 or higher
 - MySQL 5.6 or higher
 - Access to a supported Church Management System (PCO or CCB)
 - Administrator access to your WordPress website
 
 ## Installation Process
-
-### Automatic Installation
-
-1. Log in to your WordPress admin dashboard
-2. Navigate to **Plugins → Add New**
-3. In the search field, type "CP-Sync"
-4. Click "Install Now" when you see the CP-Sync plugin
-5. After installation, click "Activate" to enable the plugin
 
 ### Manual Installation
 
