@@ -24,7 +24,9 @@ CP Sync provides integration with Church Community Builder (CCB), allowing you t
 
 ### Groups Synchronization
 
-Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Church Community Builder, while **Sync Groups** is on. If CP Groups is not active, that toggle is disabled and this tab stays hidden.
+Group sync needs the **CP Groups** plugin to be active. If it isn't, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
+
+Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Church Community Builder, while **Sync Groups** is on.
 
 1. Open the **Groups** tab.
 2. Optionally, use the **Groups** filter to limit which groups sync. You can add conditions on **Name**, **Group Type**, **Inactive**, **Group is full**, **Membership Type**, **Leader Name**, **Leader Email**, **Department**, **Campus**, or **Childcare Provided**. With no conditions, this filter does not remove any more groups. Groups still have to be active and have **Public Search** checked, as described under Which Groups Sync.

@@ -39,7 +39,9 @@ If the companion plugin is not active, that toggle is disabled. Its help text is
 
 ### Groups Synchronization
 
-Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Planning Center, while **Sync Groups** is on. If CP Groups is not active, that toggle is disabled and this tab stays hidden.
+Group sync needs the **CP Groups** plugin to be active. If it isn't, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
+
+Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Planning Center, while **Sync Groups** is on.
 
 1. Open the **Groups** tab.
 2. Under **Group Tags to Sync**, choose the Planning Center tag groups you want on your site. Each selected tag group becomes a group category and is shown as a filter on the groups page. For example, a "Life Stage" tag group becomes a Life Stage filter.
