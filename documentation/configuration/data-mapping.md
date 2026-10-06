@@ -40,16 +40,6 @@ CP Sync includes sensible default mappings for common data types:
 
 For Planning Center calendar events, **Summary** and **Description** map differently. See [Planning Center Online Integration](../chms/planning-center.md#how-event-text-maps-from-planning-center) and [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-how-event-text-maps).
 
-## Field Mapping Configuration
-
-Each ChMS integration includes specific field mapping options:
-
-1. Navigate to **Church Plugins → CP Sync**
-2. Select your ChMS tab (PCO or CCB)
-3. Go to the related tab (Groups, Events, etc.)
-4. Configure the available mapping options
-5. Save your settings
-
 ## Data Filters
 
 Data filters allow you to control which records are imported based on criteria:

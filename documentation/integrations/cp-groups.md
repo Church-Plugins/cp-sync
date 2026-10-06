@@ -37,10 +37,7 @@ CP Sync copies a fixed set of fields. There is no field-mapping setting.
 
 For advanced users, additional settings are available:
 
-- **Group Status**: Configure which status groups should have when imported (Published, Draft, etc.)
-- **Group Image**: Option to import group images as featured images
 - **Group Filtering**: Filter which groups are imported based on criteria
-- **Custom Taxonomies**: Map additional ChMS data to custom taxonomies in CP Groups
 
 ## Manual Synchronization
 

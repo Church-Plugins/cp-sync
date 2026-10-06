@@ -29,26 +29,9 @@ When enabled, CP-Sync will:
 4. Check the box to "Enable The Events Calendar Integration"
 5. Save your settings
 
-### Calendar Mapping
+### What Is Copied
 
-You can choose which calendars from your ChMS to import:
-
-1. Navigate to the **Events** tab of your ChMS settings
-2. In the "Calendars to Import" section, select the calendars you want to import
-3. This ensures only relevant events are imported into your WordPress site
-
-### Event Fields Mapping
-
-Map fields from your ChMS to The Events Calendar fields:
-
-1. In the "Event Fields Mapping" section
-2. Configure how each field from your ChMS maps to The Events Calendar:
-   - Event Title → Event Title
-   - Description → Event Content
-   - Start Date/Time → Event Start
-   - End Date/Time → Event End
-   - Location → Event Venue
-   - Categories → Event Categories
+CP Sync copies a fixed set of fields. There is no field-mapping setting.
 
 For CCB, venue records are populated with the full address (street, city, state, zip) and event images via a follow-up call to the event profile after import. See the [CCB Event Enrichment](../chms/church-community-builder.md#event-enrichment) section for details and limitations.
 
@@ -84,8 +67,7 @@ Configure automatic synchronization:
 Common issues and solutions:
 
 - **Events not importing**: Check your calendar selection and date range filters
-- **Missing information**: Review field mapping configuration
-- **Duplicate events**: Make sure you have properly set up the unique identifier settings
-- **Location issues**: Verify venue mapping configuration
+- **Missing information**: CP Sync copies a fixed set of fields. There is no field-mapping setting.
+- **Duplicate events**: Imported events are matched by their ChMS ID. There is no unique-identifier setting.
 
 For more detailed troubleshooting, see the [Troubleshooting](../advanced/troubleshooting.md) guide.

@@ -84,9 +84,10 @@ In addition to scheduled syncs, you can always run manual syncs:
 To check on your sync operations:
 
 1. Navigate to **Church Plugins → CP Sync → Log**
-2. View the sync operation logs
-3. Check when the last sync ran and what was processed
-4. Look for any errors or warnings
+2. Set **Enable Debug Mode** to **Enable** and click **Save all Settings**; nothing is logged while it is off.
+3. View the sync operation logs
+4. Check when the last sync ran and what was processed
+5. Look for any errors or warnings
 
 ## Troubleshooting Scheduled Syncs
 

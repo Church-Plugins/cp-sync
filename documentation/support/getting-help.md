@@ -62,7 +62,7 @@ To help us resolve your issue quickly, please provide:
 
 3. **Access to Logs**
    - Navigate to **Church Plugins → CP Sync → Log**
-   - Export relevant logs and attach them to your support request
+   - Set **Enable Debug Mode** to **Enable**, reproduce the issue, then copy the relevant lines from **Log File Content** into your support request
 
 4. **Error Messages**
    - Include any error messages you're seeing

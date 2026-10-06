@@ -12,7 +12,7 @@ CP-Sync supports Planning Center Online (PCO) and Church Community Builder (CCB)
 No, CP-Sync is designed to be user-friendly. The setup process is guided, and most configurations can be done through the WordPress admin interface without coding knowledge.
 
 ### How often does CP-Sync update data from my ChMS?
-You can configure the sync frequency (hourly, twice daily, daily, or weekly) in the plugin settings. You can also manually trigger a sync at any time.
+You can configure the sync frequency (hourly, daily, or weekly) with **Update Interval** on the **Advanced** tab. You can also manually trigger a sync at any time.
 
 ## Installation and Setup
 

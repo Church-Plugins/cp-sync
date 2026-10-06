@@ -40,23 +40,15 @@ If the companion plugin is not active, that toggle is disabled. Its help text is
 ### Groups Synchronization
 
 1. Go to the **Groups** tab in the PCO settings
-2. Configure which group types to import
-3. Set up field mapping for:
-   - Group name
-   - Description
-   - Location
-   - Meeting time
-   - Leaders
-4. Configure group taxonomy assignments
-5. Save your settings
+2. Set **Group Tags to Sync**, **Visibility**, and the **Groups** filter
+3. Click **Save all Settings**
 
 ### Events Synchronization
 
 1. Go to the **Events** tab in the PCO settings
 2. Choose your **Event source** (Calendar, Registrations, or Both)
-3. Select which calendars to import (when using Calendar or Both)
-4. Configure event field mapping
-5. Save your settings
+3. Set **Tag groups**, **Visibility**, and **Calendar Filters** (Calendar or Both), or **Registration Filters** (Registrations or Both)
+4. Click **Save all Settings**
 
 **Caution:** If you switch **Event Source** to **Pull from Calendar** from **Pull from Registrations** or **Calendar AND Registrations**, the next sync permanently deletes upcoming Registrations-sourced events — including events that are still running today. Past events (already ended) are kept. Events with **Prevent sync from updating this post** checked are kept, so lock any Registrations events you want to keep before you switch. Coming from **Pull from Registrations**, Calendar events then import as new posts. Coming from **Calendar AND Registrations**, the Calendar copies stay and the duplicate Registrations copies are removed, leaving one Calendar copy of events that were in both. Switching to **Calendar AND Registrations** keeps existing Registrations posts; an event present in both apps imports twice.
 

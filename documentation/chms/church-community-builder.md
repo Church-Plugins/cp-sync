@@ -24,10 +24,8 @@ CP Sync provides integration with Church Community Builder (CCB), allowing you t
 ### Groups Synchronization
 
 1. Go to the **Groups** tab in the CCB settings
-2. Configure which group types to import
-3. Set up field mapping as needed
-4. Configure group taxonomy assignments
-5. Save your settings
+2. Set the **Groups** filter
+3. Click **Save all Settings**
 
 #### Which Groups Sync
 
@@ -36,9 +34,8 @@ Only groups that are not marked Inactive and have **Public Search** checked in C
 ### Events Synchronization
 
 1. Go to the **Events** tab in the CCB settings
-2. Configure event field mapping as needed
-3. Choose how far ahead events sync with **Date Range** (see below)
-4. Save your settings
+2. Choose how far ahead events sync with **Date Range** (see below)
+3. Click **Save all Settings**
 
 #### How Far Ahead Events Sync
 
