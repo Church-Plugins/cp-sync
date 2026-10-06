@@ -14,9 +14,8 @@ Data filters act as rules that determine whether a specific group, event, or oth
 ## Accessing Data Filters
 
 1. Navigate to **Church Plugins → CP Sync**
-2. Select your ChMS tab (PCO or CCB)
-3. Go to the relevant tab (Groups or Events)
-4. Scroll to the "Advanced Filters" section
+2. Open the **Groups**, **Events**, or **Sermons** tab
+3. Use the filter there (**Groups**, **Calendar Filters**, **Registration Filters**, **Events**, or **Sermons**)
 
 ## Creating Basic Filters
 

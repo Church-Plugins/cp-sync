@@ -1,6 +1,6 @@
 # Data Mapping
 
-Data mapping allows you to control how information from your church management system is imported into WordPress. CP Sync provides mapping options to ensure your data appears correctly on your website.
+Data mapping describes how information from your church management system is imported into WordPress. CP Sync copies a fixed set of fields; you choose which records are included with the filters on each feed tab.
 
 ## Understanding Data Mapping
 

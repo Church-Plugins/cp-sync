@@ -23,11 +23,9 @@ When enabled, CP-Sync will:
 
 ### Enable Integration
 
-1. Navigate to **Church Plugins → CP Sync**
-2. Select your ChMS tab (PCO or CCB)
-3. Go to the **Events** tab
-4. Check the box to "Enable The Events Calendar Integration"
-5. Save your settings
+1. Go to **Church Plugins → CP Sync**.
+2. On the **Connect** tab, turn on **Sync Events**. It is disabled until The Events Calendar is active.
+3. Click **Save all Settings**.
 
 ### What Is Copied
 
@@ -39,34 +37,28 @@ For CCB, venue records are populated with the full address (street, city, state,
 
 For advanced users, additional settings are available:
 
-- **Event Status**: Configure which status events should have when imported (Published, Draft, etc.)
-- **Event Image**: Option to import event images as featured images
 - **Event Filtering**: Filter which events are imported based on date range or other criteria
-- **Recurring Events**: Configure how recurring events are handled
 
 ## Manual Synchronization
 
 To manually synchronize events:
 
-1. Navigate to **Church Plugins → CP Sync**
-2. Go to your ChMS tab and then the **Events** tab
-3. Click the "Sync Events Now" button
-4. Wait for the synchronization to complete
+1. Go to **Church Plugins → CP Sync** and open the **Events** tab.
+2. Click **Pull Now**. The tab shows **Import started**.
 
 ## Scheduled Synchronization
 
 Configure automatic synchronization:
 
 1. Navigate to **Church Plugins → CP Sync → Advanced**
-2. In the "Sync Schedule" section, enable automatic synchronization
-3. Select the frequency (daily, weekly, etc.)
-4. Save your settings
+2. Set **Update Interval** to **Hourly**, **Daily**, or **Weekly**.
+3. Click **Save all Settings**.
 
 ## Troubleshooting
 
 Common issues and solutions:
 
-- **Events not importing**: Check your calendar selection and date range filters
+- **Events not importing**: Check **Event source** and the filters on the **Events** tab (Planning Center), or **Date Range** (Church Community Builder)
 - **Missing information**: CP Sync copies a fixed set of fields. There is no field-mapping setting.
 - **Duplicate events**: Imported events are matched by their ChMS ID. There is no unique-identifier setting.
 
