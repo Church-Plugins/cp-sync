@@ -40,7 +40,6 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
 
 1. **Check Connection Status**:
    - Verify your ChMS connection is active
-   - Test the connection using the "Test Connection" button
 
 2. **Review Filters**:
    - Check if you have filters that might be excluding all data
@@ -57,13 +56,12 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
 
 This usually means the sync is queueing items correctly but the queue cannot be read back. Preview will look completely normal, because it reads from the ChMS directly and never touches the queue.
 
-1. **Check the Logs** at **Church Plugins → CP Sync → Logs** for either of these:
+1. **Check the Logs** at **Church Plugins → CP Sync → Log** for either of these. Set **Enable Debug Mode** to **Enable** and click **Save all Settings** first; nothing is logged while it is off:
    - `Queue column ... charset: latin1` (or `utf8`) — the database cannot represent characters in your data
    - `Batch ... is unreadable and will be discarded without importing` — the queue was corrupted after it was stored
 
 2. **Confirm Items Are Being Processed**:
-   - A healthy sync logs a line per item, such as `Processing event: "Summer Series"` followed by `created with ID: 123`
-   - If the log stops at `Process disbatched` with no per-item lines, nothing is draining the queue
+   - A healthy sync logs a line per item, such as `Processing group 123: Summer Series` followed by `Group 123 created with ID: 456`
 
 3. **Check Background Processing**:
    - Imports run in a background request after the sync is triggered, so the site must be able to make loopback requests to itself
@@ -82,23 +80,9 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
    - Review your filter configurations
    - Check for unintended exclusions
 
-2. **Rate Limiting**:
-   - API rate limits may be interrupting your imports
-   - Try reducing the batch size in advanced settings
-
-3. **PHP Timeout**:
+2. **PHP Timeout**:
    - Check your PHP max_execution_time setting
    - Consider increasing it for large imports
-
-### Duplicate Items Being Created
-
-1. **Unique Identifier Settings**:
-   - Verify the unique identifier field is configured correctly
-   - This is usually an ID field that matches between systems
-
-2. **Clear Cache**:
-   - Try clearing the plugin cache in Advanced settings
-   - This rebuilds the relationship maps between systems
 
 ## Integration Issues
 
@@ -108,10 +92,6 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
    - Verify CP Groups plugin is installed and activated
    - Check compatible versions
 
-2. **Mapping Configuration**:
-   - Review field mappings between ChMS and CP Groups
-   - Ensure required fields are mapped correctly
-
 ### The Events Calendar Integration Issues
 
 1. **Plugin Compatibility**:
@@ -119,20 +99,9 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
    - Update both plugins to the latest versions
 
 2. **Venue and Organizer Settings**:
-   - Check how venues and organizers are being mapped
-   - For CCB: venue addresses and event images are populated via an enrichment step that runs after each event imports. If venues are missing addresses, enable Debug logging and look for `Skipping enrichment` or `Failed to fetch event_profile` messages — recurring event occurrences without a numeric event ID cannot be enriched and will only have a venue name.
+   - For CCB: venue addresses and event images are populated via an enrichment step that runs after each event imports. If venues are missing, set **Enable Debug Mode** to **Enable** on the **Log** tab, click **Save all Settings**, run the sync again, and look in **Log File Content** for `Skipping enrichment` or `Failed to fetch event_profile`. Recurring event occurrences without a numeric event ID are not enriched.
 
 ## Error Messages
-
-### "API Rate Limit Exceeded"
-
-1. **Reduce Sync Frequency**:
-   - Space out your sync operations
-   - Consider incremental syncs instead of full syncs
-
-2. **Batch Processing**:
-   - Reduce the number of items processed per batch
-   - Enable incremental processing in advanced settings
 
 ### "PHP Memory Limit Exceeded"
 
@@ -140,26 +109,14 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
    - Modify your PHP memory_limit setting
    - Contact your hosting provider if necessary
 
-2. **Reduce Batch Size**:
-   - Process fewer items per sync operation
-
 ## Logging and Debugging
 
 ### Enabling Debug Logs
 
-1. Navigate to **Church Plugins → CP Sync → Advanced**
-2. Set "Log Level" to "Debug"
-3. Enable "Detailed API Logging" if needed
-4. Save settings
-5. Perform the operation that's having issues
-6. Check logs at **Church Plugins → CP Sync → Logs**
-
-### Common Log Error Messages
-
-- **API Authentication Failed**: Check your API credentials
-- **API Request Timeout**: The ChMS server took too long to respond
-- **Invalid Response Format**: The ChMS returned unexpected data
-- **Rate Limit Exceeded**: You've hit API request limits
+1. Go to **Church Plugins → CP Sync** and open the **Log** tab.
+2. Set **Enable Debug Mode** to **Enable**, then click **Save all Settings**.
+3. Perform the operation that's having issues.
+4. Read **Log File Content** on the **Log** tab.
 
 ## Getting Additional Help
 

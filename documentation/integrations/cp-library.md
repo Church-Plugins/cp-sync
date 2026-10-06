@@ -27,7 +27,6 @@ For each episode, the following data is imported:
 - **Series** → CP Sermons series
 - **Speakers** → CP Sermons speakers (resolved from the episode's speakership records)
 - **Video and audio** → sermon media (the Church Center library URLs are preferred, falling back to the raw video URL)
-- **Scripture, topics, and season** → the matching CP Sermons taxonomies
 
 Imported sermons are matched by their PCO episode ID, so re-running a sync updates existing sermons in place rather than creating duplicates.
 
@@ -62,7 +61,7 @@ If you customize an imported sermon in WordPress and don't want future syncs to 
 ## Troubleshooting
 
 - **No sermons importing**: Confirm the episodes are published to your Church Center library in PCO Publishing, and check any filters on the Sermons tab
-- **"SermonSync facade is not available" in the log**: Update CP Sermons to the latest version
+- **"CP Sermons SermonSync facade is not available; is CP Sermons up to date?" in the log**: Update CP Sermons to the latest version
 - **Missing speakers or series**: Verify the episode's series and speaker assignments in PCO Publishing
 
 For more detailed troubleshooting, see the [Troubleshooting](../advanced/troubleshooting.md) guide.
