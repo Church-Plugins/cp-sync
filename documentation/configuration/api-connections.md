@@ -27,7 +27,7 @@ Reload the CP Sync page to see which account is connected. The notice then reads
 
 To disconnect, click **Disconnect**, then click **Connect** to sign in again. If disconnect does not finish, the tab shows **Failed to disconnect**.
 
-Changing **Church Management System** while you are connected leaves the Planning Center connection in place. The tab says **Switching platforms does not disconnect Planning Center Online — its connection and settings are preserved.**
+Changing **Church Management System** while you are connected leaves the Planning Center connection in place. CP Sync only syncs from the system currently selected. The tab says **Switching platforms does not disconnect Planning Center Online — its connection and settings are preserved.**
 
 After you are connected, the same tab shows a **Sync** section (**Sync Groups**, **Sync Events**, and **Sync Sermons**). Click **Save all Settings** after you change those toggles.
 
@@ -77,7 +77,7 @@ If you encounter connection problems:
 ### Planning Center Online
 
 - On the **Connect** tab, click **Connect** again. If the browser blocks the window, the tab shows **Failed to open authentication window. Make sure your browser allows popups.** Allow popups for your site and click **Connect** again.
-- If you close the window before finishing, the tab shows **Authentication window was closed.** Click **Connect** to start again.
+- If you close the window before finishing, the tab shows **Authentication window was closed**. Click **Connect** to start again.
 - To sign in again, click **Disconnect**, then **Connect**. If disconnect does not finish, the tab shows **Failed to disconnect**.
 
 ### Church Community Builder

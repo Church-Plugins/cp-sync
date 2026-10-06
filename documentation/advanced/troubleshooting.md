@@ -13,7 +13,7 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
    - Set **Church Management System** to **Planning Center Online**.
    - Under **PCO API Configuration**, click **Connect**.
    - If the browser blocks the window, the tab shows **Failed to open authentication window. Make sure your browser allows popups.** Allow popups for your site and click **Connect** again.
-   - If you close the window before finishing, the tab shows **Authentication window was closed.** Click **Connect** to start again.
+   - If you close the window before finishing, the tab shows **Authentication window was closed**. Click **Connect** to start again.
 
 2. **Reconnect**:
    - Click **Disconnect**, then **Connect**, and sign in to Planning Center again in the window that opens.

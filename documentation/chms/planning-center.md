@@ -25,7 +25,7 @@ Reload the CP Sync page to see which account is connected. The notice then reads
 
 To disconnect, click **Disconnect**. The **Connect** button comes back. Click **Connect** to sign in again. If disconnect does not finish, the tab shows **Failed to disconnect**.
 
-Changing **Church Management System** while you are connected leaves the Planning Center connection in place. The tab says **Switching platforms does not disconnect Planning Center Online — its connection and settings are preserved.**
+Changing **Church Management System** while you are connected leaves the Planning Center connection in place. CP Sync only syncs from the system currently selected. The tab says **Switching platforms does not disconnect Planning Center Online — its connection and settings are preserved.**
 
 After you are connected, the same tab shows a **Sync** section. Choose what to sync, then click **Save all Settings**:
 
@@ -92,7 +92,7 @@ For a short release summary, see [What's New in CP Sync 1.0.0](../getting-starte
 
 ## Troubleshooting PCO Integration
 
-- **Connection window**: On the **Connect** tab, click **Connect**. If the browser blocks the window, the tab shows **Failed to open authentication window. Make sure your browser allows popups.** Allow popups for your site and click **Connect** again. If you close the window before finishing, the tab shows **Authentication window was closed.** Click **Connect** to start again. To sign in with a different Planning Center account, click **Disconnect**, then **Connect**.
+- **Connection window**: On the **Connect** tab, click **Connect**. If the browser blocks the window, the tab shows **Failed to open authentication window. Make sure your browser allows popups.** Allow popups for your site and click **Connect** again. If you close the window before finishing, the tab shows **Authentication window was closed**. Click **Connect** to start again. To sign in with a different Planning Center account, click **Disconnect**, then **Connect**.
 - **Missing Data**: Verify that your PCO account has the necessary modules, and review Visibility and Calendar Filters if Calendar events are missing
 - **Rate Limiting**: PCO limits API requests; adjust your sync frequency if needed
 
