@@ -17,49 +17,18 @@ Data filters act as rules that determine whether a specific group, event, or oth
 2. Open the **Groups**, **Events**, or **Sermons** tab
 3. Use the filter there (**Groups**, **Calendar Filters**, **Registration Filters**, **Events**, or **Sermons**)
 
-## Creating Basic Filters
+## Setting a Filter
 
-### Filter Types
+Each filter named above — **Groups**, **Calendar Filters**, **Registration Filters**, **Events**, and **Sermons** — is one list of conditions. The only button that adds to that list is **Add Condition**.
 
-CP-Sync supports several types of basic filters:
+1. Open the **Groups**, **Events**, or **Sermons** tab, as in [Accessing Data Filters](#accessing-data-filters).
+2. Click **Add Condition**.
+3. Set **Selector**, **Compare**, and **Value**.
+4. Click **Add Condition** again for another condition. Each condition has a **Remove** button.
+5. The line reads **Pull Groups where**, **Pull Calendar Filters where**, **Pull Registration Filters where**, **Pull Events where**, or **Pull Sermons where**, then **All** or **Any**, then **of the following match**.
+6. Click **Save all Settings**.
 
-- **Include/Exclude by Name**: Filter based on the group or event name
-- **Include/Exclude by Type**: Filter based on the group type or event category
-- **Include/Exclude by Status**: Filter based on status (active, inactive, etc.)
-- **Date Range Filter**: For events, filter based on date range
-
-### Setting Up a Basic Filter
-
-To create a basic filter:
-
-1. In the "Advanced Filters" section, click "Add Filter"
-2. Select the filter type from the dropdown
-3. Set the condition (equals, contains, starts with, etc.)
-4. Enter the value to match
-5. Save your settings
-
-## Creating Advanced Filters
-
-For more complex filtering needs, CP-Sync provides a condition builder:
-
-1. In the "Advanced Filters" section, click "Add Condition Group"
-2. Click "Add Condition" within the group
-3. Select the field to filter on
-4. Choose the operator (equals, not equals, contains, etc.)
-5. Enter the value to match
-6. Add additional conditions as needed
-7. Set the group logic to "AND" or "OR"
-8. Save your settings
-
-### Multiple Condition Groups
-
-You can create multiple condition groups to build complex filters. For example:
-
-- Group 1 (AND): "Type equals Small Group" AND "Status equals Active"
-- Group 2 (AND): "Type equals Ministry Team" AND "Status equals Active"
-- Overall logic between groups: OR
-
-This would import all active small groups and active ministry teams.
+**All** pulls an item only when every condition matches. **Any** pulls it when one condition matches.
 
 ## Common Filter Examples
 
@@ -81,8 +50,6 @@ This would import all active small groups and active ministry teams.
 
 If your filters aren't working as expected:
 
-- Check the logical operators (AND/OR) between conditions
-- Verify field names match exactly what's in your ChMS
-- Test with simpler filters first, then add complexity
-
-For more complex filtering needs or issues, see the [Developer Guide](developer-guide.md) for information on creating custom filter functions.
+- Check whether the line says **All** or **Any**
+- Confirm **Selector**, **Compare**, and **Value** on each condition
+- Test with one condition, then add more

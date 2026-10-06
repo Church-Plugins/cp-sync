@@ -48,16 +48,14 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
 3. **API Permissions**:
    - Ensure your ChMS account has permission to access the data you're trying to import
 
-4. **Database Character Set**:
-   - If the preview shows your data but the sync imports nothing, check the logs for a line like `Queue column wp_options.option_value charset: latin1`
-   - Anything other than `utf8mb4` means the database cannot store some of the characters in your ChMS data — see [System Requirements](../getting-started/requirements.md#database-character-set)
-
 ### Sync Reports Success but Nothing Is Imported
 
-This usually means the sync is queueing items correctly but the queue cannot be read back. Preview will look completely normal, because it reads from the ChMS directly and never touches the queue.
+Preview will look completely normal, because it reads from the ChMS directly and never touches the import queue. The log shows where the import stopped.
 
-1. **Check the Logs** at **Church Plugins → CP Sync → Log** for either of these. Set **Enable Debug Mode** to **Enable** and click **Save all Settings** first; nothing is logged while it is off:
-   - `Queue column ... charset: latin1` (or `utf8`) — the database cannot represent characters in your data
+1. **Check the Logs** at **Church Plugins → CP Sync → Log** for any of these. Set **Enable Debug Mode** to **Enable** and click **Save all Settings** first; nothing is logged while it is off:
+   - `Nothing was queued for ...` — the sync found nothing to import; check your filters and the connection
+   - `... was not saved to the database. Nothing will be imported.` — the queue could not be written; a `Database reported: ...` line follows when MySQL returned an error
+   - `... was saved but cannot be read back. Nothing will be imported.` — the queue was corrupted when it was stored
    - `Batch ... is unreadable and will be discarded without importing` — the queue was corrupted after it was stored
 
 2. **Confirm Items Are Being Processed**:

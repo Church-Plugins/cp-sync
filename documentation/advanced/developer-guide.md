@@ -1,6 +1,6 @@
 # Developer Guide
 
-This guide is intended for developers who want to extend or customize the CP-Sync plugin. It covers hooks, filters, the API, and custom integration development.
+This guide is intended for developers who want to extend or customize the CP-Sync plugin. It covers the hooks the plugin runs, the REST API, and cron.
 
 ## Plugin Architecture
 
@@ -14,49 +14,43 @@ CP-Sync follows an object-oriented architecture with clear separation of concern
 
 ## Available Hooks
 
-CP-Sync provides various action and filter hooks for customization.
+Names and arguments below are the ones the plugin passes.
 
-### Action Hooks
+### Actions
 
-```php
-// Fires before a sync operation begins
-do_action('cp_sync_before_sync', $chms_type, $data_type);
+- `do_action( "cp_sync_{$this->type}_update_item_after", $item, $id )` — `$this->type` is `groups`, `events`, or `sermons`. `$item` is the item array. `$id` is the post ID. CCB hooks `cp_sync_events_update_item_after`.
+- `do_action( 'cp_update_item_after', $item, $id, $this )` — `$this` is the integration instance. `$id` is the post ID. Runs at the same point as the type action above.
+- `do_action( 'cp_' . $this->id . '_update_item_after', $item, $id )` — `$this->id` is the integration id (`tec`, `cp_groups`, or `cp_library`). `$id` is the post ID.
+- `do_action( 'cp_sync_global_settings_updated', $settings, $old_settings )` — `$settings` is the global settings array just saved. `$old_settings` is that array before the save.
+- `do_action( "cp_sync_load_taxonomy_{$this->id}", $taxonomy, $args )` — `$this->id` is the integration id. `$taxonomy` is the taxonomy slug. `$args` is the array passed to `register_taxonomy()`.
 
-// Fires after a sync operation completes
-do_action('cp_sync_after_sync', $chms_type, $data_type, $results);
+### Filters
 
-// Fires when a group is imported/updated
-do_action('cp_sync_group_imported', $group_id, $chms_data, $chms_type);
-
-// Fires when an event is imported/updated
-do_action('cp_sync_event_imported', $event_id, $chms_data, $chms_type);
-
-// Fires after any item of a given type is created or updated.
-// $type matches the integration type (e.g. 'events', 'groups').
-// Useful for type-specific post-processing such as fetching additional
-// data from the source API. CCB uses this hook to enrich events with
-// full venue addresses and images from the event_profile endpoint.
-do_action("cp_sync_{$type}_update_item_after", $item, $post_id);
-```
-
-### Filter Hooks
-
-```php
-// Filter ChMS data before it's processed
-apply_filters('cp_sync_pre_process_data', $data, $chms_type, $data_type);
-
-// Filter group data before import
-apply_filters('cp_sync_pre_import_group', $group_data, $chms_type);
-
-// Filter event data before import
-apply_filters('cp_sync_pre_import_event', $event_data, $chms_type);
-
-// Filter data mapping configuration
-apply_filters('cp_sync_field_mapping', $mapping, $chms_type, $data_type);
-
-// Whether to delete past events during sync cleanup (default false)
-apply_filters('cp_sync_remove_past_events', false, $chms_id, $post_id, $integration);
-```
+- `apply_filters( 'cp_sync_remove_past_events', false, $chms_id, $post_id, $this )` — `$this` is the events integration. See [Preserving Past Events](#preserving-past-events).
+- `apply_filters( "cp_sync_{$this->type}_should_remove_item", true, $chms_id, $this )` — `$chms_id` is the ChMS id. `$this` is the integration instance.
+- `apply_filters( "cp_sync_{$this->type}_item", $item, $this )` — `$item` is the item array about to be queued.
+- `apply_filters( 'cp_sync_process_items', $items, $this )` — `$items` is the array of items about to be processed.
+- `apply_filters( 'cp_sync_process_hard_refresh', true, $items, $this )` and `apply_filters( 'cp_sync_process_hard_refresh', true, $taxonomies, $this )` — the second argument is the items array in one call and the taxonomies array in the other.
+- `apply_filters( 'cp_sync_pull_items', $posts, $this )` — `$posts` is the posts array from the formatted ChMS payload.
+- `apply_filters( 'cp_sync_pull_taxonomies', $taxonomies, $this )` — `$taxonomies` is the taxonomies array from that payload.
+- `apply_filters( "cp_sync_pull_{$integration_type}", null, $integration_type )` — `$integration_type` is `groups`, `events`, or `sermons`.
+- `apply_filters( 'cp_sync_item_is_locked', $locked, $post_id, $chms_id, $this )` — `$locked` is whether the post has the lock meta.
+- `apply_filters( 'cp_sync_show_event_registration_button', $show, $post_id )` — `$show` is the current register-button flag. `$post_id` is the event post ID.
+- `apply_filters( 'cp_sync_debug_mode', $debug_mode )` — `$debug_mode` is true when **Enable Debug Mode** is **Enable**, or when the `CP_SYNC_DEBUG` constant is true.
+- `apply_filters( 'cp_sync_active_chms', $chms )` — `$chms` is the active ChMS slug stored in settings. The default passed in is `pco`.
+- `apply_filters( 'cp_sync_global_settings', $settings )` — `$settings` is the global settings array passed into the settings page.
+- `apply_filters( 'cp_sync_oauth_token', $token, $active_chms )` — `$token` is the token from the OAuth redirect. `$active_chms` is the active ChMS object.
+- `apply_filters( 'cp_sync_oauth_refresh_token', $refresh_token, $active_chms )` — `$refresh_token` is the refresh token from that redirect.
+- `apply_filters( 'cp_sync_congregation_map', array() )` — a map from a ChMS congregation id to a location.
+- `apply_filters( 'cp_sync_cron_args', $args )` — `$args` has `timestamp` and `recurrence`.
+- `apply_filters( 'cp_sync_image_cache_dir', 'cp-sync' )` — directory name under uploads. Default `cp-sync`. The import integration appends `/` and its type.
+- `apply_filters( 'cp_sync_image_mime_types', $types )` — `$types` maps a MIME type to an extension: `image/jpeg`, `image/jpg`, and `image/jpe` to `jpg`; `image/png` to `png`; `image/gif` to `gif`; `image/webp` to `webp`.
+- `apply_filters( 'cp_sync_normalize_thumbnail_url', explode( '?', $url )[0], $url, $this )` — `$url` is the original thumbnail URL. A Planning Center URL that contains a `key` query parameter returns before this filter runs.
+- `apply_filters( 'cp_sync_template_paths', $paths )` — `$paths` is a list of base directories. The default is the plugin path.
+- `apply_filters( 'cp_sync_template', $file, $template )` — `$file` is a candidate template path. `$template` is the requested template.
+- `apply_filters( 'cp_sync_template_' . $template, $file )` — `$file` is the resolved template path, or false. `$template` has `.php` appended when the request did not already end in `.php` and did not contain `.json`.
+- `apply_filters( 'churchplugins_fallback_mime_type', $types )` — `$types` defaults to `application/xml` and `application/octet-stream`.
+- `apply_filters( 'cps_settings_get', $value, $key, $group )` — `$value` is the stored option or the default. `$key` is the option key. `$group` is the option group.
 
 ## Preserving Past Events
 
@@ -67,7 +61,7 @@ from the event having been deleted at the source.
 
 By default the sync **keeps** those events. The rule is based on the event's own end
 date, not on the query window: an event whose end date has passed is preserved when it
-goes missing from the response, and an event that has not yet ended is removed — the
+goes missing from the response, and an event that has not ended is removed — the
 latter being the case that genuinely means "deleted in the ChMS."
 
 One consequence worth knowing: if your date range extends into the past (CCB's
@@ -82,8 +76,7 @@ If you want past events removed instead, opt in:
 add_filter('cp_sync_remove_past_events', '__return_true');
 ```
 
-Removal is permanent — the event post is force-deleted along with its featured image,
-bypassing the trash — so leave this off unless you're certain.
+Removal is permanent — the event post is force-deleted, bypassing the trash, and its featured image is deleted too unless another post uses it — so leave this off unless you're certain.
 
 You can also scope the decision per event:
 
@@ -98,79 +91,6 @@ add_filter('cp_sync_remove_past_events', function($remove_past, $chms_id, $post_
 
 To keep an individual event untouched by sync entirely — past or future — use the lock
 option on the event itself rather than this filter.
-
-## Creating Custom Data Filters
-
-You can create custom data filters by hooking into the pre-processing filters:
-
-```php
-// Only import groups with "Youth" in the title
-function my_custom_group_filter($group_data, $chms_type) {
-    // Skip groups that don't contain "Youth" in the title
-    if (strpos($group_data['title'], 'Youth') === false) {
-        return false; // Returning false skips this item
-    }
-    return $group_data;
-}
-add_filter('cp_sync_pre_import_group', 'my_custom_group_filter', 10, 2);
-```
-
-## Extending Field Mappings
-
-You can add custom field mappings for third-party plugins:
-
-```php
-// Add support for a custom field
-function add_custom_group_field_mapping($mapping, $chms_type, $data_type) {
-    if ($data_type === 'group' && $chms_type === 'pco') {
-        $mapping['custom_field'] = [
-            'source' => 'attributes.my_custom_field',
-            'destination' => '_my_custom_field',
-            'type' => 'meta'
-        ];
-    }
-    return $mapping;
-}
-add_filter('cp_sync_field_mapping', 'add_custom_group_field_mapping', 10, 3);
-```
-
-## Creating Custom ChMS Integrations
-
-To add support for another church management system:
-
-1. Create a class that extends `CP_Sync\ChMS\ChMS`
-2. Implement the required methods:
-   - `connect()`
-   - `get_groups()`
-   - `get_events()`
-   - `format_group()`
-   - `format_event()`
-3. Register your ChMS provider
-
-Example skeleton:
-
-```php
-namespace My_Plugin\ChMS;
-
-class My_ChMS extends \CP_Sync\ChMS\ChMS {
-    public function connect() {
-        // Implementation for connecting to your ChMS
-    }
-    
-    public function get_groups() {
-        // Implementation for retrieving groups
-    }
-    
-    // Other required methods...
-}
-
-// Register your ChMS provider
-function register_my_chms($providers) {
-    $providers['my_chms'] = 'My_Plugin\ChMS\My_ChMS';
-    return $providers;
-}
-add_filter('cp_sync_chms_providers', 'register_my_chms');
-```
 
 ## REST API Endpoints
 
@@ -199,40 +119,6 @@ For websites with unreliable WordPress cron:
 3. For more granular control, you can directly trigger specific CP-Sync operations:
    ```
    0 0 * * * wget -q -O /dev/null "https://your-site.com/wp-json/cp-sync/v1/sync?type=pco&data=groups"
-   ```
-
-## Debugging Tools
-
-For debugging, you can enable verbose logging:
-
-```php
-// Enable detailed logging
-add_filter('cp_sync_debug_mode', '__return_true');
-
-// Log all API requests and responses
-add_filter('cp_sync_log_api_calls', '__return_true');
-```
-
-## Performance Optimization
-
-For large datasets, consider these optimizations:
-
-1. Implement batched processing:
-   ```php
-   add_filter('cp_sync_batch_size', function() { return 50; });
-   ```
-
-2. Increase memory limit for sync operations:
-   ```php
-   add_action('cp_sync_before_sync', function() {
-       wp_raise_memory_limit('sync');
-   });
-   ```
-
-3. Disable unnecessary processing:
-   ```php
-   // Disable thumbnail generation during import
-   add_filter('cp_sync_process_thumbnails', '__return_false');
    ```
 
 For more advanced development information, consult the inline code documentation or contact our developer support team.
