@@ -82,7 +82,7 @@ abstract class Integration extends \WP_Background_Process {
 	 * admin request action. Scheduled cron does not send a request payload
 	 * and still runs the health check.
 	 *
-	 * @since 1.0.0
+	 * @since 1.0.1
 	 *
 	 * @param mixed $request Request vars when dispatched as an admin request action.
 	 * @return void
@@ -92,9 +92,11 @@ abstract class Integration extends \WP_Background_Process {
 
 		if ( RequestAction::is_admin_request( $action, $request ) ) {
 			if ( ! RequestAction::user_can_run( $action, $request ) ) {
+				RequestAction::log_skip( 'Background health check skipped: admin request checks did not pass' );
 				return;
 			}
 		} elseif ( ! RequestAction::doing_cron() ) {
+			RequestAction::log_skip( 'Background health check skipped: not running from WP-Cron' );
 			return;
 		}
 
@@ -104,7 +106,7 @@ abstract class Integration extends \WP_Background_Process {
 	/**
 	 * Hook name for this integration's background health check.
 	 *
-	 * @since 1.0.0
+	 * @since 1.0.1
 	 *
 	 * @return string
 	 */
@@ -121,7 +123,7 @@ abstract class Integration extends \WP_Background_Process {
 	/**
 	 * Run the background process health check.
 	 *
-	 * @since 1.0.0
+	 * @since 1.0.1
 	 *
 	 * @return void
 	 */

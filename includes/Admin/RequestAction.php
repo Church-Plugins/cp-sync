@@ -15,7 +15,7 @@ namespace CP_Sync\Admin;
  * hook with that dispatcher call these checks. Scheduled cron does not pass
  * the request array.
  *
- * @since 1.0.0
+ * @since 1.0.1
  */
 class RequestAction {
 
@@ -38,7 +38,7 @@ class RequestAction {
 	/**
 	 * Whether this callback invocation is an admin request for $action.
 	 *
-	 * @since 1.0.0
+	 * @since 1.0.1
 	 *
 	 * @param string $action  Expected action name.
 	 * @param mixed  $payload First argument received by the callback.
@@ -57,7 +57,7 @@ class RequestAction {
 	 *
 	 * Requires the CP Sync admin capability and a nonce created for $action.
 	 *
-	 * @since 1.0.0
+	 * @since 1.0.1
 	 *
 	 * @param string $action  Nonce action. Matches the cp_action value.
 	 * @param mixed  $payload Request array from the admin request dispatcher.
@@ -77,7 +77,7 @@ class RequestAction {
 	 * Returns false when $payload is not an admin request, so internal callers
 	 * of the same hook are unchanged.
 	 *
-	 * @since 1.0.0
+	 * @since 1.0.1
 	 *
 	 * @param string $action  Action name.
 	 * @param mixed  $payload First argument received by the callback.
@@ -90,7 +90,7 @@ class RequestAction {
 	/**
 	 * Whether the nonce on an admin request action is valid.
 	 *
-	 * @since 1.0.0
+	 * @since 1.0.1
 	 *
 	 * @param string $action  Nonce action.
 	 * @param mixed  $payload Request array.
@@ -113,7 +113,7 @@ class RequestAction {
 	/**
 	 * Whether the current request is a scheduled cron run.
 	 *
-	 * @since 1.0.0
+	 * @since 1.0.1
 	 *
 	 * @return bool
 	 */
@@ -122,23 +122,26 @@ class RequestAction {
 	}
 
 	/**
-	 * Admin URL that triggers $action, including a nonce.
+	 * Write one debug-log line when an admin request action does nothing.
 	 *
-	 * Use this for every admin link or form that submits cp_action.
+	 * Uses the plugin logger, which records only while debug mode is on.
 	 *
-	 * @since 1.0.0
+	 * @since 1.0.1
 	 *
-	 * @param string $action Action name.
-	 * @param string $url    Base URL. Defaults to the CP Sync settings screen.
-	 * @return string
+	 * @param string $message Plain description of why the action did nothing.
+	 * @return void
 	 */
-	public static function url( $action, $url = '' ) {
-		if ( '' === $url ) {
-			$url = admin_url( 'admin.php?page=cps_settings' );
+	public static function log_skip( $message ) {
+		if ( ! function_exists( 'cp_sync' ) ) {
+			return;
 		}
 
-		$url = add_query_arg( 'cp_action', $action, $url );
+		$plugin = cp_sync();
 
-		return wp_nonce_url( $url, $action );
+		if ( ! is_object( $plugin ) || empty( $plugin->logging ) ) {
+			return;
+		}
+
+		$plugin->logging->log( $message );
 	}
 }

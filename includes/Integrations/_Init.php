@@ -174,7 +174,7 @@ class _Init {
 	 * a valid nonce is present. Scheduled cron calls this hook with no request
 	 * payload and still runs the pull.
 	 *
-	 * @since 1.0.0
+	 * @since 1.0.1
 	 *
 	 * @param array|null $request Request vars when dispatched as an admin request action.
 	 * @return true|WP_Error|null True or WP_Error from the pull, null when the request does nothing.
@@ -182,6 +182,7 @@ class _Init {
 	public function handle_pull_action( $request = null ) {
 		if ( RequestAction::is_admin_request( self::$_cron_hook, $request ) ) {
 			if ( ! RequestAction::user_can_run( self::$_cron_hook, $request ) ) {
+				RequestAction::log_skip( 'Scheduled pull skipped: admin request checks did not pass' );
 				return null;
 			}
 
@@ -192,6 +193,7 @@ class _Init {
 			return $this->pull_content();
 		}
 
+		RequestAction::log_skip( 'Scheduled pull skipped: not running from WP-Cron' );
 		return null;
 	}
 

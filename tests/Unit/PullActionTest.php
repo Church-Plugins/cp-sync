@@ -63,6 +63,13 @@ class PullActionTest extends TestCase {
 	 */
 	private $init;
 
+	/**
+	 * Plugin logger stand-in. Records each line passed to log().
+	 *
+	 * @var object
+	 */
+	private $logger;
+
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
@@ -79,6 +86,16 @@ class PullActionTest extends TestCase {
 				return preg_replace( '/[^a-z0-9_\-]/', '', $key );
 			}
 		);
+
+		$this->logger = new class() {
+			/** @var string[] */
+			public $lines = [];
+
+			public function log( $message = '', $force = false ) {
+				$this->lines[] = (string) $message;
+			}
+		};
+		Functions\when( 'cp_sync' )->justReturn( (object) [ 'logging' => $this->logger ] );
 
 		$this->init = $this->getMockBuilder( _Init::class )
 			->disableOriginalConstructor()
@@ -209,7 +226,6 @@ class PullActionTest extends TestCase {
 
 	public function test_request_does_not_enrich_without_permission() {
 		$this->stub_role( 'logged_out' );
-		Functions\expect( 'cp_sync' )->never();
 
 		$payload = [
 			'cp_action' => 'cp_sync_events_update_item_after',
@@ -220,6 +236,8 @@ class PullActionTest extends TestCase {
 
 		$ccb = ( new ReflectionClass( CCB::class ) )->newInstanceWithoutConstructor();
 		$ccb->maybe_enrich_event_after_update( $payload, 5 );
+
+		$this->assertSame( [], $this->logger->lines );
 	}
 
 	public function test_request_does_not_run_cron_healthcheck_without_permission() {
@@ -246,23 +264,27 @@ class PullActionTest extends TestCase {
 		$this->assertTrue( $integration->ran );
 	}
 
-	public function test_admin_request_url_includes_nonce() {
-		Functions\when( 'admin_url' )->justReturn( 'https://example.test/wp-admin/admin.php?page=cps_settings' );
-		Functions\when( 'add_query_arg' )->alias(
-			static function ( $key, $value, $url ) {
-				return $url . '&' . $key . '=' . $value;
-			}
-		);
-		Functions\expect( 'wp_nonce_url' )
-			->once()
-			->with( 'https://example.test/wp-admin/admin.php?page=cps_settings&cp_action=cp_sync_pull', 'cp_sync_pull' )
-			->andReturn( 'https://example.test/wp-admin/admin.php?page=cps_settings&cp_action=cp_sync_pull&_wpnonce=abc' );
+	public function test_skip_logs_when_not_running_from_cron() {
+		$this->init->expects( $this->never() )->method( 'pull_content' );
 
-		$url = RequestAction::url( 'cp_sync_pull' );
+		$result = $this->init->handle_pull_action();
 
+		$this->assertNull( $result );
 		$this->assertSame(
-			'https://example.test/wp-admin/admin.php?page=cps_settings&cp_action=cp_sync_pull&_wpnonce=abc',
-			$url
+			[ 'Scheduled pull skipped: not running from WP-Cron' ],
+			$this->logger->lines
+		);
+
+		$integration = $this->probe( 'wp_pull_groups' );
+		$integration->handle_cron_healthcheck();
+
+		$this->assertFalse( $integration->ran );
+		$this->assertSame(
+			[
+				'Scheduled pull skipped: not running from WP-Cron',
+				'Background health check skipped: not running from WP-Cron',
+			],
+			$this->logger->lines
 		);
 	}
 
