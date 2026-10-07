@@ -62,4 +62,4 @@ On servers without PHP's sodium extension, saving any Church Community Builder s
 
 ### Hand Edits on Synced Events and Groups Are Overwritten
 
-Hand edits are overwritten on every sync: CP Sync re-applies each synced item even when nothing changed in your ChMS (CCB or Planning Center). To keep your changes, check **Prevent sync from updating this post** in the **CP Sync** box.
+Hand edits are overwritten on every sync: CP Sync re-applies each synced item even when nothing changed in your ChMS (CCB or Planning Center). To keep your changes, check **Prevent sync from updating this post** in the **CP Sync** box, then save the post.
