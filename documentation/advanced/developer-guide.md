@@ -6,7 +6,7 @@ This guide is intended for developers who want to extend or customize the CP-Syn
 
 CP-Sync follows an object-oriented architecture with clear separation of concerns:
 
-- **Core**: Base functionality and framework
+- **Root** (`includes/_Init.php`, `includes/Templates.php`): plugin bootstrap, logging, and templates, built on the bundled ChurchPlugins framework (`includes/ChurchPlugins`)
 - **ChMS**: Church Management System integrations
 - **Admin**: Administrative interfaces
 - **Integrations**: WordPress plugin integrations

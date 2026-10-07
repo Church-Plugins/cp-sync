@@ -13,7 +13,7 @@ CP Sync settings now live under **Church Plugins > CP Sync** in your WordPress a
 
 ## Planning Center: Calendar Event Visibility
 
-When your Planning Center **Event source** is **Calendar** or **Both**, the **Calendar Settings** section includes a **Visibility** option:
+When your Planning Center **Event source** is **Pull from Calendar** or **Calendar AND Registrations**, the **Calendar Settings** section includes a **Visibility** option:
 
 - **Only Visible in Church Center** (default) -- Keeps events that Planning Center marks as visible in Church Center. Events that are hidden from Church Center are not synced.
 - **Show All** -- Does not filter on Church Center visibility.
@@ -22,7 +22,7 @@ A few things to know:
 
 - Events set to **Link Only** in Church Center still sync when **Only Visible in Church Center** is selected.
 - If the Calendar Filters builder is left empty, no extra filter rules run (Church Center Visibility still applies).
-- When the Event source is **Registrations** only, there is no Visibility setting.
+- When the **Event source** is **Pull from Registrations**, there is no Visibility setting.
 
 ## Planning Center: How Event Text Maps
 
@@ -44,7 +44,7 @@ Use the **Date Range** setting on the CCB **Events** tab:
 | Option | What syncs |
 |--------|------------|
 | Current and upcoming events (Recommended) | Today through one year ahead. This is the default. |
-| Include past 30 days | The past 30 days plus upcoming events. |
+| Include past 30 days | From 30 days ago through one year ahead. |
 | All future events | Up to 10 years ahead. |
 | Custom date range | The Start and End Dates you choose. |
 
