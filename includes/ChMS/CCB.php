@@ -1132,7 +1132,12 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @param array $item Formatted event data
 	 * @param int $post_id WordPress post ID
 	 */
-	public function maybe_enrich_event_after_update( $item, $post_id ) {
+	public function maybe_enrich_event_after_update( $item = array(), $post_id = 0 ) {
+		// A single argument is not an item update.
+		if ( func_num_args() < 2 || ! is_array( $item ) ) {
+			return;
+		}
+
 		// Extract event ID and modified timestamp
 		$event_id = $item['chms_id'] ?? null;
 

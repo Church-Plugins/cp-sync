@@ -183,7 +183,11 @@ class TEC extends Integration {
 	 * @param Integration $integration   The integration instance.
 	 * @return bool
 	 */
-	public function preserve_past_events( $should_remove, $chms_id, $integration ) {
+	public function preserve_past_events( $should_remove = false, $chms_id = '', $integration = null ) {
+		if ( ! $integration instanceof Integration ) {
+			return $should_remove;
+		}
+
 		// Something else already vetoed the removal — don't override it.
 		if ( ! $should_remove ) {
 			return $should_remove;
@@ -439,7 +443,11 @@ class TEC extends Integration {
 	 * @param string $content The post content.
 	 * @return string
 	 */
-	public function maybe_add_registration_button( $content ) {
+	public function maybe_add_registration_button( $content = '' ) {
+		if ( ! is_string( $content ) ) {
+			return $content;
+		}
+
 		if ( ! is_singular( 'tribe_events' ) || ! in_the_loop() || ! is_main_query() ) {
 			return $content;
 		}

@@ -94,7 +94,11 @@ class CP_Groups extends Integration {
 	 * @param array $facets Facet taxonomy objects ( ->taxonomy, ->single_label, ->plural_label ).
 	 * @return array
 	 */
-	public function add_synced_facets( $facets ) {
+	public function add_synced_facets( $facets = array() ) {
+		if ( ! is_array( $facets ) ) {
+			return $facets;
+		}
+
 		$existing   = wp_list_pluck( $facets, 'taxonomy' );
 		$taxonomies = get_option( "cp_sync_taxonomies_{$this->id}", [] );
 
