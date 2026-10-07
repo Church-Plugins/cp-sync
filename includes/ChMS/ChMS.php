@@ -1552,7 +1552,7 @@ abstract class ChMS {
 			} catch ( ChMSException $e ) {
 
 				// check if it is a rate limit error
-				if ( 429 === $e->getCode() ) {
+				if ( 429 === (int) $e->getCode() ) {
 					$seconds = $e->getData()['wait'] ?? 5;
 
 					sleep( $seconds ); // wait for the rate limit to reset
@@ -1560,10 +1560,17 @@ abstract class ChMS {
 					// reprocess the item
 					$i--;
 					continue;
-				} else {
-					error_log( $e->getMessage() );
-					continue; // skip the item
 				}
+
+				// Any other fetch error aborts the sync. Skipping the item would
+				// leave it out of the result, and the integration would delete it.
+				error_log( $e->getMessage() );
+				$code = $e->getErrorCode();
+				if ( ! is_string( $code ) || '' === $code ) {
+					$code = 'chms_error';
+				}
+
+				return new ChMSError( $code, $e->getMessage() );
 			}
 
 			if ( $data ) {

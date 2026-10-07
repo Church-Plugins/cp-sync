@@ -724,6 +724,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		$raw = $api->get();
 
+		// A timeout or HTTP error returns false. An empty item list would still
+		// build taxonomies, and those get pruned before the zero-item guard.
+		$groups_error = $this->groups_fetch_error( $raw, 'groups' );
+		if ( null !== $groups_error ) {
+			return $groups_error;
+		}
+
 		// Collapse and normalize the response
 		$items = [];
 
@@ -733,8 +740,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		// build relational data out of the API response
 		$relational_data = [];
+		$included        = ( is_array( $raw ) && isset( $raw['included'] ) && is_array( $raw['included'] ) ) ? $raw['included'] : [];
 
-		foreach ( $raw['included'] as $include ) {
+		foreach ( $included as $include ) {
+			if ( ! is_array( $include ) || empty( $include['type'] ) || ! isset( $include['id'] ) ) {
+				continue;
+			}
+
 			$relational_data[ $include['type'] ][ $include['id'] ] = $include;
 		}
 
@@ -745,6 +757,13 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->module( 'groups' )
 			->table( 'tag_groups' )
 			->get();
+
+		// A timeout returns false. Indexing that as ['data'] looks like "no
+		// tags", and the integration would then delete every synced taxonomy.
+		$tag_groups_error = $this->groups_fetch_error( $tag_groups, 'tag_groups' );
+		if ( null !== $tag_groups_error ) {
+			return $tag_groups_error;
+		}
 
 		$tag_groups = $tag_groups['data'] ?? [];
 
@@ -762,6 +781,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				->id( $tag_group['id'] )
 				->associations( 'tags' )
 				->get();
+
+			$tags_error = $this->groups_fetch_error( $tags, 'tag_group tags' );
+			if ( null !== $tags_error ) {
+				return $tags_error;
+			}
 
 			$tags = $tags['data'] ?? [];
 
@@ -793,8 +817,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'terms'        => []
 		];
 
-		foreach ( $relational_data['GroupType'] as $group_type ) {
-			$taxonomies['cp_group_type']['terms'][ $group_type['id'] ] = $group_type['attributes']['name'];
+		foreach ( $relational_data['GroupType'] ?? [] as $group_type ) {
+			if ( ! is_array( $group_type ) || ! isset( $group_type['id'] ) ) {
+				continue;
+			}
+
+			$taxonomies['cp_group_type']['terms'][ $group_type['id'] ] = isset( $group_type['attributes']['name'] ) ? $group_type['attributes']['name'] : '';
 		}
 
 		// setup a filter
@@ -841,13 +869,466 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			return new ChMSError( 'pco_filter_error', $error->get_error_message() );
 		}
 
+		// One paginated memberships crawl, not one request per group. get()
+		// already walks pages and honors 429s. A full sync asks for every
+		// leader. Preview ( $limit > 0 ) asks only for the groups it will show,
+		// via filter=group&group_id=&where[role]=leader. null means the request
+		// failed; [] means it succeeded and there were no leaders.
+		$leaders_by_group = [];
+		if ( ! empty( $items ) ) {
+			$only_ids = null;
+
+			if ( $limit > 0 ) {
+				$only_ids = [];
+
+				foreach ( array_slice( $items, 0, (int) $limit ) as $preview_item ) {
+					if ( is_array( $preview_item ) && isset( $preview_item['id'] ) ) {
+						$only_ids[] = $preview_item['id'];
+					}
+				}
+			}
+
+			$leaders_by_group = $this->fetch_group_leaders( $only_ids );
+		}
+
 		return [
 			'items'      => $items,
 			'taxonomies' => $taxonomies,
 			'context'    => [
-				'relational_data' => $relational_data,
+				'relational_data'  => $relational_data,
+				'leaders_by_group' => $leaders_by_group,
 			],
 		];
+	}
+
+	/**
+	 * Fetch group leaders.
+	 *
+	 * Planning Center has no leader name on the group itself. Leaders are
+	 * memberships with role "leader", and the name/email live on the included
+	 * Person. A full sync uses GET /groups/v2/memberships?filter=leader&include=person.
+	 * A preview passes the group ids being shown and uses the documented
+	 * filter=group&group_id= list plus where[role]=leader, so it does not crawl
+	 * the whole organization. The client pages and honors 429s.
+	 *
+	 * @param array|null $group_ids Group ids to limit to, or null for every leader.
+	 * @return array|null Leader rows keyed by group id, [] when there are none, null when the request failed.
+	 */
+	public function fetch_group_leaders( $group_ids = null ) {
+		$ids = null;
+
+		if ( is_array( $group_ids ) ) {
+			$ids = self::membership_group_ids( $group_ids );
+
+			if ( empty( $ids ) ) {
+				return [];
+			}
+		}
+
+		$api = $this->api()
+			->module( 'groups' )
+			->table( 'memberships' )
+			->includes( 'person' );
+
+		if ( is_array( $ids ) ) {
+			$api->filter( 'group' )->param( 'group_id', implode( ',', $ids ) )->where( 'role', '=', 'leader' );
+		} else {
+			$api->filter( 'leader' );
+		}
+
+		$raw = $api->get();
+
+		if ( ! is_array( $raw ) ) {
+			$detail  = self::leader_fetch_error_text( $this->api()->errorMessage() );
+			$message = 'PCO group leaders could not be fetched; existing leader names and emails will be left unchanged.';
+
+			if ( '' !== $detail ) {
+				$message .= ' ' . $detail;
+			}
+
+			cp_sync()->logging->log( $message );
+			return null;
+		}
+
+		return self::leaders_from_memberships( $raw['data'] ?? [], $raw['included'] ?? [] );
+	}
+
+	/**
+	 * Unique group ids for a filter=group&group_id= memberships query.
+	 *
+	 * @param array $group_ids Raw ids.
+	 * @return array
+	 */
+	public static function membership_group_ids( $group_ids ) {
+		$ids = [];
+
+		if ( ! is_array( $group_ids ) ) {
+			return $ids;
+		}
+
+		foreach ( $group_ids as $id ) {
+			if ( ! is_string( $id ) && ! is_numeric( $id ) ) {
+				continue;
+			}
+
+			$id = (string) $id;
+
+			if ( '' === $id || isset( $ids[ $id ] ) ) {
+				continue;
+			}
+
+			$ids[ $id ] = true;
+		}
+
+		return array_keys( $ids );
+	}
+
+	/**
+	 * Turn a failed Groups API response into an error that aborts the sync.
+	 *
+	 * get() returns false on a timeout or HTTP error. Reading ['data'] off
+	 * that value looks like an empty tag list, and the integration would
+	 * delete every synced cps_* taxonomy and its terms.
+	 *
+	 * @param mixed  $response Value returned by get().
+	 * @param string $what     Short label for the log.
+	 * @return ChMSError|null Null when the response can be used.
+	 */
+	protected function groups_fetch_error( $response, $what ) {
+		if ( false !== $response && empty( $this->api()->errorMessage() ) ) {
+			return null;
+		}
+
+		$detail = self::leader_fetch_error_text( $this->api()->errorMessage() );
+
+		if ( '' === $detail ) {
+			$detail = $what . ' request failed with no error detail';
+		}
+
+		cp_sync()->logging->log( 'Groups fetch FAILED (' . $what . '): ' . $detail );
+
+		return new ChMSError( 'pco_fetch_error', $detail );
+	}
+
+	/**
+	 * A short string for a Planning Center error payload, for the log.
+	 *
+	 * @param mixed $error Value from PlanningCenterAPI::errorMessage().
+	 * @return string
+	 */
+	public static function leader_fetch_error_text( $error ) {
+		if ( is_string( $error ) ) {
+			return trim( $error );
+		}
+
+		if ( ! is_array( $error ) ) {
+			return '';
+		}
+
+		$first = isset( $error['errors'][0] ) && is_array( $error['errors'][0] ) ? $error['errors'][0] : [];
+
+		if ( isset( $first['detail'] ) && is_string( $first['detail'] ) && '' !== trim( $first['detail'] ) ) {
+			return trim( $first['detail'] );
+		}
+
+		if ( isset( $first['title'] ) && is_string( $first['title'] ) && '' !== trim( $first['title'] ) ) {
+			return trim( $first['title'] );
+		}
+
+		$encoded = json_encode( $error );
+
+		return is_string( $encoded ) ? $encoded : '';
+	}
+
+	/**
+	 * Index leader name/email rows by group id.
+	 *
+	 * Expects a Groups API memberships payload from
+	 * GET /groups/v2/memberships?filter=leader&include=person. Memberships
+	 * that are not leaders, or whose person was not included, are skipped.
+	 *
+	 * @param array $memberships Membership resources ( the `data` array ).
+	 * @param array $included    Included resources ( Person records ).
+	 * @return array Leader rows keyed by group id. Each row is [ 'name' => string, 'email' => string ].
+	 */
+	public static function leaders_from_memberships( $memberships, $included ) {
+		$people = [];
+
+		if ( is_array( $included ) ) {
+			foreach ( $included as $resource ) {
+				if ( ! is_array( $resource ) || ( $resource['type'] ?? '' ) !== 'Person' || ! isset( $resource['id'] ) ) {
+					continue;
+				}
+
+				if ( ! is_string( $resource['id'] ) && ! is_numeric( $resource['id'] ) ) {
+					continue;
+				}
+
+				$people[ $resource['id'] ] = is_array( $resource['attributes'] ?? null ) ? $resource['attributes'] : [];
+			}
+		}
+
+		$by_group = [];
+		$seen     = [];
+
+		if ( ! is_array( $memberships ) ) {
+			return $by_group;
+		}
+
+		foreach ( $memberships as $membership ) {
+			if ( ! is_array( $membership ) ) {
+				continue;
+			}
+
+			$attributes = is_array( $membership['attributes'] ?? null ) ? $membership['attributes'] : [];
+			$role       = isset( $attributes['role'] ) && is_string( $attributes['role'] ) ? strtolower( $attributes['role'] ) : '';
+
+			if ( 'leader' !== $role ) {
+				continue;
+			}
+
+			$relationships = is_array( $membership['relationships'] ?? null ) ? $membership['relationships'] : [];
+			$group_id      = self::relationship_id( $relationships, 'group' );
+			$person_id     = self::relationship_id( $relationships, 'person' );
+
+			if ( ( ! is_string( $group_id ) && ! is_numeric( $group_id ) ) || '' === $group_id ) {
+				continue;
+			}
+
+			if ( ( ! is_string( $person_id ) && ! is_numeric( $person_id ) ) || '' === $person_id ) {
+				continue;
+			}
+
+			if ( ! isset( $people[ $person_id ] ) ) {
+				continue;
+			}
+
+			$dedupe_key = (string) $group_id . ':' . (string) $person_id;
+			if ( isset( $seen[ $dedupe_key ] ) ) {
+				continue;
+			}
+			$seen[ $dedupe_key ] = true;
+
+			$row = self::leader_row_from_person( $people[ $person_id ] );
+			if ( '' === $row['name'] && '' === $row['email'] ) {
+				continue;
+			}
+
+			$by_group[ $group_id ][] = $row;
+		}
+
+		return $by_group;
+	}
+
+	/**
+	 * Whether the leader memberships request failed.
+	 *
+	 * null is the failure sentinel from fetch_group_leaders(). An array is a
+	 * successful result, including an empty one.
+	 *
+	 * @param array $context format_group() context.
+	 * @return bool
+	 */
+	public static function leader_fetch_failed( $context ) {
+		return is_array( $context ) && array_key_exists( 'leaders_by_group', $context ) && null === $context['leaders_by_group'];
+	}
+
+	/**
+	 * Choose the address stored as leader_email.
+	 *
+	 * The group's own contact_email wins when it is set. The first leader
+	 * address is used only when the group has no contact_email. A group with
+	 * no leader rows still does not invent a `leaders` list here: CP Groups
+	 * 1.2 folds the empty name plus this address into one contact-only row.
+	 * When rows exist but none of them has an address, the chosen email is
+	 * copied onto the first row so 1.2 ( which drops leader_email ) keeps it.
+	 *
+	 * @param array  $leader_meta   Result of group_leader_meta().
+	 * @param string $contact_email Group attributes.contact_email.
+	 * @param array  $group         Planning Center group resource.
+	 * @return array
+	 */
+	public static function apply_contact_email_fallback( $leader_meta, $contact_email, $group = [] ) {
+		if ( ! is_array( $leader_meta ) ) {
+			return $leader_meta;
+		}
+
+		$contact      = is_string( $contact_email ) ? trim( $contact_email ) : '';
+		$leader_email = isset( $leader_meta['leader_email'] ) && is_string( $leader_meta['leader_email'] ) ? trim( $leader_meta['leader_email'] ) : '';
+		$chosen       = '' !== $contact ? $contact : $leader_email;
+
+		/**
+		 * Filters the email stored as a Planning Center group's leader email.
+		 *
+		 * @param string $chosen      contact_email when set, otherwise the first leader email.
+		 * @param array  $group       Planning Center group resource.
+		 * @param array  $leader_meta Leader name, email, and rows before this choice is applied.
+		 */
+		$filtered = apply_filters( 'cp_sync_pco_group_leader_email', $chosen, is_array( $group ) ? $group : [], $leader_meta );
+
+		if ( is_string( $filtered ) ) {
+			$chosen = trim( $filtered );
+		}
+
+		$leader_meta['leader_email'] = $chosen;
+
+		if ( empty( $leader_meta['leaders'] ) || ! is_array( $leader_meta['leaders'] ) ) {
+			return $leader_meta;
+		}
+
+		foreach ( $leader_meta['leaders'] as $row ) {
+			if ( is_array( $row ) && isset( $row['email'] ) && is_string( $row['email'] ) && '' !== $row['email'] ) {
+				return $leader_meta;
+			}
+		}
+
+		if ( '' !== $chosen && isset( $leader_meta['leaders'][0] ) && is_array( $leader_meta['leaders'][0] ) ) {
+			$leader_meta['leaders'][0]['email'] = $chosen;
+		}
+
+		return $leader_meta;
+	}
+
+	/**
+	 * Map leader rows onto the meta keys CP Groups displays.
+	 *
+	 * CP Groups 1.1 stores a single `leader` name and `leader_email`. Several
+	 * leaders share that name field, joined in API order. The email is the
+	 * first leader address available ( contact uses one address ). CP Groups
+	 * 1.2 stores the same people as a `leaders` list of name/email rows.
+	 *
+	 * @param array $leaders Rows of [ 'name' => string, 'email' => string ].
+	 * @return array {
+	 *     @type string $leader       Display names, comma-separated.
+	 *     @type string $leader_email First leader email, or ''.
+	 *     @type array  $leaders      Rows that have a name or an email.
+	 * }
+	 */
+	public static function group_leader_meta( $leaders ) {
+		$names       = [];
+		$rows        = [];
+		$first_email = '';
+
+		if ( ! is_array( $leaders ) ) {
+			$leaders = [];
+		}
+
+		foreach ( $leaders as $leader ) {
+			if ( ! is_array( $leader ) ) {
+				continue;
+			}
+
+			$name  = isset( $leader['name'] ) && ( is_string( $leader['name'] ) || is_numeric( $leader['name'] ) ) ? trim( (string) $leader['name'] ) : '';
+			$email = isset( $leader['email'] ) && ( is_string( $leader['email'] ) || is_numeric( $leader['email'] ) ) ? trim( (string) $leader['email'] ) : '';
+
+			if ( '' === $name && '' === $email ) {
+				continue;
+			}
+
+			$rows[] = [
+				'name'  => $name,
+				'email' => $email,
+			];
+
+			if ( '' !== $name ) {
+				$names[] = $name;
+			}
+
+			if ( '' === $first_email && '' !== $email ) {
+				$first_email = $email;
+			}
+		}
+
+		return [
+			'leader'       => implode( ', ', $names ),
+			'leader_email' => $first_email,
+			'leaders'      => $rows,
+		];
+	}
+
+	/**
+	 * Read a belongs-to relationship id without assuming the linkage is present.
+	 *
+	 * @param array  $relationships Membership `relationships` object.
+	 * @param string $name          Relationship name ( group, person ).
+	 * @return string|int|null
+	 */
+	protected static function relationship_id( $relationships, $name ) {
+		if ( ! is_array( $relationships ) || ! isset( $relationships[ $name ] ) || ! is_array( $relationships[ $name ] ) ) {
+			return null;
+		}
+
+		$data = $relationships[ $name ]['data'] ?? null;
+		if ( ! is_array( $data ) || ! isset( $data['id'] ) ) {
+			return null;
+		}
+
+		return $data['id'];
+	}
+
+	/**
+	 * Build a leader row from a Groups API Person's attributes.
+	 *
+	 * @param array $attributes Person attributes.
+	 * @return array { @type string $name @type string $email }
+	 */
+	protected static function leader_row_from_person( $attributes ) {
+		return [
+			'name'  => self::person_display_name( $attributes ),
+			'email' => self::person_email( $attributes ),
+		];
+	}
+
+	/**
+	 * "First Last" from a Person, with either side optional.
+	 *
+	 * @param array $attributes Person attributes.
+	 * @return string
+	 */
+	protected static function person_display_name( $attributes ) {
+		if ( ! is_array( $attributes ) ) {
+			return '';
+		}
+
+		$first = isset( $attributes['first_name'] ) && is_string( $attributes['first_name'] ) ? trim( $attributes['first_name'] ) : '';
+		$last  = isset( $attributes['last_name'] ) && is_string( $attributes['last_name'] ) ? trim( $attributes['last_name'] ) : '';
+
+		return trim( $first . ' ' . $last );
+	}
+
+	/**
+	 * Primary email on a Person, or the first address when none is primary.
+	 *
+	 * @param array $attributes Person attributes.
+	 * @return string
+	 */
+	protected static function person_email( $attributes ) {
+		if ( ! is_array( $attributes ) || empty( $attributes['email_addresses'] ) || ! is_array( $attributes['email_addresses'] ) ) {
+			return '';
+		}
+
+		$fallback = '';
+
+		foreach ( $attributes['email_addresses'] as $email ) {
+			if ( ! is_array( $email ) ) {
+				continue;
+			}
+
+			$address = isset( $email['address'] ) && is_string( $email['address'] ) ? trim( $email['address'] ) : '';
+			if ( '' === $address ) {
+				continue;
+			}
+
+			if ( ! empty( $email['primary'] ) ) {
+				return $address;
+			}
+
+			if ( '' === $fallback ) {
+				$fallback = $address;
+			}
+		}
+
+		return $fallback;
 	}
 
 	/**
@@ -855,8 +1336,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 *
 	 * @param array $group The group to format.
 	 * @param array {
-	 * 	@type DataFilter $filter The filter to check the group against.
-	 * 	@type array      $relational_data The relational data for the group.
+	 * 	@type array $relational_data  Included GroupType, Enrollment, Location, and Tag records.
+	 * 	@type array $leaders_by_group Leader rows keyed by PCO group id.
 	 * } $context The context for the data.
 	 * @return array|bool The formatted group or false if the group should be skipped.
 	 */
@@ -870,9 +1351,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			->associations( 'tags' )
 			->get();
 
-		if ( $this->api()->errorMessage() ) {
+		$group_tags_error = $this->groups_fetch_error( $group_tags, 'group tags' );
+		if ( null !== $group_tags_error ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Always caught in ChMS::get_formatted_data() and only written to the log via error_log() (never echoed to the browser); HTML-escaping would corrupt the log output.
-			throw new ChMSException( 'pco_fetch_error', $this->api()->errorMessage() );
+			throw new ChMSException( $group_tags_error->get_error_code(), $group_tags_error->get_error_message() );
 		}
 
 		$group_tags = $group_tags['data'] ?? [];
@@ -881,13 +1363,22 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$item_details = [];
 		if ( ! empty( $group['relationships'] ) ) {
 			foreach ( $group['relationships'] as $relationship ) {
-				$relational_data_type = $relationship['data']['type'] ?? null;
-				$relational_data_id   = $relationship['data']['id'] ?? null;
+				$linkage = ( is_array( $relationship ) && isset( $relationship['data'] ) && is_array( $relationship['data'] ) ) ? $relationship['data'] : [];
+				$relational_data_type = $linkage['type'] ?? null;
+				$relational_data_id   = $linkage['id'] ?? null;
 
 				if ( empty( $relational_data_type ) || empty( $relational_data_id ) ) {
 					continue;
 				}
-				
+
+				if ( ! isset( $relational_data[ $relational_data_type ] ) || ! is_array( $relational_data[ $relational_data_type ] ) ) {
+					continue;
+				}
+
+				if ( ! isset( $relational_data[ $relational_data_type ][ $relational_data_id ] ) || ! is_array( $relational_data[ $relational_data_type ][ $relational_data_id ] ) ) {
+					continue;
+				}
+
 				$item_details[ $relational_data_type ] = $relational_data[ $relational_data_type ][ $relational_data_id ];
 			}
 		}
@@ -907,14 +1398,28 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'group_life_stage' => [], // not used
 			'thumbnail_url'    => $group['attributes']['header_image']['original'] ?? '',
 			'meta_input'       => [
-				'leaders'       => [
-					[ 'name' => '', 'email' => $group['attributes']['contact_email'] ?? '', ]
-				],
 				'start_date'    => date( 'Y-m-d', $start_date ),
 				'end_date'      => ! empty( $end_date ) ? date( 'Y-m-d', $end_date ) : null,
 				'public_url'    => $group['attributes']['public_church_center_web_url'] ?? '',
 			],
 		];
+
+		// null means the memberships request failed. Leave leader, leader_email,
+		// and leaders off the item so a later save does not erase stored values.
+		// An array ( including [] ) is a successful fetch: no leaders clears them.
+		if ( ! self::leader_fetch_failed( $context ) ) {
+			$leaders_by_group = ( isset( $context['leaders_by_group'] ) && is_array( $context['leaders_by_group'] ) ) ? $context['leaders_by_group'] : [];
+			$group_leaders    = ( isset( $group['id'] ) && isset( $leaders_by_group[ $group['id'] ] ) && is_array( $leaders_by_group[ $group['id'] ] ) ) ? $leaders_by_group[ $group['id'] ] : [];
+			$leader_meta      = self::group_leader_meta( $group_leaders );
+			$leader_meta      = self::apply_contact_email_fallback( $leader_meta, $group['attributes']['contact_email'] ?? '', $group );
+
+			$args['meta_input']['leader']       = $leader_meta['leader'];
+			$args['meta_input']['leader_email'] = $leader_meta['leader_email'];
+
+			if ( ! empty( $leader_meta['leaders'] ) ) {
+				$args['meta_input']['leaders'] = $leader_meta['leaders'];
+			}
+		}
 
 		// Meeting frequency
 		if ( ! empty( $group['attributes']['schedule'] ) ) {
@@ -931,9 +1436,16 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$args['meta_input']['time_desc'] = $group['attributes']['schedule'];
 		}
 
-		$enrollment = $item_details['Enrollment']['attributes'];
-		if ( 'closed' === $enrollment['status'] || true === $enrollment['auto_closed'] ) {
-			$args['meta_input']['is_group_full'] = 'on';
+		$enrollment = ( isset( $item_details['Enrollment'] ) && is_array( $item_details['Enrollment'] ) ) ? $item_details['Enrollment'] : null;
+		$enrollment_attributes = ( is_array( $enrollment ) && isset( $enrollment['attributes'] ) && is_array( $enrollment['attributes'] ) ) ? $enrollment['attributes'] : null;
+
+		if ( is_array( $enrollment_attributes ) ) {
+			$status      = $enrollment_attributes['status'] ?? null;
+			$auto_closed = $enrollment_attributes['auto_closed'] ?? null;
+
+			if ( 'closed' === $status || true === $auto_closed ) {
+				$args['meta_input']['is_group_full'] = 'on';
+			}
 		}
 
 		foreach ( $group_tags as $tag ) {
@@ -946,7 +1458,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$args['tax_input'][ $tag_data['attributes']['taxonomy'] ][] = $tag_data['id'];
 		}
 
-		$args['tax_input'][ 'cp_group_type' ] = [ $item_details['GroupType']['id'] ];
+		$group_type = ( isset( $item_details['GroupType'] ) && is_array( $item_details['GroupType'] ) ) ? $item_details['GroupType'] : null;
+		if ( is_array( $group_type ) && isset( $group_type['id'] ) && '' !== $group_type['id'] && null !== $group_type['id'] ) {
+			$args['tax_input']['cp_group_type'] = [ $group_type['id'] ];
+		}
 
 		// TODO: Look this up
 		// if ( ! empty( $group['Congregation_ID'] ) ) {

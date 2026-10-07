@@ -506,7 +506,10 @@ class PlanningCenterAPI
 
             // Append the result set to the previous results
             $results['data'] = array_merge($results['data'], $r['data']);
-            $results['included'] = array_merge($results['included'], $r['included']);
+            // `included` is optional. An empty collection (no leaders, no
+            // related records) omits it, and array_merge() rejects null on PHP 8.
+            $pageIncluded = (isset($r['included']) && is_array($r['included'])) ? $r['included'] : [];
+            $results['included'] = array_merge($results['included'], $pageIncluded);
 
             // Surface crawl progress before deciding whether to continue, so even
             // a crawl killed by the host leaves a log trail of its last page.
@@ -633,13 +636,23 @@ class PlanningCenterAPI
     }
 
     /**
+     * HTTP client for write requests. Overridden in tests to simulate failures.
+     *
+     * @return Client
+     */
+    protected function httpClient()
+    {
+        return new Client();
+    }
+
+    /**
      * Exeucte a POST or PUT request
      *
      */
     private function sendData($verb)
     {
         // Initialize the Guzzle client
-        $client = new Client(); //GuzzleHttp\Client
+        $client = $this->httpClient();
         $this->errorMessage = null;
 
         $endpoint = $this->buildEndpoint();
@@ -667,7 +680,8 @@ class PlanningCenterAPI
             $error = true;
 
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
-            $error = $e->getResponse()->getBody()->getContents();
+            // ConnectException has no response. Same guard as execute().
+            $error = $this->messageFromGuzzleException($e);
             $this->saveErrorMessage($error);
             $error = true;
 
@@ -844,7 +858,10 @@ class PlanningCenterAPI
                 return false;
 
             } catch (\GuzzleHttp\Exception\GuzzleException $e) {
-                $error = $e->getResponse()->getBody()->getContents();
+                // ConnectException (timeouts, DNS, connection refused) has no HTTP
+                // response. getResponse() does not exist on it; calling it throws
+                // an Error and would abort the whole groups sync.
+                $error = $this->messageFromGuzzleException($e);
                 $this->saveErrorMessage($error);
                 return false;
 
@@ -927,9 +944,54 @@ class PlanningCenterAPI
      */
     private function saveErrorMessage($error)
     {
-        $e = json_decode($error, true);
+        $decoded = json_decode($error, true);
 
-        $this->errorMessage = $e;
+        // A network failure stores a plain message, not a JSON body. Keep that
+        // string so callers can log it. json_decode() of a non-JSON string is null.
+        if (JSON_ERROR_NONE === json_last_error() && null !== $decoded) {
+            $this->errorMessage = $decoded;
+            return;
+        }
+
+        $this->errorMessage = $error;
+    }
+
+    /**
+     * Response body of a failed Guzzle request, or the exception message when
+     * the failure never produced a response.
+     *
+     * @param \Throwable $exception
+     * @return string
+     */
+    private function messageFromGuzzleException($exception)
+    {
+        $response = null;
+
+        if (is_object($exception) && method_exists($exception, 'getResponse')) {
+            $response = $exception->getResponse();
+        }
+
+        if (is_object($response) && method_exists($response, 'getBody')) {
+            $body = $response->getBody();
+
+            if (is_object($body) && method_exists($body, 'getContents')) {
+                $contents = $body->getContents();
+
+                if (is_string($contents) && '' !== $contents) {
+                    return $contents;
+                }
+            }
+        }
+
+        if (is_object($exception) && method_exists($exception, 'getMessage')) {
+            $message = $exception->getMessage();
+
+            if (is_string($message) && '' !== $message) {
+                return $message;
+            }
+        }
+
+        return 'The request to Planning Center failed.';
     }
 
     /**
