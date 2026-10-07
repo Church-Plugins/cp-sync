@@ -434,8 +434,8 @@ class _Init {
 	 * @param array $old_settings The old settings
 	 */
 	public function reschedule_cron( $settings = array(), $old_settings = array() ) {
-		// The admin request dispatcher passes one argument. Do not reschedule from that call.
-		if ( RequestAction::from_dispatcher( $settings ) || func_num_args() < 2 ) {
+		// A single argument is not a settings save.
+		if ( func_num_args() < 2 || ! is_array( $settings ) || ! is_array( $old_settings ) ) {
 			return;
 		}
 

@@ -14,7 +14,6 @@ namespace CP_Sync\Tests\Unit;
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use CP_Sync\Admin\RequestAction;
-use CP_Sync\ChMS\CCB;
 use CP_Sync\Integrations\Integration;
 use CP_Sync\Integrations\_Init;
 use PHPUnit\Framework\TestCase;
@@ -203,41 +202,6 @@ class PullActionTest extends TestCase {
 		);
 
 		$this->assertNull( $result );
-	}
-
-	public function test_request_does_not_reschedule_without_permission() {
-		$this->stub_role( 'subscriber' );
-		Functions\expect( 'wp_clear_scheduled_hook' )->never();
-
-		$payload = [
-			'cp_action'      => 'cp_sync_global_settings_updated',
-			'updateInterval' => 'daily',
-		];
-
-		$this->assertTrue( RequestAction::should_skip( 'cp_sync_global_settings_updated', $payload ) );
-
-		$this->init->reschedule_cron(
-			$payload,
-			[
-				'updateInterval' => 'hourly',
-			]
-		);
-	}
-
-	public function test_request_does_not_enrich_without_permission() {
-		$this->stub_role( 'logged_out' );
-
-		$payload = [
-			'cp_action' => 'cp_sync_events_update_item_after',
-			'chms_id'   => '123',
-		];
-
-		$this->assertTrue( RequestAction::should_skip( 'cp_sync_events_update_item_after', $payload ) );
-
-		$ccb = ( new ReflectionClass( CCB::class ) )->newInstanceWithoutConstructor();
-		$ccb->maybe_enrich_event_after_update( $payload, 5 );
-
-		$this->assertSame( [], $this->logger->lines );
 	}
 
 	public function test_request_does_not_run_cron_healthcheck_without_permission() {

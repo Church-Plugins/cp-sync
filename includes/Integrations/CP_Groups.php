@@ -2,7 +2,6 @@
 
 namespace CP_Sync\Integrations;
 
-use CP_Sync\Admin\RequestAction;
 use CP_Sync\Exception;
 
 class CP_Groups extends Integration {
@@ -96,8 +95,8 @@ class CP_Groups extends Integration {
 	 * @return array
 	 */
 	public function add_synced_facets( $facets = array() ) {
-		if ( RequestAction::from_dispatcher( $facets ) || ! is_array( $facets ) ) {
-			return is_array( $facets ) ? $facets : array();
+		if ( ! is_array( $facets ) ) {
+			return $facets;
 		}
 
 		$existing   = wp_list_pluck( $facets, 'taxonomy' );

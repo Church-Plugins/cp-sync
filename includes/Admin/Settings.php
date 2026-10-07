@@ -195,7 +195,7 @@ class Settings {
 	 * @return string
 	 */
 	public function admin_body_class( $classes = '' ) {
-		if ( RequestAction::from_dispatcher( $classes ) || ! is_string( $classes ) ) {
+		if ( ! is_string( $classes ) ) {
 			return $classes;
 		}
 

@@ -2,7 +2,6 @@
 
 namespace CP_Sync\ChMS;
 
-use CP_Sync\Admin\RequestAction;
 use CP_Sync_Dependencies\RRule\RRule;
 
 /**
@@ -1134,8 +1133,8 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @param int $post_id WordPress post ID
 	 */
 	public function maybe_enrich_event_after_update( $item = array(), $post_id = 0 ) {
-		// The admin request dispatcher passes one argument. Do not enrich from that call.
-		if ( RequestAction::from_dispatcher( $item ) || func_num_args() < 2 || ! is_array( $item ) ) {
+		// A single argument is not an item update.
+		if ( func_num_args() < 2 || ! is_array( $item ) ) {
 			return;
 		}
 

@@ -62,7 +62,7 @@ class SyncLock {
 	 * @return void
 	 */
 	public function register_meta_box( $post_type = '', $post = null ) {
-		if ( RequestAction::from_dispatcher( $post_type ) || ! $post instanceof \WP_Post ) {
+		if ( ! $post instanceof \WP_Post ) {
 			return;
 		}
 
@@ -116,7 +116,8 @@ class SyncLock {
 	 * @return void
 	 */
 	public function save( $post_id = 0, $post = null ) {
-		if ( RequestAction::from_dispatcher( $post_id ) || ! is_numeric( $post_id ) ) {
+		// A single argument is not a post save.
+		if ( func_num_args() < 2 || ! is_numeric( $post_id ) ) {
 			return;
 		}
 
