@@ -29,7 +29,7 @@ A few things to know:
 - The event's **Summary** in Planning Center becomes the short text shown in calendar listings that display a summary (for example, The Events Calendar list view and the Events Calendar Shortcode & Block listing).
 - The event's **Description** becomes the text on the event's own page.
 - If you edit only the Description, listings that show a summary keep the old Summary text. Update the Summary in Planning Center too.
-- If you clear the Summary in Planning Center, the old short text currently stays on your site.
+- If you clear the Summary in Planning Center, the old short text stays on your site.
 
 ## Church Community Builder (CCB) Settings
 
