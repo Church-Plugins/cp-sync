@@ -26,7 +26,7 @@ A few things to know:
 
 ## Planning Center: How Event Text Maps
 
-- The event's **Summary** in Planning Center becomes the short text shown in calendar listings that display a summary (for example, The Events Calendar list view and the Events Calendar Shortcode & Block listing).
+- The event's **Summary** in Planning Center becomes the short text shown in calendar listings. The Events Calendar list view shows it automatically. In the Events Calendar Shortcode & Block, turn on the **Excerpt** option (or use `excerpt="true"` in the shortcode).
 - The event's **Description** becomes the text on the event's own page.
 - If you edit only the Description, listings that show a summary keep the old Summary text. Update the Summary in Planning Center too.
 - If you clear the Summary in Planning Center, the old short text currently stays on your site.
@@ -60,14 +60,6 @@ If you changed the sync interval before upgrading to 1.0.0, set it to a differen
 
 On servers without PHP's sodium extension, saving any Church Community Builder setting (including Date Range) fails with an error, and Disconnect doesn't work. CCB credentials saved before upgrading keep syncing. If you run into this, please contact support.
 
-### Hand Edits on CCB-Synced Events and Groups Are Overwritten
+### Hand Edits on Synced Events and Groups Are Overwritten
 
-Changes you make by hand in WordPress to CCB-synced content are replaced on the next sync. For example, a category you add by hand to an imported event is cleared, and a group title or description you edit by hand is set back to the CCB value.
-
-To keep your changes on CP Sync 1.0.0 or later:
-
-1. Open the event or group in WordPress.
-2. In the **CP Sync** box, check **Prevent sync from updating this post**.
-3. Save the post.
-
-Your WordPress changes will stay, and later changes in CCB will not update that post while the box is checked. Version 0.3.1 does not have this checkbox; upgrade to 1.0.0 or later to use it.
+Hand edits are overwritten on every sync: CP Sync re-applies each synced item even when nothing changed in your ChMS (CCB or Planning Center). To keep your changes, check **Prevent sync from updating this post** in the **CP Sync** box.
