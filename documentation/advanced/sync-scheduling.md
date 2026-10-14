@@ -26,15 +26,8 @@ You can also set the main auto-sync frequency under **Church Plugins → CP Sync
 
 To create a basic sync schedule:
 
-1. Enable "Auto Sync" by checking the box
-2. Select the frequency:
-   - Hourly
-   - Twice Daily
-   - Daily
-   - Weekly
-3. For daily or weekly syncs, select the time of day
-4. For weekly syncs, select the day of the week
-5. Save your settings
+1. Set **Update Interval** to **Hourly**, **Daily**, or **Weekly**.
+2. Click **Save all Settings**.
 
 ### After Upgrading to 1.0.0
 
@@ -74,19 +67,18 @@ For technical users who need more specific scheduling:
 
 In addition to scheduled syncs, you can always run manual syncs:
 
-1. Navigate to **Church Plugins → CP Sync**
-2. Select your ChMS tab
-3. Go to the relevant data tab (Groups, Events)
-4. Click "Sync Now" to run an immediate synchronization
+1. Go to **Church Plugins → CP Sync** and open the **Groups** or **Events** tab.
+2. Click **Pull Now**. The tab shows **Import started**.
 
 ## Monitoring Sync Status
 
 To check on your sync operations:
 
-1. Navigate to **Church Plugins → CP Sync → Logs**
-2. View the sync operation logs
-3. Check when the last sync ran and what was processed
-4. Look for any errors or warnings
+1. Navigate to **Church Plugins → CP Sync → Log**
+2. Set **Enable Debug Mode** to **Enable** and click **Save all Settings**; nothing is logged while it is off.
+3. View the sync operation logs
+4. Check when the last sync ran and what was processed
+5. Look for any errors or warnings
 
 ## Troubleshooting Scheduled Syncs
 

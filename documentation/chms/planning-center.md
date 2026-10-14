@@ -72,9 +72,8 @@ There is no field mapping to set up. CP Sync fills in each group automatically. 
 
 1. Go to the **Events** tab in the PCO settings
 2. Choose your **Event source** (Calendar, Registrations, or Both)
-3. Select which calendars to import (when using Calendar or Both)
-4. Configure event field mapping
-5. Save your settings
+3. Set **Tag groups**, **Visibility**, and **Calendar Filters** (Calendar or Both), or **Registration Filters** (Registrations or Both)
+4. Click **Save all Settings**
 
 **Caution:** If you switch **Event Source** to **Pull from Calendar** from **Pull from Registrations** or **Calendar AND Registrations**, the next sync permanently deletes upcoming Registrations-sourced events — including events that are still running today. Past events (already ended) are kept. Events with **Prevent sync from updating this post** checked are kept, so lock any Registrations events you want to keep before you switch. Coming from **Pull from Registrations**, Calendar events then import as new posts. Coming from **Calendar AND Registrations**, the Calendar copies stay and the duplicate Registrations copies are removed, leaving one Calendar copy of events that were in both. Switching to **Calendar AND Registrations** keeps existing Registrations posts; an event present in both apps imports twice.
 

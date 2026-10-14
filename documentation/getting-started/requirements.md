@@ -4,12 +4,12 @@ Before installing CP-Sync, please ensure your environment meets the following re
 
 ## WordPress Requirements
 
-- WordPress version 5.3 or higher
+- WordPress version 6.0 or higher
 - A WordPress theme that follows standard coding practices
 
 ## Server Requirements
 
-- PHP 7.2 or higher
+- PHP 7.4 or higher
 - MySQL 5.6 or higher (or MariaDB equivalent)
 - A database using the `utf8mb4` character set (see below)
 - HTTPS support for secure API communication
@@ -23,7 +23,7 @@ Your database should use the `utf8mb4` character set. This is the WordPress defa
 
 Church management systems routinely contain characters these older character sets cannot represent: bullets (`•`), curly quotes (`’`), and emoji are all common in group and event titles. When the database cannot store a character, MySQL replaces it with `?`, so content imports with substitutions like `Summer Series ? Week 1`.
 
-To check your character set, go to **Tools → Site Health → Info → Database** and look at **Database charset**. CP-Sync also records it at the start of every sync in the logs at **Church Plugins → CP Sync → Logs**:
+To check your character set, look in **Log File Content** on the **Log** tab after a sync. CP Sync records it there only while **Enable Debug Mode** is set to **Enable**. Don't rely on **Database charset** under **Tools → Site Health → Info → Database**: it shows the connection setting, not the character set of your tables, so it can read `utf8mb4` on a site whose tables are still `latin1`.
 
 ```
 Queue column wp_options.option_value charset: utf8mb4
@@ -38,7 +38,6 @@ If this reports anything other than `utf8mb4`, ask your host to convert the data
 - An active Planning Center Online account
 - API access enabled for your account
 - Permissions to access PCO Groups and/or Calendar modules
-- (Optional) Admin access to create an application in the PCO Developer portal
 
 ### Church Community Builder (CCB)
 
