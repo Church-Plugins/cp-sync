@@ -12,36 +12,12 @@ Before reaching out for support, you may find answers in our documentation:
 
 ## Support Channels
 
-### Free Support
+Customers with an active CP Sync license can request help through the Church Plugins support portal.
 
-For users of the free version of CP-Sync:
-
-1. **WordPress.org Support Forum**
-   - Visit the [CP-Sync Support Forum](https://wordpress.org/support/plugin/cp-sync/)
-   - Create a new topic describing your issue in detail
-   - Our team monitors this forum regularly during business hours
-
-2. **GitHub Issues**
-   - For bugs or feature requests, you can submit an issue on our [GitHub repository](https://github.com/churchplugins/cp-sync/issues)
-   - Please follow the issue template and provide as much information as possible
-
-### Premium Support
-
-For licensed users of CP-Sync Premium:
-
-1. **Priority Email Support**
-   - Email support@churchplugins.com with your issue
-   - Include your license key, WordPress version, and a detailed description of your problem
-   - Screenshots or screen recordings are extremely helpful
-
-2. **Support Ticket System**
-   - Log in to your account at [churchplugins.com](https://churchplugins.com/account/)
-   - Navigate to the Support section
-   - Create a new ticket with details about your issue
-
-3. **Priority Response**
-   - Premium customers receive prioritized support
-   - Our target response time is within 1 business day
+- Visit the [support portal](https://churchplugins.com/support), or log in at [churchplugins.com](https://churchplugins.com/account/) and open the Support section to create a ticket
+- Include your license key, WordPress version, PHP version, and a detailed description of the problem
+- Screenshots or screen recordings are extremely helpful
+- For sync issues, copy the relevant lines from **Church Plugins → CP Sync → Log** (see Preparing for Support below)
 
 ## Preparing for Support
 
@@ -97,8 +73,6 @@ Our support team is available:
 
 - Monday to Friday: 9:00 AM to 5:00 PM Eastern Time (US & Canada)
 - Excluding major US holidays
-
-Emergency support for critical issues may be available outside these hours for premium customers.
 
 ## Feature Requests
 
