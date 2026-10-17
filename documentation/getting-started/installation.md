@@ -25,25 +25,22 @@ Before installing CP Sync, ensure your website meets these requirements:
 
 ## Post-Installation Setup
 
-After activating the plugin, you'll need to:
+After activating the plugin:
 
-1. Navigate to **Church Plugins → CP Sync** (`admin.php?page=cps_settings`)
-2. Select and configure your church management system
-3. Connect your ChMS account
-4. Configure synchronization options
+1. Go to **Church Plugins → CP Sync** (`admin.php?page=cps_settings`). You need an account that can manage options (an Administrator).
+2. On the **Connect** tab, set **Church Management System** to **Planning Center Online** or **Church Community Builder**.
+3. Connect that system. See [API Connections](../configuration/api-connections.md).
+4. Under **Sync**, turn on the feeds you want. **Sync Groups** needs CP Groups. **Sync Events** needs The Events Calendar. **Sync Sermons** (Planning Center only) needs CP Sermons and is off until you turn it on. **Sync Groups** and **Sync Events** are on until you turn them off.
+5. Click **Save all Settings**.
 
 > **Note (CP Sync 1.0.0):** Settings live under **Church Plugins > CP Sync**. The old Settings link no longer works. See [What's New in CP Sync 1.0.0](whats-new-1-0-0.md).
 
-For detailed configuration instructions, see the [API Connections](../configuration/api-connections.md) guide.
-
 ## Verifying Installation
 
-To verify that CP Sync is installed and working correctly:
-
-1. Navigate to **Church Plugins → CP Sync**
-2. Ensure you can access the settings page
-3. Connect to your ChMS
-4. Run a test sync to ensure data is being imported properly
+1. Go to **Church Plugins → CP Sync** and confirm the **Connect** tab loads.
+2. Connect your church management system.
+3. On the **Advanced** tab, click **Pull now**. The tab shows **Hard pull started successfully** when the sync starts.
+4. Or open **Groups**, **Events**, or **Sermons** (those tabs appear after you are connected, the matching **Sync** toggle is on, and the companion plugin is active) and click **Pull Now**. That button shows **Import started**.
 
 ## Troubleshooting Installation
 
