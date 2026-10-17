@@ -19,10 +19,7 @@ The General Settings section of CP Sync allows you to configure basic plugin opt
 
 ### Sync Settings
 
-- **Auto Sync**: Enable or disable automatic synchronization
-- **Sync Frequency**: Choose how often the sync should run (Hourly, Twice Daily, Daily, Weekly)
-- **Sync Time**: For daily and weekly syncs, choose what time the sync should run
-- **Sync Day**: For weekly syncs, choose what day the sync should run
+- **Update Interval**: **Hourly**, **Daily**, or **Weekly**
 
 If you changed the sync interval before upgrading to 1.0.0 and the new interval does not take effect, set it to a different interval once, save, then set it back and save again. Interval changes you make on 1.0.0 work normally. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#sync-interval-doesnt-take-effect-after-upgrading).
 

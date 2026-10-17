@@ -1,6 +1,7 @@
 <?php
 namespace CP_Sync\Integrations;
 
+use CP_Sync\Admin\RequestAction;
 use CP_Sync\Exception;
 
 abstract class Integration extends \WP_Background_Process {
@@ -72,6 +73,62 @@ abstract class Integration extends \WP_Background_Process {
 	 */
 	public function actions() {
 		add_action( 'init', [ $this, 'load_taxonomies' ] );
+	}
+
+	/**
+	 * Restart a queued background pull when its health-check event fires.
+	 *
+	 * Adds capability and nonce checks when this hook is dispatched as an
+	 * admin request action. Scheduled cron does not send a request payload
+	 * and still runs the health check.
+	 *
+	 * @since 1.0.1
+	 *
+	 * @param mixed $request Request vars when dispatched as an admin request action.
+	 * @return void
+	 */
+	public function handle_cron_healthcheck( $request = null ) {
+		$action = $this->cron_healthcheck_action();
+
+		if ( RequestAction::is_admin_request( $action, $request ) ) {
+			if ( ! RequestAction::user_can_run( $action, $request ) ) {
+				RequestAction::log_skip( 'Background health check skipped: admin request checks did not pass' );
+				return;
+			}
+		} elseif ( ! RequestAction::doing_cron() ) {
+			RequestAction::log_skip( 'Background health check skipped: not running from WP-Cron' );
+			return;
+		}
+
+		$this->run_scheduled_healthcheck();
+	}
+
+	/**
+	 * Hook name for this integration's background health check.
+	 *
+	 * @since 1.0.1
+	 *
+	 * @return string
+	 */
+	protected function cron_healthcheck_action() {
+		if ( ! empty( $this->identifier ) ) {
+			return $this->identifier . '_cron';
+		}
+
+		$action = isset( $this->action ) ? (string) $this->action : '';
+
+		return 'wp_' . $action . '_cron';
+	}
+
+	/**
+	 * Run the background process health check.
+	 *
+	 * @since 1.0.1
+	 *
+	 * @return void
+	 */
+	protected function run_scheduled_healthcheck() {
+		parent::handle_cron_healthcheck();
 	}
 
 	/**

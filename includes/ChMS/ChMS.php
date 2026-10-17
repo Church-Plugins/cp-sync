@@ -1515,7 +1515,12 @@ abstract class ChMS {
 	 * @param number $limit The number of items to pull.
 	 * @return array|ChMSError
 	 */
-	public function get_formatted_data( $existing_data, $integration_type, $limit = 0 ) {
+	public function get_formatted_data( $existing_data = null, $integration_type = '', $limit = 0 ) {
+		// A single argument has no integration type. Leave the passed value as-is.
+		if ( ! is_string( $integration_type ) || '' === $integration_type ) {
+			return $existing_data;
+		}
+
 		$integration_args = $this->supported_integrations[ $integration_type ];
 
 		if ( ! is_callable( $integration_args['fetch_callback'] ) ) {
