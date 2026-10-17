@@ -66,8 +66,15 @@ class Encryption {
 			$nonce  = random_bytes( SODIUM_CRYPTO_SECRETBOX_NONCEBYTES );
 			$cipher = sodium_crypto_secretbox( $plaintext, $nonce, $key );
 
+			// sodium_compat defines sodium_memzero() but always throws. The wipe is
+			// best-effort hygiene on a derived key; a real secretbox failure above
+			// must still propagate.
 			if ( function_exists( 'sodium_memzero' ) ) {
-				sodium_memzero( $key );
+				try {
+					sodium_memzero( $key );
+				} catch ( \SodiumException $e ) {
+					// Best-effort wipe; not supported by sodium_compat.
+				}
 			}
 
 			return self::SODIUM_PREFIX . base64_encode( $nonce . $cipher );
@@ -123,8 +130,14 @@ class Encryption {
 			$key    = self::get_key();
 			$plain  = sodium_crypto_secretbox_open( $cipher, $nonce, $key );
 
+			// Same best-effort wipe as encrypt(). This catch does not cover
+			// sodium_crypto_secretbox_open(); a failed open still returns '' or throws.
 			if ( function_exists( 'sodium_memzero' ) ) {
-				sodium_memzero( $key );
+				try {
+					sodium_memzero( $key );
+				} catch ( \SodiumException $e ) {
+					// Best-effort wipe; not supported by sodium_compat.
+				}
 			}
 
 			return false === $plain ? '' : $plain;
