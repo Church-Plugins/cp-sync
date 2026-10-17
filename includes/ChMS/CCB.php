@@ -325,6 +325,12 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 
 		$base_url = $this->get_base_url();
 
+		// CCB XML booleans arrive as strings ("true" / "false"). The string
+		// "false" is non-empty, so a PHP truthy check marked every group full
+		// and CP Groups hid it. Only an explicit true counts; a missing or
+		// empty <full> does not.
+		$is_group_full = self::ccb_xml_is_true( $group['full'] ?? null ) ? 'on' : 0;
+
 		$args = [
 			'chms_id'          => $group['id'],
 			'post_status'      => 'publish',
@@ -340,7 +346,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 				'leader_email'     => $group['main_leader']['email'] ?? '',
 				'registration_url' => $group['public_signup_form']['url'] ?? '',
 				'public_url'       => $base_url ? $base_url . 'group_detail.php?group_id=' . $group['id'] : '',
-				'is_group_full'    => $group['full'] ? 'on' : 0,
+				'is_group_full'    => $is_group_full,
 			],
 		];
 
@@ -397,6 +403,27 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		}
 
 		return $args;
+	}
+
+	/**
+	 * Whether a CCB XML boolean is true.
+	 *
+	 * The API client returns element text as a string, so "false" is non-empty
+	 * and must not be read with PHP truthiness. Only the word true counts
+	 * ( any case, surrounding whitespace ignored ). A missing, empty, or
+	 * non-string value is false — the same outcome as the strict `'true' ===`
+	 * checks on inactive, public_search_listed, and childcare_provided when
+	 * the element is absent or blank.
+	 *
+	 * @param mixed $value Raw field value from the parsed CCB response.
+	 * @return bool
+	 */
+	private static function ccb_xml_is_true( $value ) {
+		if ( ! is_string( $value ) ) {
+			return false;
+		}
+
+		return 'true' === strtolower( trim( $value ) );
 	}
 
 	/**
