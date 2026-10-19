@@ -13,13 +13,17 @@ Groups are created as CP Groups. Turn on **Sync Groups** on the **Connect** tab,
 | Name | Title |
 | Description | Content |
 | Header image | Featured image |
+| All leader names, comma-separated | **Group Leader** |
+| Group contact email when set, otherwise the first leader's email (filterable via `cp_sync_pco_group_leader_email`) | **Group Leader Email** |
 | Schedule | **Meeting Time Desc** |
 | Location address | **Meeting Location** |
 | Group type | Type (default label **Type**) |
 | Tag groups selected under **Group Tags to Sync** | Extra filters on the groups page |
 | Church Center web address | **Group Details** |
 
-A closed enrollment is stored as **Group is Full**.
+On CP Groups 1.2 or newer, the full leaders list is saved too when the leader fetch succeeds. A failed leader fetch leaves **Group Leader**, **Group Leader Email**, and that list unset and preserves the values already stored.
+
+A closed or auto-closed enrollment is stored as **Group is Full**.
 
 ### Church Community Builder
 
