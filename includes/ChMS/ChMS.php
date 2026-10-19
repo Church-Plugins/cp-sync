@@ -1515,7 +1515,12 @@ abstract class ChMS {
 	 * @param number $limit The number of items to pull.
 	 * @return array|ChMSError
 	 */
-	public function get_formatted_data( $existing_data, $integration_type, $limit = 0 ) {
+	public function get_formatted_data( $existing_data = null, $integration_type = '', $limit = 0 ) {
+		// A single argument has no integration type. Leave the passed value as-is.
+		if ( ! is_string( $integration_type ) || '' === $integration_type ) {
+			return $existing_data;
+		}
+
 		$integration_args = $this->supported_integrations[ $integration_type ];
 
 		if ( ! is_callable( $integration_args['fetch_callback'] ) ) {
@@ -1552,7 +1557,7 @@ abstract class ChMS {
 			} catch ( ChMSException $e ) {
 
 				// check if it is a rate limit error
-				if ( 429 === $e->getCode() ) {
+				if ( 429 === (int) $e->getCode() ) {
 					$seconds = $e->getData()['wait'] ?? 5;
 
 					sleep( $seconds ); // wait for the rate limit to reset
@@ -1560,10 +1565,17 @@ abstract class ChMS {
 					// reprocess the item
 					$i--;
 					continue;
-				} else {
-					error_log( $e->getMessage() );
-					continue; // skip the item
 				}
+
+				// Any other fetch error aborts the sync. Skipping the item would
+				// leave it out of the result, and the integration would delete it.
+				error_log( $e->getMessage() );
+				$code = $e->getErrorCode();
+				if ( ! is_string( $code ) || '' === $code ) {
+					$code = 'chms_error';
+				}
+
+				return new ChMSError( $code, $e->getMessage() );
 			}
 
 			if ( $data ) {

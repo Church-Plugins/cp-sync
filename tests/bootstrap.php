@@ -36,6 +36,13 @@ require_once dirname( __DIR__ ) . '/vendor/autoload.php';
 // Minimal WP_Error stand-in for units that construct/return WP_Error without a
 // running WordPress. Pair it in tests with:
 //   Brain\Monkey\Functions\when('is_wp_error')->alias(fn($t) => $t instanceof \WP_Error);
+if ( ! class_exists( 'WP_Post' ) ) {
+	class WP_Post {
+		/** @var int */
+		public $ID = 0;
+	}
+}
+
 if ( ! class_exists( 'WP_Error' ) ) {
 	class WP_Error {
 		/** @var string */ public $code;
