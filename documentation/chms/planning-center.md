@@ -57,16 +57,19 @@ There is no field mapping to set up. CP Sync fills in each group automatically. 
 
 | Planning Center | CP Groups |
 |-----------------|-----------|
-| Name | Post Title |
-| Description | Post Content |
-| Header image | Featured Image |
-| Location full address | Meeting Location |
-| Schedule | Meeting Time |
-| Leaders | Not synced from Planning Center. **Group Leader** and **Group Leader Email** stay empty. |
-| Group type | Group Type |
+| Name | Title |
+| Description | Content |
+| Header image | Featured image |
+| Location full address | **Meeting Location** |
+| Schedule | **Meeting Time Desc** |
+| All leader names, comma-separated | **Group Leader** |
+| Group contact email when set, otherwise the first leader's email (filterable via `cp_sync_pco_group_leader_email`) | **Group Leader Email** |
+| Group type | Type (default label **Type**) |
 | Tags in the tag groups you selected | The matching option in that tag group's filter (for example, Life Stage: Adults) |
-| Church Center URL | Group Details (the View Details link) |
-| Enrollment closed, or enrollment auto-closed | Marked full |
+| Church Center URL | **Group Details** (the View Details link) |
+| Enrollment closed, or enrollment auto-closed | **Group is Full** |
+
+On CP Groups 1.2 or newer, the full leaders list is saved too when the leader fetch succeeds. A failed leader fetch leaves **Group Leader**, **Group Leader Email**, and that list unset and preserves the values already stored.
 
 ### Events Synchronization
 

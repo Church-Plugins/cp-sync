@@ -39,18 +39,19 @@ There is no field mapping to set up. CP Sync fills in each group automatically. 
 
 | Church Community Builder | CP Groups |
 |--------------------------|-----------|
-| Name | Post Title |
-| Description | Post Content |
-| Image | Featured Image. An image address that contains `group-default` is skipped. |
-| Meeting day and meeting time | Meeting Time. A time that can be read is saved like 7:00pm. With a meeting day, the text is the day, an added "s", then " at ", then the time (Monday becomes Mondays at 7:00pm). The day is also saved on its own. If the time cannot be read, meeting time is left unset. |
-| Childcare provided | Kid friendly. This is on only when childcare provided is the text `true`. Otherwise it is off. |
-| Campus | The group's location in CP Locations, only when the CP Locations plugin is active. This is not the Meeting Location field. A plain-text campus is used. If campus is not plain text, the area name is used when that name is present. |
-| Group type | Group Type, when the group type is plain text |
-| Department | Group category, when the department is plain text |
-| Main leader name | Group Leader |
-| Main leader email | Group Leader Email |
-| Public signup form URL | Registration URL |
-| Group page on your CCB site | Group Details (the View Details link). The address is `https://{subdomain}.ccbchurch.com/group_detail.php?group_id=` plus the group id when a subdomain is saved, and blank when no subdomain is saved. |
+| Name | Title |
+| Description | Content |
+| Image | Featured image. An image address that contains `group-default` is skipped. |
+| Meeting day and meeting time | **Meeting Time Desc**. A time that can be read is saved like 7:00pm. With a meeting day, the text is the day, an added "s", then " at ", then the time (Monday becomes Mondays at 7:00pm). The day is also saved on its own. If the time cannot be read, **Meeting Time Desc** is left unset. |
+| Childcare provided | **Kid Friendly**. This is on only when childcare provided is the text `true`. Otherwise it is off. |
+| Group is full | **Group is Full**. Marked only when CCB's full value is the text `true` (any case, surrounding spaces ignored). |
+| Campus | The group's location in CP Locations, only when the CP Locations plugin is active. This is not the **Meeting Location** field. A plain-text campus is used. If campus is not plain text, the area name is used when that name is present. |
+| Group type | Type (default label **Type**), when the group type is plain text |
+| Department | Category (default label **Category**), when the department is plain text |
+| Main leader name | **Group Leader** |
+| Main leader email | **Group Leader Email** |
+| Public signup form URL | **Registration Action** |
+| Group page on your CCB site | **Group Details** (the View Details link). The address is `https://{subdomain}.ccbchurch.com/group_detail.php?group_id=` plus the group id when a subdomain is saved, and blank when no subdomain is saved. |
 
 #### Which Groups Sync
 
