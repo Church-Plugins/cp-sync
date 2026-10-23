@@ -70,6 +70,9 @@ If you plan to use specific integrations:
 ### The Events Calendar Integration
 - The Events Calendar plugin (by Modern Tribe) installed and activated (version 5.0 or higher)
 
+### CP Sermons Integration
+- CP Sermons installed and activated (Planning Center only)
+
 ## Checking Your Configuration
 
 You can verify your PHP configuration by navigating to **Tools → Site Health** in your WordPress admin dashboard to ensure all requirements are met.

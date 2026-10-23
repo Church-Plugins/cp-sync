@@ -13,6 +13,8 @@ Data filters act as rules that determine whether a specific group, event, or oth
 
 ## Accessing Data Filters
 
+The filter tabs appear only after you connect your ChMS. The **Groups**, **Events**, and **Sermons** tabs appear only when **Sync Groups**, **Sync Events**, or **Sync Sermons** is on and CP Groups, The Events Calendar, or CP Sermons is active. **Calendar Filters** and **Registration Filters** are Planning Center only and follow the event source you choose; **Sermons** is Planning Center only; the **Events** filter is CCB.
+
 1. Navigate to **Church Plugins → CP Sync**
 2. Open the **Groups**, **Events**, or **Sermons** tab
 3. Use the filter there (**Groups**, **Calendar Filters**, **Registration Filters**, **Events**, or **Sermons**)
