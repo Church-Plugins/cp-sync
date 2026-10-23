@@ -39,9 +39,37 @@ If the companion plugin is not active, that toggle is disabled. Its help text is
 
 ### Groups Synchronization
 
-1. Go to the **Groups** tab in the PCO settings
-2. Set **Group Tags to Sync**, **Visibility**, and the **Groups** filter
-3. Click **Save all Settings**
+Group sync needs the **CP Groups** plugin to be active. If it isn't, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
+
+Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Planning Center, while **Sync Groups** is on.
+
+1. Open the **Groups** tab.
+2. Under **Group Tags to Sync**, choose the Planning Center tag groups you want on your site. Each selected tag group is added to your groups as its own filter, named after the tag group, with its tags as the options. For example, a "Life Stage" tag group becomes a Life Stage filter. Tag groups you don't select are not added.
+3. Choose **Visibility**: **Only Visible in Church Center** (default) syncs only groups published on Church Center; **Show All** does not filter on Church Center visibility.
+4. Optionally, limit which groups sync. On screen the filter reads **Pull Groups where** **All** or **Any** **of the following match**. There is no separate Groups heading. Click **Add Condition** to add a condition on **Name**, **Description**, **Group Type**, **Location**, **Enrollment Status**, **Enrollment Strategy**, or **Visibility**. For **Group Type**, the comparisons are **Is**, **Is Not**, **Is Empty**, **Is Not Empty**, **Is in**, and **Is Not in**. With no conditions, every group allowed by Visibility syncs.
+5. Click **Save all Settings**. The button stays disabled until you change a setting.
+
+Groups that stop matching your filter are deleted from your site, and come back as new posts if they match again later. Switching **Visibility** back to **Only Visible in Church Center** removes unlisted groups that were already synced.
+
+#### What Syncs for Each Group
+
+There is no field mapping to set up. CP Sync fills in each group automatically. Where the [Data Mapping](../configuration/data-mapping.md) page already names a CP Groups field, the table uses that name.
+
+| Planning Center | CP Groups |
+|-----------------|-----------|
+| Name | Title |
+| Description | Content |
+| Header image | Featured image |
+| Location full address | **Meeting Location** |
+| Schedule | **Meeting Time Desc** |
+| All leader names, comma-separated | **Group Leader** |
+| Group contact email when set, otherwise the first leader's email (filterable via `cp_sync_pco_group_leader_email`) | **Group Leader Email** |
+| Group type | Type (default label **Type**) |
+| Tags in the tag groups you selected | The matching option in that tag group's filter (for example, Life Stage: Adults) |
+| Church Center URL | **Group Details** (the View Details link) |
+| Enrollment closed, or enrollment auto-closed | **Group is Full** |
+
+On CP Groups 1.2 or newer, the full leaders list is saved too when the leader fetch succeeds. A failed leader fetch leaves **Group Leader**, **Group Leader Email**, and that list unset and preserves the values already stored.
 
 ### Events Synchronization
 
