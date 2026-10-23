@@ -4,7 +4,7 @@ Tags: church, ccb, planning-center, sync, events
 Requires at least: 6.0
 Tested up to: 6.7.1
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -91,10 +91,13 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 
 == Changelog ==
 
-= Unreleased =
-* Security hardening: Adds capability and nonce checks to admin request actions.
-* Stricter checks when an admin request action is called with a single argument.
-* Security hardening: settings payload handling.
+= 1.1.0 =
+* New: Planning Center group leaders now sync to CP Groups. Group Leader gets every leader's name, and Group Leader Email gets the group's contact email, or the email of the first leader who has one (developers can change this with the `cp_sync_pco_group_leader_email` filter). On CP Groups 1.2 or later, leaders are saved as Group Leaders rows instead. If the leaders request fails, leaders already stored are kept.
+* Fix: A failed Planning Center groups or tag-group request now stops the groups sync with a logged error, instead of being read as "no data" and removing group types and tag filters.
+* Security: Sync and background-process actions can no longer be triggered by visiting a site URL. They now require an administrator with a valid nonce, or a scheduled (cron) run. Updates the ChurchPlugins framework to 1.1.19, which applies the same checks to all request actions.
+* Fix: Church Community Builder groups are no longer all marked full. CCB sends "false" as text, which was read as true.
+* Fix: Saving, disconnecting and loading Church Community Builder credentials no longer fails on hosts without the PHP sodium extension.
+* Docs: Accuracy fixes across the introduction, What's New, Developer Guide, how-to and settings pages, Groups Synchronization steps, and Data Mapping.
 
 = 1.0.0-beta2 =
 * Fix: A filter group set to "any" with no conditions no longer filters out every item — previews and syncs affected by this returned zero events. The Church Center visibility restriction (events and groups) is also now applied correctly; it was previously skipped due to a mis-keyed internal condition.

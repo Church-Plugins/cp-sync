@@ -82,7 +82,7 @@ abstract class Integration extends \WP_Background_Process {
 	 * admin request action. Scheduled cron does not send a request payload
 	 * and still runs the health check.
 	 *
-	 * @since 1.0.1
+	 * @since 1.1.0
 	 *
 	 * @param mixed $request Request vars when dispatched as an admin request action.
 	 * @return void
@@ -106,7 +106,7 @@ abstract class Integration extends \WP_Background_Process {
 	/**
 	 * Hook name for this integration's background health check.
 	 *
-	 * @since 1.0.1
+	 * @since 1.1.0
 	 *
 	 * @return string
 	 */
@@ -123,7 +123,7 @@ abstract class Integration extends \WP_Background_Process {
 	/**
 	 * Run the background process health check.
 	 *
-	 * @since 1.0.1
+	 * @since 1.1.0
 	 *
 	 * @return void
 	 */

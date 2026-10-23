@@ -174,7 +174,7 @@ class _Init {
 	 * a valid nonce is present. Scheduled cron calls this hook with no request
 	 * payload and still runs the pull.
 	 *
-	 * @since 1.0.1
+	 * @since 1.1.0
 	 *
 	 * @param array|null $request Request vars when dispatched as an admin request action.
 	 * @return true|WP_Error|null True or WP_Error from the pull, null when the request does nothing.
