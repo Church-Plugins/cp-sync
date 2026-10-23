@@ -34,17 +34,16 @@ Each filter named above — **Groups**, **Calendar Filters**, **Registration Fil
 
 ### Groups Filters
 
-- Only import groups with status "Active"
+- Only import groups whose **Enrollment Status** is Open (Planning Center) or whose **Inactive** is No (CCB)
 - Exclude groups with "Staff" or "Internal" in the name
 - Only import Small Groups and Life Groups
-- Only import groups that have a meeting location
+- Only import groups that have a meeting location (Planning Center: **Location** **Is Not Empty**)
 
 ### Events Filters
 
-- Only import events happening in the next 60 days
+- Only import events that start before a date you pick (**Start Date** **Is Less Than**)
 - Exclude events with "Private" or "Staff Only" in the title
-- Only import events from specific calendars
-- Only import events with a public location
+- Only import events of a certain **Event Type** or **Ministry Area** (CCB)
 
 ## Troubleshooting Filters
 

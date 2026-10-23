@@ -37,7 +37,7 @@ If this reports anything other than `utf8mb4`, ask your host to convert the data
 
 - An active Planning Center Online account
 - API access enabled for your account
-- Permissions to access PCO Groups and/or Calendar modules
+- Permissions to access the Planning Center apps you sync: Groups (groups), Calendar and/or Registrations (events), and Publishing (sermons)
 
 ### Church Community Builder (CCB)
 

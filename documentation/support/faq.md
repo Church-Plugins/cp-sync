@@ -37,7 +37,7 @@ Yes, CP-Sync provides extensive filtering options. You can filter by group type,
 No. CP Sync copies a fixed set of fields. There is no field-mapping setting.
 
 ### How does CP-Sync handle recurring events?
-For The Events Calendar integration, CP-Sync can import recurring events according to the patterns defined in your ChMS. The exact handling depends on the capabilities of your church management system and the event plugin used.
+CP-Sync imports each occurrence of a recurring event as its own event in The Events Calendar. It does not create a recurring event series.
 
 ### Will CP-Sync overwrite my existing content?
 CP-Sync is designed to update only the content that comes from your ChMS. It will not affect manually created WordPress content unless it shares a unique identifier with imported content.
@@ -48,18 +48,18 @@ CP-Sync is designed to update only the content that comes from your ChMS. It wil
 Yes, CP-Sync integrates with The Events Calendar plugin, allowing you to import events from your ChMS into your WordPress calendar. See the [The Events Calendar Integration Guide](../integrations/the-events-calendar.md) for setup instructions.
 
 ### How does CP-Sync integrate with CP Groups?
-CP-Sync imports group data from your ChMS and creates or updates groups in the CP Groups plugin, maintaining synchronized data between the systems. See the [CP Groups Integration Guide](../integrations/cp-groups.md) for details.
+CP-Sync imports group data from your ChMS and creates or updates groups in the CP Groups plugin. Sync is one way: changes made in WordPress are not sent back to your ChMS. See the [CP Groups Integration Guide](../integrations/cp-groups.md) for details.
 
 ### Can I use CP-Sync with other plugins not listed?
-While CP-Sync is specifically designed to work with The Events Calendar and CP Groups, developers can extend it to work with other plugins using hooks and filters. See the [Developer Guide](../advanced/developer-guide.md) for more information.
+While CP-Sync is specifically designed to work with The Events Calendar, CP Groups, and CP Sermons, developers can extend it to work with other plugins using hooks and filters. See the [Developer Guide](../advanced/developer-guide.md) for more information.
 
 ## Troubleshooting
 
 ### What should I do if the sync process fails?
-Check the logs in CP-Sync settings to identify the issue. Common problems include connection issues or PHP timeout errors. The [Troubleshooting Guide](../advanced/troubleshooting.md) provides solutions for these issues.
+Turn on logging first: go to **Church Plugins → CP Sync**, open the **Log** tab, set **Enable Debug Mode** to **Enable**, and run the sync again. Then check **Log File Content**. CP-Sync only writes the log while debug mode is on. Common problems include connection issues or PHP timeout errors. The [Troubleshooting Guide](../advanced/troubleshooting.md) provides solutions for these issues.
 
 ### How can I optimize CP-Sync for a large number of groups/events?
-Schedule syncs during low-traffic periods. For detailed optimization strategies, see the [Developer Guide](../advanced/developer-guide.md).
+CP-Sync has no setting for the time of day a sync runs. The first scheduled sync runs about an hour after setup, then repeats at the **Update Interval** you choose (Hourly, Daily or Weekly) on the **Advanced** tab. Use **Pull Now** to run a sync immediately.
 
 ### Why are some fields not being imported correctly?
 Missing fields usually occur because of inconsistent data formats or missing fields in the source data. Check the data format in your ChMS.
