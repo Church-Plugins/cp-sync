@@ -59,7 +59,7 @@ While CP-Sync is specifically designed to work with The Events Calendar, CP Grou
 Turn on logging first: go to **Church Plugins → CP Sync**, open the **Log** tab, set **Enable Debug Mode** to **Enable**, and run the sync again. Then check **Log File Content**. CP-Sync only writes the log while debug mode is on. Common problems include connection issues or PHP timeout errors. The [Troubleshooting Guide](../advanced/troubleshooting.md) provides solutions for these issues.
 
 ### How can I optimize CP-Sync for a large number of groups/events?
-CP-Sync has no setting for the time of day a sync runs. The first scheduled sync runs about an hour after setup, then repeats at the **Update Interval** you choose (Hourly, Daily or Weekly) on the **Advanced** tab. Use **Pull Now** to run a sync immediately.
+CP-Sync has no setting for the time of day a sync runs. The first scheduled sync runs about an hour after setup, then repeats at the **Update Interval** you choose (Hourly, Daily or Weekly) on the **Advanced** tab. Changing the **Update Interval** also resets the schedule, so the next sync runs about an hour after the change. Use **Pull Now** to run a sync immediately.
 
 ### Why are some fields not being imported correctly?
 Missing fields usually occur because of inconsistent data formats or missing fields in the source data. Check the data format in your ChMS.
