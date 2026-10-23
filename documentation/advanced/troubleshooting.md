@@ -124,6 +124,4 @@ If you're still experiencing issues after trying these troubleshooting steps:
    - Review the [Developer Guide](developer-guide.md) for advanced solutions
 
 2. **Support Channels**:
-   - Visit our support forum at [Church Plugins Support](https://churchplugins.com/support)
-   - Submit a support ticket with your error logs attached
-   - Email support@churchplugins.com with details about your issue
+   - Visit [Contact Support](https://docs.churchplugins.com/contact-support/) to request help or submit a ticket, and include your error logs and details about your issue
