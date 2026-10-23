@@ -15,6 +15,13 @@ namespace CP_Sync\Admin;
  * hook with that dispatcher call these checks. Scheduled cron does not pass
  * the request array.
  *
+ * Since ChurchPlugins 1.1.19 the dispatcher ignores cp_action names that are
+ * not registered through its cp_request_actions filter, and cp-sync registers
+ * none, so these checks are defense in depth. The nonce conventions differ:
+ * this class expects `_wpnonce` for the hook name, while the framework expects
+ * `cp_action_nonce` for `cp_action_{hook}`. Registering a cp-sync hook with the
+ * framework later would require both, so align them first.
+ *
  * @since 1.1.0
  */
 class RequestAction {

@@ -57,6 +57,11 @@ unzip -q cp-sync.zip -d "${STAGE}/cp-sync"
 # vendored packages ship .github/.gitignore files none of which belong in a
 # customer zip.
 find "${STAGE}/cp-sync" \( -name '.git' -o -name '.github' -o -name '.gitignore' -o -name '.gitattributes' \) -prune -exec rm -rf {} +
+# The ChurchPlugins submodule's own test suite and dev configs. Its
+# .gitattributes export-ignore only applies to git archive, not this checkout.
+rm -rf "${STAGE}/cp-sync/includes/ChurchPlugins/tests" \
+	"${STAGE}/cp-sync/includes/ChurchPlugins/phpunit.xml.dist" \
+	"${STAGE}/cp-sync/includes/ChurchPlugins/phpcs.xml.dist"
 ( cd "${STAGE}" && zip -qr wrapped.zip cp-sync )
 mv "${STAGE}/wrapped.zip" "${RELEASE_ZIP}"
 rm -f cp-sync.zip

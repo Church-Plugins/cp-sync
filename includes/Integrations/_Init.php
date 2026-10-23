@@ -200,11 +200,17 @@ class _Init {
 	/**
 	 * trigger the contant pull
 	 *
+	 * Every supported type is pulled even when an earlier one fails, so a
+	 * transient Groups API error never blocks the Events or Sermons pull in the
+	 * same run. The first real failure is returned once all types have run.
+	 *
 	 * @since  1.0.0
 	 * 
 	 * @return true|WP_Error
 	 */
 	public function pull_content() {
+		$first_error = null;
+
 		foreach( self::$supported_types as $type ) {
 			$result = $this->pull_integration( $type );
 			if ( is_wp_error( $result ) ) {
@@ -215,10 +221,14 @@ class _Init {
 				if ( in_array( $result->get_error_code(), [ 'integration_unavailable', 'integration_disabled' ], true ) ) {
 					continue;
 				}
-				return $result;
+
+				if ( null === $first_error ) {
+					$first_error = $result;
+				}
 			}
 		}
-		return true;
+
+		return null === $first_error ? true : $first_error;
 	}
 
 	/**
@@ -289,7 +299,7 @@ class _Init {
 	/**
 	 * Register rest API routes
 	 *
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function register_rest_routes() {
@@ -436,10 +446,6 @@ class _Init {
 	public function reschedule_cron( $settings = array(), $old_settings = array() ) {
 		// A single argument is not a settings save.
 		if ( func_num_args() < 2 || ! is_array( $settings ) || ! is_array( $old_settings ) ) {
-			return;
-		}
-
-		if ( ! is_array( $settings ) || ! is_array( $old_settings ) ) {
 			return;
 		}
 

@@ -69,7 +69,7 @@ There is no field mapping to set up. CP Sync fills in each group automatically. 
 | Church Center URL | **Group Details** (the View Details link) |
 | Enrollment closed, or enrollment auto-closed | **Group is Full** |
 
-On CP Groups 1.2 or newer, leaders are saved as **Group Leaders** rows (a name and email for each leader) instead of **Group Leader** and **Group Leader Email**. When the group has a contact email, it replaces the first row's email. A failed leader fetch leaves the leader fields unset and preserves the values already stored.
+On CP Groups 1.2 or newer, leaders are saved as **Group Leaders** rows instead of **Group Leader** and **Group Leader Email**. Each row keeps that leader's own name and email. If no leader has an email, the group's contact email is put on the first row. A failed leader fetch leaves the leader fields unset and preserves the values already stored.
 
 ### Events Synchronization
 

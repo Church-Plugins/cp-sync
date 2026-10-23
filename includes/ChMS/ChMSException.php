@@ -66,6 +66,8 @@ class ChMSException extends \Exception {
 	 *
 	 * String codes stay strings. Numeric codes are ints, matching getCode().
 	 *
+	 * @since 1.1.0
+	 *
 	 * @return int|string
 	 */
 	public function getErrorCode() {

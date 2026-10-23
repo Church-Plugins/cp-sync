@@ -415,6 +415,8 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * checks on inactive, public_search_listed, and childcare_provided when
 	 * the element is absent or blank.
 	 *
+	 * @since 1.1.0
+	 *
 	 * @param mixed $value Raw field value from the parsed CCB response.
 	 * @return bool
 	 */

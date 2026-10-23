@@ -911,6 +911,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * filter=group&group_id= list plus where[role]=leader, so it does not crawl
 	 * the whole organization. The client pages and honors 429s.
 	 *
+	 * @since 1.1.0
+	 *
 	 * @param array|null $group_ids Group ids to limit to, or null for every leader.
 	 * @return array|null Leader rows keyed by group id, [] when there are none, null when the request failed.
 	 */
@@ -956,6 +958,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Unique group ids for a filter=group&group_id= memberships query.
 	 *
+	 * @since 1.1.0
+	 *
 	 * @param array $group_ids Raw ids.
 	 * @return array
 	 */
@@ -990,6 +994,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * that value looks like an empty tag list, and the integration would
 	 * delete every synced cps_* taxonomy and its terms.
 	 *
+	 * @since 1.1.0
+	 *
 	 * @param mixed  $response Value returned by get().
 	 * @param string $what     Short label for the log.
 	 * @return ChMSError|null Null when the response can be used.
@@ -1012,6 +1018,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 	/**
 	 * A short string for a Planning Center error payload, for the log.
+	 *
+	 * @since 1.1.0
 	 *
 	 * @param mixed $error Value from PlanningCenterAPI::errorMessage().
 	 * @return string
@@ -1046,6 +1054,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * Expects a Groups API memberships payload from
 	 * GET /groups/v2/memberships?filter=leader&include=person. Memberships
 	 * that are not leaders, or whose person was not included, are skipped.
+	 *
+	 * @since 1.1.0
 	 *
 	 * @param array $memberships Membership resources ( the `data` array ).
 	 * @param array $included    Included resources ( Person records ).
@@ -1126,6 +1136,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * null is the failure sentinel from fetch_group_leaders(). An array is a
 	 * successful result, including an empty one.
 	 *
+	 * @since 1.1.0
+	 *
 	 * @param array $context format_group() context.
 	 * @return bool
 	 */
@@ -1143,6 +1155,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * When rows exist but none of them has an address, the chosen email is
 	 * copied onto the first row so 1.2 ( which drops leader_email ) keeps it.
 	 *
+	 * @since 1.1.0
+	 *
 	 * @param array  $leader_meta   Result of group_leader_meta().
 	 * @param string $contact_email Group attributes.contact_email.
 	 * @param array  $group         Planning Center group resource.
@@ -1159,6 +1173,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		/**
 		 * Filters the email stored as a Planning Center group's leader email.
+		 *
+		 * On CP Groups 1.2 or newer, the result is only used when no leader
+		 * row has an email of its own: it is then put on the first row.
+		 *
+		 * @since 1.1.0
 		 *
 		 * @param string $chosen      contact_email when set, otherwise the first leader email.
 		 * @param array  $group       Planning Center group resource.
@@ -1196,6 +1215,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * leaders share that name field, joined in API order. The email is the
 	 * first leader address available ( contact uses one address ). CP Groups
 	 * 1.2 stores the same people as a `leaders` list of name/email rows.
+	 *
+	 * @since 1.1.0
 	 *
 	 * @param array $leaders Rows of [ 'name' => string, 'email' => string ].
 	 * @return array {
@@ -1249,6 +1270,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Read a belongs-to relationship id without assuming the linkage is present.
 	 *
+	 * @since 1.1.0
+	 *
 	 * @param array  $relationships Membership `relationships` object.
 	 * @param string $name          Relationship name ( group, person ).
 	 * @return string|int|null
@@ -1269,6 +1292,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Build a leader row from a Groups API Person's attributes.
 	 *
+	 * @since 1.1.0
+	 *
 	 * @param array $attributes Person attributes.
 	 * @return array { @type string $name @type string $email }
 	 */
@@ -1281,6 +1306,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 	/**
 	 * "First Last" from a Person, with either side optional.
+	 *
+	 * @since 1.1.0
 	 *
 	 * @param array $attributes Person attributes.
 	 * @return string
@@ -1298,6 +1325,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 	/**
 	 * Primary email on a Person, or the first address when none is primary.
+	 *
+	 * @since 1.1.0
 	 *
 	 * @param array $attributes Person attributes.
 	 * @return string

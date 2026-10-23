@@ -21,7 +21,7 @@ Groups are created as CP Groups. Turn on **Sync Groups** on the **Connect** tab,
 | Tag groups selected under **Group Tags to Sync** | Extra filters on the groups page |
 | Church Center web address | **Group Details** |
 
-On CP Groups 1.2 or newer, leaders are saved as **Group Leaders** rows (a name and email for each leader) instead of **Group Leader** and **Group Leader Email**. When the group has a contact email, it replaces the first row's email. A failed leader fetch leaves the leader fields unset and preserves the values already stored.
+On CP Groups 1.2 or newer, leaders are saved as **Group Leaders** rows instead of **Group Leader** and **Group Leader Email**. Each row keeps that leader's own name and email. If no leader has an email, the group's contact email is put on the first row. A failed leader fetch leaves the leader fields unset and preserves the values already stored.
 
 A closed or auto-closed enrollment is stored as **Group is Full**.
 

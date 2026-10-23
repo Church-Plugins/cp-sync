@@ -58,7 +58,9 @@ If you changed the sync interval before upgrading to 1.0.0, set it to a differen
 
 ### CCB Settings Won't Save on Some Hosts
 
-On servers without PHP's sodium extension, saving any Church Community Builder setting (including Date Range) fails with an error, and Disconnect doesn't work. CCB credentials saved before upgrading keep syncing. If you run into this, please contact support.
+**Fixed in CP Sync 1.1.0.** Update to 1.1.0 to resolve it.
+
+On servers without PHP's sodium extension, saving any Church Community Builder setting (including Date Range) fails with an error, and Disconnect doesn't work. CCB credentials saved before upgrading keep syncing.
 
 ### Hand Edits on Synced Events and Groups Are Overwritten
 

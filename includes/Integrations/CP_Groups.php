@@ -84,6 +84,8 @@ class CP_Groups extends Integration {
 	 * neither a name nor an email becomes an empty list, matching CP Groups'
 	 * 1.2 migrator, which skips that group instead of writing a blank row.
 	 *
+	 * @since 1.1.0
+	 *
 	 * @param array  $meta_input     Group meta destined for wp_insert_post().
 	 * @param string $plugin_version CP_GROUPS_PLUGIN_VERSION.
 	 * @return array
@@ -128,6 +130,8 @@ class CP_Groups extends Integration {
 
 	/**
 	 * Whether `leaders` is a non-empty list of name/email rows.
+	 *
+	 * @since 1.1.0
 	 *
 	 * @param mixed $leaders Candidate meta value.
 	 * @return bool

@@ -10,7 +10,7 @@ namespace CP_Sync\Setup;
 /**
  * DataFilter class
  *
- * @since 1.1.0
+ * @since 1.0.0
  */
 class DataFilter {
 

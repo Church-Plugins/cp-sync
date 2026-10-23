@@ -1192,7 +1192,7 @@ abstract class ChMS {
 	/**
 	 * Register ChMS specific rest routes
 	 *
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 */
 	public function register_rest_routes() {
 		$this->register_filter_endpoints();

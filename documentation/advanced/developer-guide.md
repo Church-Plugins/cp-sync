@@ -33,6 +33,12 @@ do_action("cp_sync_{$type}_update_item_after", $item, $post_id);
 // Whether to delete past events during sync cleanup (default false)
 apply_filters('cp_sync_remove_past_events', false, $chms_id, $post_id, $integration);
 
+// Email stored as a Planning Center group's Group Leader Email. Defaults to the group's
+// contact email, otherwise the first leader who has an email. On CP Groups 1.2 or newer
+// the result is only used when no leader has an email: it is then put on the first
+// Group Leaders row.
+apply_filters('cp_sync_pco_group_leader_email', $email, $group, $leader_meta);
+
 // Force debug logging on (same as Log → Enable Debug Mode). Add this from a plugin or
 // mu-plugin, not a theme: it is read once when CP Sync loads. Defining the
 // CP_SYNC_DEBUG constant as true also works.
