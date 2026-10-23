@@ -53,6 +53,8 @@ There is no field mapping to set up. CP Sync fills in each group automatically. 
 | Public signup form URL | **Registration Action** |
 | Group page on your CCB site | **Group Details** (the View Details link). The address is `https://{subdomain}.ccbchurch.com/group_detail.php?group_id=` plus the group id when a subdomain is saved, and blank when no subdomain is saved. |
 
+On CP Groups 1.2 or newer, the main leader's name and email are saved as a **Group Leaders** row instead of **Group Leader** and **Group Leader Email**.
+
 #### Which Groups Sync
 
 Only groups that are not marked Inactive and have **Public Search** checked in CCB are synced. In CCB, you'll find this under **Group Actions > Edit Group Settings > Options**.
