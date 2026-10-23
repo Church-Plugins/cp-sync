@@ -12,9 +12,9 @@ Before reaching out for support, you may find answers in our documentation:
 
 ## Support Channels
 
-Customers with an active CP Sync license can request help through the Church Plugins support portal.
+Customers with an active CP Sync license can request help through [Contact Support](https://docs.churchplugins.com/contact-support/).
 
-- Visit the [support portal](https://churchplugins.com/support), or log in at [churchplugins.com](https://churchplugins.com/account/) and open the Support section to create a ticket
+- Visit [Contact Support](https://docs.churchplugins.com/contact-support/) to request help or create a ticket
 - Include your license key, WordPress version, PHP version, and a detailed description of the problem
 - Screenshots or screen recordings are extremely helpful
 - For sync issues, copy the relevant lines from **Church Plugins → CP Sync → Log** (see Preparing for Support below)
@@ -53,7 +53,7 @@ For problems related to your church management system API:
 1. First check that your API credentials are correct
 2. Verify your account has the necessary permissions in your ChMS
 3. Consult your ChMS documentation for API-specific requirements
-4. If the issue persists, contact both CP-Sync support and your ChMS support
+4. If the issue persists, [contact CP-Sync support](https://docs.churchplugins.com/contact-support/) and your ChMS support
 
 ### Custom Development
 
@@ -61,18 +61,11 @@ If you need custom development or extensive modifications:
 
 1. **Consultation Services**
    - We offer paid consultation services for custom requirements
-   - Email consulting@churchplugins.com with your needs
+   - [Contact Support](https://docs.churchplugins.com/contact-support/) with your needs
 
 2. **Developer Directory**
    - We maintain a list of recommended developers familiar with CP-Sync
-   - Contact us for referrals to trusted development partners
-
-## Support Hours
-
-Our support team is available:
-
-- Monday to Friday: 9:00 AM to 5:00 PM Eastern Time (US & Canada)
-- Excluding major US holidays
+   - [Contact us](https://docs.churchplugins.com/contact-support/) for referrals to trusted development partners
 
 ## Feature Requests
 

@@ -13,6 +13,8 @@ Data filters act as rules that determine whether a specific group, event, or oth
 
 ## Accessing Data Filters
 
+The filter tabs appear only after you connect your ChMS. The **Groups** tab shows as soon as you connect when CP Groups is active, because **Sync Groups** is on by default. The **Events** tab shows as soon as you connect when The Events Calendar is active, because **Sync Events** is on by default. Turning either of those toggles off hides that tab. The **Sermons** tab stays hidden until you turn **Sync Sermons** on, and it appears only when CP Sermons is active. **Calendar Filters** and **Registration Filters** are Planning Center only and follow the event source you choose; **Sermons** is Planning Center only; the **Events** filter is CCB.
+
 1. Navigate to **Church Plugins → CP Sync**
 2. Open the **Groups**, **Events**, or **Sermons** tab
 3. Use the filter there (**Groups**, **Calendar Filters**, **Registration Filters**, **Events**, or **Sermons**)
@@ -34,17 +36,16 @@ Each filter named above — **Groups**, **Calendar Filters**, **Registration Fil
 
 ### Groups Filters
 
-- Only import groups with status "Active"
+- Only import groups whose **Enrollment Status** is Open (Planning Center) or whose **Inactive** is No (CCB)
 - Exclude groups with "Staff" or "Internal" in the name
 - Only import Small Groups and Life Groups
-- Only import groups that have a meeting location
+- Only import groups that have a meeting location (Planning Center: **Location** **Is Not Empty**)
 
 ### Events Filters
 
-- Only import events happening in the next 60 days
+- Only import events that start before a date you pick (**Start Date** **Is Less Than**)
 - Exclude events with "Private" or "Staff Only" in the title
-- Only import events from specific calendars
-- Only import events with a public location
+- Only import events of a certain **Event Type** or **Ministry Area** (CCB)
 
 ## Troubleshooting Filters
 
