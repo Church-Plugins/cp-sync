@@ -3,7 +3,7 @@
  * Plugin Name: CP Sync
  * Plugin URL: https://churchplugins.com
  * Description: ChurchPlugins integration plugin for ChMS
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Church Plugins
  * Author URI: https://churchplugins.com
  * Text Domain: cp-sync
@@ -11,13 +11,13 @@
  * License: GPL2
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Requires at least: 6.0
- * Tested up to: 6.7.1
+ * Tested up to: 7.1
  * Requires PHP: 7.4
  */
 
 if( !defined( 'CP_SYNC_PLUGIN_VERSION' ) ) {
 	 define ( 'CP_SYNC_PLUGIN_VERSION',
-	 	'1.0.0'
+	 	'1.1.0'
 	);
 }
 

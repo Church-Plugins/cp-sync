@@ -6,7 +6,7 @@ This guide is intended for developers who want to extend or customize the CP-Syn
 
 CP-Sync follows an object-oriented architecture with clear separation of concerns:
 
-- **Core**: Base functionality and framework
+- **Root** (`includes/_Init.php`, `includes/Templates.php`): plugin bootstrap, logging, and templates, built on the bundled ChurchPlugins framework (`includes/ChurchPlugins`)
 - **ChMS**: Church Management System integrations
 - **Admin**: Administrative interfaces
 - **Integrations**: WordPress plugin integrations
@@ -32,6 +32,12 @@ do_action("cp_sync_{$type}_update_item_after", $item, $post_id);
 ```php
 // Whether to delete past events during sync cleanup (default false)
 apply_filters('cp_sync_remove_past_events', false, $chms_id, $post_id, $integration);
+
+// Email stored as a Planning Center group's Group Leader Email. Defaults to the group's
+// contact email, otherwise the first leader who has an email. On CP Groups 1.2 or newer
+// the result is only used when no leader has an email: it is then put on the first
+// Group Leaders row.
+apply_filters('cp_sync_pco_group_leader_email', $email, $group, $leader_meta);
 
 // Force debug logging on (same as Log → Enable Debug Mode). Add this from a plugin or
 // mu-plugin, not a theme: it is read once when CP Sync loads. Defining the

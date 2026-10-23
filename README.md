@@ -19,6 +19,14 @@ npm run build
 
 ### Change Log
 
+#### 1.1.0
+* New: Planning Center group leaders now sync to CP Groups. Group Leader gets every leader's name, and Group Leader Email gets the group's contact email, or the email of the first leader who has one (developers can change this with the `cp_sync_pco_group_leader_email` filter). On CP Groups 1.2 or later, leaders are saved as Group Leaders rows instead, each with that leader's own email; the contact email is only used when no leader has one. If the leaders request fails, leaders already stored are kept.
+* Fix: A failed Planning Center groups or tag-group request now stops the groups sync with a logged error, instead of being read as "no data" and removing group types and tag filters. Events and Sermons still sync in the same run.
+* Security: Sync and background-process actions can no longer be triggered through a site URL. They run only from the schedule (WP-Cron) or the Pull buttons in the settings screen. Updates the ChurchPlugins framework to 1.1.19, which ignores request actions that aren't registered and requires a capability and nonce for those that are.
+* Fix: Church Community Builder groups are no longer all marked full. CCB sends "false" as text, which was read as true.
+* Fix: Saving, disconnecting and loading Church Community Builder credentials no longer fails on hosts without the PHP sodium extension.
+* Docs: Accuracy fixes across the introduction, What's New, Developer Guide, how-to and settings pages, Groups Synchronization steps, and Data Mapping.
+
 #### 0.3.1
 * Bug Fix: Fixed incomplete venues created during initial import — venue creation now deferred to enrichment phase where full address data is available
 * Bug Fix: Fixed stale venue associations persisting when a location is removed in CCB

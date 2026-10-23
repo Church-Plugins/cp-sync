@@ -1,11 +1,11 @@
 # Preventing Sync Updates on Individual Posts
 
-Every post CP-Sync imports (groups, events, sermons) is normally kept in sync with your ChMS — each sync run updates it, and if the source item disappears from the ChMS, the post is removed. If you want to customize a specific imported post in WordPress without your changes being overwritten, you can lock it.
+Every post CP-Sync imports (groups, events, sermons) is updated on each sync run. If a group, sermon, or upcoming event disappears from your ChMS, the next sync removes that post. Events whose end date has already passed stay on the site. If you want to customize a specific imported post in WordPress without your changes being overwritten, you can lock it.
 
 ## Locking a Post
 
 1. Edit the imported post (any post CP-Sync created shows a **CP Sync** box in the editor sidebar)
-2. Check **"Prevent sync from updating this post"**
+2. Check **Prevent sync from updating this post**
 3. Save/update the post
 
 While locked:
