@@ -105,7 +105,7 @@ class Settings {
 	/**
 	 * Initializes the settings page.
 	 *
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 */
 	public function settings_page() {
 		$this->hook_suffix = add_submenu_page(
@@ -194,7 +194,11 @@ class Settings {
 	 * @param string $classes Space-separated admin body classes.
 	 * @return string
 	 */
-	public function admin_body_class( $classes ) {
+	public function admin_body_class( $classes = '' ) {
+		if ( ! is_string( $classes ) ) {
+			return $classes;
+		}
+
 		$screen = get_current_screen();
 
 		if ( $screen && $screen->id === $this->hook_suffix ) {
@@ -207,7 +211,7 @@ class Settings {
 	/**
 	 * Enqueue scripts and styles for the settings page.
 	 *
-	 * @since 1.1.0
+	 * @since 1.0.0
 	 */
 	public function enqueue_scripts() {
 		$screen = get_current_screen();
