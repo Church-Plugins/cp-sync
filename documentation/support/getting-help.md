@@ -67,13 +67,6 @@ If you need custom development or extensive modifications:
    - We maintain a list of recommended developers familiar with CP-Sync
    - [Contact us](https://docs.churchplugins.com/contact-support/) for referrals to trusted development partners
 
-## Support Hours
-
-Our support team is available:
-
-- Monday to Friday: 9:00 AM to 5:00 PM Eastern Time (US & Canada)
-- Excluding major US holidays
-
 ## Feature Requests
 
 We welcome suggestions for improving CP-Sync:
