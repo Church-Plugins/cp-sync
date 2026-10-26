@@ -61,6 +61,8 @@ Only groups that are not marked Inactive and have **Public Search** checked in C
 
 ### Events Synchronization
 
+Event sync needs **The Events Calendar** plugin to be active. If it isn't, the **Sync Events** toggle is disabled and the **Events** tab doesn't appear. The tab appears after you connect to Church Community Builder, while **Sync Events** is on.
+
 1. Go to the **Events** tab in the CCB settings
 2. Choose how far ahead events sync with **Date Range** (see below)
 3. Click **Save all Settings**
@@ -72,7 +74,7 @@ Use the **Date Range** setting on the CCB **Events** tab:
 | Option | What syncs |
 |--------|------------|
 | Current and upcoming events (Recommended) | Today through one year ahead. This is the default. |
-| Include past 30 days | The past 30 days plus upcoming events. |
+| Include past 30 days | 30 days ago through one year ahead. |
 | All future events | Up to 10 years ahead. |
 | Custom date range | The Start and End Dates you choose. |
 
@@ -119,7 +121,7 @@ CCB uses an XML-based API which has some limitations:
 
 - **Authentication Errors**: Check your API credentials and permissions
 - **Missing Data**: Verify that your CCB account has the necessary modules and permissions; for groups, confirm **Public Search** and that the group is not Inactive
-- **Settings won't save on some hosts**: On servers without PHP's sodium extension, saving CCB settings can fail after upgrading to 1.0.0. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#ccb-settings-wont-save-on-some-hosts)
+- **Settings won't save on some hosts**: On servers without PHP's sodium extension, saving CCB settings could fail on CP Sync 1.0.0. This is fixed in CP Sync 1.1.0; update to 1.1.0. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#ccb-settings-wont-save-on-some-hosts)
 - **Rate Limiting**: CCB limits API requests; adjust your sync frequency if needed
 - **XML Parsing Errors**: These can occur if the CCB API response format changes
 
