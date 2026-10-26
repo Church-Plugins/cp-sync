@@ -44,6 +44,8 @@ CP Sync imports groups that are not inactive and that are listed in public searc
 | Public signup form URL | **Registration Action** |
 | Group page on CCB | **Group Details** |
 
+On CP Groups 1.2 or newer, the main leader's name and email are saved as a **Group Leaders** row instead of **Group Leader** and **Group Leader Email**.
+
 When CP Locations is active, campus or area is assigned as the group's location term. Without CP Locations it is not stored.
 
 ## Events
