@@ -101,7 +101,7 @@ Changes you make by hand in WordPress to CCB-synced events and groups are replac
 2. In the **CP Sync** box, check **Prevent sync from updating this post**.
 3. Save the post.
 
-See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#hand-edits-on-ccb-synced-events-and-groups-are-overwritten).
+See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#hand-edits-on-synced-events-and-groups-are-overwritten).
 
 ## Advanced Settings
 
