@@ -78,7 +78,8 @@ Event sync needs **The Events Calendar** plugin to be active. If it isn't, the *
 1. Go to the **Events** tab in the PCO settings
 2. Choose your **Event source**: **Pull from Calendar**, **Pull from Registrations**, or **Calendar AND Registrations**
 3. Set **Tag groups**, **Visibility**, and **Calendar Filters** (**Pull from Calendar** or **Calendar AND Registrations**), or **Registration Filters** (**Pull from Registrations** or **Calendar AND Registrations**)
-4. Click **Save all Settings**
+4. Optionally, turn off **Show Register button on events** (on by default) to hide the Register button on synced events that have a registration link.
+5. Click **Save all Settings**
 
 **Caution:** If you switch **Event Source** to **Pull from Calendar** from **Pull from Registrations** or **Calendar AND Registrations**, the next sync permanently deletes upcoming Registrations-sourced events — including events that are still running today. Past events (already ended) are kept. Events with **Prevent sync from updating this post** checked are kept, so lock any Registrations events you want to keep before you switch. Coming from **Pull from Registrations**, Calendar events then import as new posts. Coming from **Calendar AND Registrations**, the Calendar copies stay and the duplicate Registrations copies are removed, leaving one Calendar copy of events that were in both. Switching to **Calendar AND Registrations** keeps existing Registrations posts; an event present in both apps imports twice.
 
@@ -108,14 +109,14 @@ For a short release summary, see [What's New in CP Sync 1.0.0](../getting-starte
 
 ## Advanced Settings
 
-- **Filter Data**: Apply Calendar Filters and other filters to control which data is imported
-- **Import Schedule**: Configure automatic sync schedules
-- **Logging**: Enable detailed logging for troubleshooting
+- **Filters**: set on the **Groups**, **Events**, and **Sermons** tabs. See [Data Mapping](../configuration/data-mapping.md#filters).
+- **Sync schedule**: **Update Interval** (**Hourly**, **Daily**, or **Weekly**) on the **Advanced** tab. See [General Settings](../configuration/general-settings.md#sync-schedule).
+- **Logging**: **Enable Debug Mode** on the **Log** tab. See [General Settings](../configuration/general-settings.md#log).
 
 ## Troubleshooting PCO Integration
 
 - **Connection window**: On the **Connect** tab, click **Connect**. If the browser blocks the window, the tab shows **Failed to open authentication window. Make sure your browser allows popups.** Allow popups for your site and click **Connect** again. If you close the window before finishing, the tab shows **Authentication window was closed**. Click **Connect** to start again. To sign in with a different Planning Center account, click **Disconnect**, then **Connect**.
 - **Missing Data**: Verify that your PCO account has the necessary modules, and review Visibility and Calendar Filters if Calendar events are missing
-- **Rate Limiting**: PCO limits API requests; adjust your sync frequency if needed
+- **Rate Limiting**: CP Sync waits and retries automatically when Planning Center rate-limits a request. If syncs still stall, choose a longer **Update Interval** on the **Advanced** tab.
 
 For more help, see the [Troubleshooting](https://docs.churchplugins.com/knowledge-base/advanced-troubleshooting-cp-sync/) guide.
