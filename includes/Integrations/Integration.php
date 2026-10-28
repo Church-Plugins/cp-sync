@@ -1332,11 +1332,50 @@ abstract class Integration extends \WP_Background_Process {
 			foreach ( $taxonomies as $taxonomy ) {
 				$this->create_taxonomy( $taxonomy );
 			}
-	
-			$this->process_taxonomies( $taxonomies );
+
+			// process() is the only zero-item guard, and it runs after this.
+			// PCO builds Group Type terms from the groups in this payload, so a
+			// successful fetch of zero groups is an empty term list. Running the
+			// removal pass would delete every stored term, including on locked posts.
+			if ( empty( $posts ) && $this->has_saved_terms() ) {
+				cp_sync()->logging->log( sprintf(
+					'Skipping term removal for %s: fetch returned 0 items while synced terms are still stored. Not treating an empty fetch as a mass term removal.',
+					$this->label
+				) );
+			} else {
+				$this->process_taxonomies( $taxonomies );
+			}
 		}
-	
+
 		$this->process( $posts );
+	}
+
+	/**
+	 * Whether a previous sync stored any ChMS terms for this integration.
+	 *
+	 * Term hashes live in the per-taxonomy store groups named by the
+	 * `taxonomies` store. An empty post fetch must not prune those terms.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return bool
+	 */
+	protected function has_saved_terms() {
+		$taxonomies = $this->get_store( 'taxonomies' );
+
+		if ( ! is_array( $taxonomies ) || empty( $taxonomies ) ) {
+			return false;
+		}
+
+		foreach ( array_keys( $taxonomies ) as $taxonomy ) {
+			$terms = $this->get_store( $taxonomy );
+
+			if ( is_array( $terms ) && ! empty( $terms ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

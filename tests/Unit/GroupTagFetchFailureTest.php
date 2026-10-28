@@ -56,7 +56,30 @@ class TaxonomyGuardIntegration extends Integration {
 	/** @var bool */
 	public $store_updated = false;
 
+	/**
+	 * Optional per-group store overrides. Null keeps the defaults below.
+	 *
+	 * @var array|null
+	 */
+	public $stores = null;
+
+	public function is_locked( $chms_id ) {
+		return false;
+	}
+
+	public function save() {
+		return $this;
+	}
+
+	public function dispatch() {
+		return [];
+	}
+
 	public function get_store( $group = null ) {
+		if ( is_array( $this->stores ) && array_key_exists( $group, $this->stores ) ) {
+			return $this->stores[ $group ];
+		}
+
 		if ( 'taxonomies' === $group ) {
 			return [
 				'cps_campus'    => [ 'chms_id' => 'cps_campus' ],
@@ -116,6 +139,9 @@ class TaxonomyGuardIntegration extends Integration {
  */
 class GroupTagFetchFailureTest extends TestCase {
 
+	/** @var object */
+	private $logger;
+
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
@@ -139,7 +165,9 @@ class GroupTagFetchFailureTest extends TestCase {
 		// taxonomy assertions.
 		Functions\when( '__' )->returnArg( 1 );
 		Functions\when( 'apply_filters' )->alias(
-			static function ( $tag, $value ) {
+			static function ( $tag, $value, ...$extra ) {
+				unset( $extra );
+
 				return $value;
 			}
 		);
@@ -148,8 +176,14 @@ class GroupTagFetchFailureTest extends TestCase {
 			public $logging;
 		};
 		$plugin->logging = new class() {
-			public function log( $message ) {}
+			/** @var array */
+			public $messages = [];
+
+			public function log( $message ) {
+				$this->messages[] = $message;
+			}
 		};
+		$this->logger    = $plugin->logging;
 		Functions\when( 'cp_sync' )->justReturn( $plugin );
 	}
 
@@ -351,6 +385,179 @@ class GroupTagFetchFailureTest extends TestCase {
 		$this->assertInstanceOf( \WP_Error::class, $result );
 		$this->assertNotSame( 'chms_error', $result->get_error_code() );
 		$this->assertTaxonomiesKept( $result, $expected );
+	}
+
+	/**
+	 * A successful fetch of zero groups still builds an empty Group Type list
+	 * from those groups. Stored terms must survive that, and the skip is logged.
+	 */
+	public function test_successful_empty_group_fetch_keeps_stored_terms() {
+		$pco = $this->pco(
+			[
+				[ 'response' => [ 'data' => [], 'included' => [] ], 'error' => null ],
+				[ 'response' => [ 'data' => [] ], 'error' => null ],
+			]
+		);
+		$pco->add_support(
+			'groups',
+			[
+				'fetch_callback'  => [ $pco, 'fetch_groups' ],
+				'format_callback' => [ $pco, 'format_group' ],
+			]
+		);
+
+		$result      = $pco->get_formatted_data( null, 'groups' );
+		$integration = $this->integration();
+		$integration->process_formatted_data( $result );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( [], $result['posts'] );
+		$this->assertArrayHasKey( 'cp_group_type', $result['taxonomies'] );
+		$this->assertSame( [], $result['taxonomies']['cp_group_type']['terms'] );
+		$this->assertSame( [], $integration->removed_terms );
+		$this->assertSame( [], $integration->removed_taxonomies );
+		$this->assertFalse( $integration->store_updated );
+		$this->assertTrue( $this->loggedSkip() );
+	}
+
+	/**
+	 * Published-only sync. Every group of Group Type 9 is unpublished, so this
+	 * fetch does not include that type. The term is still deleted site-wide,
+	 * including from locked posts. Keeping those assignments is a separate
+	 * decision; the empty-fetch guard does not change this case.
+	 */
+	public function test_group_type_unused_by_fetched_groups_is_still_removed() {
+		$pco = $this->pco(
+			[
+				[ 'response' => $this->publishedGroupResponse(), 'error' => null ],
+				[ 'response' => [ 'data' => [] ], 'error' => null ],
+				[ 'response' => [ 'data' => [], 'included' => [] ], 'error' => null ],
+				[ 'response' => [ 'data' => [] ], 'error' => null ],
+			]
+		);
+		$pco->settings['visibility'] = 'public';
+		$pco->add_support(
+			'groups',
+			[
+				'fetch_callback'  => [ $pco, 'fetch_groups' ],
+				'format_callback' => [ $pco, 'format_group' ],
+			]
+		);
+
+		$result      = $pco->get_formatted_data( null, 'groups' );
+		$integration = $this->integration();
+		$integration->stores = [
+			'taxonomies'    => [
+				'cp_group_type' => [ 'chms_id' => 'cp_group_type' ],
+			],
+			'cp_group_type' => [
+				'3' => [ 'name' => 'Small Group' ],
+				'9' => [ 'name' => 'Youth' ],
+			],
+		];
+		$integration->process_formatted_data( $result );
+
+		$this->assertNotEmpty( $result['posts'] );
+		$this->assertSame( [ '3' => 'Small Group' ], $result['taxonomies']['cp_group_type']['terms'] );
+		$this->assertSame( [ 'cp_group_type_9' ], $integration->removed_terms );
+		$this->assertFalse( $this->loggedSkip() );
+	}
+
+	/**
+	 * A complete fetch that still has posts deletes a term the ChMS no longer returns.
+	 */
+	public function test_complete_non_empty_fetch_deletes_a_removed_term() {
+		$integration         = $this->integration();
+		$integration->stores = [
+			'taxonomies'    => [
+				'cp_group_type' => [ 'chms_id' => 'cp_group_type' ],
+			],
+			'cp_group_type' => [
+				'3' => [ 'name' => 'Small Group' ],
+				'9' => [ 'name' => 'Youth' ],
+			],
+		];
+
+		$integration->process_formatted_data(
+			[
+				'posts'      => [
+					[
+						'chms_id'    => '10',
+						'post_title' => 'Tuesday Group',
+					],
+				],
+				'taxonomies' => [
+					'cp_group_type' => [
+						'taxonomy'     => 'cp_group_type',
+						'single_label' => 'Group Type',
+						'plural_label' => 'Group Types',
+						'terms'        => [ '3' => 'Small Group' ],
+					],
+				],
+			]
+		);
+
+		$this->assertSame( [ 'cp_group_type_9' ], $integration->removed_terms );
+		$this->assertNotContains( 'cp_group_type_3', $integration->removed_terms );
+		$this->assertFalse( $this->loggedSkip() );
+	}
+
+	/**
+	 * @return TaxonomyGuardIntegration
+	 */
+	private function integration() {
+		return ( new ReflectionClass( TaxonomyGuardIntegration::class ) )->newInstanceWithoutConstructor();
+	}
+
+	/**
+	 * @return bool
+	 */
+	private function loggedSkip() {
+		foreach ( $this->logger->messages as $message ) {
+			if ( false !== strpos( $message, 'Skipping term removal' ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * One published group of type 3. Type 9 is not in the payload.
+	 *
+	 * @return array
+	 */
+	private function publishedGroupResponse() {
+		return [
+			'data'     => [
+				[
+					'id'            => '10',
+					'type'          => 'Group',
+					'attributes'    => [
+						'name'                         => 'Tuesday Group',
+						'created_at'                   => '2024-06-01T15:00:00Z',
+						'archived_at'                  => '',
+						'description'                  => '',
+						'public_church_center_web_url' => 'https://example.churchcenter.com/groups/tuesday',
+					],
+					'relationships' => [
+						'group_type' => [
+							'data' => [
+								'type' => 'GroupType',
+								'id'   => '3',
+							],
+						],
+					],
+				],
+			],
+			'included' => [
+				[
+					'id'         => '3',
+					'type'       => 'GroupType',
+					'attributes' => [ 'name' => 'Small Group' ],
+				],
+			],
+		];
 	}
 
 	/**
