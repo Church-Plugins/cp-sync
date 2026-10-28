@@ -24,9 +24,9 @@ For each episode, the following data is imported:
 
 - **Title and description** → sermon title and content
 - **Church Center library publish time** → sermon date
-- **Series** → CP Sermons series
+- **Series** → CP Sermons series, when **Enable Series** is on in CP Sermons **Settings** on the **Advanced** tab (on by default)
 - **Channel** → CP Sermons service type, when service types are enabled in CP Sermons
-- **Speakers** → CP Sermons speakers (resolved from the episode's speakership records)
+- **Speakers** → CP Sermons speakers (resolved from the episode's speakership records), when **Enable Speakers** is on in CP Sermons **Settings** on the **Advanced** tab (on by default)
 - **Video** → the Church Center library video URL, then the raw video URL
 - **Audio** → the Church Center library audio URL
 - **Episode art** → the sermon featured image (Planning Center's generated placeholder art is skipped)
@@ -66,6 +66,6 @@ If you customize an imported sermon in WordPress and don't want future syncs to 
 
 - **No sermons importing**: Confirm the episodes are published to your Church Center library in PCO Publishing, **Sync Sermons** is on, and the **Sermons** filter is not excluding them
 - **"CP Sermons SermonSync facade is not available; is CP Sermons up to date?" in the log**: Update CP Sermons to the latest version
-- **Missing speakers or series**: Verify the episode's series and speaker assignments in PCO Publishing
+- **Missing speakers or series**: Verify the episode's series and speaker assignments in PCO Publishing, and check that **Enable Series** and **Enable Speakers** are on in CP Sermons **Settings** on the **Advanced** tab
 
 For more detailed troubleshooting, see the [Troubleshooting](../advanced/troubleshooting.md) guide.
