@@ -65,7 +65,7 @@ For the admin interface:
 If you plan to use specific integrations:
 
 ### CP Groups Integration
-- CP Groups plugin installed and activated (version 1.0.0 or higher)
+- CP Groups plugin installed and activated (version 1.1 or higher; 1.2 or newer saves group leaders as Group Leaders rows)
 
 ### The Events Calendar Integration
 - The Events Calendar plugin (by Modern Tribe) installed and activated (version 5.0 or higher)
