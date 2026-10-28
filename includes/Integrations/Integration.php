@@ -1005,20 +1005,35 @@ abstract class Integration extends \WP_Background_Process {
 	}
 
 	/**
-	 * Remove a term via a chms_id
+	 * Remove a term the ChMS no longer returns.
 	 *
-	 * @param $chms_id
+	 * Callers pass the compound `_chms_id` term meta (`{taxonomy}_{chms_id}`),
+	 * which is only the lookup key. wp_delete_term() needs the WordPress term
+	 * ID and the real taxonomy slug. Passing the compound id as the taxonomy
+	 * makes the delete fail and leaves the term in place.
+	 *
+	 * Deleting the term drops it from every post that uses it, including posts
+	 * locked against sync. That is intentional.
+	 *
+	 * @param string $chms_id Compound `_chms_id` (`{taxonomy}_{chms_id}`).
 	 *
 	 * @since  1.1.0
 	 */
 	public function remove_term( $chms_id ) {
-		$id = $this->get_chms_term_ids( $chms_id );
+		$ids = $this->get_chms_term_ids( $chms_id );
 
-		if ( ! $id ) {
+		if ( ! $ids ) {
 			return;
 		}
 
-		wp_delete_term( current( $id ), $chms_id );
+		$term_id = (int) current( $ids );
+		$term    = get_term( $term_id );
+
+		if ( ! $term || is_wp_error( $term ) ) {
+			return;
+		}
+
+		wp_delete_term( $term_id, $term->taxonomy );
 	}
 
 	/**
