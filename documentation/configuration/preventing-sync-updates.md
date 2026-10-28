@@ -17,6 +17,6 @@ Uncheck the box and save to resume normal syncing. The next sync run will bring 
 
 ## Notes
 
-- The lock box only appears on posts that CP-Sync imported — regular posts you created yourself are never touched by sync and need no lock.
+- The lock box only appears on posts that CP-Sync imported.
 - The lock applies per post; all other imported posts continue syncing normally.
 - The sync process itself can never set or clear a lock — only a user saving the post from the edit screen can change it.
