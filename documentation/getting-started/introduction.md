@@ -1,3 +1,12 @@
+---
+title: "Introduction to CP Sync"
+slug: introduction-cp-sync
+section: getting-started-cp-sync
+order: 2
+excerpt: "CP Sync connects your church website to your church management system (ChMS) and imports data into WordPress automatically."
+status: publish
+---
+
 # Introduction to CP Sync
 
 CP Sync is a WordPress plugin that connects your church website to your church management system (ChMS). CP Sync imports data from your ChMS into WordPress automatically. Sync is one-way: CP Sync does not write back to your ChMS.
