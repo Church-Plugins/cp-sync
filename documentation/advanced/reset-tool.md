@@ -4,13 +4,13 @@ CP-Sync includes a reset tool for returning an install to a known state without 
 
 ## Reset Levels
 
-There are five levels, ordered least to most destructive. Each level includes the ones below it where that makes sense:
+There are five levels, ordered least to most destructive. Only `state` (which includes `queue`) and `all` (which includes `state`, `content` and `connection`) build on other levels. `content` and `connection` clear only what their row lists.
 
 | Level | What it clears | Typical use |
 |---|---|---|
 | `queue` | Background-process batches, status flags, process locks, and health-check crons | Unstick a stalled or stuck sync |
 | `state` | Everything in `queue`, plus the sync-state options | Make the next pull re-import everything (existing posts update in place — no duplicates) |
-| `content` | All imported posts, terms, and taxonomies, plus sideloaded images and the image cache directory | Remove imported content but keep your connection and settings |
+| `content` | All imported posts, terms, and taxonomies, plus sideloaded images that no remaining post uses as its featured image, and the image cache directory | Remove imported content but keep your connection and settings |
 | `connection` | The saved Planning Center and Church Community Builder settings (credentials and the other fields stored for each system), the connection-test message, and the active Church Management System selection | Disconnect and start the connection over |
 | `all` | State + content + connection, plus the plugin settings, debug log, and every scheduled event | Full wipe — the uninstall-equivalent reset |
 
@@ -50,7 +50,7 @@ The Danger Zone UI posts to `POST /cp-sync/v1/reset`. The endpoint requires the 
 The reset tool and plugin uninstall are separate:
 
 - **Reset (`all`)** wipes CP-Sync's data while the plugin stays installed.
-- **Deleting the plugin** only removes CP-Sync's data if the **"Delete all data on uninstall"** toggle (Advanced tab) is enabled first. Without it, uninstalling leaves your imported content and settings in place.
+- **Deleting the plugin** only removes CP-Sync's data if the **"Delete all data on uninstall"** toggle (Advanced tab) is turned on and saved with **Save all Settings** first. Without it, uninstalling leaves your imported content and settings in place.
 
 ## Notes
 
