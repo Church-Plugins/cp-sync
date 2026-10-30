@@ -57,3 +57,4 @@ The reset tool and plugin uninstall are separate:
 - Imported posts are matched by their ChMS ID, so a `state` reset followed by a sync updates existing posts in place rather than duplicating them.
 - On multisite, queue data lives at the network level and is handled correctly by every reset level.
 - Resets are permanent — there is no undo. Take a database backup before running `content`, `connection`, or `all` on a production site.
+- With CP Sermons, the `content` reset also deletes the series, speakers and service types that sync tracks — including ones you created by hand that sync adopted because their title matched.
