@@ -78,7 +78,7 @@ Set **Event source** to **Pull from Registrations** or **Calendar AND Registrati
 |-----------------|---------------------|
 | Name | Event title |
 | Description | Event page body |
-| Signup start and end | Event start and end |
+| First signup time (start and end) | Event start and end |
 | Signup location | Venue |
 | Logo | Featured image |
 | Categories | Event categories |
