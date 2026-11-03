@@ -32,10 +32,6 @@ while ( have_posts() ) {
 	);
 	?>
 	<article <?php post_class( 'cp-sync-series' ); ?>>
-		<header class="cp-sync-series__header">
-			<h1><?php echo esc_html( get_the_title() ); ?></h1>
-		</header>
-
 		<?php if ( has_post_thumbnail() ) : ?>
 			<figure class="cp-sync-series__image">
 				<?php
@@ -52,6 +48,10 @@ while ( have_posts() ) {
 				<img src="<?php echo esc_url( $cp_sync_image ); ?>" alt="<?php echo esc_attr( get_the_title() ); ?>">
 			</figure>
 		<?php endif; ?>
+
+		<header class="cp-sync-series__header">
+			<h1><?php echo esc_html( get_the_title() ); ?></h1>
+		</header>
 
 		<div class="cp-sync-series__content">
 			<?php echo wp_kses_post( apply_filters( 'the_content', get_post_field( 'post_content', $cp_sync_post_id ) ) ); ?>
@@ -75,6 +75,13 @@ while ( have_posts() ) {
 			);
 			?>
 		</section>
+
+		<?php $cp_sync_archive = get_post_type_archive_link( \CP_Sync\Events\PostTypes::EVENT ); ?>
+		<?php if ( is_string( $cp_sync_archive ) && '' !== $cp_sync_archive ) : ?>
+			<p class="cp-sync-events__back">
+				<a href="<?php echo esc_url( $cp_sync_archive ); ?>"><?php esc_html_e( 'All events', 'cp-sync' ); ?></a>
+			</p>
+		<?php endif; ?>
 	</article>
 	<?php
 	wp_reset_postdata();

@@ -29,21 +29,6 @@ while ( have_posts() ) {
 	$cp_sync_series   = (int) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::SERIES_ID, true );
 	?>
 	<article <?php post_class( 'cp-sync-event' ); ?>>
-		<header class="cp-sync-event__header">
-			<h1><?php echo esc_html( get_the_title() ); ?></h1>
-			<?php if ( '' !== $cp_sync_when['text'] ) : ?>
-				<p class="cp-sync-event__when">
-					<time datetime="<?php echo esc_attr( $cp_sync_when['iso'] ); ?>"><?php echo esc_html( $cp_sync_when['text'] ); ?></time>
-					<?php if ( $cp_sync_when['all_day'] ) : ?>
-						<span class="cp-sync-event__all-day"><?php esc_html_e( '(All day)', 'cp-sync' ); ?></span>
-					<?php endif; ?>
-				</p>
-			<?php endif; ?>
-			<?php if ( '' !== $cp_sync_location ) : ?>
-				<p class="cp-sync-event__location"><?php echo esc_html( $cp_sync_location ); ?></p>
-			<?php endif; ?>
-		</header>
-
 		<?php if ( has_post_thumbnail() ) : ?>
 			<figure class="cp-sync-event__image">
 				<?php
@@ -61,6 +46,21 @@ while ( have_posts() ) {
 			</figure>
 		<?php endif; ?>
 
+		<header class="cp-sync-event__header">
+			<h1><?php echo esc_html( get_the_title() ); ?></h1>
+			<?php if ( '' !== $cp_sync_when['text'] ) : ?>
+				<p class="cp-sync-event__when">
+					<time datetime="<?php echo esc_attr( $cp_sync_when['iso'] ); ?>"><?php echo esc_html( $cp_sync_when['text'] ); ?></time>
+					<?php if ( $cp_sync_when['all_day'] ) : ?>
+						<span class="cp-sync-event__all-day"><?php esc_html_e( '(All day)', 'cp-sync' ); ?></span>
+					<?php endif; ?>
+				</p>
+			<?php endif; ?>
+			<?php if ( '' !== $cp_sync_location ) : ?>
+				<p class="cp-sync-event__location"><?php echo esc_html( $cp_sync_location ); ?></p>
+			<?php endif; ?>
+		</header>
+
 		<div class="cp-sync-event__content">
 			<?php echo wp_kses_post( apply_filters( 'the_content', get_post_field( 'post_content', $cp_sync_post_id ) ) ); ?>
 		</div>
@@ -75,6 +75,13 @@ while ( have_posts() ) {
 			<p class="cp-sync-event__series">
 				<?php esc_html_e( 'Part of', 'cp-sync' ); ?>
 				<a href="<?php echo esc_url( get_permalink( $cp_sync_series ) ); ?>"><?php echo esc_html( get_the_title( $cp_sync_series ) ); ?></a>
+			</p>
+		<?php endif; ?>
+
+		<?php $cp_sync_archive = get_post_type_archive_link( \CP_Sync\Events\PostTypes::EVENT ); ?>
+		<?php if ( is_string( $cp_sync_archive ) && '' !== $cp_sync_archive ) : ?>
+			<p class="cp-sync-events__back">
+				<a href="<?php echo esc_url( $cp_sync_archive ); ?>"><?php esc_html_e( 'All events', 'cp-sync' ); ?></a>
 			</p>
 		<?php endif; ?>
 	</article>
