@@ -31,7 +31,7 @@ Click **Save all Settings** after you change **Enable Debug Mode**.
 Open the **Advanced** tab.
 
 - **Update Interval**: **Hourly** (the default), **Daily**, or **Weekly**.
-- **Display events with CP Sync**: shown when The Events Calendar is not active. On until you turn it off. CP Sync then lists events at `/events/`. See [Events on your site](../integrations/events-on-your-site.md).
+- **Display events with CP Sync**: shown when The Events Calendar is not active. Off until you turn it on, unless event sync was already on. With **Sync Events** also on, CP Sync lists events at `/events/`. Leave it off if a page already uses that address. See [Events on your site](../integrations/events-on-your-site.md).
 - **Pull now**: starts a sync of every feed that is turned on. The tab shows **Hard pull started successfully**.
 - **Delete all data on uninstall**: off until you turn it on. See [Reset Tool](../advanced/reset-tool.md).
 - **Danger Zone**: reset install data. See [Reset Tool](../advanced/reset-tool.md).

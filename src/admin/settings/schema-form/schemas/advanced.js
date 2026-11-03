@@ -39,14 +39,15 @@ const advancedSchema = {
 
 /**
  * Shown on the Advanced tab when The Events Calendar is not active.
- * Missing values stay on: the PHP default matches this `default`.
+ * Off until saved on, unless event sync was already on (the settings
+ * payload fills that in). Turn it off to leave an existing /events/ page alone.
  */
 export const displayEventsField = {
 	type: 'toggle',
 	label: __( 'Display events with CP Sync', 'cp-sync' ),
-	default: true,
+	default: false,
 	help: __(
-		'Show events from your church management system on this site, at /events/. On until you turn it off. Has no effect while The Events Calendar is active.',
+		'Show synced events on this site. Also turn on Sync Events. Off until you turn it on, unless event sync was already on. Turn this off if a page already uses /events/.',
 		'cp-sync'
 	),
 };

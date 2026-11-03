@@ -67,7 +67,7 @@ CP Sync currently supports Planning Center Online (PCO) and Church Community Bui
 
 = Do I need The Events Calendar plugin? =
 
-No. Groups sync on their own. Events can show on your site without The Events Calendar: each date gets a page, and a real series of dates gets a series page. Display events with CP Sync on the Advanced tab controls that, and it is on until you turn it off.
+No. Groups sync on their own. Events can show on your site without The Events Calendar: each date gets a page, and a real series of dates gets a series page. Turn on Display events with CP Sync (Advanced) and Sync Events (Connect). On an upgrade, Display events stays off unless event sync was already on. Leave it off if you already have a page at /events/.
 
 Install The Events Calendar only if you want events in that calendar. While it is active, CP Sync keeps using it and does not create the separate event pages.
 
@@ -94,7 +94,7 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 == Changelog ==
 
 = 1.2.0 =
-* New: Sites that do not use The Events Calendar can show events from Planning Center or Church Community Builder. Each date is a page under Events. A Planning Center event with more than one date, or a Church Community Builder event with more than one date, also gets a series page under Event Series. A single date does not. Turn this on or off with Display events with CP Sync on the Advanced tab. It is on until you turn it off. The list is at /events/. Add `[cp-sync-events]` to a page to show the next few dates. Sites that use The Events Calendar are unchanged.
+* New: Sites that do not use The Events Calendar can show events from Planning Center or Church Community Builder. Each date is a page under Events. A Planning Center event with more than one date, or a Church Community Builder event with more than one date, also gets a series page under Event Series. A single date does not. Turn on Display events with CP Sync (Advanced) and Sync Events (Connect). On an upgrade, Display events stays off unless event sync was already on, so a page you already have at /events/ is left alone. The list is at /events/. Add `[cp-sync-events]` to a page to show the next few dates. Sites that use The Events Calendar are unchanged.
 * Church Community Builder events that have no timezone of their own now use the WordPress site timezone. On sites whose WordPress timezone isn't UTC, the first resync changes the saved timezone once. The local clock time stays the same.
 
 = 1.1.0 =

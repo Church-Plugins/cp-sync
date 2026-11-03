@@ -102,7 +102,7 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
 
 ### Events are missing and The Events Calendar is not installed
 
-1. On the **Advanced** tab, **Display events with CP Sync** is on. Click **Save all Settings**, then **Pull now**.
+1. On the **Advanced** tab, turn on **Display events with CP Sync**. On the **Connect** tab, **Sync Events** is on. Click **Save all Settings**, then **Pull now**. If a page already uses `/events/`, turning display on replaces that address. Turn display off to give the page back. See [Events on your site](../integrations/events-on-your-site.md#if-you-already-have-a-page-at-events).
 2. If `/events/` says the page was not found, open **Settings → Permalinks** and click **Save Changes**.
 3. On the **Log** tab, set **Enable Debug Mode** to **Enable** and run the sync again. Look for `Event display sync`.
 4. Planning Center imports the calendar, and only events visible in Church Center, until The Events Calendar is active. Church Community Builder imports today through one year ahead.

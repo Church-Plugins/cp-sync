@@ -11,7 +11,10 @@ namespace CP_Sync\Events;
  * Registration rules and post-type arguments.
  *
  * The Events Calendar keeps its own event posts. These types are registered
- * only when that plugin is absent and the display setting is on.
+ * only when that plugin is absent, event sync is on, and the display setting
+ * is on. An upgrade that has never saved the display setting leaves it off
+ * unless event sync was already turned on, so an existing /events/ page is
+ * left alone.
  *
  * @since 1.2.0
  */
@@ -24,36 +27,71 @@ class PostTypes {
 	const CATEGORY = 'cp_event_category';
 
 	/**
-	 * Whether the CP Sync event types should be registered.
+	 * Whether the CP Sync event types and their public archives should be registered.
 	 *
-	 * On when The Events Calendar is absent. A stored display setting of false
-	 * turns registration off. A missing setting stays on.
+	 * Requires The Events Calendar to be absent, event sync to be on, and the
+	 * display setting to be on. A missing display setting is on only when event
+	 * sync was already stored as on.
 	 *
 	 * @param bool  $tec_active      Whether The Events Calendar is active.
 	 * @param mixed $display_setting Stored display value, or null when unset.
+	 * @param mixed $sync_events     Stored sync_events value, or null when unset.
+	 *                               Null means the toggle default (on) for the
+	 *                               sync check, and "not already on" for the
+	 *                               display default.
 	 * @return bool
 	 */
-	public static function should_register( $tec_active, $display_setting ) {
+	public static function should_register( $tec_active, $display_setting, $sync_events = null ) {
 		if ( $tec_active ) {
 			return false;
+		}
+
+		return self::display_is_on( $display_setting, $sync_events ) && self::sync_is_on( $sync_events );
+	}
+
+	/**
+	 * Whether the display toggle is on.
+	 *
+	 * A missing value is off unless $sync_events is an explicit on. That keeps
+	 * an upgrade from claiming /events/ when events were not already syncing.
+	 *
+	 * @param mixed $display_setting Stored display value, or null when unset.
+	 * @param mixed $sync_events     Stored sync_events value, or null when unset.
+	 * @return bool
+	 */
+	public static function display_is_on( $display_setting, $sync_events = null ) {
+		if ( null === $display_setting ) {
+			return null !== $sync_events && self::setting_is_on( $sync_events );
 		}
 
 		return self::setting_is_on( $display_setting );
 	}
 
 	/**
-	 * Whether a stored display value means "on".
+	 * Whether event sync is on.
 	 *
-	 * Null (nothing stored) is on. Only an explicit off value turns it off.
+	 * A missing value uses the Connect toggle default, which is on.
+	 *
+	 * @param mixed $sync_events Stored sync_events value, or null when unset.
+	 * @return bool
+	 */
+	public static function sync_is_on( $sync_events ) {
+		if ( null === $sync_events ) {
+			return true;
+		}
+
+		return self::setting_is_on( $sync_events );
+	}
+
+	/**
+	 * Whether a stored value is an explicit on.
+	 *
+	 * Null, false, and 0 are off. Only real on values count.
 	 *
 	 * @param mixed $value Stored setting.
 	 * @return bool
 	 */
 	public static function setting_is_on( $value ) {
-		if ( null === $value ) {
-			return true;
-		}
-
 		if ( true === $value || 1 === $value || 1.0 === $value ) {
 			return true;
 		}
@@ -63,6 +101,26 @@ class PostTypes {
 		}
 
 		return in_array( strtolower( trim( $value ) ), array( '1', 'true', 'yes', 'on' ), true );
+	}
+
+	/**
+	 * A non-empty slug source so a post without a title still has a permalink.
+	 *
+	 * @param string $title    Post title. Empty uses $fallback.
+	 * @param string $unique   Extra token, such as the date or series key.
+	 * @param string $fallback Used when the title is empty.
+	 * @return string
+	 */
+	public static function public_slug( $title, $unique = '', $fallback = 'event' ) {
+		$title  = trim( (string) $title );
+		$unique = trim( (string) $unique );
+		$base   = '' !== $title ? $title : $fallback;
+
+		if ( '' !== $unique ) {
+			$base .= '-' . $unique;
+		}
+
+		return $base;
 	}
 
 	/**

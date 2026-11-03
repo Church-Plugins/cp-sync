@@ -29,6 +29,7 @@ class Display {
 		add_filter( 'template_include', array( __CLASS__, 'template_include' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'upcoming_archive' ) );
 		add_action( 'cp_sync_reset_content', array( __CLASS__, 'delete_imported_content' ) );
+		add_filter( 'cp_sync_global_settings', array( __CLASS__, 'fill_display_default' ) );
 	}
 
 	/**
@@ -60,12 +61,63 @@ class Display {
 	}
 
 	/**
-	 * Whether CP Sync should show its own events.
+	 * Stored Sync Events value for the active ChMS, or null when unset.
+	 *
+	 * Null is not the same as the toggle default. Callers that need the
+	 * default use PostTypes::sync_is_on().
+	 *
+	 * @return mixed
+	 */
+	public static function stored_sync_events() {
+		if ( ! function_exists( 'get_option' ) ) {
+			return null;
+		}
+
+		$global = get_option( 'cp_sync_settings', array() );
+		$chms   = 'pco';
+
+		if ( is_array( $global ) && ! empty( $global['chms'] ) && is_string( $global['chms'] ) ) {
+			$chms = $global['chms'];
+		}
+
+		$key      = 'ccb' === $chms ? 'cp_sync_ccb_settings' : 'cp_sync_pco_settings';
+		$settings = get_option( $key, array() );
+
+		if ( ! is_array( $settings ) || empty( $settings['connect'] ) || ! is_array( $settings['connect'] ) ) {
+			return null;
+		}
+
+		if ( ! array_key_exists( 'sync_events', $settings['connect'] ) ) {
+			return null;
+		}
+
+		return $settings['connect']['sync_events'];
+	}
+
+	/**
+	 * Whether the display toggle is on, ignoring The Events Calendar.
+	 *
+	 * The settings screen uses this to enable Sync Events and the Events tab
+	 * while The Events Calendar is inactive. Registration still requires both
+	 * toggles, via is_enabled().
+	 *
+	 * @return bool
+	 */
+	public static function display_toggle_on() {
+		if ( self::tec_is_active() ) {
+			return false;
+		}
+
+		return PostTypes::display_is_on( self::stored_setting(), self::stored_sync_events() );
+	}
+
+	/**
+	 * Whether CP Sync should register its event post types and archives.
 	 *
 	 * @return bool
 	 */
 	public static function is_enabled() {
-		return PostTypes::should_register( self::tec_is_active(), self::stored_setting() );
+		return PostTypes::should_register( self::tec_is_active(), self::stored_setting(), self::stored_sync_events() );
 	}
 
 	/**
@@ -79,18 +131,38 @@ class Display {
 	}
 
 	/**
+	 * Put the upgrade default on the settings payload when nothing is stored.
+	 *
+	 * @param mixed $settings Global settings.
+	 * @return array
+	 */
+	public static function fill_display_default( $settings ) {
+		if ( ! is_array( $settings ) ) {
+			$settings = array();
+		}
+
+		if ( ! array_key_exists( self::SETTING, $settings ) ) {
+			$settings[ self::SETTING ] = PostTypes::display_is_on( null, self::stored_sync_events() );
+		}
+
+		return $settings;
+	}
+
+	/**
 	 * Register types, the shortcode, and permalinks.
+	 *
+	 * Turning the feature off flushes rewrite rules once so a Page that
+	 * already used /events/ can match again.
 	 *
 	 * @return void
 	 */
 	public static function on_init() {
-		if ( ! self::is_enabled() ) {
-			return;
+		if ( self::is_enabled() ) {
+			PostTypes::register();
+			EventsShortcode::register();
 		}
 
-		PostTypes::register();
-		EventsShortcode::register();
-		self::maybe_flush_rewrites();
+		self::maybe_flush_rewrites( self::is_enabled() );
 	}
 
 	/**
@@ -130,7 +202,7 @@ class Display {
 	 * @return void
 	 */
 	public static function upcoming_archive( $query ) {
-		if ( is_admin() || ! $query instanceof \WP_Query || ! $query->is_main_query() ) {
+		if ( is_admin() || ! $query instanceof \WP_Query || ! $query->is_main_query() || $query->is_singular() ) {
 			return;
 		}
 
@@ -242,12 +314,13 @@ class Display {
 	}
 
 	/**
-	 * Flush permalinks once per slug pair.
+	 * Flush permalinks once when event archives turn on or off.
 	 *
+	 * @param bool $enabled Whether the post types were registered this request.
 	 * @return void
 	 */
-	protected static function maybe_flush_rewrites() {
-		$version = '1|' . PostTypes::event_slug() . '|' . PostTypes::series_slug();
+	protected static function maybe_flush_rewrites( $enabled ) {
+		$version = $enabled ? 'on|' . PostTypes::event_slug() . '|' . PostTypes::series_slug() : 'off';
 
 		if ( get_option( self::REWRITE_OPTION ) === $version ) {
 			return;

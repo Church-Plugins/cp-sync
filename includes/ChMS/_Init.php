@@ -126,7 +126,7 @@ class _Init {
 			[
 				'methods'  => 'GET',
 				'callback' => function () {
-					return get_option( 'cp_sync_settings', [] );
+					return \CP_Sync\Events\Display::fill_display_default( get_option( 'cp_sync_settings', [] ) );
 				},
 				'permission_callback' => function () {
 					return current_user_can( 'manage_options' );

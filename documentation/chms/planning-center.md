@@ -73,7 +73,7 @@ On CP Groups 1.2 or newer, leaders are saved as **Group Leaders** rows instead o
 
 ### Events Synchronization
 
-Sending events to The Events Calendar needs that plugin to be active. If it isn't, the **Sync Events** toggle is disabled and the **Events** tab doesn't appear. The tab appears after you connect to Planning Center, while **Sync Events** is on. Without The Events Calendar, turn on **Display events with CP Sync** on the **Advanced** tab. See [Events on your site](../integrations/events-on-your-site.md).
+Sending events to The Events Calendar needs that plugin to be active. Without it, turn on **Display events with CP Sync** on the **Advanced** tab. **Sync Events** and the **Events** tab then work the same way: visibility, event source, and filters on that tab are what get imported. See [Events on your site](../integrations/events-on-your-site.md).
 
 1. Go to the **Events** tab in the PCO settings
 2. Choose your **Event source**: **Pull from Calendar**, **Pull from Registrations**, or **Calendar AND Registrations**

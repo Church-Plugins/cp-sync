@@ -243,10 +243,10 @@ class _Init {
 			return new WP_Error( 'invalid_integration_type', 'Invalid integration type. Supported types are `' . implode( '`, `', self::$supported_types ) . '`' );
 		}
 
-		// CP Sync's own event pages run only when The Events Calendar is absent.
-		// That path does not change is_integration_available(), which still means
-		// "The Events Calendar is active" for the Sync Events toggle.
-		$native_events = \CP_Sync\Events\Display::should_import( $integration_type );
+		// CP Sync's own event pages are a destination only when The Events Calendar
+		// is absent and Display events is on. Sync Events is still required, below.
+		// is_integration_available() stays "The Events Calendar is active".
+		$native_events = 'events' === $integration_type && \CP_Sync\Events\Display::display_toggle_on();
 
 		// (a) Availability: the required companion plugin must be active. Guards the
 		// manual pull buttons, the REST /pull + /pull/{type} routes, and the cron path
@@ -262,10 +262,11 @@ class _Init {
 		// shared with the schema FieldDef ( groups/events default ON, preserving
 		// long-standing behavior; sermons default OFF so updates never silently start
 		// syncing them ).
-		// Native event pages use the Display events setting instead. Sync Events
-		// stays the The Events Calendar switch and is disabled without that plugin.
+		// Native event pages use the same Sync Events switch. The stored value,
+		// including its default, is what the ChMS fetch reads for visibility,
+		// date range, and registration source.
 		$active_chms = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
-		if ( ! $native_events && $active_chms && ! $active_chms->get_setting( "sync_{$integration_type}", \CP_Sync\ChMS\ChMS::sync_toggle_default( $integration_type ), 'connect' ) ) {
+		if ( $active_chms && ! $active_chms->get_setting( "sync_{$integration_type}", \CP_Sync\ChMS\ChMS::sync_toggle_default( $integration_type ), 'connect' ) ) {
 			$message = sprintf(
 				/* translators: %s: the integration type being synced (e.g. Groups, Events). */
 				__( '%s sync is disabled in CP Sync settings.', 'cp-sync' ),

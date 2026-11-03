@@ -45,36 +45,12 @@ class WpEventStore implements EventStore {
 			return 0;
 		}
 
-		$series_id = isset( $record['series_post_id'] ) ? (int) $record['series_post_id'] : 0;
-
-		$this->update_meta(
-			$post_id,
-			array(
-				Meta::PROVIDER         => $record['provider'],
-				Meta::OCCURRENCE_ID    => $record['occurrence_id'],
-				Meta::SOURCE_ID        => $record['source_id'],
-				Meta::CHMS_ID          => $record['source_id'],
-				Meta::START_UTC        => $record['start_utc'],
-				Meta::END_UTC          => $record['end_utc'],
-				Meta::START_LOCAL      => $record['start_local'],
-				Meta::END_LOCAL        => $record['end_local'],
-				Meta::TIMEZONE         => $record['timezone'],
-				Meta::ALL_DAY          => ! empty( $record['all_day'] ) ? '1' : '0',
-				Meta::LOCATION         => $record['location'],
-				Meta::IMAGE_URL        => $record['image_url'],
-				Meta::REGISTRATION_URL => esc_url_raw( $record['registration_url'] ),
-				Meta::SERIES_KEY       => $record['series_key'],
-			)
-		);
-
-		if ( $series_id > 0 ) {
-			update_post_meta( $post_id, Meta::SERIES_ID, $series_id );
-		} else {
-			delete_post_meta( $post_id, Meta::SERIES_ID );
-		}
+		$meta = Meta::event_meta( $record );
+		$meta[ Meta::REGISTRATION_URL ] = esc_url_raw( $meta[ Meta::REGISTRATION_URL ] );
+		$this->update_meta( $post_id, $meta );
 
 		$this->assign_categories( $post_id, isset( $record['categories'] ) ? $record['categories'] : array() );
-		$this->maybe_set_image( $post_id, $record['image_url'], $record['title'] );
+		$this->maybe_set_image( $post_id, isset( $record['image_url'] ) ? $record['image_url'] : '', isset( $record['title'] ) ? $record['title'] : '' );
 
 		return $post_id;
 	}
@@ -92,18 +68,11 @@ class WpEventStore implements EventStore {
 			return 0;
 		}
 
-		$this->update_meta(
-			$post_id,
-			array(
-				Meta::PROVIDER         => $record['provider'],
-				Meta::SERIES_KEY       => $record['series_key'],
-				Meta::CHMS_ID          => $record['series_key'],
-				Meta::IMAGE_URL        => $record['image_url'],
-				Meta::REGISTRATION_URL => esc_url_raw( $record['registration_url'] ),
-			)
-		);
+		$meta = Meta::series_meta( $record );
+		$meta[ Meta::REGISTRATION_URL ] = esc_url_raw( $meta[ Meta::REGISTRATION_URL ] );
+		$this->update_meta( $post_id, $meta );
 
-		$this->maybe_set_image( $post_id, $record['image_url'], $record['title'] );
+		$this->maybe_set_image( $post_id, isset( $record['image_url'] ) ? $record['image_url'] : '', isset( $record['title'] ) ? $record['title'] : '' );
 
 		return $post_id;
 	}
@@ -200,13 +169,17 @@ class WpEventStore implements EventStore {
 			}
 			$postarr['ID'] = $post_id;
 		} else {
-			$slug_source = $record['title'];
+			$unique   = '';
+			$fallback = 'event-series';
 
-			if ( $is_event && ! empty( $record['start_local'] ) ) {
-				$slug_source .= '-' . substr( (string) $record['start_local'], 0, 10 );
+			if ( $is_event ) {
+				$fallback = 'event';
+				$unique   = ! empty( $record['start_local'] ) ? substr( (string) $record['start_local'], 0, 10 ) : '';
+			} elseif ( ! empty( $record['series_key'] ) ) {
+				$unique = (string) $record['series_key'];
 			}
 
-			$postarr['post_name'] = sanitize_title( $slug_source );
+			$postarr['post_name'] = sanitize_title( PostTypes::public_slug( $record['title'] ?? '', $unique, $fallback ) );
 		}
 
 		$result = wp_insert_post( wp_slash( $postarr ), true );

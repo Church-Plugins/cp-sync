@@ -6,19 +6,42 @@ If The Events Calendar is active, CP Sync keeps sending events there and does no
 
 ## Turn it on
 
+Both of these have to be on. If either is off, CP Sync does not create the `/events/` or `/event-series/` addresses, and a page you already have at `/events/` stays in place.
+
 1. Go to **Church Plugins → CP Sync**.
 2. Open the **Advanced** tab.
-3. **Display events with CP Sync** is on until you turn it off.
-4. Click **Save all Settings**.
-5. Open the **Advanced** tab again and click **Pull now**, or wait for the next scheduled sync.
+3. Turn on **Display events with CP Sync**. On an upgrade this is off until you turn it on, unless event sync was already on.
+4. On the **Connect** tab, **Sync Events** is on until you turn it off. With the display toggle on, that switch is available even when The Events Calendar is not installed.
+5. Click **Save all Settings**.
+6. Open the **Events** tab. Visibility, date range, event source, and registration settings on that tab are what the sync uses.
+7. Click **Pull now** on the **Advanced** tab, or wait for the next scheduled sync.
 
 The first visit after you turn this on refreshes the event links. If `/events/` shows a "page not found" message, go to **Settings → Permalinks** and click **Save Changes**.
+
+## If you already have a page at /events/
+
+Leave **Display events with CP Sync** off. CP Sync will not take that address, and your page stays.
+
+If you turn display on while **Sync Events** is also on, CP Sync's event list uses `/events/`. Your old page is still in Pages, but the address shows the event list instead.
+
+To put your page back:
+
+1. Open the **Advanced** tab.
+2. Turn off **Display events with CP Sync**.
+3. Click **Save all Settings**.
+4. If the page is still missing, go to **Settings → Permalinks** and click **Save Changes**.
+
+Turning off **Sync Events** on the **Connect** tab does the same thing to the addresses: the event list and series pages are not registered. Either switch being off is enough.
+
+## Turn it off
+
+Open the **Advanced** tab, turn off **Display events with CP Sync**, and click **Save all Settings**. The event list and series pages stop being part of the site. Posts that were already imported stay in the database. Turn the switch back on later and they are available again, as long as **Sync Events** is also on.
 
 ## What you get
 
 Each date from your church management system becomes its own event.
 
-- The list of upcoming dates is at `/events/`. Dates are in order, soonest first. A date that is part of a series links to that series.
+- The list of upcoming dates is at `/events/`. Dates are in order, soonest first. Each date has a linked title and one button. The button says **Register** when your church management system sent a link, and **View details** when it did not. **View details** opens that date's page. A date that is part of a series also links to that series.
 - An event page shows the date and time in your WordPress timezone (**Settings → General → Timezone**), the location, the image, the description, and a **Register** button when the church management system sent a link. The button goes to that link. It does not use a form on your site.
 - A series page shows the description, the image, the next upcoming dates, and the same **Register** button.
 
@@ -44,7 +67,31 @@ Series pages use `/event-series/` so they do not take the `/series/` address CP 
 | Registration link, or the Church Community Builder event page | **Register** button |
 | Planning Center tags, registration categories, or a Church Community Builder event type | Event category, when the feed already includes one |
 
-Hidden or unapproved Planning Center calendar events are skipped when **Visibility** is **Only Visible in Church Center**. That is the usual setting. Church Community Builder rows that are not approved are skipped.
+Events that the sync imports are published pages. CP Sync does not save a separate private copy of an event the visibility setting left out.
+
+### Planning Center visibility
+
+On the **Events** tab, **Visibility** applies to the calendar. It does not apply to registrations.
+
+- **Only Visible in Church Center** (the usual setting). Calendar events that are hidden in Church Center, or that have an explicit not-approved status, are not imported. Events that are visible and not explicitly unapproved are published, including Link Only events.
+- **Show All**. The visibility and approval checks are not applied. Calendar events the feed returns are published, including ones hidden in Church Center.
+
+**Event source** chooses the feed:
+
+- **Pull from Calendar**. Calendar events only.
+- **Pull from Registrations**. Registration signups only. Archived signups are left out. The calendar visibility setting is not used.
+- **Calendar AND Registrations**. Both. An event that exists in both is imported twice.
+
+### Church Community Builder
+
+The public calendar listing is already limited to events CCB shows publicly. If CCB marks an event as not approved, it is skipped. Everything that is imported is published.
+
+**Date Range** on the **Events** tab is the window that is fetched:
+
+- **Current and upcoming events**. Today through one year ahead.
+- **Include past 30 days**. Thirty days ago through one year ahead.
+- **All future events**. Today through ten years ahead.
+- **Custom date range**. The start and end you enter. An empty start uses today. An empty end uses one year ahead.
 
 A date that is still in the future and then disappears from the feed is moved to the trash. A date that has already ended is kept, because the feed usually stops sending past dates.
 
@@ -73,17 +120,6 @@ Examples:
 ```
 [cp-sync-events series="sunday-service"]
 ```
-
-## Defaults when The Events Calendar is not installed
-
-The **Events** tab (event source, visibility, date range, and filters) stays hidden until The Events Calendar is active. **Sync Events** on the **Connect** tab stays disabled for the same reason. **Display events with CP Sync** is the switch for these pages.
-
-Until that tab is available, CP Sync uses the usual defaults:
-
-- Planning Center imports the calendar, and only events that are visible in Church Center.
-- Church Community Builder imports current and upcoming events, from today through one year ahead.
-
-Registrations are not imported unless The Events Calendar is active and you choose them on the **Events** tab.
 
 ## Theme templates
 

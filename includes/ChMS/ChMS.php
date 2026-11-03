@@ -235,9 +235,12 @@ abstract class ChMS {
 	protected function get_sync_toggle_fields( $availability = null ) {
 		if ( null === $availability ) {
 			$availability = [
-				'groups'  => \CP_Sync\Integrations\_Init::is_integration_available( 'groups' ),
-				'events'  => \CP_Sync\Integrations\_Init::is_integration_available( 'events' ),
-				'sermons' => \CP_Sync\Integrations\_Init::is_integration_available( 'sermons' ),
+				'groups'         => \CP_Sync\Integrations\_Init::is_integration_available( 'groups' ),
+				'events'         => \CP_Sync\Integrations\_Init::is_integration_available( 'events' ),
+				'sermons'        => \CP_Sync\Integrations\_Init::is_integration_available( 'sermons' ),
+				// Display events, not The Events Calendar. Enables Sync Events and
+				// the Events tab so visibility, date range, and registrations apply.
+				'events_display' => \CP_Sync\Events\Display::display_toggle_on(),
 			];
 		}
 
@@ -277,9 +280,11 @@ abstract class ChMS {
 			$fields['sync_groups']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'groups' );
 		}
 
-		if ( empty( $availability['events'] ) ) {
+		if ( empty( $availability['events'] ) && empty( $availability['events_display'] ) ) {
 			$fields['sync_events']['disabled'] = true;
 			$fields['sync_events']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'events' );
+		} elseif ( empty( $availability['events'] ) ) {
+			$fields['sync_events']['help'] = __( 'When enabled, events are synced from your ChMS and shown on your site.', 'cp-sync' );
 		}
 
 		return $fields;
