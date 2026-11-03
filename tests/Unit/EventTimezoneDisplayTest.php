@@ -39,6 +39,14 @@ class EventTimezoneDisplayTest extends TestCase {
 		$this->assertSame( 'January 15, 2026, 1:00 pm – 2:00 pm', $when['text'] );
 	}
 
+	public function test_a_missing_start_does_not_become_the_current_time() {
+		$when = EventFormatter::format_when( '', '', 'America/New_York', false );
+
+		$this->assertSame( '', $when['text'] );
+		$this->assertSame( '', $when['iso'] );
+		$this->assertFalse( $when['all_day'] );
+	}
+
 	public function test_all_day_shows_the_site_local_date_without_a_clock_time() {
 		$when = EventFormatter::format_when(
 			'2026-08-01 04:00:00',

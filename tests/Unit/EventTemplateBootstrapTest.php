@@ -142,8 +142,60 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringContainsString( 'Sunday Services', $series_archive );
 		$this->assertStringContainsString( 'href="https://example.com/event-series/sunday-services"', $series_archive );
 		$this->assertStringContainsString( '>Learn more</a>', $series_archive );
-		$this->assertStringContainsString( 'cp-sync-event-card__media', $series_archive );
-		$this->assertStringContainsString( 'cp-sync-event-card__summary', $series_archive );
+		$this->assertStringContainsString( 'cp-sync-series-card', $series_archive );
+		$this->assertStringNotContainsString( 'cp-sync-event-card', $series_archive );
+		$this->assertStringNotContainsString( '<time', $series_archive );
+	}
+
+	public function test_series_archive_lists_each_published_series_without_an_event_date() {
+		$past                 = new CP_Sync_Template_Post();
+		$past->ID             = 11;
+		$past->post_title     = 'Finished Retreat';
+		$past->post_name      = 'finished-retreat';
+		$past->post_content   = 'Already happened.';
+		$past->post_type      = 'cp_event_series';
+		$future               = new CP_Sync_Template_Post();
+		$future->ID           = 12;
+		$future->post_title   = 'Advent Series';
+		$future->post_name    = 'advent-series';
+		$future->post_content = 'Still ahead.';
+		$future->post_type    = 'cp_event_series';
+
+		$html = $this->render_main_template( 'events/series-archive', array( $past, $future, $this->event ), 'Event Series' );
+
+		$this->assertStringContainsString( 'Finished Retreat', $html );
+		$this->assertStringContainsString( 'href="https://example.com/event-series/finished-retreat"', $html );
+		$this->assertStringContainsString( 'Advent Series', $html );
+		$this->assertStringContainsString( 'href="https://example.com/event-series/advent-series"', $html );
+		$this->assertStringContainsString( 'cp-sync-series-card', $html );
+		$this->assertStringNotContainsString( 'cp-sync-event-card', $html );
+		$this->assertStringNotContainsString( '<time', $html );
+		$this->assertStringNotContainsString( 'Sunday Service', $html );
+		$this->assertStringNotContainsString( 'href="https://example.com/events/sunday-service"', $html );
+	}
+
+	public function test_event_card_hides_the_date_when_start_meta_is_missing() {
+		$undated               = new CP_Sync_Template_Post();
+		$undated->ID           = 77;
+		$undated->post_title   = 'Undated Gathering';
+		$undated->post_name    = 'undated-gathering';
+		$undated->post_content = 'No clock on this one.';
+		$undated->post_type    = 'cp_event';
+		$GLOBALS['post']       = $undated;
+
+		$html = \CP_Sync\get_template_part(
+			'events/card',
+			array(
+				'show_series_link' => false,
+			),
+			true
+		);
+
+		$this->assertIsString( $html );
+		$this->assertStringContainsString( 'Undated Gathering', $html );
+		$this->assertStringContainsString( 'href="https://example.com/events/undated-gathering"', $html );
+		$this->assertStringNotContainsString( 'cp-sync-event-card__when', $html );
+		$this->assertStringNotContainsString( '<time', $html );
 	}
 
 	public function test_list_renders_a_different_title_and_link_for_each_event() {

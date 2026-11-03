@@ -30,6 +30,7 @@ class Display {
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_styles' ) );
 		add_filter( 'template_include', array( __CLASS__, 'template_include' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'upcoming_archive' ) );
+		add_action( 'pre_get_posts', array( __CLASS__, 'series_archive' ), 11 );
 		add_action( 'cp_sync_reset_content', array( __CLASS__, 'delete_imported_content' ) );
 		add_filter( 'cp_sync_global_settings', array( __CLASS__, 'fill_display_default' ) );
 	}
@@ -208,7 +209,7 @@ class Display {
 			return;
 		}
 
-		if ( ! $query->is_post_type_archive( PostTypes::EVENT ) ) {
+		if ( $query->is_post_type_archive( PostTypes::SERIES ) || ! $query->is_post_type_archive( PostTypes::EVENT ) ) {
 			return;
 		}
 
@@ -226,6 +227,51 @@ class Display {
 				),
 			)
 		);
+	}
+
+	/**
+	 * Published series for /event-series/, including series whose dates are past.
+	 *
+	 * The event archive limits itself to upcoming dates. This query does not.
+	 * A series has no start meta, so a date meta query would drop it.
+	 *
+	 * @return array
+	 */
+	public static function series_archive_query_vars() {
+		return array(
+			'post_type'   => PostTypes::SERIES,
+			'post_status' => 'publish',
+			'meta_key'    => '',
+			'meta_query'  => array(),
+		);
+	}
+
+	/**
+	 * Apply the series archive query on the main request.
+	 *
+	 * @param \WP_Query $query Main query.
+	 * @return void
+	 */
+	public static function series_archive( $query ) {
+		if ( function_exists( 'is_admin' ) && is_admin() ) {
+			return;
+		}
+
+		if ( ! is_object( $query ) || ! method_exists( $query, 'is_main_query' ) || ! method_exists( $query, 'is_post_type_archive' ) || ! method_exists( $query, 'set' ) ) {
+			return;
+		}
+
+		if ( ! $query->is_main_query() || ( method_exists( $query, 'is_singular' ) && $query->is_singular() ) ) {
+			return;
+		}
+
+		if ( ! $query->is_post_type_archive( PostTypes::SERIES ) ) {
+			return;
+		}
+
+		foreach ( self::series_archive_query_vars() as $key => $value ) {
+			$query->set( $key, $value );
+		}
 	}
 
 	/**

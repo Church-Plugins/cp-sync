@@ -27,6 +27,16 @@ class EventFormatter {
 	 * @return array{text: string, all_day: bool, iso: string}
 	 */
 	public static function format_when( $start_utc, $end_utc, $timezone, $all_day = false ) {
+		$start_utc = trim( (string) $start_utc );
+
+		if ( '' === $start_utc ) {
+			return array(
+				'text'    => '',
+				'all_day' => false,
+				'iso'     => '',
+			);
+		}
+
 		$zone = EventTime::is_valid_timezone( $timezone ) ? $timezone : 'UTC';
 
 		try {

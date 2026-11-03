@@ -23,6 +23,8 @@ use PHPUnit\Framework\TestCase;
  * @covers \CP_Sync\Events\PostTypes::public_slug
  * @covers \CP_Sync\Events\Display::is_enabled
  * @covers \CP_Sync\Events\Display::template_for
+ * @covers \CP_Sync\Events\Display::series_archive
+ * @covers \CP_Sync\Events\Display::series_archive_query_vars
  * @covers \CP_Sync\Events\Meta::event_meta
  * @covers \CP_Sync\ChMS\ChMS::get_sync_toggle_fields
  */
@@ -192,6 +194,47 @@ class EventRegistrationTest extends TestCase {
 		$this->assertSame( '', $series[ Meta::SERIES_KEY ] );
 		$this->assertSame( '', $series[ Meta::IMAGE_URL ] );
 		$this->assertSame( '', $series[ Meta::REGISTRATION_URL ] );
+	}
+
+	public function test_series_archive_query_keeps_published_series_and_skips_event_dates() {
+		Functions\when( 'is_admin' )->justReturn( false );
+
+		$query = new class() {
+			/** @var array */
+			public $vars = array(
+				'post_type' => 'cp_event',
+				'meta_key'  => '_cp_start_utc',
+				'meta_query' => array(
+					array(
+						'key' => '_cp_end_utc',
+					),
+				),
+			);
+
+			public function is_main_query() {
+				return true;
+			}
+
+			public function is_singular() {
+				return false;
+			}
+
+			public function is_post_type_archive( $type = '' ) {
+				return '' === $type || PostTypes::SERIES === $type;
+			}
+
+			public function set( $key, $value ) {
+				$this->vars[ $key ] = $value;
+			}
+		};
+
+		Display::upcoming_archive( $query );
+		Display::series_archive( $query );
+
+		$this->assertSame( PostTypes::SERIES, $query->vars['post_type'] );
+		$this->assertSame( 'publish', $query->vars['post_status'] );
+		$this->assertSame( '', $query->vars['meta_key'] );
+		$this->assertSame( array(), $query->vars['meta_query'] );
 	}
 
 	public function test_series_archive_uses_the_event_series_slug() {
