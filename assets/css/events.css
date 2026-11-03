@@ -1,0 +1,101 @@
+/**
+ * Event and series pages.
+ *
+ * Kept small so classic themes and block themes both stay readable.
+ * Colors follow the theme where possible. The Register link is a real link.
+ */
+
+.cp-sync-events {
+	margin: 1.5rem auto;
+	max-width: 42rem;
+	padding: 0 1rem;
+}
+
+.cp-sync-events__header h1,
+.cp-sync-event__header h1,
+.cp-sync-series__header h1 {
+	margin: 0 0 0.75rem;
+}
+
+.cp-sync-events__list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.cp-sync-events__item {
+	border-top: 1px solid currentColor;
+	margin: 0;
+	padding: 1rem 0;
+}
+
+.cp-sync-events__item:last-child {
+	border-bottom: 1px solid currentColor;
+}
+
+.cp-sync-event-card__title {
+	font-size: 1.25rem;
+	margin: 0 0 0.35rem;
+}
+
+.cp-sync-event-card__when,
+.cp-sync-event-card__location,
+.cp-sync-event-card__series,
+.cp-sync-event__when,
+.cp-sync-event__location,
+.cp-sync-event__series {
+	margin: 0.25rem 0;
+}
+
+.cp-sync-event__image,
+.cp-sync-series__image {
+	margin: 1rem 0;
+}
+
+.cp-sync-events img,
+.cp-sync-event img,
+.cp-sync-series img {
+	height: auto;
+	max-width: 100%;
+}
+
+.cp-sync-event__content,
+.cp-sync-series__content {
+	margin: 1rem 0;
+}
+
+.cp-sync-event__register {
+	margin: 1.25rem 0;
+}
+
+.cp-sync-event__register a {
+	background: #1b4d4a;
+	border-radius: 0.25rem;
+	color: #fff;
+	display: inline-block;
+	padding: 0.55rem 1rem;
+	text-decoration: none;
+}
+
+.cp-sync-event__register a:hover,
+.cp-sync-event__register a:focus {
+	background: #133633;
+	color: #fff;
+}
+
+.cp-sync-event__register a:focus {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+.cp-sync-series__dates {
+	margin-top: 2rem;
+}
+
+.cp-sync-events__empty {
+	margin: 1rem 0;
+}
+
+.cp-sync-events .navigation.pagination {
+	margin: 1.5rem 0;
+}

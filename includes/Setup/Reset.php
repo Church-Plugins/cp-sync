@@ -232,6 +232,14 @@ class Reset {
 		$summary['attachments'] = $this->delete_sideloaded_attachments();
 		$summary['files']       = $this->remove_image_cache_dir();
 
+		/**
+		 * After imported integration content is deleted.
+		 *
+		 * CP Sync event posts are not owned by an Integration subclass, so the
+		 * display layer removes them here.
+		 */
+		do_action( 'cp_sync_reset_content', $this );
+
 		return $summary;
 	}
 

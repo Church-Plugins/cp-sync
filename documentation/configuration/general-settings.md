@@ -31,11 +31,12 @@ Click **Save all Settings** after you change **Enable Debug Mode**.
 Open the **Advanced** tab.
 
 - **Update Interval**: **Hourly** (the default), **Daily**, or **Weekly**.
+- **Display events with CP Sync**: shown when The Events Calendar is not active. On until you turn it off. CP Sync then lists events at `/events/`. See [Events on your site](../integrations/events-on-your-site.md).
 - **Pull now**: starts a sync of every feed that is turned on. The tab shows **Hard pull started successfully**.
 - **Delete all data on uninstall**: off until you turn it on. See [Reset Tool](../advanced/reset-tool.md).
 - **Danger Zone**: reset install data. See [Reset Tool](../advanced/reset-tool.md).
 
-Click **Save all Settings** after you change **Update Interval** or **Delete all data on uninstall**.
+Click **Save all Settings** after you change **Update Interval**, **Display events with CP Sync**, or **Delete all data on uninstall**.
 
 If you changed the sync interval before upgrading to 1.0.0 and the new interval does not take effect, set it to a different interval once, save, then set it back and save again. Interval changes you make on 1.0.0 work normally. See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#sync-interval-doesnt-take-effect-after-upgrading).
 

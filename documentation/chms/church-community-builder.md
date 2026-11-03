@@ -61,7 +61,7 @@ Only groups that are not marked Inactive and have **Public Search** checked in C
 
 ### Events Synchronization
 
-Event sync needs **The Events Calendar** plugin to be active. If it isn't, the **Sync Events** toggle is disabled and the **Events** tab doesn't appear. The tab appears after you connect to Church Community Builder, while **Sync Events** is on.
+Sending events to The Events Calendar needs that plugin to be active. If it isn't, the **Sync Events** toggle is disabled and the **Events** tab doesn't appear. The tab appears after you connect to Church Community Builder, while **Sync Events** is on. Without The Events Calendar, turn on **Display events with CP Sync** on the **Advanced** tab. See [Events on your site](../integrations/events-on-your-site.md).
 
 1. Go to the **Events** tab in the CCB settings
 2. Choose how far ahead events sync with **Date Range** (see below)

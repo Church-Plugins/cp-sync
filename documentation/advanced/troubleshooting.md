@@ -100,6 +100,13 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
    - On the **Groups** tab, check **Visibility** (Planning Center) and the **Groups** filter.
    - Church Community Builder skips groups that are inactive or not listed in public search.
 
+### Events are missing and The Events Calendar is not installed
+
+1. On the **Advanced** tab, **Display events with CP Sync** is on. Click **Save all Settings**, then **Pull now**.
+2. If `/events/` says the page was not found, open **Settings → Permalinks** and click **Save Changes**.
+3. On the **Log** tab, set **Enable Debug Mode** to **Enable** and run the sync again. Look for `Event display sync`.
+4. Planning Center imports the calendar, and only events visible in Church Center, until The Events Calendar is active. Church Community Builder imports today through one year ahead.
+
 ### The Events Calendar Integration Issues
 
 1. **Plugin and toggle**:

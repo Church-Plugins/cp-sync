@@ -2,6 +2,8 @@
 
 CP-Sync imports events from Planning Center or Church Community Builder into The Events Calendar.
 
+If The Events Calendar is not active, CP Sync can show the events itself. See [Events on your site](events-on-your-site.md). Nothing on this page changes for a site that uses The Events Calendar.
+
 ## Prerequisites
 
 Before using The Events Calendar integration:

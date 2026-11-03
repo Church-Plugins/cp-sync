@@ -37,6 +37,20 @@ const advancedSchema = {
 	],
 };
 
+/**
+ * Shown on the Advanced tab when The Events Calendar is not active.
+ * Missing values stay on: the PHP default matches this `default`.
+ */
+export const displayEventsField = {
+	type: 'toggle',
+	label: __( 'Display events with CP Sync', 'cp-sync' ),
+	default: true,
+	help: __(
+		'Show events from your church management system on this site, at /events/. On until you turn it off. Has no effect while The Events Calendar is active.',
+		'cp-sync'
+	),
+};
+
 export const advancedUninstallSchema = {
 	label: __( 'Uninstall', 'cp-sync' ),
 	sections: [

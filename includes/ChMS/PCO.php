@@ -2039,6 +2039,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			return false;
 		}
 
+		\CP_Sync\Events\NeutralFeed::add( $neutral );
+
 		return \CP_Sync\Events\TecEventMapper::to_tec_item( $neutral );
 	}
 
@@ -2100,8 +2102,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			}
 		}
 
-		$tax_input = [];
-		$tags      = wp_list_pluck( $event_instance['relationships']['tags']['data'], 'id' );
+		$tax_input   = [];
+		$categories  = [];
+		$tags        = wp_list_pluck( $event_instance['relationships']['tags']['data'], 'id' );
 
 		foreach ( $tags as $tag ) {
 			$tag_data = $relational_data['Tag'][ $tag ] ?? false;
@@ -2111,11 +2114,17 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			}
 
 			$tax_input[ $tag_data['attributes']['taxonomy'] ][] = $tag_data['id'];
+
+			if ( ! empty( $tag_data['attributes']['name'] ) ) {
+				$categories[] = $tag_data['attributes']['name'];
+			}
 		}
 
 		return [
 			'provider'         => 'pco',
 			'chms_id'          => $event_instance['id'],
+			'series_id'        => (string) $event_id,
+			'categories'       => $categories,
 			'title'            => $attributes['name'] ?? '',
 			'content'          => $attributes['description'] ?? '',
 			'excerpt'          => $attributes['summary'] ?? '',
@@ -2162,6 +2171,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		if ( false === $neutral ) {
 			return false;
 		}
+
+		\CP_Sync\Events\NeutralFeed::add( $neutral );
 
 		return \CP_Sync\Events\TecEventMapper::to_tec_item( $neutral );
 	}

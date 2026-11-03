@@ -79,10 +79,11 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 		}
 
 		$data = [
-			'ajaxUrl'  => admin_url( 'admin-ajax.php' ),
-			'nonce'    => wp_create_nonce( 'cpSync' ),
-			'oauthURL' => CP_SYNC_OAUTH_URL,
-			'adminUrl' => admin_url(),
+			'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
+			'nonce'     => wp_create_nonce( 'cpSync' ),
+			'oauthURL'  => CP_SYNC_OAUTH_URL,
+			'adminUrl'  => admin_url(),
+			'tecActive' => defined( 'TRIBE_EVENTS_FILE' ),
 		];
 
 		wp_add_inline_script(
@@ -101,6 +102,7 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 		Admin\_Init::get_instance();
 		ChMS\_Init::get_instance();
 		Integrations\_Init::get_instance();
+		\CP_Sync\Events\Display::boot();
 		$this->setup = Setup\_Init::get_instance();
 		$this->logging = new \ChurchPlugins\Logging( $this->get_id(), $this->is_debug_mode() );
 	}
