@@ -111,7 +111,7 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
 
 1. **Plugin and toggle**:
    - The Events Calendar is installed and activated.
-   - On the **Connect** tab, **Sync Events** is on. If The Events Calendar is inactive, the toggle is disabled and the help text reads **Requires The Events Calendar plugin, which is not active on this site.**
+   - On the **Connect** tab, **Sync Events** is on. If The Events Calendar is inactive and **Display events with CP Sync** is off, the toggle is disabled and the help text reads **Turn on Display events with CP Sync, or activate The Events Calendar.**
 
 2. **Church Community Builder venues**:
    - Venue name, street, city, state, zip, and the event image are filled in after import, for events that have a numeric CCB id.

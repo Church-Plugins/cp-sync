@@ -33,7 +33,7 @@ After you are connected, the same tab shows a **Sync** section. Choose what to s
 - **Sync Events** — When enabled, events are synced from your ChMS to The Events Calendar.
 - **Sync Sermons** — When enabled, sermons are synced from your ChMS to CP Sermons. This toggle is off until you turn it on.
 
-**Sync Events** is disabled until The Events Calendar is active. Its help text is **Requires The Events Calendar plugin, which is not active on this site.** **Sync Sermons** is disabled until CP Sermons is active. Its help text is **Requires the CP Sermons plugin, which is not active on this site.** **Sync Groups** stays available without CP Groups. It is disabled only when **Display groups with CP Sync** is off and CP Groups is not active. The help text then reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
+**Sync Events** stays on when The Events Calendar is active, or when **Display events with CP Sync** is on. With The Events Calendar off and that toggle on, the help text reads **Shows events with The Events Calendar if it's active. Otherwise, turn on Display events with CP Sync on the Advanced tab.** It is disabled only when both are off. The help text then reads **Turn on Display events with CP Sync, or activate The Events Calendar.** **Sync Sermons** is disabled until CP Sermons is active. Its help text is **Requires the CP Sermons plugin, which is not active on this site.** **Sync Groups** stays available without CP Groups. It is disabled only when **Display groups with CP Sync** is off and CP Groups is not active. The help text then reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
 
 ## Configuring Data Synchronization
 

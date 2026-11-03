@@ -143,7 +143,7 @@ class _Init {
 			case 'groups':
 				return __( 'Turn on Display groups with CP Sync, or activate the CP Groups plugin.', 'cp-sync' );
 			case 'events':
-				return __( 'Requires The Events Calendar plugin, which is not active on this site.', 'cp-sync' );
+				return __( 'Turn on Display events with CP Sync, or activate The Events Calendar.', 'cp-sync' );
 			case 'sermons':
 				return __( 'Requires the CP Sermons plugin, which is not active on this site.', 'cp-sync' );
 			default:

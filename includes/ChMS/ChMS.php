@@ -252,9 +252,9 @@ abstract class ChMS {
 	 * sermons OFF ); the sermons toggle is emitted only for a ChMS that registered
 	 * sermons support.
 	 *
-	 * When the required companion plugin is NOT active ( CP Groups / The Events
-	 * Calendar / CP Sermons ) the toggle is emitted with `disabled: true` and its help
-	 * text is replaced by the "requires …" explanation. Availability is resolved every
+	 * When a feed has nowhere to go, the toggle is emitted with `disabled: true` and
+	 * its help text names what to turn on. Sync Events is disabled only when The
+	 * Events Calendar is inactive and Display events is off. Availability is resolved every
 	 * time the schema is served ( GET /{chms}/schema ), so the client always sees
 	 * current state.
 	 *
@@ -319,7 +319,8 @@ abstract class ChMS {
 			$fields['sync_events']['disabled'] = true;
 			$fields['sync_events']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'events' );
 		} elseif ( empty( $availability['events'] ) ) {
-			$fields['sync_events']['help'] = __( 'When enabled, events are synced from your ChMS and shown on your site.', 'cp-sync' );
+			// Enabled while The Events Calendar is off, which means Display events is on.
+			$fields['sync_events']['help'] = __( 'Shows events with The Events Calendar if it\'s active. Otherwise, turn on Display events with CP Sync on the Advanced tab.', 'cp-sync' );
 		}
 
 		return $fields;

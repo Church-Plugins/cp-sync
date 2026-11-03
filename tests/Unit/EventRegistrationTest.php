@@ -150,8 +150,10 @@ class EventRegistrationTest extends TestCase {
 		);
 
 		$this->assertArrayNotHasKey( 'disabled', $fields['sync_events'] );
-		$this->assertStringContainsString( 'shown on your site', $fields['sync_events']['help'] );
-		$this->assertStringNotContainsString( 'Requires', $fields['sync_events']['help'] );
+		$this->assertSame(
+			'Shows events with The Events Calendar if it\'s active. Otherwise, turn on Display events with CP Sync on the Advanced tab.',
+			$fields['sync_events']['help']
+		);
 	}
 
 	public function test_archive_query_meta_always_has_a_default() {
