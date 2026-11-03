@@ -13,6 +13,7 @@ use CP_Sync\ChMS\CCB;
 use CP_Sync\ChMS\PCO;
 use CP_Sync\Events\EventStore;
 use CP_Sync\Events\EventSync;
+use CP_Sync\Events\TecEventMapper;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -92,6 +93,33 @@ class EventSyncTest extends TestCase {
 		$this->assertSame( 'trash', $by_source['future'] );
 		$this->assertSame( 'publish', $by_source['past'] );
 		$this->assertSame( 'publish', $by_source['keep'] );
+	}
+
+	public function test_an_event_with_no_end_time_does_not_stop_the_feed() {
+		$open = $this->pco( 'open-end', 'e1', '2026-08-01 15:00:00', '' );
+		$next = $this->pco( 'after', 'e2', '2026-08-02 15:00:00', '2026-08-02 16:00:00', 'After' );
+		$open['site_timezone'] = 'UTC';
+		$next['site_timezone'] = 'UTC';
+
+		$mapped = array();
+
+		foreach ( array( $open, $next ) as $event ) {
+			$mapped[] = TecEventMapper::to_tec_item( $event );
+		}
+
+		$this->assertCount( 2, $mapped );
+		$this->assertSame( 'Sunday Service', $mapped[0]['post_title'] );
+		$this->assertNotSame( '', $mapped[0]['EventEndDate'] );
+		$this->assertSame( 'After', $mapped[1]['post_title'] );
+		$this->assertSame( '2026-08-02', $mapped[1]['EventStartDate'] );
+		$this->assertSame( '16', $mapped[1]['EventEndHour'] );
+
+		$store  = new MemoryEventStore();
+		$result = EventSync::sync( array( $open, $next ), $store, '2026-07-01 00:00:00', 'UTC' );
+
+		$this->assertFalse( $result['skipped'] );
+		$this->assertSame( 2, $result['events'] );
+		$this->assertCount( 2, $this->published( $store->events() ) );
 	}
 
 	public function test_an_empty_feed_does_not_remove_stored_events() {

@@ -122,10 +122,6 @@ class EventTime {
 	 * @return \DateTimeImmutable
 	 */
 	public static function to_local( $utc_string, $timezone ) {
-		if ( ! is_string( $utc_string ) || '' === trim( $utc_string ) ) {
-			throw new \InvalidArgumentException( 'Missing UTC timestamp.' );
-		}
-
 		$zone = self::is_valid_timezone( $timezone ) ? $timezone : 'UTC';
 		$utc  = new \DateTimeImmutable( $utc_string, new \DateTimeZone( 'UTC' ) );
 
