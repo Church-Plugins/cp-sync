@@ -76,23 +76,22 @@ function HardPullButton( { save } ) {
 function AdvancedTab( { save } ) {
 	const { globalSettings, updateGlobalSettings } = useSettings();
 	const tecActive = window.cpSync && window.cpSync.tecActive;
+	// Groups is the first schema section. The events toggle is its own section
+	// so it is not stored inside the Groups fields.
 	const scheduleSchema = tecActive
 		? advancedSchema
 		: {
 				...advancedSchema,
-				sections: advancedSchema.sections.map( ( section, index ) => {
-					if ( 0 !== index ) {
-						return section;
-					}
-
-					return {
-						...section,
+				sections: [
+					advancedSchema.sections[ 0 ],
+					{
+						title: __( 'Events', 'cp-sync' ),
 						fields: {
-							...section.fields,
 							displayEvents: displayEventsField,
 						},
-					};
-				} ),
+					},
+					...advancedSchema.sections.slice( 1 ),
+				],
 			};
 
 	return (

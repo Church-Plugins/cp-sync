@@ -1376,6 +1376,41 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * Start and end dates for a Planning Center group.
+	 *
+	 * strtotime( null ) is deprecated on PHP 8.1+. A missing or blank timestamp
+	 * is left empty instead.
+	 *
+	 * @since 1.2.0
+	 * @param mixed $created_at  Group created_at attribute.
+	 * @param mixed $archived_at Group archived_at attribute.
+	 * @return array{start_date:string,end_date:string|null}
+	 */
+	public static function group_boundary_dates( $created_at, $archived_at ) {
+		$start = self::group_timestamp( $created_at );
+		$end   = self::group_timestamp( $archived_at );
+
+		return [
+			'start_date' => ( false !== $start ) ? date( 'Y-m-d', $start ) : '',
+			'end_date'   => ( false !== $end ) ? date( 'Y-m-d', $end ) : null,
+		];
+	}
+
+	/**
+	 * @param mixed $value A ChMS datetime string, or nothing.
+	 * @return int|false
+	 */
+	protected static function group_timestamp( $value ) {
+		if ( ! is_string( $value ) || '' === $value ) {
+			return false;
+		}
+
+		$timestamp = strtotime( $value );
+
+		return ( false === $timestamp ) ? false : $timestamp;
+	}
+
+	/**
 	 * Format a group for the CP Sync integration
 	 *
 	 * @param array $group The group to format.
@@ -1428,8 +1463,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		// setup formatted group data to send to integration
-		$start_date = strtotime( $group['attributes']['created_at'] ?? null );
-		$end_date   = strtotime( $group['attributes']['archived_at'] ?? null );
+		$dates = self::group_boundary_dates(
+			$group['attributes']['created_at'] ?? null,
+			$group['attributes']['archived_at'] ?? null
+		);
 
 		$args = [
 			'chms_id'          => $group['id'],
@@ -1442,8 +1479,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'group_life_stage' => [], // not used
 			'thumbnail_url'    => $group['attributes']['header_image']['original'] ?? '',
 			'meta_input'       => [
-				'start_date'    => date( 'Y-m-d', $start_date ),
-				'end_date'      => ! empty( $end_date ) ? date( 'Y-m-d', $end_date ) : null,
+				'start_date'    => $dates['start_date'],
+				'end_date'      => $dates['end_date'],
 				'public_url'    => $group['attributes']['public_church_center_web_url'] ?? '',
 			],
 		];

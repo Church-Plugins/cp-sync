@@ -1,0 +1,129 @@
+/**
+ * Groups Lite layout. The theme keeps its own fonts and colors.
+ */
+
+.cp-sync-groups {
+	max-width: 72rem;
+	margin-left: auto;
+	margin-right: auto;
+	padding: 1.5rem 1rem;
+}
+
+.cp-sync-groups__list {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+	gap: 1.5rem;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.cp-sync-groups__card {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	height: 100%;
+}
+
+.cp-sync-groups__image,
+.cp-sync-groups__placeholder {
+	display: block;
+	width: 100%;
+	aspect-ratio: 16 / 9;
+}
+
+.cp-sync-groups__image {
+	height: auto;
+	object-fit: cover;
+}
+
+.cp-sync-groups__placeholder {
+	background: rgba(0, 0, 0, 0.08);
+}
+
+.cp-sync-groups__title {
+	margin: 0;
+	font-size: 1.25rem;
+}
+
+.cp-sync-groups__title a {
+	display: inline-block;
+	box-sizing: border-box;
+	min-height: 44px;
+	padding-top: 0.4rem;
+	padding-bottom: 0.4rem;
+	color: inherit;
+}
+
+.cp-sync-groups__card .cp-sync-groups__description {
+	min-height: 3em;
+}
+
+.cp-sync-groups__description,
+.cp-sync-groups__meta,
+.cp-sync-groups__leaders {
+	margin: 0;
+}
+
+.cp-sync-groups__label {
+	font-weight: 600;
+}
+
+.cp-sync-groups__label::after {
+	content: ":";
+}
+
+.cp-sync-groups__action {
+	margin: 0.5rem 0 0;
+}
+
+.cp-sync-groups__button {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	min-height: 44px;
+	padding: 0.5rem 0.9rem;
+	border: 1px solid currentColor;
+	border-radius: 0.25rem;
+	color: inherit;
+	text-decoration: none;
+}
+
+.cp-sync-groups .nav-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+}
+
+.cp-sync-groups a.page-numbers,
+.cp-sync-groups span.page-numbers {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	min-width: 44px;
+	min-height: 44px;
+	padding: 0 0.75rem;
+}
+
+.cp-sync-groups a:focus {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+.cp-sync-groups__button:hover,
+.cp-sync-groups__button:focus {
+	text-decoration: underline;
+}
+
+.cp-sync-groups__back {
+	margin-top: 1.5rem;
+}
+
+.cp-sync-groups__back a {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	min-height: 44px;
+}

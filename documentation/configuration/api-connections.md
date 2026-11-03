@@ -31,7 +31,7 @@ Changing **Church Management System** while you are connected leaves the Plannin
 
 After you are connected, the same tab shows a **Sync** section (**Sync Groups**, **Sync Events**, and **Sync Sermons**). Click **Save all Settings** after you change those toggles.
 
-**Sync Groups** is disabled until CP Groups is active. The help text then reads **Requires the CP Groups plugin, which is not active on this site.** **Sync Events** is disabled until The Events Calendar is active or **Display events with CP Sync** is on. **Sync Sermons** is disabled until CP Sermons is active. **Sync Groups** and **Sync Events** are on until you turn them off. **Sync Sermons** is off until you turn it on. The **Groups**, **Events**, and **Sermons** tabs appear after you are connected, the matching toggle is on, and that plugin is active (for events, The Events Calendar or **Display events with CP Sync**).
+**Sync Groups** is on until you turn it off. Without CP Groups, groups show on your site while **Display groups with CP Sync** is on. If that is off and CP Groups is not active, **Sync Groups** is disabled and the help text reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.** **Sync Events** is disabled until The Events Calendar is active or **Display events with CP Sync** is on. **Sync Sermons** is disabled until CP Sermons is active. **Sync Events** is on until you turn it off. **Sync Sermons** is off until you turn it on. The **Groups** tab appears after you are connected and **Sync Groups** is on. The **Events** and **Sermons** tabs appear after you are connected, the matching toggle is on, and that plugin is active (for events, The Events Calendar or **Display events with CP Sync**).
 
 ## Church Community Builder (CCB) Connection
 
@@ -63,7 +63,7 @@ Changing **Church Management System** while you are connected leaves the Church 
 
 After you are connected, the same tab shows a **Sync** section (**Sync Groups** and **Sync Events**). Click **Save all Settings** after you change those toggles.
 
-**Sync Groups** is disabled until CP Groups is active. **Sync Events** is disabled until The Events Calendar is active or **Display events with CP Sync** is on. Both toggles are on until you turn them off. The **Groups** and **Events** tabs appear after you are connected, the matching toggle is on, and that plugin is active (for events, The Events Calendar or **Display events with CP Sync**).
+**Sync Groups** is on until you turn it off, including when CP Groups is not active. Without CP Groups, groups show on your site while **Display groups with CP Sync** is on. If that is off and CP Groups is not active, **Sync Groups** is disabled and the help text reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.** **Sync Events** is disabled until The Events Calendar is active or **Display events with CP Sync** is on, and it is on until you turn it off. The **Groups** tab appears after you are connected and **Sync Groups** is on. The **Events** tab appears after you are connected, **Sync Events** is on, and that plugin is active (for events, The Events Calendar or **Display events with CP Sync**).
 
 ## Testing Connections
 

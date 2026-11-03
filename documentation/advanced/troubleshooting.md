@@ -41,7 +41,7 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
 1. **Check the connection**:
    - Planning Center: the **Connect** tab shows **Connected**, or **Connected to {organization} as {person}** after you reload.
    - Church Community Builder: the button reads **Disconnect** and **Subdomain**, **API Username**, and **API Password** are locked.
-   - Under **Sync**, the feed you want is on. **Sync Groups** needs CP Groups. **Sync Events** needs The Events Calendar. **Sync Sermons** (Planning Center) needs CP Sermons and is off until you turn it on.
+   - Under **Sync**, the feed you want is on. **Sync Groups** works without CP Groups while **Display groups with CP Sync** is on. **Sync Events** needs The Events Calendar. **Sync Sermons** (Planning Center) needs CP Sermons and is off until you turn it on.
 
 2. **Review filters**:
    - Planning Center groups: **Visibility** and the **Groups** filter on the **Groups** tab.
@@ -93,8 +93,8 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
 ### CP Groups Integration Problems
 
 1. **Plugin and toggle**:
-   - CP Groups is installed and activated.
-   - On the **Connect** tab, **Sync Groups** is on. If CP Groups is inactive, the toggle is disabled and the help text reads **Requires the CP Groups plugin, which is not active on this site.**
+   - On the **Connect** tab, **Sync Groups** is on.
+   - Without CP Groups, **Display groups with CP Sync** is on (**Advanced** tab). If it is off, **Sync Groups** is disabled and the help text reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
 
 2. **Filters**:
    - On the **Groups** tab, check **Visibility** (Planning Center) and the **Groups** filter.

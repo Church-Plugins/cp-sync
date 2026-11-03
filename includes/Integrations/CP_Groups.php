@@ -28,12 +28,21 @@ class CP_Groups extends Integration {
 			$item['post_content'] = '';
 		}
 
-		// CP Groups 1.2 replaced the single leader fields with a `leaders` list.
-		// A ChMS that already built that list ( Planning Center can have several
-		// leaders ) keeps it; otherwise fold leader / leader_email into one row.
-		if ( defined( 'CP_GROUPS_PLUGIN_VERSION' ) && version_compare( CP_GROUPS_PLUGIN_VERSION, '1.2.0', '>=' ) && isset( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) {
-			$item['meta_input'] = self::prepare_leader_meta( $item['meta_input'], CP_GROUPS_PLUGIN_VERSION );
+		// CP Groups 1.2 and Groups Lite store a `leaders` list. A ChMS that already
+		// built that list ( Planning Center can have several leaders ) keeps it;
+		// otherwise fold leader / leader_email into one row. CP Groups below 1.2
+		// still reads the single leader fields, so those are left unchanged.
+		$leader_version = self::leader_storage_version();
+		if ( null !== $leader_version && isset( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) {
+			$item['meta_input'] = self::prepare_leader_meta( $item['meta_input'], $leader_version );
 		}
+
+		// CP Groups' archive query requires is_group_full = 0. Groups synced
+		// before that key existed would disappear once CP Groups is activated.
+		if ( ! isset( $item['meta_input'] ) || ! is_array( $item['meta_input'] ) ) {
+			$item['meta_input'] = [];
+		}
+		$item['meta_input'] = \CP_Sync\Groups\GroupMeta::ensure( $item['meta_input'] );
 
 		$id = wp_insert_post( $item );
 
@@ -71,6 +80,29 @@ class CP_Groups extends Integration {
 		}
 
 		return $id;
+	}
+
+	/**
+	 * Which leader shape to store, or null to leave the ChMS fields unchanged.
+	 *
+	 * CP Groups below 1.2 keeps `leader` and `leader_email`. CP Groups 1.2 stores
+	 * `leaders` rows. Groups Lite stores that same 1.2 shape so activating CP Groups
+	 * does not need a migration. When CP Groups is active but has not defined its
+	 * version constant, the single fields are left as the formatter set them.
+	 *
+	 * @since 1.2.0
+	 * @return string|null
+	 */
+	public static function leader_storage_version() {
+		if ( defined( 'CP_GROUPS_PLUGIN_VERSION' ) ) {
+			return CP_GROUPS_PLUGIN_VERSION;
+		}
+
+		if ( ! function_exists( 'cp_groups' ) ) {
+			return '1.2.0';
+		}
+
+		return null;
 	}
 
 	/**
