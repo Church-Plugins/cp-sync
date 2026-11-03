@@ -30,7 +30,7 @@ On the **Events** tab:
 - **Show Register button on events**: on until you turn it off. Synced events that have a registration link get a **Register** button. When the signup is at capacity, the button reads **Sold Out**.
 - **Calendar Settings** (shown for **Pull from Calendar** and **Calendar AND Registrations**):
   - **Tag groups**: selected tag groups become taxonomies on the event.
-  - **Visibility**: **Only Visible in Church Center** (the default) or **Show All**.
+  - **Visibility**: **Only Visible in Church Center** (the default) or **Show All**. Either choice skips calendar events that are hidden in Church Center or not approved. **Link Only** events still sync when they are visible and approved.
   - **Calendar Filters**: **Pull Calendar Filters where**, then **All** or **Any**, and **Add Condition**.
 - **Registration Settings** (shown for **Pull from Registrations** and **Calendar AND Registrations**):
   - **Registration Filters**: **Pull Registration Filters where**, then **All** or **Any**, and **Add Condition**.
@@ -38,7 +38,9 @@ On the **Events** tab:
 
 When **Event source** is **Calendar AND Registrations**, the tab shows **Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.**
 
-Calendar sync imports future event instances. **Visibility** is separate from **Calendar Filters**. An empty **Calendar Filters** builder does not turn **Visibility** off.
+Calendar sync imports future event instances. **Visibility** is separate from **Calendar Filters**. An empty **Calendar Filters** builder does not turn the visibility and approval checks off.
+
+Start and end times use the Planning Center organization time zone. If Planning Center does not return one, times use the WordPress site time zone. Church Community Builder uses the event's own time zone when CCB sends one, otherwise the first active campus time zone, read once per sync. The clock time on a CCB event stays the time CCB sent.
 
 ## Church Community Builder
 
@@ -49,7 +51,7 @@ On the **Events** tab, the heading reads **Select data to pull from Church Commu
 - **Events**, under **Event Filters**: **Pull Events where**, then **All** or **Any**, and **Add Condition**.
 - **Generate Preview** and **Pull Now**. **Pull Now** shows **Import started**.
 
-Each occurrence is imported as its own event. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
+Each occurrence is imported as its own event. The public calendar listing is already limited to approved public events. A row that CCB marks unapproved, draft, or not listed is skipped. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
 
 ## What Is Copied
 

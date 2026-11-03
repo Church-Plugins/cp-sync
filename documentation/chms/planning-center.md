@@ -45,7 +45,7 @@ Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**.
 
 1. Open the **Groups** tab.
 2. Under **Group Tags to Sync**, choose the Planning Center tag groups you want on your site. Each selected tag group is added to your groups as its own filter, named after the tag group, with its tags as the options. For example, a "Life Stage" tag group becomes a Life Stage filter. Tag groups you don't select are not added.
-3. Choose **Visibility**: **Only Visible in Church Center** (default) syncs only groups published on Church Center; **Show All** does not filter on Church Center visibility.
+3. Choose **Visibility**: **Only Visible in Church Center** (default) syncs only groups published on Church Center. A group Planning Center marks as not listed, or whose visibility is not public, is skipped on that setting. Groups that do not send those fields are unchanged. **Show All** does not apply this check.
 4. Optionally, limit which groups sync. On screen the filter reads **Pull Groups where** **All** or **Any** **of the following match**. There is no separate Groups heading. Click **Add Condition** to add a condition on **Name**, **Description**, **Group Type**, **Location**, **Enrollment Status**, **Enrollment Strategy**, or **Visibility**. For **Group Type**, the comparisons are **Is**, **Is Not**, **Is Empty**, **Is Not Empty**, **Is in**, and **Is Not in**. With no conditions, every group allowed by Visibility syncs.
 5. Click **Save all Settings**. The button stays disabled until you change a setting.
 
@@ -86,18 +86,17 @@ In CP Sync 1.0.0 and later, events keep their real times, and past events are ke
 
 ### Calendar Settings: Visibility
 
-When your Planning Center **Event source** is **Calendar** or **Both**, the **Calendar Settings** section includes a **Visibility** option:
+Calendar events sync only when Planning Center marks them **visible in Church Center** and **approved** (approval status A). Hidden events and events that are pending or rejected are not synced. This applies with either **Visibility** choice, including **Show All**.
 
-- **Only Visible in Church Center** (default) — Keeps events that Planning Center marks as visible in Church Center. Events that are hidden from Church Center are not synced.
-- **Show All** — Does not filter on Church Center visibility.
+- **Only Visible in Church Center** (default) and **Show All** both skip hidden and unapproved calendar events.
+- **Link Only** events still sync when they are visible in Church Center and approved.
+- If the Calendar Filters builder is left empty, no extra filter rules run. The visibility and approval checks still apply.
+- When the Event source is **Registrations** only, there is no Visibility setting, and these calendar checks are not used.
+- Upcoming events already on the site that become hidden or unapproved are removed on the next sync. Events whose end date has passed stay. Locked posts stay.
 
-A few things to know:
+Event start and end times use the **organization time zone** Planning Center returns for the calendar account, not the WordPress site time zone. If that time zone cannot be read, times use the site time zone.
 
-- Events set to **Link Only** in Church Center still sync when **Only Visible in Church Center** is selected.
-- If the Calendar Filters builder is left empty, no extra filter rules run (Church Center Visibility still applies).
-- When the Event source is **Registrations** only, there is no Visibility setting.
-
-For a short release summary, see [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-calendar-event-visibility).
+For how this used to work in 1.0.0, see [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-calendar-event-visibility).
 
 ### How Event Text Maps from Planning Center
 

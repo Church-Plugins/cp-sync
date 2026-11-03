@@ -831,11 +831,112 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			cp_sync()->logging->log( 'No events found in response' );
 		}
 
+		$organization_timezone = '';
+		if ( ! empty( $events ) ) {
+			$organization_timezone = $this->fetch_organization_timezone();
+		}
+
 		return [
 			'items'      => $events,
 			'taxonomies' => [],
-			'context'    => [],
+			'context'    => [
+				'organization_timezone' => $organization_timezone,
+			],
 		];
+	}
+
+	/**
+	 * Read a campus timezone once per sync.
+	 *
+	 * public_calendar_listing does not include a timezone. event_profile does,
+	 * per event, and that value wins inside format_event() when the row has
+	 * one. This call supplies the fallback: the first active campus from
+	 * campus_list, then that campus's profile. A failed lookup does not abort
+	 * the pull.
+	 *
+	 * @return string IANA zone, or ''.
+	 */
+	public function fetch_organization_timezone() {
+		$list = $this->api()->get( 'campus_list', [] );
+
+		if ( is_wp_error( $list ) || ! is_array( $list ) ) {
+			cp_sync()->logging->log( 'Campus list unavailable. Event times will use each event timezone or the server default.' );
+			return '';
+		}
+
+		$campus_id = self::first_active_campus_id( $list );
+
+		if ( '' === $campus_id ) {
+			cp_sync()->logging->log( 'No active campus found for the organization timezone.' );
+			return '';
+		}
+
+		$profile = $this->api()->get( 'campus_profile', [ 'id' => $campus_id ] );
+
+		if ( is_wp_error( $profile ) || ! is_array( $profile ) ) {
+			cp_sync()->logging->log( 'Campus profile unavailable for timezone.' );
+			return '';
+		}
+
+		$timezone = self::timezone_from_campus_profile( $profile );
+
+		if ( '' === $timezone ) {
+			cp_sync()->logging->log( 'Campus profile did not include a usable timezone.' );
+			return '';
+		}
+
+		cp_sync()->logging->log( 'Church Community Builder campus timezone: ' . $timezone );
+
+		return $timezone;
+	}
+
+	/**
+	 * Id of the first active campus in a campus_list payload.
+	 *
+	 * @param array $payload Decoded campus_list response.
+	 * @return string
+	 */
+	public static function first_active_campus_id( array $payload ) {
+		$campuses = $payload['response']['campuses']['campus'] ?? [];
+
+		if ( ! is_array( $campuses ) || empty( $campuses ) ) {
+			return '';
+		}
+
+		// A single campus is an associative row, not a list of rows.
+		if ( isset( $campuses['name'] ) || isset( $campuses['@attributes'] ) || isset( $campuses['active'] ) ) {
+			$campuses = [ $campuses ];
+		}
+
+		foreach ( $campuses as $campus ) {
+			if ( ! is_array( $campus ) ) {
+				continue;
+			}
+
+			$id = $campus['@attributes']['id'] ?? ( $campus['id'] ?? '' );
+			if ( '' === (string) $id ) {
+				continue;
+			}
+
+			$active = $campus['active'] ?? '1';
+			if ( in_array( strtolower( trim( (string) $active ) ), [ '1', 'true', 'yes' ], true ) ) {
+				return (string) $id;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * time zone from a campus_profile payload.
+	 *
+	 * @param array $payload Decoded campus_profile response.
+	 * @return string
+	 */
+	public static function timezone_from_campus_profile( array $payload ) {
+		$timezone = $payload['response']['campus']['timezone'] ?? '';
+
+		return \CP_Sync\Events\EventTime::is_valid_timezone( $timezone ) ? $timezone : '';
 	}
 
 	/**
@@ -958,11 +1059,11 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * from midnight to 23:59 ( single- or multi-day ). Detect that shape so
 	 * TEC can render "All Day" instead of a literal 12:00am - 11:59pm range.
 	 *
-	 * @param \DateTime $start The event start.
-	 * @param \DateTime $end   The event end.
+	 * @param \DateTimeInterface $start The event start.
+	 * @param \DateTimeInterface $end   The event end.
 	 * @return bool
 	 */
-	public static function is_all_day_span( \DateTime $start, \DateTime $end ) {
+	public static function is_all_day_span( \DateTimeInterface $start, \DateTimeInterface $end ) {
 		return '00:00' === $start->format( 'H:i' ) && '23:59' === $end->format( 'H:i' );
 	}
 
@@ -974,49 +1075,21 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @return array
 	 */
 	public function format_event( $event, $context ) {
-		// Data has been normalized in normalize_ccb_event
-		$start_date = new \DateTime( $event['start_datetime'] ?? 'now' );
-		$end_date   = new \DateTime( $event['end_datetime'] ?? 'now' );
-
-		// Use event ID as chms_id (event_id for public_calendar_listing)
-		$event_id = $event['event_id'] ?? $event['id'] ?? md5( $event['name'] . $start_date->getTimestamp() );
-
-		$base_url = $this->get_base_url();
-		$event_url = $base_url ? $base_url . 'event_detail.php?event_id=' . $event_id : '';
-
-		// Handle image (public_calendar_listing uses 'image' field)
-		$thumbnail = '';
-		if ( ! empty( $event['image'] ) && is_string( $event['image'] ) ) {
-			$thumbnail = $event['image'];
+		if ( ! \CP_Sync\Events\EventVisibility::ccb_is_syncable( $event ) ) {
+			cp_sync()->logging->log(
+				sprintf(
+					'Skipping CCB event "%s": not approved or not publicly listed',
+					$event['name'] ?? ''
+				)
+			);
+			return false;
 		}
 
-		$args = [
-			// post data
-			'chms_id'       => $event_id,
-			'post_status'   => 'publish',
-			'post_title'    => trim( $event['name'] ?? '' ),
-			'post_content'  => $event['description'] ?? '',
-			'thumbnail_url' => $thumbnail,
+		$neutral = $this->to_neutral_event( $event, is_array( $context ) ? $context : [] );
 
-			// Event Data
-			'EventStartDate' => $start_date->format( 'Y-m-d H:i:s' ),
-			'EventEndDate'   => $end_date->format( 'Y-m-d H:i:s' ),
-			'EventAllDay'    => self::is_all_day_span( $start_date, $end_date ),
-			'EventTimezone'  => $event['timezone'] ?? $start_date->getTimezone()->getName(),
-			'EventURL'       => $event_url,
-
-			'tax_input'      => [],
-			'event_category' => [],
-
-			// extra meta
-			'meta_input' => [
-				'event_type'       => $event['event_type'] ?? '',
-				'group_name'       => $event['group'] ?? '',
-				'organizer_name'   => $event['organizer'] ?? '',
-				'approval_status'  => $event['approval_status'] ?? '',
-				'_chms_modified'   => $event['_chms_modified'] ?? '',
-			],
-		];
+		if ( false === $neutral ) {
+			return false;
+		}
 
 		// Skip venue creation during initial import for CCB events.
 		// public_calendar_listing only provides a venue name (no address), so creating
@@ -1033,10 +1106,106 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			);
 		}
 
-		// Note: public_calendar_listing returns individual occurrences, not recurring definitions
-		// Each occurrence is returned as a separate item in the API response
+		return \CP_Sync\Events\TecEventMapper::to_tec_item( $neutral );
+	}
 
-		return $args;
+	/**
+	 * Build the provider-neutral record for one CCB occurrence.
+	 *
+	 * Listing times are naive wall-clock values. They are read in the event
+	 * timezone when that field is present, otherwise the campus timezone from
+	 * the sync context, otherwise the server default (the previous fallback).
+	 * The TEC date strings stay that same wall clock.
+	 *
+	 * @param array $event   Normalized event row.
+	 * @param array $context May include organization_timezone.
+	 * @return array|false
+	 */
+	public function to_neutral_event( $event, $context ) {
+		$fallback_zone = date_default_timezone_get();
+		$explicit      = ( isset( $event['timezone'] ) && is_string( $event['timezone'] ) ) ? $event['timezone'] : '';
+		$organization  = ( isset( $context['organization_timezone'] ) && is_string( $context['organization_timezone'] ) ) ? $context['organization_timezone'] : '';
+		$conversion    = \CP_Sync\Events\EventTime::first_valid_timezone( [ $explicit, $organization, $fallback_zone ] );
+
+		if ( '' === $conversion ) {
+			$conversion = 'UTC';
+		}
+
+		// Keep an explicit zone string on the TEC item even when PHP cannot
+		// apply it, matching the previous formatter. Conversion still uses a
+		// zone PHP accepts so the wall clock round-trips.
+		$timezone_label = '' !== $explicit ? $explicit : $conversion;
+
+		$start_raw = $event['start_datetime'] ?? 'now';
+		$end_raw   = $event['end_datetime'] ?? 'now';
+
+		// The id fallback hash uses the same instant the previous formatter used.
+		$legacy_start = new \DateTime( $start_raw );
+		$event_id     = $event['event_id'] ?? $event['id'] ?? md5( ( $event['name'] ?? '' ) . $legacy_start->getTimestamp() );
+
+		$start_utc = \CP_Sync\Events\EventTime::to_utc( $start_raw, $conversion );
+		$end_utc   = \CP_Sync\Events\EventTime::to_utc( $end_raw, $conversion );
+
+		if ( null === $start_utc || null === $end_utc ) {
+			return false;
+		}
+
+		$local_start = \CP_Sync\Events\EventTime::to_local( \CP_Sync\Events\EventTime::format_utc( $start_utc ), $conversion );
+		$local_end   = \CP_Sync\Events\EventTime::to_local( \CP_Sync\Events\EventTime::format_utc( $end_utc ), $conversion );
+
+		$base_url  = $this->get_base_url();
+		$event_url = $base_url ? $base_url . 'event_detail.php?event_id=' . $event_id : '';
+
+		$thumbnail = '';
+		if ( ! empty( $event['image'] ) && is_string( $event['image'] ) ) {
+			$thumbnail = $event['image'];
+		}
+
+		$location_name = '';
+		if ( ! empty( $event['location_name'] ) && is_string( $event['location_name'] ) ) {
+			$location_name = $event['location_name'];
+		}
+
+		$series_id = '';
+		if ( isset( $event['event_id'] ) && '' !== (string) $event['event_id'] ) {
+			$series_id = (string) $event['event_id'];
+		} elseif ( isset( $event['id'] ) && '' !== (string) $event['id'] ) {
+			$series_id = (string) $event['id'];
+		}
+
+		return [
+			'provider'         => 'ccb',
+			'layout'           => 'ccb',
+			'chms_id'          => $event_id,
+			'series_id'        => $series_id,
+			'title'            => trim( $event['name'] ?? '' ),
+			'content'          => $event['description'] ?? '',
+			'excerpt'          => '',
+			'post_status'      => 'publish',
+			'thumbnail_url'    => $thumbnail,
+			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
+			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
+			'timezone'         => $conversion,
+			'timezone_label'   => $timezone_label,
+			'all_day'          => self::is_all_day_span( $local_start, $local_end ),
+			'location_name'    => $location_name,
+			'location_address' => '',
+			'venue'            => null,
+			'registration_url' => '',
+			'registrations'    => [],
+			'event_url'        => $event_url,
+			'visible'          => null,
+			'approval_status'  => array_key_exists( 'approval_status', $event ) ? (string) $event['approval_status'] : '',
+			'tax_input'        => [],
+			'event_category'   => [],
+			'meta_input'       => [
+				'event_type'      => $event['event_type'] ?? '',
+				'group_name'      => $event['group'] ?? '',
+				'organizer_name'  => $event['organizer'] ?? '',
+				'approval_status' => $event['approval_status'] ?? '',
+				'_chms_modified'  => $event['_chms_modified'] ?? '',
+			],
+		];
 	}
 
 	/**

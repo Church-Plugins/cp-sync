@@ -13,6 +13,8 @@ CP Sync settings now live under **Church Plugins > CP Sync** in your WordPress a
 
 ## Planning Center: Calendar Event Visibility
 
+This section describes CP Sync 1.0.0. Current calendar sync skips hidden and unapproved events with either Visibility choice, and event times use the Planning Center organization time zone. See [Planning Center](../chms/planning-center.md#calendar-settings-visibility).
+
 When your Planning Center **Event source** is **Pull from Calendar** or **Calendar AND Registrations**, the **Calendar Settings** section includes a **Visibility** option:
 
 - **Only Visible in Church Center** (default) -- Keeps events that Planning Center marks as visible in Church Center. Events that are hidden from Church Center are not synced.

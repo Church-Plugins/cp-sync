@@ -80,6 +80,8 @@ Use the **Date Range** setting on the CCB **Events** tab:
 
 If you use **Custom date range**, the Start and End Dates do not move on their own. Check that the End Date is far enough out, or events after it won't sync.
 
+The public calendar listing is already limited to approved public events. A row that is marked unapproved, draft, or not listed is skipped. The clock time on the event stays the time CCB sent. The time zone stored with the event is the event's own time zone when CCB sends one. Otherwise CP Sync reads the first active campus time zone once per sync. If that lookup fails, the server's default time zone is used.
+
 ### Event Enrichment
 
 CCB exposes event data through two endpoints with different levels of detail. CP Sync uses both: the calendar listing for the initial import, then the event profile to fill in details that the listing omits.
