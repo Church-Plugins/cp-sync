@@ -40,7 +40,7 @@ When **Event source** is **Calendar AND Registrations**, the tab shows **Events 
 
 Calendar sync imports future event instances. **Visibility** is separate from **Calendar Filters**. An empty **Calendar Filters** builder does not turn the visibility and approval checks off.
 
-Planning Center start and end times are saved in the WordPress site timezone (Settings → General). A later sync stores the same times. Church Community Builder keeps the clock time CCB sent. When CCB sends a timezone, that zone is stored. When it does not, the server's default timezone is stored, the same as before.
+Planning Center start and end times are saved in the WordPress site timezone (Settings → General). A later sync stores the same times. Church Community Builder keeps the clock time CCB sent. When CCB sends a timezone PHP can use, that zone is stored. When it does not, the WordPress site timezone is stored. On a site whose WordPress timezone is not UTC, the first resync of an event with no timezone of its own changes the stored timezone and the UTC start and end once. The clock time stays the same.
 
 ## Church Community Builder
 
