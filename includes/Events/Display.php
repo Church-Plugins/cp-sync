@@ -227,25 +227,55 @@ class Display {
 	}
 
 	/**
+	 * Plugin template for a front-end screen, or '' when these pages are off.
+	 *
+	 * While The Events Calendar is active this is always '', so neither the
+	 * archive nor a single event or series is rendered.
+	 *
+	 * @param bool   $tec_active      Whether The Events Calendar is active.
+	 * @param mixed  $display_setting Stored display value, or null when unset.
+	 * @param mixed  $sync_events     Stored sync_events value, or null when unset.
+	 * @param string $screen          archive, event, or series.
+	 * @return string Template path relative to templates/, without .php.
+	 */
+	public static function template_for( $tec_active, $display_setting, $sync_events, $screen ) {
+		if ( ! PostTypes::should_register( $tec_active, $display_setting, $sync_events ) ) {
+			return '';
+		}
+
+		if ( 'archive' === $screen ) {
+			return 'events/archive';
+		}
+
+		if ( 'event' === $screen ) {
+			return 'events/single';
+		}
+
+		if ( 'series' === $screen ) {
+			return 'events/series';
+		}
+
+		return '';
+	}
+
+	/**
 	 * Swap in the plugin templates, which a theme can override from cp-sync/.
 	 *
 	 * @param string $template Current template path.
 	 * @return string
 	 */
 	public static function template_include( $template ) {
-		if ( ! self::is_enabled() ) {
-			return $template;
-		}
-
-		$relative = '';
+		$screen = '';
 
 		if ( is_post_type_archive( PostTypes::EVENT ) ) {
-			$relative = 'events/archive';
+			$screen = 'archive';
 		} elseif ( is_singular( PostTypes::EVENT ) ) {
-			$relative = 'events/single';
+			$screen = 'event';
 		} elseif ( is_singular( PostTypes::SERIES ) ) {
-			$relative = 'events/series';
+			$screen = 'series';
 		}
+
+		$relative = self::template_for( self::tec_is_active(), self::stored_setting(), self::stored_sync_events(), $screen );
 
 		if ( '' === $relative ) {
 			return $template;

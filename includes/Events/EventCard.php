@@ -11,8 +11,8 @@ namespace CP_Sync\Events;
  * Event cards.
  *
  * Every card has a linked title and one button. The button says Register
- * when the church management system sent a URL. Otherwise it says View
- * details and links to the event page. The image and description slots are
+ * when the church management system sent a URL. Otherwise it says Learn
+ * more and links to the event page. The image and description slots are
  * always present so a missing image or description does not change the
  * card's height.
  *
@@ -67,7 +67,7 @@ class EventCard {
 	/**
 	 * The card button.
 	 *
-	 * Register uses the ChMS URL. View details uses the event permalink.
+	 * Register uses the ChMS URL. Learn more uses the event permalink.
 	 *
 	 * @param mixed  $registration_url ChMS registration URL.
 	 * @param string $permalink        Event permalink.
@@ -85,7 +85,7 @@ class EventCard {
 
 		return array(
 			'url'   => self::http_url( $permalink ),
-			'label' => __( 'View details', 'cp-sync' ),
+			'label' => __( 'Learn more', 'cp-sync' ),
 		);
 	}
 
@@ -205,7 +205,7 @@ class EventCard {
 	 * The shared card button.
 	 *
 	 * @param string $url   Destination.
-	 * @param string $label Register or View details.
+	 * @param string $label Register or Learn more.
 	 * @return string
 	 */
 	protected static function button_html( $url, $label ) {

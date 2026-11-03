@@ -59,7 +59,7 @@ class EventCardTest extends TestCase {
 
 		$this->assertStringContainsString( '>Prayer Night</a>', $without_registration );
 		$this->assertStringContainsString( 'href="https://example.com/events/prayer-night"', $without_registration );
-		$this->assertStringContainsString( '>View details</a>', $without_registration );
+		$this->assertStringContainsString( '>Learn more</a>', $without_registration );
 		$this->assertStringNotContainsString( '>Register</a>', $without_registration );
 	}
 

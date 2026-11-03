@@ -22,6 +22,7 @@ use PHPUnit\Framework\TestCase;
  * @covers \CP_Sync\Events\PostTypes::display_is_on
  * @covers \CP_Sync\Events\PostTypes::public_slug
  * @covers \CP_Sync\Events\Display::is_enabled
+ * @covers \CP_Sync\Events\Display::template_for
  * @covers \CP_Sync\Events\Meta::event_meta
  * @covers \CP_Sync\ChMS\ChMS::get_sync_toggle_fields
  */
@@ -42,6 +43,13 @@ class EventRegistrationTest extends TestCase {
 		$this->assertFalse( PostTypes::should_register( true, true, true ) );
 		$this->assertFalse( PostTypes::should_register( true, null, true ) );
 		$this->assertFalse( PostTypes::should_register( true, true, null ) );
+	}
+
+	public function test_nothing_from_cp_event_shows_while_the_events_calendar_is_active() {
+		$this->assertFalse( PostTypes::should_register( true, true, true ) );
+		$this->assertSame( '', Display::template_for( true, true, true, 'archive' ) );
+		$this->assertSame( '', Display::template_for( true, true, true, 'event' ) );
+		$this->assertSame( '', Display::template_for( true, true, true, 'series' ) );
 	}
 
 	public function test_upgrade_leaves_display_off_unless_event_sync_was_already_on() {

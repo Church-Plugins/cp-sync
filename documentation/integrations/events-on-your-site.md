@@ -37,11 +37,24 @@ Turning off **Sync Events** on the **Connect** tab does the same thing to the ad
 
 Open the **Advanced** tab, turn off **Display events with CP Sync**, and click **Save all Settings**. The event list and series pages stop being part of the site. Posts that were already imported stay in the database. Turn the switch back on later and they are available again, as long as **Sync Events** is also on.
 
+## If you turn The Events Calendar off later
+
+While The Events Calendar is active, these pages are not shown. CP Sync sends events to The Events Calendar instead.
+
+If you deactivate The Events Calendar later, and **Display events with CP Sync** and **Sync Events** are both on, events imported earlier can show again at `/events/`.
+
+To clear them out:
+
+1. In the WordPress admin, open **Events** and move the old events to Trash. Open **Event Series** in that menu and trash old series too.
+2. Go to **Church Plugins → CP Sync**, open the **Advanced** tab, and click **Pull now**.
+
+Dates that are still in the feed are published again. Future dates that are no longer in the feed stay in the trash. A date that has already ended stays as you left it. If that sync comes back with no events, nothing is removed and nothing is restored.
+
 ## What you get
 
 Each date from your church management system becomes its own event.
 
-- The list of upcoming dates is at `/events/`. Dates are in order, soonest first. Each date has a linked title and one button. The button says **Register** when your church management system sent a link, and **View details** when it did not. **View details** opens that date's page. A date that is part of a series also links to that series.
+- The list of upcoming dates is at `/events/`. Dates are in order, soonest first. Each date has a linked title and one button. The button says **Register** when your church management system sent a link, and **Learn more** when it did not. **Learn more** opens that date's page. A date that is part of a series also links to that series.
 - An event page shows the date and time in your WordPress timezone (**Settings → General → Timezone**), the location, the image, the description, and a **Register** button when the church management system sent a link. The button goes to that link. It does not use a form on your site.
 - A series page shows the description, the image, the next upcoming dates, and the same **Register** button.
 

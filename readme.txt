@@ -95,7 +95,6 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 
 = 1.2.0 =
 * New: Sites that do not use The Events Calendar can show events from Planning Center or Church Community Builder. Each date is a page under Events. A Planning Center event with more than one date, or a Church Community Builder event with more than one date, also gets a series page under Event Series. A single date does not. Turn on Display events with CP Sync (Advanced) and Sync Events (Connect). On an upgrade, Display events stays off unless event sync was already on, so a page you already have at /events/ is left alone. The list is at /events/. Add `[cp-sync-events]` to a page to show the next few dates. Sites that use The Events Calendar are unchanged.
-* Church Community Builder events that have no timezone of their own now use the WordPress site timezone. On sites whose WordPress timezone isn't UTC, the first resync changes the saved timezone once. The local clock time stays the same.
 
 = 1.1.0 =
 * New: Planning Center group leaders now sync to CP Groups. Group Leader gets every leader's name, and Group Leader Email gets the group's contact email, or the email of the first leader who has one (developers can change this with the `cp_sync_pco_group_leader_email` filter). On CP Groups 1.2 or later, leaders are saved as Group Leaders rows instead, each with that leader's own email; the contact email is only used when no leader has one. If the leaders request fails, leaders already stored are kept.
