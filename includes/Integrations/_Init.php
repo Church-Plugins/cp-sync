@@ -260,7 +260,7 @@ class _Init {
 		// long-standing behavior; sermons default OFF so updates never silently start
 		// syncing them ).
 		$active_chms = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
-		if ( $active_chms && ! $active_chms->get_setting( "sync_{$integration_type}", \CP_Sync\ChMS\ChMS::sync_toggle_default( $integration_type ), 'connect' ) ) {
+		if ( $active_chms && ! $active_chms->is_sync_enabled( $integration_type ) ) {
 			$message = sprintf(
 				/* translators: %s: the integration type being synced (e.g. Groups, Events). */
 				__( '%s sync is disabled in CP Sync settings.', 'cp-sync' ),

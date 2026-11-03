@@ -2,7 +2,7 @@
 
 CP Sync can show your groups on your website. You do not need the CP Groups plugin for this.
 
-Each group shows its name, photo, description, meeting time, location, and leader names. When your church management system has a signup link, the group has a **Register** button. When it does not, and the group has a public page, the button says **Learn more**. Leader email addresses are not shown.
+Each group shows its name, photo, description, meeting time, location, and leader names. When your church management system has a signup link, the group has a **Register** button. When it does not, the button says **Learn more**. Leader email addresses are not shown.
 
 CP Groups adds filters, a map, and a contact form. If you activate CP Groups later, it uses the same groups. You do not import them again.
 

@@ -188,8 +188,17 @@ class Display {
 		if ( function_exists( 'get_the_post_thumbnail_url' ) ) {
 			$thumb = get_the_post_thumbnail_url( $post_id, 'large' );
 
-			if ( is_string( $thumb ) ) {
+			if ( is_string( $thumb ) && '' !== $thumb ) {
 				$image = $thumb;
+			}
+		}
+
+		// Sync keeps the source URL even when the local attachment is missing.
+		if ( '' === $image ) {
+			$stored = get_post_meta( $post_id, '_thumbnail_url', true );
+
+			if ( is_string( $stored ) ) {
+				$image = $stored;
 			}
 		}
 
@@ -240,24 +249,27 @@ class Display {
 		$args = array_merge( $defaults, $args );
 
 		$heading = ( 'h1' === $args['heading'] ) ? 'h1' : 'h2';
+		$is_card = array_key_exists( 'card', $args ) ? ! empty( $args['card'] ) : ! empty( $args['summary'] );
 		$title   = self::plain_text( isset( $group['title'] ) ? $group['title'] : '' );
+		$permalink = isset( $group['permalink'] ) ? $group['permalink'] : '';
 		$names   = self::leader_names(
 			isset( $group['leaders'] ) ? $group['leaders'] : null,
 			isset( $group['leader'] ) ? $group['leader'] : ''
 		);
 
 		$html  = '<article class="cp-sync-groups__card">';
-		$html .= self::image_html( isset( $group['image'] ) ? $group['image'] : '', $title );
+		$html .= self::image_html( isset( $group['image'] ) ? $group['image'] : '', $title, $is_card );
 		$html .= '<' . $heading . ' class="cp-sync-groups__title">';
-		$html .= self::title_html( $title, isset( $group['permalink'] ) ? $group['permalink'] : '', ! empty( $args['link_title'] ) );
+		$html .= self::title_html( $title, $permalink, $is_card || ! empty( $args['link_title'] ) );
 		$html .= '</' . $heading . '>';
-		$html .= self::description_html( isset( $group['content'] ) ? $group['content'] : '', ! empty( $args['summary'] ) );
+		$html .= self::description_html( isset( $group['content'] ) ? $group['content'] : '', ! empty( $args['summary'] ), $is_card );
 		$html .= self::meta_html( __( 'Meets', 'cp-sync' ), isset( $group['time_desc'] ) ? $group['time_desc'] : '' );
 		$html .= self::meta_html( __( 'Location', 'cp-sync' ), isset( $group['location'] ) ? $group['location'] : '' );
 		$html .= self::leaders_html( $names );
 		$html .= self::action_html(
 			isset( $group['registration_url'] ) ? $group['registration_url'] : '',
-			isset( $group['public_url'] ) ? $group['public_url'] : ''
+			$permalink,
+			$is_card
 		);
 		$html .= '</article>';
 
@@ -309,17 +321,19 @@ class Display {
 	}
 
 	/**
-	 * Register link, or Learn more when only a public page URL exists.
+	 * Register link, or Learn more to the single group page.
 	 *
-	 * Mailto links and any non-http(s) value are dropped so an email cannot
-	 * leak through the button.
+	 * Cards always get one of those. Learn more is the group page on this site,
+	 * not the ChMS public URL. Mailto links and any non-http(s) value are dropped
+	 * so an email cannot leak through the button.
 	 *
 	 * @since 1.2.0
 	 * @param mixed $registration_url Signup URL from the ChMS.
-	 * @param mixed $public_url       Public group page from the ChMS.
+	 * @param mixed $permalink        Single group URL.
+	 * @param bool  $card             True for archive and shortcode cards.
 	 * @return array{url:string,label:string}|array
 	 */
-	public static function action_link( $registration_url, $public_url ) {
+	public static function action_link( $registration_url, $permalink, $card = true ) {
 		$registration_url = self::http_url( $registration_url );
 
 		if ( '' !== $registration_url ) {
@@ -329,11 +343,15 @@ class Display {
 			];
 		}
 
-		$public_url = self::http_url( $public_url );
+		if ( ! $card ) {
+			return [];
+		}
 
-		if ( '' !== $public_url ) {
+		$permalink = self::http_url( $permalink );
+
+		if ( '' !== $permalink ) {
 			return [
-				'url'   => $public_url,
+				'url'   => $permalink,
 				'label' => __( 'Learn more', 'cp-sync' ),
 			];
 		}
@@ -342,21 +360,30 @@ class Display {
 	}
 
 	/**
-	 * @param string $url Image URL.
-	 * @param string $alt Alt text.
+	 * @param string $url  Image URL.
+	 * @param string $alt  Alt text.
+	 * @param bool   $card True reserves a placeholder when the image is missing.
 	 * @return string
 	 */
-	protected static function image_html( $url, $alt ) {
+	protected static function image_html( $url, $alt, $card = false ) {
 		$url = self::http_url( $url );
 
 		if ( '' === $url ) {
-			return '';
+			if ( ! $card ) {
+				return '';
+			}
+
+			return '<div class="cp-sync-groups__placeholder" aria-hidden="true"></div>';
 		}
 
 		$src = esc_url( $url );
 
 		if ( '' === $src ) {
-			return '';
+			if ( ! $card ) {
+				return '';
+			}
+
+			return '<div class="cp-sync-groups__placeholder" aria-hidden="true"></div>';
 		}
 
 		return '<img class="cp-sync-groups__image" src="' . $src . '" alt="' . esc_attr( $alt ) . '" />';
@@ -388,20 +415,25 @@ class Display {
 	/**
 	 * @param mixed $content Description.
 	 * @param bool  $summary True trims to plain text for a card.
+	 * @param bool  $card    True keeps an empty description row so cards line up.
 	 * @return string
 	 */
-	protected static function description_html( $content, $summary ) {
+	protected static function description_html( $content, $summary, $card = false ) {
 		$content = is_string( $content ) ? $content : '';
 
-		if ( '' === trim( $content ) ) {
-			return '';
+		if ( '' === trim( wp_strip_all_tags( $content ) ) ) {
+			if ( ! $card ) {
+				return '';
+			}
+
+			return '<p class="cp-sync-groups__description"></p>';
 		}
 
 		if ( $summary ) {
 			$text = esc_html( wp_trim_words( wp_strip_all_tags( $content ), 40, '…' ) );
 
 			if ( '' === $text ) {
-				return '';
+				return $card ? '<p class="cp-sync-groups__description"></p>' : '';
 			}
 
 			return '<p class="cp-sync-groups__description">' . $text . '</p>';
@@ -455,11 +487,12 @@ class Display {
 
 	/**
 	 * @param mixed $registration_url Signup URL.
-	 * @param mixed $public_url       Public page URL.
+	 * @param mixed $permalink        Single group URL.
+	 * @param bool  $card             True for archive and shortcode cards.
 	 * @return string
 	 */
-	protected static function action_html( $registration_url, $public_url ) {
-		$action = self::action_link( $registration_url, $public_url );
+	protected static function action_html( $registration_url, $permalink, $card = true ) {
+		$action = self::action_link( $registration_url, $permalink, $card );
 
 		if ( ! $action ) {
 			return '';

@@ -289,6 +289,7 @@ class GroupsLiteTest extends TestCase {
 		$fallback = Display::render_group(
 			[
 				'title'            => 'Prayer',
+				'permalink'        => 'https://church.example/groups/prayer',
 				'content'          => 'Weekly prayer.',
 				'leaders'          => [],
 				'leader'           => 'Grace Hopper',
@@ -300,9 +301,86 @@ class GroupsLiteTest extends TestCase {
 
 		$this->assertStringContainsString( 'Grace Hopper', $fallback );
 		$this->assertStringNotContainsString( 'grace@example.com', $fallback );
-		$this->assertStringContainsString( 'href="https://church.example/prayer"', $fallback );
+		$this->assertStringContainsString( 'href="https://church.example/groups/prayer"', $fallback );
+		$this->assertStringNotContainsString( 'https://church.example/prayer"', $fallback );
 		$this->assertStringContainsString( '>Learn more<', $fallback );
 		$this->assertStringNotContainsString( '>Register<', $fallback );
+	}
+
+	public function test_every_card_has_a_title_link_and_a_button() {
+		$permalink = 'https://church.example/groups/young-adults';
+		$with_signup = Display::render_group(
+			[
+				'title'            => 'Young Adults',
+				'permalink'        => $permalink,
+				'image'            => 'https://church.example/photo.jpg',
+				'content'          => 'Meet in the hall.',
+				'registration_url' => 'https://church.example/register',
+			]
+		);
+		$bare = Display::render_group(
+			[
+				'title'     => 'Prayer',
+				'permalink' => 'https://church.example/groups/prayer',
+			]
+		);
+
+		foreach ( [ $with_signup, $bare ] as $html ) {
+			$this->assertStringContainsString( 'cp-sync-groups__title"><a href="', $html );
+			$this->assertStringContainsString( 'cp-sync-groups__button', $html );
+		}
+
+		$this->assertStringContainsString( 'href="' . $permalink . '"', $with_signup );
+		$this->assertStringContainsString( 'href="https://church.example/register"', $with_signup );
+		$this->assertStringContainsString( '>Register<', $with_signup );
+		$this->assertStringContainsString( '<img class="cp-sync-groups__image"', $with_signup );
+
+		$this->assertStringContainsString( 'href="https://church.example/groups/prayer"', $bare );
+		$this->assertStringContainsString( '>Learn more<', $bare );
+		$this->assertStringContainsString( 'cp-sync-groups__placeholder', $bare );
+		$this->assertStringContainsString( 'cp-sync-groups__description', $bare );
+		$this->assertStringNotContainsString( '<img', $bare );
+	}
+
+	public function test_unsaved_sync_groups_matches_the_engine_on_an_existing_install() {
+		$this->options['cp_sync_settings']     = [
+			'chms'                  => 'pco',
+			'displayGroupsWithSync' => true,
+			'updateInterval'        => 'hourly',
+		];
+		$this->options['cp_sync_pco_settings'] = [
+			'connect' => [
+				'subdomain' => 'demo',
+			],
+		];
+
+		$engine = \CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'groups', Lite::stored_sync_groups() );
+
+		$this->assertTrue( Lite::is_existing_install() );
+		$this->assertNull( Lite::stored_sync_groups() );
+		$this->assertTrue( $engine );
+		$this->assertSame( $engine, Lite::groups_sync_is_on() );
+		$this->assertSame( $engine, Lite::should_register() );
+	}
+
+	public function test_fresh_install_follows_the_sync_default_even_after_global_settings_are_saved() {
+		$this->assertFalse( Lite::is_existing_install() );
+		$this->assertSame(
+			(bool) \CP_Sync\ChMS\ChMS::sync_toggle_default( 'groups' ),
+			Lite::groups_sync_is_on()
+		);
+		$this->assertTrue( Lite::should_register() );
+
+		$this->options['cp_sync_settings'] = [
+			'chms'           => 'pco',
+			'updateInterval' => 'hourly',
+		];
+
+		$this->assertFalse( Lite::is_existing_install() );
+		$this->assertSame(
+			\CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'groups', null ),
+			Lite::should_register()
+		);
 	}
 
 	public function test_shortcode_count_and_group_type_build_the_query() {

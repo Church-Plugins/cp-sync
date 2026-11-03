@@ -196,6 +196,41 @@ abstract class ChMS {
 	}
 
 	/**
+	 * Whether a feed's sync toggle is on.
+	 *
+	 * A missing stored value uses sync_toggle_default(). Groups and events
+	 * default on. This is the same decision pull_integration() enforces.
+	 *
+	 * @since 1.2.0
+	 * @param string $type   groups|events|sermons.
+	 * @param mixed  $stored Stored connect.sync_{type} value, or null when unset.
+	 * @return bool
+	 */
+	public static function sync_setting_is_enabled( $type, $stored ) {
+		if ( null === $stored ) {
+			return (bool) self::sync_toggle_default( $type );
+		}
+
+		return (bool) $stored;
+	}
+
+	/**
+	 * Whether this ChMS has the feed's sync toggle on.
+	 *
+	 * @since 1.2.0
+	 * @param string $type groups|events|sermons.
+	 * @return bool
+	 */
+	public function is_sync_enabled( $type ) {
+		$data    = get_option( $this->settings_key, [] );
+		$connect = ( is_array( $data ) && isset( $data['connect'] ) && is_array( $data['connect'] ) ) ? $data['connect'] : [];
+		$key     = 'sync_' . $type;
+		$stored  = array_key_exists( $key, $connect ) ? $connect[ $key ] : null;
+
+		return self::sync_setting_is_enabled( $type, $stored );
+	}
+
+	/**
 	 * The settings-group key under which this ChMS stores its EVENTS settings.
 	 *
 	 * The group names are historically inconsistent ( CCB uses `events`, PCO uses the

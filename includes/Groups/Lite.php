@@ -52,6 +52,17 @@ class Lite {
 	protected static $registered = false;
 
 	/**
+	 * True while reading a ChMS settings option.
+	 *
+	 * Those options decrypt through a filter that rebuilds the settings schema,
+	 * which asks whether Groups sync is on. Without this guard the read calls
+	 * itself.
+	 *
+	 * @var bool
+	 */
+	protected static $reading_chms_settings = false;
+
+	/**
 	 * @return Lite
 	 */
 	public static function get_instance() {
@@ -136,6 +147,10 @@ class Lite {
 	/**
 	 * Default for a missing display toggle.
 	 *
+	 * Events-only sites saved Sync Groups off. The display toggle stays off for
+	 * them so an upgrade does not add /groups/. An unsaved Sync Groups value is
+	 * on, the same as the sync engine, so the display toggle defaults on too.
+	 *
 	 * @since 1.2.0
 	 * @return bool
 	 */
@@ -150,22 +165,15 @@ class Lite {
 	/**
 	 * Whether Groups sync is turned on for the active ChMS.
 	 *
-	 * A saved `connect.sync_groups` value is used as stored. When nothing is saved,
-	 * a new install follows the groups default (on). An existing install does not:
-	 * groups did not sync without CP Groups, so an events-only site must not gain
-	 * a public /groups/ archive on upgrade.
+	 * Uses ChMS::sync_setting_is_enabled(), the same check as the pull. An
+	 * unsaved toggle is on for groups. Registration must follow that, or the
+	 * sync writes cp_group posts while /groups/ is not a registered archive.
 	 *
 	 * @since 1.2.0
 	 * @return bool
 	 */
 	public static function groups_sync_is_on() {
-		$stored = self::stored_sync_groups();
-
-		if ( null === $stored ) {
-			return ! self::is_existing_install();
-		}
-
-		return self::is_truthy( $stored );
+		return \CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'groups', self::stored_sync_groups() );
 	}
 
 	/**
@@ -176,7 +184,7 @@ class Lite {
 	 */
 	public static function stored_sync_groups() {
 		$chms_id  = self::active_chms_id();
-		$settings = get_option( 'cp_sync_' . $chms_id . '_settings', null );
+		$settings = self::read_chms_settings( 'cp_sync_' . $chms_id . '_settings' );
 
 		if ( ! is_array( $settings ) || ! isset( $settings['connect'] ) || ! is_array( $settings['connect'] ) ) {
 			return null;
@@ -190,27 +198,44 @@ class Lite {
 	}
 
 	/**
-	 * Whether this site already had CP Sync settings before the display toggle.
+	 * Whether this site already stored ChMS settings before the display toggle.
+	 *
+	 * Saving global settings (the ChMS picker or the update interval) happens
+	 * on a brand-new install and does not count. Only a saved PCO or CCB
+	 * settings option means the site was already set up.
 	 *
 	 * @since 1.2.0
 	 * @return bool
 	 */
 	public static function is_existing_install() {
-		$global = get_option( 'cp_sync_settings', false );
-
-		if ( false !== $global && null !== $global ) {
-			return true;
-		}
-
 		foreach ( [ 'pco', 'ccb' ] as $chms_id ) {
-			$settings = get_option( 'cp_sync_' . $chms_id . '_settings', false );
+			$settings = self::read_chms_settings( 'cp_sync_' . $chms_id . '_settings' );
 
-			if ( false !== $settings && null !== $settings ) {
+			if ( is_array( $settings ) ) {
 				return true;
 			}
 		}
 
 		return false;
+	}
+
+	/**
+	 * Read a ChMS settings option without re-entering its decrypt filter.
+	 *
+	 * @since 1.2.0
+	 * @param string $option Option name.
+	 * @return mixed|null Null when called re-entrantly or the option is missing.
+	 */
+	protected static function read_chms_settings( $option ) {
+		if ( self::$reading_chms_settings ) {
+			return null;
+		}
+
+		self::$reading_chms_settings = true;
+		$value = get_option( $option, null );
+		self::$reading_chms_settings = false;
+
+		return $value;
 	}
 
 	/**
