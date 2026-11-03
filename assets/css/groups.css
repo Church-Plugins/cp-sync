@@ -89,8 +89,16 @@
 	text-decoration: none;
 }
 
-.cp-sync-groups .page-numbers {
+.cp-sync-groups .nav-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+}
+
+.cp-sync-groups a.page-numbers,
+.cp-sync-groups span.page-numbers {
 	display: inline-flex;
+	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
