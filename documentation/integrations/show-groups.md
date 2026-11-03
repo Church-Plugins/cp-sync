@@ -10,7 +10,7 @@ CP Groups adds filters, a map, and a contact form. If you activate CP Groups lat
 
 1. Go to **Church Plugins → CP Sync**.
 2. Open the **Advanced** tab.
-3. Turn on **Display groups with CP Sync**. A new site has this on. A site that was already using CP Sync only for events has it off until you turn it on.
+3. Turn on **Display groups with CP Sync**. A new site has this on. A site that turned **Sync Groups** off has it off until you turn it on.
 4. On the **Connect** tab, turn on **Sync Groups**. Both this and the display toggle need to be on. If **Sync Groups** is off, the groups page is not created.
 5. Click **Save all Settings**.
 6. After a sync, open `yoursite.org/groups/`.
