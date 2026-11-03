@@ -175,7 +175,7 @@ class TecSavedDateMetaTest extends TestCase {
 		$this->assertSame( '2026-07-15 12:30:00', $created['_EventEndDate'] );
 		$this->assertSame( '2026-07-15 18:00:00', $created['_EventStartDateUTC'] );
 		$this->assertSame( '2026-07-15 19:30:00', $created['_EventEndDateUTC'] );
-		$this->assertSame( '', $created['_EventAllDay'] );
+		$this->assertSame( 'no', $created['_EventAllDay'] );
 
 		TEC::persist_event_date_meta( 42, $item );
 		$after_create = $this->meta;
@@ -272,6 +272,28 @@ class TecSavedDateMetaTest extends TestCase {
 		$this->assertSame( 'America/Chicago', $this->meta['_EventTimezone'] );
 		$this->assertSame( '2026-08-05 14:00:00', $this->meta['_EventStartDate'] );
 		$this->assertSame( '2026-08-05 19:00:00', $this->meta['_EventStartDateUTC'] );
+	}
+
+	public function test_timed_event_keeps_all_day_no_on_create_and_update() {
+		$item    = $this->calendarItem( '2026-07-15T18:00:00Z', '2026-07-15T19:00:00Z' );
+		$deleted = array();
+
+		Functions\when( 'delete_post_meta' )->alias(
+			static function ( $post_id, $key ) use ( &$deleted ) {
+				$deleted[] = $key;
+				return true;
+			}
+		);
+
+		$this->meta['_EventAllDay'] = 'no';
+
+		$created = TEC::persist_event_date_meta( 9, $item );
+		$updated = TEC::persist_event_date_meta( 9, $item );
+
+		$this->assertSame( 'no', $created['_EventAllDay'] );
+		$this->assertSame( 'no', $updated['_EventAllDay'] );
+		$this->assertSame( 'no', $this->meta['_EventAllDay'] );
+		$this->assertNotContains( '_EventAllDay', $deleted );
 	}
 
 	public function test_update_does_not_replace_an_existing_timezone() {

@@ -140,7 +140,9 @@ class TEC extends Integration {
 			'_EventEndDate'      => $end,
 			'_EventStartDateUTC' => self::local_mysql_to_utc( $start, $zone ),
 			'_EventEndDateUTC'   => self::local_mysql_to_utc( $end, $zone ),
-			'_EventAllDay'       => ! empty( $item['EventAllDay'] ) ? 'yes' : '',
+			// Timed events keep the string 'no'. Deleting the key would change
+			// events that already store _EventAllDay as no.
+			'_EventAllDay'       => ! empty( $item['EventAllDay'] ) ? 'yes' : 'no',
 		);
 	}
 
