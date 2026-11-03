@@ -97,7 +97,7 @@ class SyncToggleFieldsTest extends TestCase {
 
 		$this->assertTrue( $fields['sync_groups']['disabled'] );
 		$this->assertSame(
-			'Requires the CP Groups plugin, which is not active on this site.',
+			'Turn on Display groups with CP Sync, or activate the CP Groups plugin.',
 			$fields['sync_groups']['help']
 		);
 		// default stays true even while disabled ( it is the stored fallback ).
@@ -160,7 +160,7 @@ class SyncToggleFieldsTest extends TestCase {
 		// into the client-safe projection.
 		$this->assertTrue( $fields['sync_groups']['disabled'] );
 		$this->assertSame(
-			'Requires the CP Groups plugin, which is not active on this site.',
+			'Turn on Display groups with CP Sync, or activate the CP Groups plugin.',
 			$fields['sync_groups']['help']
 		);
 
@@ -174,12 +174,32 @@ class SyncToggleFieldsTest extends TestCase {
 
 	/* ------------------------------------------- _Init availability helpers */
 
-	public function test_is_integration_available_false_when_plugins_absent() {
-		// In the WP-free unit env neither cp_groups() nor TRIBE_EVENTS_FILE exist.
-		$this->assertFalse( Integrations_Init::is_integration_available( 'groups' ) );
+	public function test_is_integration_available_uses_groups_lite_when_cp_groups_is_absent() {
+		// No saved options: a new install defaults the display toggle on.
+		Functions\when( 'get_option' )->alias(
+			static function ( $option, $default = false ) {
+				unset( $option );
+				return $default;
+			}
+		);
+		$this->assertTrue( Integrations_Init::is_integration_available( 'groups' ) );
 		$this->assertFalse( Integrations_Init::is_integration_available( 'events' ) );
 		// Unknown types are not gated by this helper.
 		$this->assertTrue( Integrations_Init::is_integration_available( 'unknown' ) );
+	}
+
+	public function test_groups_are_unavailable_when_display_is_turned_off() {
+		Functions\when( 'get_option' )->alias(
+			static function ( $option, $default = false ) {
+				if ( 'cp_sync_settings' === $option ) {
+					return [ 'displayGroupsWithSync' => false ];
+				}
+
+				return $default;
+			}
+		);
+
+		$this->assertFalse( Integrations_Init::is_integration_available( 'groups' ) );
 	}
 
 	public function test_unavailable_message_maps_type_to_plugin_name() {

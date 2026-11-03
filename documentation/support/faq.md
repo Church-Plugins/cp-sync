@@ -47,8 +47,11 @@ CP-Sync is designed to update only the content that comes from your ChMS. It wil
 ### Does CP-Sync work with The Events Calendar?
 Yes, CP-Sync integrates with The Events Calendar plugin, allowing you to import events from your ChMS into your WordPress calendar. See the [The Events Calendar Integration Guide](../integrations/the-events-calendar.md) for setup instructions.
 
+### Do I need CP Groups to show groups?
+No. CP Sync can show a groups page at `/groups/` and a `[cp-sync-groups]` shortcode. Leader email addresses are not shown. See [Show Groups on Your Site](../integrations/show-groups.md).
+
 ### How does CP-Sync integrate with CP Groups?
-CP-Sync imports group data from your ChMS and creates or updates groups in the CP Groups plugin. Sync is one way: changes made in WordPress are not sent back to your ChMS. See the [CP Groups Integration Guide](../integrations/cp-groups.md) for details.
+CP-Sync imports group data from your ChMS. With CP Groups active, that plugin shows the groups and adds filters, a map, and a contact form. It uses the same groups, so you do not import them again. Sync is one way: changes made in WordPress are not sent back to your ChMS. See the [CP Groups Integration Guide](../integrations/cp-groups.md) for details.
 
 ### Can I use CP-Sync with other plugins not listed?
 While CP-Sync is specifically designed to work with The Events Calendar, CP Groups, and CP Sermons, developers can extend it to work with other plugins using hooks and filters. See the [Developer Guide](../advanced/developer-guide.md) for more information.

@@ -39,7 +39,9 @@ class _Init {
 	 *
 	 * @return void
 	 */
-	protected function includes() {}
+	protected function includes() {
+		\CP_Sync\Groups\Lite::get_instance();
+	}
 
 	protected function actions() {}
 
