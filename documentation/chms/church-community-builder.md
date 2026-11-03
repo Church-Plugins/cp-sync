@@ -80,6 +80,8 @@ Use the **Date Range** setting on the CCB **Events** tab:
 
 If you use **Custom date range**, the Start and End Dates do not move on their own. Check that the End Date is far enough out, or events after it won't sync.
 
+The public calendar listing is already limited to approved public events. If CCB marks an event as not approved, it is skipped. The clock time on the event stays the time CCB sent. When CCB sends a valid timezone, that zone is stored. When it does not, the WordPress site timezone is stored. The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
+
 ### Event Enrichment
 
 CCB exposes event data through two endpoints with different levels of detail. CP Sync uses both: the calendar listing for the initial import, then the event profile to fill in details that the listing omits.

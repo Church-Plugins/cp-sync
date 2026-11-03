@@ -96,9 +96,112 @@ class TEC extends Integration {
 			// all-day to timed at the source has its stale all-day flag cleared
 			// ( Tribe__Date_Utils::is_all_day( false ) → 'no' → flag deleted ).
 			$args['EventAllDay']      = ! empty( $item['EventAllDay'] );
+
+			// Church Community Builder carries its event or campus zone. Planning
+			// Center items have no EventTimezone; their clock is already the site zone.
+			if ( ! empty( $item['EventTimezone'] ) ) {
+				$args['EventTimezone'] = $item['EventTimezone'];
+			}
 		}
 
 		return $args;
+	}
+
+	/**
+	 * Post meta The Events Calendar stores for the event's start and end.
+	 *
+	 * This is our model of the post meta TEC stores, not a call into TEC.
+	 * The local strings are whatever the formatter produced. UTC meta is that
+	 * clock converted from $timezone (the site zone for Planning Center, the
+	 * event or campus zone for Church Community Builder). An all-day event is
+	 * stored from 00:00:00 through 23:59:59 on those dates.
+	 *
+	 * @param array  $item     Formatted event, or the legacy update args.
+	 * @param string $timezone Zone the local clock is expressed in.
+	 * @return array
+	 */
+	public static function saved_date_meta( array $item, $timezone ) {
+		$start = self::compose_datetime( $item['EventStartDate'] ?? '', $item['EventStartHour'] ?? null, $item['EventStartMinute'] ?? null );
+		$end   = self::compose_datetime( $item['EventEndDate'] ?? '', $item['EventEndHour'] ?? null, $item['EventEndMinute'] ?? null );
+
+		if ( '' === $end ) {
+			$end = $start;
+		}
+
+		if ( ! empty( $item['EventAllDay'] ) && '' !== $start ) {
+			$start = substr( $start, 0, 10 ) . ' 00:00:00';
+			$end   = substr( $end, 0, 10 ) . ' 23:59:59';
+		}
+
+		$zone = \CP_Sync\Events\EventTime::is_valid_timezone( $timezone ) ? $timezone : 'UTC';
+
+		return array(
+			'_EventStartDate'    => $start,
+			'_EventEndDate'      => $end,
+			'_EventStartDateUTC' => self::local_mysql_to_utc( $start, $zone ),
+			'_EventEndDateUTC'   => self::local_mysql_to_utc( $end, $zone ),
+			// Timed events keep the string 'no'. Deleting the key would change
+			// events that already store _EventAllDay as no.
+			'_EventAllDay'       => ! empty( $item['EventAllDay'] ) ? 'yes' : 'no',
+		);
+	}
+
+	/**
+	 * Write the date meta for a new or updated event.
+	 *
+	 * Create and update both call this with the same formatted item, so the
+	 * stored start and end ( local and UTC ) match. Planning Center does not
+	 * set `_EventTimezone`. Church Community Builder writes its event or
+	 * campus zone.
+	 *
+	 * @param int   $post_id Event post ID.
+	 * @param array $item    Formatted event.
+	 * @return array The meta written.
+	 */
+	public static function persist_event_date_meta( $post_id, array $item ) {
+		$zone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
+
+		if ( ! empty( $item['EventTimezone'] ) && \CP_Sync\Events\EventTime::is_valid_timezone( $item['EventTimezone'] ) ) {
+			$zone = $item['EventTimezone'];
+		}
+
+		$meta = self::saved_date_meta( $item, $zone );
+
+		if ( ! empty( $item['EventTimezone'] ) ) {
+			$meta['_EventTimezone'] = $item['EventTimezone'];
+		}
+
+		foreach ( $meta as $key => $value ) {
+			if ( '' === $value ) {
+				delete_post_meta( $post_id, $key );
+				continue;
+			}
+
+			update_post_meta( $post_id, $key, $value );
+		}
+
+		return $meta;
+	}
+
+	/**
+	 * Convert a site-local `Y-m-d H:i:s` string to UTC.
+	 *
+	 * @param string $local         Local datetime.
+	 * @param string $site_timezone Site timezone.
+	 * @return string
+	 */
+	protected static function local_mysql_to_utc( $local, $site_timezone ) {
+		if ( '' === $local ) {
+			return '';
+		}
+
+		try {
+			$instant = new \DateTimeImmutable( $local, new \DateTimeZone( $site_timezone ) );
+		} catch ( \Exception $e ) {
+			return '';
+		}
+
+		return $instant->setTimezone( new \DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' );
 	}
 
 	/**
@@ -330,7 +433,11 @@ class TEC extends Integration {
 		$event['image'] = $item['thumbnail_url'] ?? '';
 		$event['start_date'] = self::compose_datetime( $item['EventStartDate'] ?? '', $item['EventStartHour'] ?? null, $item['EventStartMinute'] ?? null );
 		$event['end_date'] = self::compose_datetime( $item['EventEndDate'] ?? '', $item['EventEndHour'] ?? null, $item['EventEndMinute'] ?? null );
-		$event['timezone'] = $item['EventTimezone'] ?? '';
+		// Planning Center omits this, so TEC keeps the site zone. Church
+		// Community Builder sets its event or campus zone on create and update.
+		if ( ! empty( $item['EventTimezone'] ) ) {
+			$event['timezone'] = $item['EventTimezone'];
+		}
 		$event['all_day'] = ! empty( $item['EventAllDay'] );
 		$event['url'] = $item['EventURL'] ?? '';
 		$event['recurrence'] = $item['EventRecurrence'] ?? '';
@@ -390,6 +497,10 @@ class TEC extends Integration {
 			} else {
 				delete_post_meta( $id, '_EventURL' );
 			}
+
+			// Same date meta on create and on update. Does not change
+			// `_EventTimezone`, so an event keeps the zone it already has.
+			self::persist_event_date_meta( $id, $item );
 
 			// Arbitrary post meta the formatter asked us to persist ( e.g. the
 			// registration_url that drives the Register button ). tribe_update_event()

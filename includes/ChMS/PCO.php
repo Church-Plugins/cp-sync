@@ -853,6 +853,21 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				cp_sync()->logging->log( 'Group visibility filter FAILED: ' . $error->get_error_message() );
 				return new ChMSError( 'pco_filter_error', $error->get_error_message() );
 			}
+
+			// listed / visibility are the Groups API's own public flags. Groups
+			// that omit both keys are unchanged. Show All does not apply this.
+			$before_listed = count( $items );
+			$items         = \CP_Sync\Events\EventVisibility::filter_pco_groups( $items );
+			$unlisted      = $before_listed - count( $items );
+
+			if ( $unlisted > 0 ) {
+				cp_sync()->logging->log(
+					sprintf(
+						'Group visibility filter skipped %d groups that are not listed or not public',
+						$unlisted
+					)
+				);
+			}
 		}
 
 		$filter = new \CP_Sync\Setup\DataFilter(
@@ -1665,7 +1680,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		return [
 			'items'      => $items,
-			'context'    => [ 'relational_data' => $relational ],
+			'context'    => [
+				'relational_data' => $relational,
+			],
 			'taxonomies' => $taxonomies,
 		];
 	}
@@ -1858,25 +1875,25 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$filter_type = $filter_settings['type'] ?? 'all';
 		$conditions  = $filter_settings['conditions'] ?? [];
 
-		$public_events_only = 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
+		// Show All leaves hidden and unapproved events in the feed. The
+		// restrictive option ( Only Visible in Church Center ) applies the
+		// visibility and approval checks on their own, so an "any" condition
+		// group cannot include them again.
+		if ( $this->calendar_visibility_is_restrictive() ) {
+			$partition = \CP_Sync\Events\EventVisibility::partition_pco_calendar_items( $items, $relational_data );
+			$items     = $partition['kept'];
 
-		// Church Center visibility is an independent constraint applied as its own
-		// all-type filter — merging it into the user's condition group would OR it
-		// away under an "any" group. ( It previously also used the key `type`
-		// instead of `selector`, so DataFilter silently discarded it. )
-		if ( $public_events_only ) {
-			$visibility_filter = new \CP_Sync\Setup\DataFilter(
-				'all',
-				[ [ 'compare' => 'is_not_empty', 'selector' => 'visible_in_church_center' ] ],
-				$this->get_event_filter_config(),
-				$relational_data
-			);
+			foreach ( $partition['skipped_ids'] as $skipped_id ) {
+				\CP_Sync\Events\VisibilityRemovalNotice::record_skip( $skipped_id );
+			}
 
-			$error = $visibility_filter->apply( $items );
-
-			if ( is_wp_error( $error ) ) {
-				cp_sync()->logging->log( 'Calendar visibility filter FAILED: ' . $error->get_error_message() );
-				return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+			if ( ! empty( $partition['skipped_ids'] ) ) {
+				cp_sync()->logging->log(
+					sprintf(
+						'Calendar visibility filter skipped %d hidden or unapproved event instances',
+						count( $partition['skipped_ids'] )
+					)
+				);
 			}
 		}
 
@@ -2016,84 +2033,75 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * @return array|bool The formatted event or false if the event should be skipped.
 	 */
 	public function format_event_from_calendar( $event_instance, $context ) {
-		$relational_data = $context['relational_data'];
+		$neutral = $this->to_neutral_calendar_event( $event_instance, $context );
 
-		// Sanity check the event
-		$event_id = $event_instance['relationships']['event']['data']['id'] ?? 0;
-		
-		if( empty( $event_id ) ) {
+		if ( false === $neutral ) {
 			return false;
 		}
 
-		// Pull top-level event details
-		$event = $relational_data['Event'][ $event_id ] ?? [];
+		return \CP_Sync\Events\TecEventMapper::to_tec_item( $neutral );
+	}
 
-		$time_ids   = wp_list_pluck( $event_instance['relationships']['event_times']['data'], 'id' );
-		$start_date = $end_date = false;
+	/**
+	 * Build the provider-neutral record for one Planning Center calendar instance.
+	 *
+	 * Times are stored in UTC. The Events Calendar receives them in the
+	 * WordPress site timezone. Hidden and unapproved rows are dropped in
+	 * fetch_events_from_calendar(), not here.
+	 *
+	 * @param array $event_instance The event instance to format.
+	 * @param array $context        Relational data.
+	 * @return array|false Neutral record, or false when the instance should be skipped.
+	 */
+	public function to_neutral_calendar_event( $event_instance, $context ) {
+		$relational_data = $context['relational_data'];
 
+		$event_id = $event_instance['relationships']['event']['data']['id'] ?? 0;
+
+		if ( empty( $event_id ) ) {
+			return false;
+		}
+
+		$event      = $relational_data['Event'][ $event_id ] ?? [];
+		$attributes = $event['attributes'] ?? [];
+
+		$time_ids  = wp_list_pluck( $event_instance['relationships']['event_times']['data'], 'id' );
 		$date_time = current( $time_ids );
 
 		if ( empty( $date_time ) ) {
 			return false;
 		}
 
-		$start_date = $relational_data['EventTime'][ $date_time ]['attributes']['starts_at'] ?? '';
-		$end_date   = $relational_data['EventTime'][ $date_time ]['attributes']['ends_at'] ?? '';
+		$start_raw = $relational_data['EventTime'][ $date_time ]['attributes']['starts_at'] ?? '';
+		$end_raw   = $relational_data['EventTime'][ $date_time ]['attributes']['ends_at'] ?? '';
 
-		if ( ! $start_date || ! $end_date ) {
+		if ( ! $start_raw || ! $end_raw ) {
 			return false;
 		}
 
-		$start_date = (new \DateTime( $start_date ))->setTimezone( wp_timezone() );
-		$end_date   = (new \DateTime( $end_date ))->setTimezone( wp_timezone() );
+		$start_utc = \CP_Sync\Events\EventTime::to_utc( $start_raw );
+		$end_utc   = \CP_Sync\Events\EventTime::to_utc( $end_raw );
 
-		// Begin stuffing the output
-		$args = [
-			'chms_id'        => $event_instance['id'],
-			'post_status'    => 'publish',
-			'post_title'     => $event['attributes']['name'] ?? '',
-			'post_content'   => $event['attributes']['description'] ?? '',
-			'post_excerpt'   => $event['attributes']['summary'] ?? '',
-			'tax_input'      => [],
-			'event_category' => [],
-			'thumbnail_url'  => '',
-			'meta_input'     => [
-				'registration_url' => $event['attributes']['registration_url'] ?? '',
-			],
-			'EventStartDate'        => $start_date->format( 'Y-m-d' ),
-			'EventEndDate'          => $end_date->format( 'Y-m-d' ),
-			'EventAllDay'           => $event_instance['attributes']['all_day_event'] ?? false,
-			'EventStartHour'        => $start_date->format( 'G' ),
-			'EventStartMinute'      => $start_date->format( 'i' ),
-			// 'EventStartMeridian'    => $event[''],
-			'EventEndHour'          => $end_date->format( 'G' ),
-			'EventEndMinute'        => $end_date->format( 'i' ),
-			// 'EventEndMeridian'      => $event[''],
-			// 'EventHideFromUpcoming' => $event[''],
-			// 'EventShowMapLink'      => $event[''],
-			// 'EventShowMap'          => $event[''],
-			// 'EventCost'             => $event[''],
-			'EventURL'              => $event['attributes']['registration_url'] ?? '',
-		];
-
-		// Featured image
-		if ( ! empty( $event['attributes']['image_url'] ) ) {
-			$args['thumbnail_url'] = $event['attributes']['image_url'];
+		if ( null === $start_utc || null === $end_utc ) {
+			return false;
 		}
 
-		// Venue. Calendar event instances carry the venue as a single free-text
-		// `location` string ( e.g. "Church - 401 Wabash Ave, Granite Falls, WA 98252,
-		// USA" ) right in the main query — no enrichment call needed. Parse it into
-		// TEC's EventVenue contract; empty/unparseable values yield no venue.
+		$site_timezone    = \CP_Sync\Events\EventTime::wordpress_timezone_name();
+		$registration_url = $attributes['registration_url'] ?? '';
+		$venue            = [];
+		$location_name    = '';
+
 		if ( ! empty( $event_instance['attributes']['location'] ) ) {
 			$venue = self::parse_calendar_location( $event_instance['attributes']['location'] );
-			if ( ! empty( $venue['venue'] ) ) {
-				$args['EventVenue'] = $venue;
+			if ( empty( $venue['venue'] ) ) {
+				$venue = [];
+			} else {
+				$location_name = $venue['venue'];
 			}
 		}
 
-		// Get the event's tags and pair them with appropriate taxonomies
-		$tags = wp_list_pluck( $event_instance['relationships']['tags']['data'], 'id' );
+		$tax_input = [];
+		$tags      = wp_list_pluck( $event_instance['relationships']['tags']['data'], 'id' );
 
 		foreach ( $tags as $tag ) {
 			$tag_data = $relational_data['Tag'][ $tag ] ?? false;
@@ -2102,65 +2110,43 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				continue;
 			}
 
-			$args['tax_input'][ $tag_data['attributes']['taxonomy'] ][] = $tag_data['id'];
+			$tax_input[ $tag_data['attributes']['taxonomy'] ][] = $tag_data['id'];
 		}
 
-		// 	// This "tag" is a campus/location
-		// 	if( in_array( 'campus', $included_taxonomies ) ) {
+		return [
+			'provider'         => 'pco',
+			'chms_id'          => $event_instance['id'],
+			'title'            => $attributes['name'] ?? '',
+			'content'          => $attributes['description'] ?? '',
+			'excerpt'          => $attributes['summary'] ?? '',
+			'post_status'      => 'publish',
+			'thumbnail_url'    => $attributes['image_url'] ?? '',
+			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
+			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
+			'site_timezone'    => $site_timezone,
+			'all_day'          => $event_instance['attributes']['all_day_event'] ?? false,
+			'location_name'    => $location_name,
+			'venue'            => $venue,
+			'registration_url' => $registration_url,
+			'event_url'        => $registration_url,
+			'tax_input'        => $tax_input,
+			'event_category'   => [],
+			'meta_input'       => [
+				'registration_url' => $registration_url,
+			],
+		];
+	}
 
-		// 		$campus =  $this->pull_campus_details( $tag_text );
-
-		// 		// Map to Location/Venue for TEC
-		// 		if( !empty( $campus ) && is_array( $campus ) ) {
-		// 			$args['Venue'] = [
-		// 				'Venue'    => $tag_text,
-		// 				'Country'  => $campus['country'] ?? '',
-		// 				'Address'  => $campus['street'] ?? '',
-		// 				'City'     => $campus['city'] ?? '',
-		// 				'State'    => $campus['state'] ?? '',
-		// 				'Zip'      => $campus['zip'],
-		// 			];
-		// 		}
-
-		// 	} else if( in_array( 'event_type', $included_taxonomies ) ) {
-		// 		// This is a TEC Event Category
-		// 		$args['event_category'][] = $tag_text;
-		// 	} else if( in_array( 'ministry_group', $included_taxonomies ) ) {
-		// 		// This is a TEC Event Category
-		// 		$args['tax_input']['cp_ministry'] = $tag_text;
-		// 	} else {
-
-		// 		// This is something else - we're assuming that it's a taxonomy and that the taxonomy is already registered
-		// 		foreach( $included_taxonomies as $loop_tax ) {
-		// 			$args['tax_input'][ $loop_tax ] = $tag_text;
-		// 		}
-		// 	}
-		// }
-
-		// // Add event contact info
-		// if( !empty( $event['contact'] ) ) {
-
-		// 	// Normalize variables so they're easier to work with
-		// 	$contact_email = $event['contact']['contact_data']['email_addresses'][0]['address'] ?? '';
-		// 	$contact_phone = $event['contact']['contact_data']['phone_numbers'][0]['number'] ?? '';
-		// 	$first_name = $event['contact']['first_name'] ?? '';
-		// 	$last_name = $event['contact']['last_name'] ?? '';
-		// 	$use_name = $first_name . ' ' . $last_name;
-
-		// 	// Only include if the person is not "empty" (depending on the ChMS definition of "empty")
-		// 	if( !empty( $first_name ) && 'no owner' !== strtolower( $use_name ) ) {
-		// 		$args['Organizer'] = [
-		// 			'Organizer' => $use_name,
-		// 			'Email'     => $contact_email,
-		// 			'Phone'     => $contact_phone,
-		// 		];
-		// 	}
-
-		// }
-
-		// throw new ChMSException( 400, 'The event formatting is not yet implemented' );
-
-		return $args;
+	/**
+	 * Whether calendar visibility and approval filters are on.
+	 *
+	 * Only the restrictive setting ( "Only Visible in Church Center" )
+	 * filters. "Show All" does not.
+	 *
+	 * @return bool
+	 */
+	public function calendar_visibility_is_restrictive() {
+		return 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
 	}
 
 	/**
@@ -2171,85 +2157,85 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * @return array|bool The formatted event or false if the event should be skipped.
 	 */
 	public function format_event_from_registrations( $signup, $context ) {
+		$neutral = $this->to_neutral_registration_event( $signup, $context );
+
+		if ( false === $neutral ) {
+			return false;
+		}
+
+		return \CP_Sync\Events\TecEventMapper::to_tec_item( $neutral );
+	}
+
+	/**
+	 * Build the provider-neutral record for one Planning Center signup.
+	 *
+	 * Registrations are not calendar events: there is no series id, and the
+	 * signup URL stays on registration_url rather than the TEC website field.
+	 * Church Center visibility and approval apply to calendar Events only.
+	 *
+	 * @param array $signup  The signup to format.
+	 * @param array $context Relational data.
+	 * @return array|false Neutral record, or false when the signup should be skipped.
+	 */
+	public function to_neutral_registration_event( $signup, $context ) {
 		$relational_data = $context['relational_data'];
 
 		// Dates live on the related SignupTime rows; use the first one. Without a
 		// usable start/end there is nothing to import as a dated event.
-		$time_ids  = wp_list_pluck( $signup['relationships']['signup_times']['data'] ?? [], 'id' );
-		$time_id   = current( $time_ids );
+		$time_ids = wp_list_pluck( $signup['relationships']['signup_times']['data'] ?? [], 'id' );
+		$time_id  = current( $time_ids );
 
 		if ( empty( $time_id ) ) {
 			// e.g. an "ongoing" registration — no scheduled dates, so it cannot become
 			// a dated event. Log it so the fetched-vs-processed counts add up.
-			cp_sync()->logging->log( sprintf(
-				'Skipping signup %s (%s): no scheduled dates (signup_times is empty)',
-				$signup['id'] ?? '?',
-				$signup['attributes']['name'] ?? 'unnamed'
-			) );
+			cp_sync()->logging->log(
+				sprintf(
+					'Skipping signup %s (%s): no scheduled dates (signup_times is empty)',
+					$signup['id'] ?? '?',
+					$signup['attributes']['name'] ?? 'unnamed'
+				)
+			);
 			return false;
 		}
 
-		$start_date = $relational_data['SignupTime'][ $time_id ]['attributes']['starts_at'] ?? '';
-		$end_date   = $relational_data['SignupTime'][ $time_id ]['attributes']['ends_at'] ?? '';
-		$all_day    = $relational_data['SignupTime'][ $time_id ]['attributes']['all_day'] ?? false;
+		$start_raw = $relational_data['SignupTime'][ $time_id ]['attributes']['starts_at'] ?? '';
+		$end_raw   = $relational_data['SignupTime'][ $time_id ]['attributes']['ends_at'] ?? '';
+		$all_day   = $relational_data['SignupTime'][ $time_id ]['attributes']['all_day'] ?? false;
 
-		if ( ! $start_date || ! $end_date ) {
-			cp_sync()->logging->log( sprintf(
-				'Skipping signup %s (%s): signup time has no usable start/end date',
-				$signup['id'] ?? '?',
-				$signup['attributes']['name'] ?? 'unnamed'
-			) );
+		if ( ! $start_raw || ! $end_raw ) {
+			cp_sync()->logging->log(
+				sprintf(
+					'Skipping signup %s (%s): signup time has no usable start/end date',
+					$signup['id'] ?? '?',
+					$signup['attributes']['name'] ?? 'unnamed'
+				)
+			);
 			return false;
 		}
 
-		$start_date = ( new \DateTime( $start_date ) )->setTimezone( wp_timezone() );
-		$end_date   = ( new \DateTime( $end_date ) )->setTimezone( wp_timezone() );
+		$start_utc = \CP_Sync\Events\EventTime::to_utc( $start_raw );
+		$end_utc   = \CP_Sync\Events\EventTime::to_utc( $end_raw );
 
-		// Begin stuffing the output. chms_id is prefixed with `reg_` so registrations
-		// and calendar events never collide in the shared store keyspace (plan §3/§4).
-		$args = [
-			'chms_id'        => 'reg_' . $signup['id'],
-			'post_status'    => 'publish',
-			'post_title'     => $signup['attributes']['name'] ?? '',
-			'post_content'   => $signup['attributes']['description'] ?? '',
-			'tax_input'      => [],
-			'event_category' => [],
-			'thumbnail_url'  => '',
-			// Deliberately NO EventURL ( TEC "Event Website" ) for registrations: the
-			// only URL PCO exposes is the signup/reservation page, which already has a
-			// home as the "Register" button ( registration_url meta below ). Pointing
-			// the website field at the same reservation form would be redundant and
-			// would send visitors into a form instead of an event page.
-			'meta_input'     => [
-				'registration_url' => $signup['attributes']['new_registration_url'] ?? '',
-			],
-			'EventStartDate'   => $start_date->format( 'Y-m-d' ),
-			'EventStartHour'   => $start_date->format( 'G' ),
-			'EventStartMinute' => $start_date->format( 'i' ),
-			'EventEndDate'     => $end_date->format( 'Y-m-d' ),
-			'EventEndHour'     => $end_date->format( 'G' ),
-			'EventEndMinute'   => $end_date->format( 'i' ),
+		if ( null === $start_utc || null === $end_utc ) {
+			return false;
+		}
+
+		$site_timezone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
+
+		$registration_url = $signup['attributes']['new_registration_url'] ?? '';
+		$meta_input       = [
+			'registration_url' => $registration_url,
 		];
-
-		if ( $all_day ) {
-			$args['EventAllDay'] = true;
-		}
 
 		// at_maximum_capacity is only present when the sparse fieldset request
 		// succeeded; expose sold-out state only when we actually have the value.
 		if ( array_key_exists( 'at_maximum_capacity', $signup['attributes'] ?? [] ) ) {
-			$args['meta_input']['registration_sold_out'] = ! empty( $signup['attributes']['at_maximum_capacity'] );
+			$meta_input['registration_sold_out'] = ! empty( $signup['attributes']['at_maximum_capacity'] );
 		}
 
-		// Featured image
-		if ( ! empty( $signup['attributes']['logo_url'] ) ) {
-			$args['thumbnail_url'] = $signup['attributes']['logo_url'];
-		}
-
-		// Categories. The documented Category vertex has no slug, so derive a stable
-		// slug from the name (TEC does the same when given a non-string key).
-		$category_ids = wp_list_pluck( $signup['relationships']['categories']['data'] ?? [], 'id' );
 		$categories   = [];
+		$category_ids = wp_list_pluck( $signup['relationships']['categories']['data'] ?? [], 'id' );
+
 		foreach ( $category_ids as $category_id ) {
 			$data = $relational_data['Category'][ $category_id ]['attributes'] ?? [];
 			if ( empty( $data['name'] ) ) {
@@ -2258,16 +2244,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$categories[ sanitize_title( $data['name'] ) ] = $data['name'];
 		}
 
-		if ( ! empty( $categories ) ) {
-			$args['event_category'] = $categories;
-		}
-
 		// Location. signup_location is a to-one relationship; normalize to a list so
-		// either an object or an array of one is handled. NOTE: despite the docs
-		// listing `address_data`, the live API returns a FLAT shape (name,
-		// formatted_address, latitude, longitude, …) — verified against a real
-		// account 2026-07-29 — so this uses the dedicated flat parser, NOT the
-		// Google-components get_location_details().
+		// either an object or an array of one is handled. The live API returns a
+		// flat shape (name, formatted_address, latitude, longitude), so this uses
+		// parse_signup_location() rather than get_location_details().
+		$venue        = [];
 		$location_rel = $signup['relationships']['signup_location']['data'] ?? [];
 		if ( isset( $location_rel['id'] ) ) {
 			$location_rel = [ $location_rel ];
@@ -2277,12 +2258,31 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$data     = $relational_data['SignupLocation'][ $location_id ]['attributes'] ?? [];
 			$location = self::parse_signup_location( $data );
 			if ( ! empty( $location['venue'] ) ) {
-				$args['EventVenue'] = $location;
+				$venue = $location;
 				break;
 			}
 		}
 
-		return $args;
+		return [
+			'provider'         => 'pco',
+			'chms_id'          => 'reg_' . $signup['id'],
+			'title'            => $signup['attributes']['name'] ?? '',
+			'content'          => $signup['attributes']['description'] ?? '',
+			'excerpt'          => '',
+			'post_status'      => 'publish',
+			'thumbnail_url'    => ! empty( $signup['attributes']['logo_url'] ) ? $signup['attributes']['logo_url'] : '',
+			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
+			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
+			'site_timezone'    => $site_timezone,
+			'all_day'          => (bool) $all_day,
+			'location_name'    => $venue['venue'] ?? '',
+			'venue'            => $venue,
+			'registration_url' => $registration_url,
+			'event_url'        => '',
+			'tax_input'        => [],
+			'event_category'    => $categories,
+			'meta_input'        => $meta_input,
+		];
 	}
 
 	/**

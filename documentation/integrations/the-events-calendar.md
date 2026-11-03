@@ -30,7 +30,7 @@ On the **Events** tab:
 - **Show Register button on events**: on until you turn it off. Synced events that have a registration link get a **Register** button. When the signup is at capacity, the button reads **Sold Out**.
 - **Calendar Settings** (shown for **Pull from Calendar** and **Calendar AND Registrations**):
   - **Tag groups**: selected tag groups become taxonomies on the event.
-  - **Visibility**: **Only Visible in Church Center** (the default) or **Show All**.
+  - **Visibility**: **Only Visible in Church Center** (the default) skips calendar events that are hidden in Church Center or explicitly not approved. **Show All** does not apply that filter. **Link Only** events still sync when they are visible and not explicitly unapproved.
   - **Calendar Filters**: **Pull Calendar Filters where**, then **All** or **Any**, and **Add Condition**.
 - **Registration Settings** (shown for **Pull from Registrations** and **Calendar AND Registrations**):
   - **Registration Filters**: **Pull Registration Filters where**, then **All** or **Any**, and **Add Condition**.
@@ -38,7 +38,9 @@ On the **Events** tab:
 
 When **Event source** is **Calendar AND Registrations**, the tab shows **Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.**
 
-Calendar sync imports future event instances. **Visibility** is separate from **Calendar Filters**. An empty **Calendar Filters** builder does not turn **Visibility** off.
+Calendar sync imports future event instances. **Visibility** is separate from **Calendar Filters**. An empty **Calendar Filters** builder does not turn the visibility and approval checks off.
+
+Planning Center start and end times are saved in the WordPress site timezone (Settings → General). A later sync stores the same times. Event times on your site use your WordPress timezone (Settings → General). Make sure it matches the timezone set in your Planning Center account, or event times may look shifted. Church Community Builder keeps the clock time CCB sent. When CCB sends a valid timezone, that zone is stored. When it does not, the WordPress site timezone is stored. The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
 
 ## Church Community Builder
 
@@ -49,7 +51,7 @@ On the **Events** tab, the heading reads **Select data to pull from Church Commu
 - **Events**, under **Event Filters**: **Pull Events where**, then **All** or **Any**, and **Add Condition**.
 - **Generate Preview** and **Pull Now**. **Pull Now** shows **Import started**.
 
-Each occurrence is imported as its own event. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
+Each occurrence is imported as its own event. The public calendar listing is already limited to approved public events. If CCB marks an event as not approved, it is skipped. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
 
 ## What Is Copied
 

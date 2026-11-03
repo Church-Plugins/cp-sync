@@ -1531,6 +1531,10 @@ abstract class ChMS {
 			return new ChMSError( 'format_callback_not_set', 'The format callback is not set' );
 		}
 
+		if ( 'events' === $integration_type ) {
+			\CP_Sync\Events\VisibilityRemovalNotice::reset();
+		}
+
 		$data = call_user_func( $integration_args['fetch_callback'], $limit );
 
 		if ( is_wp_error( $data ) ) {

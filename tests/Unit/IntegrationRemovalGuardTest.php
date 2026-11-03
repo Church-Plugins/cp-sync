@@ -19,6 +19,7 @@ namespace CP_Sync\Tests\Unit;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
+use CP_Sync\Events\VisibilityRemovalNotice;
 use CP_Sync\Integrations\Integration;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -128,6 +129,7 @@ class IntegrationRemovalGuardTest extends TestCase {
 		$plugin          = new class { public $logging; };
 		$plugin->logging = new class { public function log( $message ) {} };
 		Functions\when( 'cp_sync' )->justReturn( $plugin );
+		VisibilityRemovalNotice::reset();
 	}
 
 	protected function tearDown(): void {
@@ -226,5 +228,45 @@ class IntegrationRemovalGuardTest extends TestCase {
 
 		$this->assertSame( [], $integration->removed, 'A locked leftover must not be removed' );
 		$this->assertSame( [], $integration->store_retained, 'A locked leftover must not be given a recorded hash' );
+	}
+
+	public function test_skipped_upcoming_removals_are_stored_for_the_admin_notice() {
+		$stored  = null;
+		$deleted = false;
+
+		Functions\when( 'update_option' )->alias(
+			static function ( $key, $value ) use ( &$stored ) {
+				$stored = [ $key, $value ];
+				return true;
+			}
+		);
+		Functions\when( 'delete_option' )->alias(
+			static function () use ( &$deleted ) {
+				$deleted = true;
+				return true;
+			}
+		);
+
+		VisibilityRemovalNotice::record_skip( 'hidden-1' );
+		VisibilityRemovalNotice::record_skip( 'never-imported' );
+		VisibilityRemovalNotice::record_skip( 'past-1' );
+
+		$integration = $this->integration(
+			[
+				'hidden-1' => 'hash',
+				'evt_1'    => 'hash',
+				'past-1'   => 'hash',
+			]
+		);
+		$integration->veto = [ 'past-1' ];
+
+		$integration->process( [ [ 'chms_id' => 'evt_1', 'post_title' => 'Kept' ] ] );
+
+		$this->assertSame( [ 'hidden-1' ], $integration->removed );
+		$this->assertFalse( $deleted );
+		$this->assertSame( VisibilityRemovalNotice::OPTION, $stored[0] );
+		$this->assertSame( 3, $stored[1]['skipped'] );
+		$this->assertSame( 1, $stored[1]['removed_upcoming'] );
+		$this->assertSame( [], VisibilityRemovalNotice::skipped_ids() );
 	}
 }

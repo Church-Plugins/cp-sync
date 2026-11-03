@@ -61,14 +61,14 @@ On the **Events** tab, set **Event source** to **Pull from Calendar** or **Calen
 | Name | Event title |
 | Description | Event page body |
 | Summary | Excerpt, used by listings that show a summary |
-| Start and end | Event start and end |
+| Start and end | Event start and end, in the WordPress site timezone |
 | Location | Venue |
 | Image | Featured image |
 | Tag groups selected under **Tag groups** | Taxonomies on the event |
 
 **Summary** and **Description** are described in [Planning Center Online](../chms/planning-center.md#how-event-text-maps-from-planning-center) and [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-how-event-text-maps).
 
-Calendar sync imports future event instances.
+Calendar sync imports future event instances. With **Only Visible in Church Center**, hidden events and events with an explicit non-approved status are skipped. **Show All** does not apply that filter.
 
 ### Planning Center Registrations
 
@@ -91,7 +91,7 @@ When **Event source** is **Calendar AND Registrations**, the **Events** tab show
 |--------------------------|---------------------|
 | Name | Event title |
 | Description | Event page body |
-| Start and end | Event start and end |
+| Start and end | Event start and end. The clock time is the time CCB sent. The timezone is the event's zone when CCB sends a valid timezone, otherwise the WordPress site timezone. |
 | Image | Featured image |
 
 Each occurrence is imported as its own event. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
@@ -112,4 +112,4 @@ Open the feed tab and use its filter:
 
 The filter line reads **Pull Groups where**, **Pull Events where**, **Pull Sermons where**, **Pull Calendar Filters where**, or **Pull Registration Filters where**, then **All** or **Any**, then **of the following match**. Add a rule with **Add Condition**.
 
-For Planning Center Calendar events, **Visibility** under **Calendar Settings** is separate from the **Calendar Filters** builder. An empty **Calendar Filters** builder does not turn **Visibility** off.
+For Planning Center Calendar events, **Visibility** under **Calendar Settings** is separate from the **Calendar Filters** builder. An empty **Calendar Filters** builder does not turn **Visibility** off. **Only Visible in Church Center** skips hidden events and events with an explicit non-approved status. **Show All** does not. When **Only Visible in Church Center** is selected for groups, groups that are not listed or not public are skipped when Planning Center sends those fields.
