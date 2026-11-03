@@ -227,7 +227,7 @@ class PostTypes {
 			'show_ui'            => true,
 			'show_in_menu'       => 'edit.php?post_type=' . self::EVENT,
 			'show_in_rest'       => true,
-			'has_archive'        => false,
+			'has_archive'        => self::series_slug(),
 			'rewrite'            => array(
 				'slug'       => self::series_slug(),
 				'with_front' => false,

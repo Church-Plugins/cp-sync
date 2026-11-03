@@ -7,6 +7,8 @@
 
 namespace CP_Sync\Events;
 
+require_once dirname( __DIR__ ) . '/Templates.php';
+
 /**
  * Boot, settings, import, and template routing.
  *
@@ -255,6 +257,10 @@ class Display {
 			return 'events/series';
 		}
 
+		if ( 'series-archive' === $screen ) {
+			return 'events/series-archive';
+		}
+
 		return '';
 	}
 
@@ -269,6 +275,8 @@ class Display {
 
 		if ( is_post_type_archive( PostTypes::EVENT ) ) {
 			$screen = 'archive';
+		} elseif ( is_post_type_archive( PostTypes::SERIES ) ) {
+			$screen = 'series-archive';
 		} elseif ( is_singular( PostTypes::EVENT ) ) {
 			$screen = 'event';
 		} elseif ( is_singular( PostTypes::SERIES ) ) {
@@ -350,7 +358,7 @@ class Display {
 	 * @return void
 	 */
 	protected static function maybe_flush_rewrites( $enabled ) {
-		$version = $enabled ? 'on|' . PostTypes::event_slug() . '|' . PostTypes::series_slug() : 'off';
+		$version = $enabled ? 'on|2|' . PostTypes::event_slug() . '|' . PostTypes::series_slug() : 'off';
 
 		if ( get_option( self::REWRITE_OPTION ) === $version ) {
 			return;

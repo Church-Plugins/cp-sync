@@ -50,6 +50,7 @@ class EventRegistrationTest extends TestCase {
 		$this->assertSame( '', Display::template_for( true, true, true, 'archive' ) );
 		$this->assertSame( '', Display::template_for( true, true, true, 'event' ) );
 		$this->assertSame( '', Display::template_for( true, true, true, 'series' ) );
+		$this->assertSame( '', Display::template_for( true, true, true, 'series-archive' ) );
 	}
 
 	public function test_upgrade_leaves_display_off_unless_event_sync_was_already_on() {
@@ -189,6 +190,15 @@ class EventRegistrationTest extends TestCase {
 		$this->assertSame( '', $series[ Meta::SERIES_KEY ] );
 		$this->assertSame( '', $series[ Meta::IMAGE_URL ] );
 		$this->assertSame( '', $series[ Meta::REGISTRATION_URL ] );
+	}
+
+	public function test_series_archive_uses_the_event_series_slug() {
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$args = PostTypes::series_args();
+
+		$this->assertSame( 'event-series', $args['has_archive'] );
+		$this->assertSame( 'event-series', $args['rewrite']['slug'] );
 	}
 
 	public function test_a_blank_title_still_gets_a_permalink_slug() {

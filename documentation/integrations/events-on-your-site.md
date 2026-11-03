@@ -65,7 +65,7 @@ A series is created only when the church management system already groups the da
 - A single date does not get a series page.
 - A Planning Center registration is one date. It does not get a series page.
 
-Series pages use `/event-series/` so they do not take the `/series/` address CP Sermons uses.
+Series pages use `/event-series/` so they do not take the `/series/` address CP Sermons uses. The list of series is at `/event-series/`. Each series card has a linked title and one button, the same as a date.
 
 ## What is copied
 

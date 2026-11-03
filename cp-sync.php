@@ -24,6 +24,7 @@ if( !defined( 'CP_SYNC_PLUGIN_VERSION' ) ) {
 require_once( dirname( __FILE__ ) . "/includes/Constants.php" );
 require_once( CP_SYNC_PLUGIN_DIR . "/includes/ChurchPlugins/init.php" );
 require_once( CP_SYNC_PLUGIN_DIR . 'vendor/autoload.php' );
+require_once CP_SYNC_PLUGIN_DIR . 'includes/Templates.php';
 
 
 use CP_Sync\_Init as Init;
