@@ -1114,9 +1114,9 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * Build the provider-neutral record for one CCB occurrence.
 	 *
 	 * Listing times are naive wall-clock values. They are read in the event
-	 * timezone when that field is present, otherwise the campus timezone from
-	 * the sync context, otherwise the server default. That instant is stored
-	 * in UTC. TEC dates are the same instant in the WordPress site timezone.
+	 * timezone when that field is present, otherwise the campus timezone, so
+	 * the neutral record can store UTC. The Events Calendar still receives
+	 * that same wall clock and the event or campus zone, not the site zone.
 	 *
 	 * @param array $event   Normalized event row.
 	 * @param array $context May include organization_timezone.
@@ -1133,6 +1133,14 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		}
 
 		$site_timezone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
+
+		if ( '' !== $explicit ) {
+			$timezone_label = $explicit;
+		} elseif ( \CP_Sync\Events\EventTime::is_valid_timezone( $organization ) ) {
+			$timezone_label = $organization;
+		} else {
+			$timezone_label = $conversion;
+		}
 
 		$start_raw = $event['start_datetime'] ?? 'now';
 		$end_raw   = $event['end_datetime'] ?? 'now';
@@ -1184,6 +1192,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
 			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
 			'timezone'         => $conversion,
+			'timezone_label'   => $timezone_label,
 			'site_timezone'    => $site_timezone,
 			'all_day'          => self::is_all_day_span( $local_start, $local_end ),
 			'location_name'    => $location_name,

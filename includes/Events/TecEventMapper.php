@@ -140,7 +140,18 @@ class TecEventMapper {
 	 * @return array
 	 */
 	protected static function ccb_item( array $event ) {
-		list( $start, $end ) = self::local_range( $event );
+		// CCB keeps its own wall clock. Format in the event or campus zone,
+		// not the WordPress site zone used for Planning Center.
+		$zone = $event['timezone'] ?? 'UTC';
+		if ( ! EventTime::is_valid_timezone( $zone ) ) {
+			$zone = 'UTC';
+		}
+
+		$start = EventTime::to_local( $event['start_utc'], $zone );
+		$end   = EventTime::to_local( $event['end_utc'], $zone );
+		$label = ( isset( $event['timezone_label'] ) && '' !== (string) $event['timezone_label'] )
+			? $event['timezone_label']
+			: $zone;
 
 		return array(
 			'chms_id'        => $event['chms_id'],
@@ -151,6 +162,7 @@ class TecEventMapper {
 			'EventStartDate' => $start->format( 'Y-m-d H:i:s' ),
 			'EventEndDate'   => $end->format( 'Y-m-d H:i:s' ),
 			'EventAllDay'    => ! empty( $event['all_day'] ),
+			'EventTimezone'  => $label,
 			'EventURL'       => $event['event_url'] ?? '',
 			'tax_input'      => $event['tax_input'] ?? array(),
 			'event_category' => $event['event_category'] ?? array(),

@@ -3,9 +3,11 @@
  * Date meta The Events Calendar stores on create and on a later update.
  *
  * Organization timezone America/Chicago, site timezone America/Los_Angeles.
- * The saved local clock is the site zone ( what master wrote ). Create and
- * update store the same UTC instants. `_EventTimezone` is not set to the
- * organization zone and is not changed on update.
+ * Planning Center's saved local clock is the site zone. Church Community
+ * Builder keeps its wall clock and its event or campus zone.
+ *
+ * saved_date_meta() is this plugin's model of what TEC stores. It is not
+ * The Events Calendar. The unit environment does not load TEC.
  *
  * @package CP_Sync
  */
@@ -97,17 +99,25 @@ class TecSavedDateMetaTest extends TestCase {
 	}
 
 	/**
-	 * Meta TEC stores from the legacy update args, using the site timezone.
+	 * Meta from the legacy update args.
 	 *
-	 * @param array  $item Formatted event.
-	 * @param string $site Site timezone.
+	 * saved_date_meta() is this plugin's model of TEC storage, not TEC itself.
+	 *
+	 * @param array  $item             Formatted event.
+	 * @param string $zone             Zone of the local clock.
+	 * @param bool   $expect_timezone  Whether the update args carry EventTimezone.
 	 * @return array
 	 */
-	private function meta_after_update( array $item, $site ) {
+	private function meta_after_update( array $item, $zone, $expect_timezone = false ) {
 		$args = TEC::legacy_update_args( $item );
-		$this->assertArrayNotHasKey( 'EventTimezone', $args );
 
-		return TEC::saved_date_meta( $args, $site );
+		if ( $expect_timezone ) {
+			$this->assertSame( $item['EventTimezone'], $args['EventTimezone'] );
+		} else {
+			$this->assertArrayNotHasKey( 'EventTimezone', $args );
+		}
+
+		return TEC::saved_date_meta( $args, $zone );
 	}
 
 	private function calendarItem( $start_utc, $end_utc, $all_day = false ) {
@@ -228,7 +238,7 @@ class TecSavedDateMetaTest extends TestCase {
 		$this->assertNotSame( '2026-11-01 02:30:00', $created['_EventStartDate'] );
 	}
 
-	public function test_ccb_create_and_update_use_the_site_zone() {
+	public function test_ccb_create_and_update_keep_the_ccb_wall_clock_and_zone() {
 		$event = array(
 			'event_id'       => '44',
 			'name'           => 'Prayer',
@@ -239,26 +249,29 @@ class TecSavedDateMetaTest extends TestCase {
 
 		$item = $this->makeCcb()->format_event( $event, array() );
 
-		// 14:00 CDT is 19:00Z, which is 12:00 PDT. Not 14:00, and no Chicago zone on the event.
-		$this->assertSame( '2026-08-05 12:00:00', $item['EventStartDate'] );
-		$this->assertSame( '2026-08-05 13:00:00', $item['EventEndDate'] );
-		$this->assertArrayNotHasKey( 'EventTimezone', $item );
+		// Master's CCB output: the clock CCB sent, labeled with that zone.
+		$this->assertSame( '2026-08-05 14:00:00', $item['EventStartDate'] );
+		$this->assertSame( '2026-08-05 15:00:00', $item['EventEndDate'] );
+		$this->assertSame( 'America/Chicago', $item['EventTimezone'] );
 
-		$created = TEC::saved_date_meta( $item, 'America/Los_Angeles' );
-		$updated = $this->meta_after_update( $item, 'America/Los_Angeles' );
+		$created = TEC::saved_date_meta( $item, 'America/Chicago' );
+		$updated = $this->meta_after_update( $item, 'America/Chicago', true );
 
 		$this->assertSame( $created, $updated );
-		$this->assertSame( '2026-08-05 12:00:00', $created['_EventStartDate'] );
+		$this->assertSame( '2026-08-05 14:00:00', $created['_EventStartDate'] );
+		$this->assertSame( '2026-08-05 15:00:00', $created['_EventEndDate'] );
+		// August in Chicago is CDT (UTC-5).
 		$this->assertSame( '2026-08-05 19:00:00', $created['_EventStartDateUTC'] );
 		$this->assertSame( '2026-08-05 20:00:00', $created['_EventEndDateUTC'] );
 
-		$this->meta['_EventTimezone'] = 'America/Los_Angeles';
 		TEC::persist_event_date_meta( 44, $item );
 		$after_create = $this->meta;
 		TEC::persist_event_date_meta( 44, $item );
 
 		$this->assertSame( $after_create, $this->meta );
-		$this->assertSame( 'America/Los_Angeles', $this->meta['_EventTimezone'] );
+		$this->assertSame( 'America/Chicago', $this->meta['_EventTimezone'] );
+		$this->assertSame( '2026-08-05 14:00:00', $this->meta['_EventStartDate'] );
+		$this->assertSame( '2026-08-05 19:00:00', $this->meta['_EventStartDateUTC'] );
 	}
 
 	public function test_update_does_not_replace_an_existing_timezone() {

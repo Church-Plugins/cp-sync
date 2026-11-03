@@ -425,9 +425,10 @@ class NeutralEventTecOutputTest extends TestCase {
 				'post_title'     => 'Pizza Night',
 				'post_content'   => 'Eating pizza.',
 				'thumbnail_url'  => 'https://example.com/pizza.png',
-				'EventStartDate' => '2026-07-15 20:00:00',
-				'EventEndDate'   => '2026-07-15 22:30:00',
+				'EventStartDate' => '2026-07-15 14:00:00',
+				'EventEndDate'   => '2026-07-15 16:30:00',
 				'EventAllDay'    => false,
+				'EventTimezone'  => 'America/Denver',
 				'EventURL'       => 'https://demo.ccbchurch.com/event_detail.php?event_id=586',
 				'tax_input'      => [],
 				'event_category' => [],
@@ -442,8 +443,7 @@ class NeutralEventTecOutputTest extends TestCase {
 			$result
 		);
 
-		// July in Denver is MDT (UTC-6). TEC shows that instant in the site zone (UTC here).
-		$this->assertArrayNotHasKey( 'EventTimezone', $result );
+		// July in Denver is MDT (UTC-6). The TEC clock stays 14:00 in that zone.
 		$this->assertSame( 'America/Denver', $neutral['timezone'] );
 		$this->assertSame( '586', $neutral['series_id'] );
 		$this->assertSame( '2026-07-15 20:00:00', $neutral['start_utc'] );
@@ -464,10 +464,9 @@ class NeutralEventTecOutputTest extends TestCase {
 		$neutral = $this->makeCcb()->to_neutral_event( $event, [] );
 
 		$this->assertTrue( $result['EventAllDay'] );
-		$this->assertArrayNotHasKey( 'EventTimezone', $result );
-		// Site zone is UTC, so the TEC clock is the UTC instant, not Denver wall time.
-		$this->assertSame( '2026-01-15 07:00:00', $result['EventStartDate'] );
-		$this->assertSame( '2026-01-17 06:59:00', $result['EventEndDate'] );
+		$this->assertSame( 'America/Denver', $result['EventTimezone'] );
+		$this->assertSame( '2026-01-15 00:00:00', $result['EventStartDate'] );
+		$this->assertSame( '2026-01-16 23:59:00', $result['EventEndDate'] );
 		// January in Denver is MST (UTC-7).
 		$this->assertSame( '2026-01-15 07:00:00', $neutral['start_utc'] );
 	}
@@ -485,9 +484,8 @@ class NeutralEventTecOutputTest extends TestCase {
 			[ 'organization_timezone' => 'America/Chicago' ]
 		);
 
-		$this->assertSame( '2026-08-05 19:00:00', $result['EventStartDate'] );
-		$this->assertArrayNotHasKey( 'EventTimezone', $result );
-		$this->assertSame( 'America/Chicago', $this->makeCcb()->to_neutral_event( $event, [ 'organization_timezone' => 'America/Chicago' ] )['timezone'] );
+		$this->assertSame( '2026-08-05 14:00:00', $result['EventStartDate'] );
+		$this->assertSame( 'America/Chicago', $result['EventTimezone'] );
 
 		$neutral = $this->makeCcb()->to_neutral_event(
 			$event,
@@ -507,7 +505,7 @@ class NeutralEventTecOutputTest extends TestCase {
 		$result = $this->makeCcb()->format_event( $event, [] );
 
 		$this->assertSame( '2026-08-05 14:00:00', $result['EventStartDate'] );
-		$this->assertArrayNotHasKey( 'EventTimezone', $result );
+		$this->assertSame( 'UTC', $result['EventTimezone'] );
 		$this->assertSame(
 			md5( 'Untitled' . ( new \DateTime( '2026-08-05 14:00:00' ) )->getTimestamp() ),
 			$result['chms_id']
