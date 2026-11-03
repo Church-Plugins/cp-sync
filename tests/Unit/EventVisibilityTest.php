@@ -96,26 +96,38 @@ class EventVisibilityTest extends TestCase {
 		return [ $instance, $context ];
 	}
 
-	public function test_hidden_calendar_event_is_skipped() {
-		list( $instance, $context ) = $this->calendar(
+	public function test_hidden_calendar_event_is_skipped_by_the_fetch_filter() {
+		list( $instance ) = $this->calendar(
 			[
 				'visible_in_church_center' => false,
 				'approval_status'          => 'A',
 			]
 		);
+		$relational = [
+			'Event' => [
+				'e1' => [ 'attributes' => [ 'visible_in_church_center' => false, 'approval_status' => 'A' ] ],
+			],
+		];
 
-		$this->assertFalse( $this->makePco()->format_event_from_calendar( $instance, $context ) );
+		$split = EventVisibility::partition_pco_calendar_items( [ $instance ], $relational );
+
+		$this->assertSame( [], $split['kept'] );
+		$this->assertSame( [ 'inst-1' ], $split['skipped_ids'] );
 	}
 
-	public function test_explicitly_unapproved_calendar_events_are_skipped() {
+	public function test_explicitly_unapproved_calendar_events_are_skipped_by_the_fetch_filter() {
 		foreach ( [ 'P', 'R' ] as $status ) {
-			list( $instance, $context ) = $this->calendar(
+			list( $instance ) = $this->calendar(
 				[
 					'visible_in_church_center' => true,
 					'approval_status'          => $status,
 				]
 			);
-			$this->assertFalse( $this->makePco()->format_event_from_calendar( $instance, $context ), $status );
+			$split = EventVisibility::partition_pco_calendar_items(
+				[ $instance ],
+				[ 'Event' => [ 'e1' => [ 'attributes' => [ 'visible_in_church_center' => true, 'approval_status' => $status ] ] ] ]
+			);
+			$this->assertSame( [], $split['kept'], $status );
 		}
 	}
 
@@ -248,12 +260,12 @@ class EventVisibilityTest extends TestCase {
 			],
 		];
 
-		$kept = EventVisibility::filter_pco_calendar_items( $items, $relational );
+		$kept = EventVisibility::partition_pco_calendar_items( $items, $relational )['kept'];
 
 		$this->assertSame( [ 'keep', 'no-event' ], array_column( $kept, 'id' ) );
 	}
 
-	public function test_ccb_unapproved_draft_and_unlisted_rows_are_skipped() {
+	public function test_ccb_unapproved_rows_are_skipped() {
 		$base = [
 			'event_id'       => '3',
 			'name'           => 'Private',
@@ -263,10 +275,7 @@ class EventVisibilityTest extends TestCase {
 		$ccb = $this->makeCcb();
 
 		$this->assertFalse( $ccb->format_event( array_merge( $base, [ 'approval_status' => 'pending' ] ), [] ) );
-		$this->assertFalse( $ccb->format_event( array_merge( $base, [ 'approval_status' => 'APPROVED', 'is_draft' => 'true' ] ), [] ) );
-		$this->assertFalse( $ccb->format_event( array_merge( $base, [ 'listed' => 'false' ] ), [] ) );
-		$this->assertFalse( $ccb->format_event( array_merge( $base, [ 'is_approved' => false ] ), [] ) );
-		$this->assertFalse( $ccb->format_event( array_merge( $base, [ 'visibility' => 'private' ] ), [] ) );
+		$this->assertNotFalse( $ccb->format_event( array_merge( $base, [ 'approval_status' => 'approved' ] ), [] ) );
 	}
 
 	public function test_ccb_approved_and_plain_public_listing_sync() {

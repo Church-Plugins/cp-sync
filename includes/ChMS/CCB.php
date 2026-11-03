@@ -831,110 +831,11 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			cp_sync()->logging->log( 'No events found in response' );
 		}
 
-		$organization_timezone = '';
-		if ( ! empty( $events ) ) {
-			$organization_timezone = $this->fetch_organization_timezone();
-		}
-
 		return [
 			'items'      => $events,
 			'taxonomies' => [],
-			'context'    => [
-				'organization_timezone' => $organization_timezone,
-			],
+			'context'    => [],
 		];
-	}
-
-	/**
-	 * Read a campus timezone once per sync.
-	 *
-	 * public_calendar_listing does not include a timezone. An event that has
-	 * none uses PHP's default zone, the same as before. This lookup is not
-	 * that fallback. A failed lookup does not abort the pull.
-	 *
-	 * @return string IANA zone, or ''.
-	 */
-	public function fetch_organization_timezone() {
-		$list = $this->api()->get( 'campus_list', [] );
-
-		if ( is_wp_error( $list ) || ! is_array( $list ) ) {
-			cp_sync()->logging->log( 'Campus list unavailable. Event times will use each event timezone or the server default.' );
-			return '';
-		}
-
-		$campus_id = self::first_active_campus_id( $list );
-
-		if ( '' === $campus_id ) {
-			cp_sync()->logging->log( 'No active campus found for the organization timezone.' );
-			return '';
-		}
-
-		$profile = $this->api()->get( 'campus_profile', [ 'id' => $campus_id ] );
-
-		if ( is_wp_error( $profile ) || ! is_array( $profile ) ) {
-			cp_sync()->logging->log( 'Campus profile unavailable for timezone.' );
-			return '';
-		}
-
-		$timezone = self::timezone_from_campus_profile( $profile );
-
-		if ( '' === $timezone ) {
-			cp_sync()->logging->log( 'Campus profile did not include a usable timezone.' );
-			return '';
-		}
-
-		cp_sync()->logging->log( 'Church Community Builder campus timezone: ' . $timezone );
-
-		return $timezone;
-	}
-
-	/**
-	 * Id of the first active campus in a campus_list payload.
-	 *
-	 * @param array $payload Decoded campus_list response.
-	 * @return string
-	 */
-	public static function first_active_campus_id( array $payload ) {
-		$campuses = $payload['response']['campuses']['campus'] ?? [];
-
-		if ( ! is_array( $campuses ) || empty( $campuses ) ) {
-			return '';
-		}
-
-		// A single campus is an associative row, not a list of rows.
-		if ( isset( $campuses['name'] ) || isset( $campuses['@attributes'] ) || isset( $campuses['active'] ) ) {
-			$campuses = [ $campuses ];
-		}
-
-		foreach ( $campuses as $campus ) {
-			if ( ! is_array( $campus ) ) {
-				continue;
-			}
-
-			$id = $campus['@attributes']['id'] ?? ( $campus['id'] ?? '' );
-			if ( '' === (string) $id ) {
-				continue;
-			}
-
-			$active = $campus['active'] ?? '1';
-			if ( in_array( strtolower( trim( (string) $active ) ), [ '1', 'true', 'yes' ], true ) ) {
-				return (string) $id;
-			}
-		}
-
-		return '';
-	}
-
-	/**
-	 * time zone from a campus_profile payload.
-	 *
-	 * @param array $payload Decoded campus_profile response.
-	 * @return string
-	 */
-	public static function timezone_from_campus_profile( array $payload ) {
-		$timezone = $payload['response']['campus']['timezone'] ?? '';
-
-		return \CP_Sync\Events\EventTime::is_valid_timezone( $timezone ) ? $timezone : '';
 	}
 
 	/**
@@ -1111,42 +1012,19 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Build the provider-neutral record for one CCB occurrence.
 	 *
-	 * Listing times are naive wall-clock values. They are read in the event
-	 * timezone when that field is present. When the event has no timezone,
-	 * they are read in PHP's default zone ( date_default_timezone_get() ),
-	 * and that same name is the EventTimezone label. The Events Calendar
-	 * receives that wall clock, not a site-timezone conversion.
+	 * Listing times are naive wall-clock values. A valid event timezone is
+	 * used to read that clock, as the EventTimezone label, and for the UTC
+	 * meta. Otherwise the WordPress site timezone is used for all three.
 	 *
 	 * @param array $event   Normalized event row.
-	 * @param array $context May include organization_timezone.
+	 * @param array $context Unused. Kept for the formatter signature.
 	 * @return array|false
 	 */
 	public function to_neutral_event( $event, $context ) {
-		$fallback_zone = date_default_timezone_get();
-		if ( ! \CP_Sync\Events\EventTime::is_valid_timezone( $fallback_zone ) ) {
-			$fallback_zone = 'UTC';
-		}
-
-		$explicit     = ( isset( $event['timezone'] ) && is_string( $event['timezone'] ) ) ? $event['timezone'] : '';
-		$organization = ( isset( $context['organization_timezone'] ) && is_string( $context['organization_timezone'] ) ) ? $context['organization_timezone'] : '';
-
-		// No timezone on the event: master's fallback. new \DateTime() with
-		// no zone reads the wall clock in PHP's default zone, and
-		// EventTimezone is that zone's name. The campus zone is not used.
-		if ( '' === $explicit ) {
-			$conversion     = $fallback_zone;
-			$timezone_label = $fallback_zone;
-		} else {
-			$conversion = \CP_Sync\Events\EventTime::first_valid_timezone( [ $explicit, $organization, $fallback_zone ] );
-
-			if ( '' === $conversion ) {
-				$conversion = 'UTC';
-			}
-
-			$timezone_label = $explicit;
-		}
-
-		$site_timezone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
+		$explicit = ( isset( $event['timezone'] ) && is_string( $event['timezone'] ) ) ? $event['timezone'] : '';
+		$zone     = \CP_Sync\Events\EventTime::is_valid_timezone( $explicit )
+			? $explicit
+			: \CP_Sync\Events\EventTime::wordpress_timezone_name();
 
 		$start_raw = $event['start_datetime'] ?? 'now';
 		$end_raw   = $event['end_datetime'] ?? 'now';
@@ -1155,15 +1033,15 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		$legacy_start = new \DateTime( $start_raw );
 		$event_id     = $event['event_id'] ?? $event['id'] ?? md5( ( $event['name'] ?? '' ) . $legacy_start->getTimestamp() );
 
-		$start_utc = \CP_Sync\Events\EventTime::to_utc( $start_raw, $conversion );
-		$end_utc   = \CP_Sync\Events\EventTime::to_utc( $end_raw, $conversion );
+		$start_utc = \CP_Sync\Events\EventTime::to_utc( $start_raw, $zone );
+		$end_utc   = \CP_Sync\Events\EventTime::to_utc( $end_raw, $zone );
 
 		if ( null === $start_utc || null === $end_utc ) {
 			return false;
 		}
 
-		$local_start = \CP_Sync\Events\EventTime::to_local( \CP_Sync\Events\EventTime::format_utc( $start_utc ), $conversion );
-		$local_end   = \CP_Sync\Events\EventTime::to_local( \CP_Sync\Events\EventTime::format_utc( $end_utc ), $conversion );
+		$local_start = \CP_Sync\Events\EventTime::to_local( \CP_Sync\Events\EventTime::format_utc( $start_utc ), $zone );
+		$local_end   = \CP_Sync\Events\EventTime::to_local( \CP_Sync\Events\EventTime::format_utc( $end_utc ), $zone );
 
 		$base_url  = $this->get_base_url();
 		$event_url = $base_url ? $base_url . 'event_detail.php?event_id=' . $event_id : '';
@@ -1178,18 +1056,9 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			$location_name = $event['location_name'];
 		}
 
-		$series_id = '';
-		if ( isset( $event['event_id'] ) && '' !== (string) $event['event_id'] ) {
-			$series_id = (string) $event['event_id'];
-		} elseif ( isset( $event['id'] ) && '' !== (string) $event['id'] ) {
-			$series_id = (string) $event['id'];
-		}
-
 		return [
 			'provider'         => 'ccb',
-			'layout'           => 'ccb',
 			'chms_id'          => $event_id,
-			'series_id'        => $series_id,
 			'title'            => trim( $event['name'] ?? '' ),
 			'content'          => $event['description'] ?? '',
 			'excerpt'          => '',
@@ -1197,15 +1066,9 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			'thumbnail_url'    => $thumbnail,
 			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
 			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
-			'timezone'         => $conversion,
-			'timezone_label'   => $timezone_label,
-			'site_timezone'    => $site_timezone,
+			'timezone'         => $zone,
 			'all_day'          => self::is_all_day_span( $local_start, $local_end ),
 			'location_name'    => $location_name,
-			'location_address' => '',
-			'venue'            => null,
-			'registration_url' => '',
-			'registrations'    => [],
 			'event_url'        => $event_url,
 			'visible'          => null,
 			'approval_status'  => array_key_exists( 'approval_status', $event ) ? (string) $event['approval_status'] : '',

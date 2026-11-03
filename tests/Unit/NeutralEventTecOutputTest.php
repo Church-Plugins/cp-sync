@@ -192,29 +192,18 @@ class NeutralEventTecOutputTest extends TestCase {
 		);
 	}
 
-	public function test_pco_calendar_neutral_record_stores_utc_and_series() {
-		list( $instance, $context ) = $this->calendarFixture(
-			[],
-			[
-				'published_starts_at' => '2026-08-01T15:45:00Z',
-				'published_ends_at'   => '2026-08-01T16:45:00Z',
-			]
-		);
+	public function test_pco_calendar_neutral_record_stores_utc() {
+		list( $instance, $context ) = $this->calendarFixture();
 
 		$neutral = $this->makePco()->to_neutral_calendar_event( $instance, $context );
 
 		$this->assertSame( 'pco', $neutral['provider'] );
-		$this->assertSame( 'e1', $neutral['series_id'] );
 		$this->assertSame( '2026-08-01 15:30:00', $neutral['start_utc'] );
 		$this->assertSame( '2026-08-01 17:00:00', $neutral['end_utc'] );
-		$this->assertSame( 'UTC', $neutral['timezone'] );
 		$this->assertSame( 'UTC', $neutral['site_timezone'] );
 		$this->assertSame( 'Church', $neutral['location_name'] );
-		$this->assertSame( '401 Wabash Ave, Granite Falls, WA, 98252', $neutral['location_address'] );
-		$this->assertSame( 'https://example.com/reg', $neutral['registrations'][0]['url'] );
-		$this->assertSame( '2026-08-01 15:45:00', $neutral['published_start_utc'] );
-		$this->assertSame( '2026-08-01 16:45:00', $neutral['published_end_utc'] );
-		$this->assertSame( 'https://church.center/calendar/event/1', $neutral['church_center_url'] );
+		$this->assertSame( 'https://example.com/reg', $neutral['registration_url'] );
+		$this->assertArrayNotHasKey( 'EventTimezone', $this->makePco()->format_event_from_calendar( $instance, $context ) );
 	}
 
 	public function test_tec_times_use_the_site_timezone_not_the_organization_timezone() {
@@ -240,7 +229,6 @@ class NeutralEventTecOutputTest extends TestCase {
 
 		$neutral = $pco->to_neutral_calendar_event( $instance, $context );
 		$this->assertSame( '2026-07-15 18:00:00', $neutral['start_utc'] );
-		$this->assertSame( 'America/Chicago', $neutral['timezone'] );
 		$this->assertSame( 'America/Los_Angeles', $neutral['site_timezone'] );
 	}
 
@@ -280,45 +268,6 @@ class NeutralEventTecOutputTest extends TestCase {
 		$this->assertSame( '30', $late_result['EventStartMinute'] );
 		$this->assertSame( '2026-01-14', $late_result['EventEndDate'] );
 		$this->assertSame( '22', $late_result['EventEndHour'] );
-	}
-
-	public function test_invalid_organization_timezone_falls_back_to_the_site_zone() {
-		list( $instance, $context ) = $this->calendarFixture();
-		$context['organization_timezone'] = 'Not/AZone';
-
-		$result = $this->makePco()->format_event_from_calendar( $instance, $context );
-
-		$this->assertSame( '15', $result['EventStartHour'] );
-		$this->assertArrayNotHasKey( 'EventTimezone', $result );
-		$this->assertSame( '', PCO::timezone_from_organization_payload( [ 'data' => [ 'attributes' => [ 'time_zone' => 'Not/AZone' ] ] ] ) );
-	}
-
-	public function test_organization_payload_reads_time_zone() {
-		$this->assertSame(
-			'America/Chicago',
-			PCO::timezone_from_organization_payload(
-				[
-					'data' => [
-						'type'       => 'Organization',
-						'id'         => '1',
-						'attributes' => [ 'time_zone' => 'America/Chicago' ],
-					],
-				]
-			)
-		);
-
-		$this->assertSame(
-			'America/Denver',
-			PCO::timezone_from_organization_payload(
-				[
-					'data' => [
-						[
-							'attributes' => [ 'time_zone' => 'America/Denver' ],
-						],
-					],
-				]
-			)
-		);
 	}
 
 	public function test_registrations_tec_fields_match_for_the_existing_signup_shape() {
@@ -445,7 +394,6 @@ class NeutralEventTecOutputTest extends TestCase {
 
 		// July in Denver is MDT (UTC-6). The TEC clock stays 14:00 in that zone.
 		$this->assertSame( 'America/Denver', $neutral['timezone'] );
-		$this->assertSame( '586', $neutral['series_id'] );
 		$this->assertSame( '2026-07-15 20:00:00', $neutral['start_utc'] );
 		$this->assertSame( '2026-07-15 22:30:00', $neutral['end_utc'] );
 		$this->assertSame( 'Fellowship Hall', $neutral['location_name'] );
@@ -471,85 +419,54 @@ class NeutralEventTecOutputTest extends TestCase {
 		$this->assertSame( '2026-01-15 07:00:00', $neutral['start_utc'] );
 	}
 
-	public function test_ccb_without_timezone_matches_php_default_not_the_campus_zone() {
-		date_default_timezone_set( 'America/New_York' );
+	public function test_ccb_timezone_valid_invalid_and_missing() {
+		Functions\when( 'wp_timezone' )->justReturn( new \DateTimeZone( 'America/Los_Angeles' ) );
+		date_default_timezone_set( 'UTC' );
 
-		$event = [
+		$base = [
 			'event_id'       => '12',
 			'name'           => 'Prayer',
 			'start_datetime' => '2026-08-05 14:00:00',
 			'end_datetime'   => '2026-08-05 15:00:00',
 		];
-		$context = [ 'organization_timezone' => 'America/Chicago' ];
+		$ccb = $this->makeCcb();
 
-		// Master: new \DateTime( $start ) with no zone, then that zone's name.
-		$master_start = new \DateTime( '2026-08-05 14:00:00' );
-		$master_end   = new \DateTime( '2026-08-05 15:00:00' );
+		$valid = $ccb->format_event( array_merge( $base, [ 'timezone' => 'America/Denver' ] ), [] );
+		$valid_neutral = $ccb->to_neutral_event( array_merge( $base, [ 'timezone' => 'America/Denver' ] ), [] );
+		$this->assertSame( '2026-08-05 14:00:00', $valid['EventStartDate'] );
+		$this->assertSame( 'America/Denver', $valid['EventTimezone'] );
+		// 14:00 MDT is 20:00 UTC.
+		$this->assertSame( '2026-08-05 20:00:00', $valid_neutral['start_utc'] );
 
-		$ccb     = $this->makeCcb();
-		$result  = $ccb->format_event( $event, $context );
-		$neutral = $ccb->to_neutral_event( $event, $context );
+		$missing = $ccb->format_event( $base, [] );
+		$missing_neutral = $ccb->to_neutral_event( $base, [] );
+		$this->assertSame( '2026-08-05 14:00:00', $missing['EventStartDate'] );
+		$this->assertSame( 'America/Los_Angeles', $missing['EventTimezone'] );
+		// 14:00 PDT is 21:00 UTC, not 14:00 UTC from PHP's default zone.
+		$this->assertSame( '2026-08-05 21:00:00', $missing_neutral['start_utc'] );
 
-		$this->assertSame( $master_start->format( 'Y-m-d H:i:s' ), $result['EventStartDate'] );
-		$this->assertSame( $master_end->format( 'Y-m-d H:i:s' ), $result['EventEndDate'] );
-		$this->assertSame( $master_start->getTimezone()->getName(), $result['EventTimezone'] );
-		$this->assertSame( 'America/New_York', $result['EventTimezone'] );
-		$this->assertNotSame( 'America/Chicago', $result['EventTimezone'] );
-		$this->assertSame( 'America/New_York', $neutral['timezone'] );
-		// 14:00 EDT (UTC-4), not 14:00 CDT (UTC-5).
-		$this->assertSame( '2026-08-05 18:00:00', $neutral['start_utc'] );
-		$this->assertSame( '2026-08-05 19:00:00', $neutral['end_utc'] );
+		$invalid = $ccb->format_event( array_merge( $base, [ 'timezone' => 'Not/AZone' ] ), [] );
+		$invalid_neutral = $ccb->to_neutral_event( array_merge( $base, [ 'timezone' => 'Not/AZone' ] ), [] );
+		$this->assertSame( '2026-08-05 14:00:00', $invalid['EventStartDate'] );
+		$this->assertSame( 'America/Los_Angeles', $invalid['EventTimezone'] );
+		$this->assertSame( '2026-08-05 21:00:00', $invalid_neutral['start_utc'] );
+		$this->assertSame( $missing_neutral['end_utc'], $invalid_neutral['end_utc'] );
 	}
 
-	public function test_ccb_without_any_timezone_keeps_the_server_default() {
+	public function test_ccb_without_any_timezone_keeps_the_wordpress_timezone() {
 		$event = [
 			'name'           => 'Untitled',
 			'start_datetime' => '2026-08-05 14:00:00',
 			'end_datetime'   => '2026-08-05 15:00:00',
 		];
 
-		$master_start = new \DateTime( '2026-08-05 14:00:00' );
-		$result       = $this->makeCcb()->format_event( $event, [] );
+		$result = $this->makeCcb()->format_event( $event, [] );
 
-		$this->assertSame( $master_start->format( 'Y-m-d H:i:s' ), $result['EventStartDate'] );
-		$this->assertSame( $master_start->getTimezone()->getName(), $result['EventTimezone'] );
+		$this->assertSame( '2026-08-05 14:00:00', $result['EventStartDate'] );
+		$this->assertSame( 'UTC', $result['EventTimezone'] );
 		$this->assertSame(
-			md5( 'Untitled' . $master_start->getTimestamp() ),
+			md5( 'Untitled' . ( new \DateTime( '2026-08-05 14:00:00' ) )->getTimestamp() ),
 			$result['chms_id']
 		);
-	}
-
-	public function test_campus_helpers_read_the_first_active_campus() {
-		$list = [
-			'response' => [
-				'campuses' => [
-					'campus' => [
-						[
-							'@attributes' => [ 'id' => '4' ],
-							'name'        => 'Closed',
-							'active'      => '0',
-						],
-						[
-							'@attributes' => [ 'id' => '1' ],
-							'name'        => 'Main',
-							'active'      => '1',
-						],
-					],
-				],
-			],
-		];
-
-		$this->assertSame( '1', CCB::first_active_campus_id( $list ) );
-		$this->assertSame(
-			'America/Denver',
-			CCB::timezone_from_campus_profile(
-				[
-					'response' => [
-						'campus' => [ 'timezone' => 'America/Denver' ],
-					],
-				]
-			)
-		);
-		$this->assertSame( '', CCB::timezone_from_campus_profile( [ 'response' => [ 'campus' => [] ] ] ) );
 	}
 }

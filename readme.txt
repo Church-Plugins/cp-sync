@@ -91,6 +91,9 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 
 == Changelog ==
 
+= 1.2.0 =
+* Church Community Builder events that have no timezone of their own now use the WordPress site timezone. On sites whose WordPress timezone isn't UTC, the first resync changes EventTimezone and the UTC start and end once. The local clock time stays the same.
+
 = 1.1.0 =
 * New: Planning Center group leaders now sync to CP Groups. Group Leader gets every leader's name, and Group Leader Email gets the group's contact email, or the email of the first leader who has one (developers can change this with the `cp_sync_pco_group_leader_email` filter). On CP Groups 1.2 or later, leaders are saved as Group Leaders rows instead, each with that leader's own email; the contact email is only used when no leader has one. If the leaders request fails, leaders already stored are kept.
 * Fix: A failed Planning Center groups or tag-group request now stops the groups sync with a logged error, instead of being read as "no data" and removing group types and tag filters. Events and Sermons still sync in the same run.

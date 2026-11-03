@@ -41,9 +41,9 @@ class EventVisibility {
 	/**
 	 * Church Community Builder event row may sync.
 	 *
-	 * The public calendar listing is already limited to approved public
-	 * events and usually omits these flags. When a row does carry an
-	 * approval, draft, or listed flag, only the public approved values pass.
+	 * The public calendar listing does not carry draft, listed, or
+	 * visibility flags. approval_status is the one field the event
+	 * formatter already reads.
 	 *
 	 * @param array $event Normalized event row.
 	 * @return bool
@@ -51,29 +51,6 @@ class EventVisibility {
 	public static function ccb_is_syncable( array $event ) {
 		if ( array_key_exists( 'approval_status', $event ) && self::approval_status_blocks_sync( $event['approval_status'] ) ) {
 			return false;
-		}
-
-		if ( array_key_exists( 'is_approved', $event ) && ! self::is_truthy( $event['is_approved'] ) ) {
-			return false;
-		}
-
-		if ( array_key_exists( 'is_draft', $event ) && self::is_truthy( $event['is_draft'] ) ) {
-			return false;
-		}
-
-		if ( array_key_exists( 'listed', $event ) && ! self::is_truthy( $event['listed'] ) ) {
-			return false;
-		}
-
-		if ( array_key_exists( 'public', $event ) && ! self::is_truthy( $event['public'] ) ) {
-			return false;
-		}
-
-		if ( array_key_exists( 'visibility', $event ) ) {
-			$visibility = strtolower( trim( (string) $event['visibility'] ) );
-			if ( ! in_array( $visibility, array( 'public', 'listed' ), true ) ) {
-				return false;
-			}
 		}
 
 		return true;
@@ -101,20 +78,6 @@ class EventVisibility {
 		}
 
 		return true;
-	}
-
-	/**
-	 * Drop Planning Center calendar rows whose Event is hidden or unapproved.
-	 *
-	 * Rows with no related Event are left in place; the formatter already
-	 * skips those.
-	 *
-	 * @param array $items            Event instance rows.
-	 * @param array $relational_data  Included Event records, keyed by id.
-	 * @return array
-	 */
-	public static function filter_pco_calendar_items( array $items, array $relational_data ) {
-		return self::partition_pco_calendar_items( $items, $relational_data )['kept'];
 	}
 
 	/**

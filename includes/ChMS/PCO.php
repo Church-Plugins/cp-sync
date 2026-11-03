@@ -1656,11 +1656,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * Taxonomies come from calendar only.
 	 *
 	 * @since 0.5.0
-	 * @param array  $results                 Map of source => fetch result ( items/context/taxonomies ).
-	 * @param string $organization_timezone   IANA zone from GET /calendar/v2, or ''.
+	 * @param array $results Map of source => fetch result ( items/context/taxonomies ).
 	 * @return array { items, context => [ relational_data => [ source => data ] ], taxonomies }
 	 */
-	public static function merge_event_sources( array $results, $organization_timezone = '' ) {
+	public static function merge_event_sources( array $results ) {
 		$items      = [];
 		$relational = [];
 		$taxonomies = [];
@@ -1679,17 +1678,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			}
 		}
 
-		$context = [
-			'relational_data' => $relational,
-		];
-
-		if ( is_string( $organization_timezone ) && '' !== $organization_timezone ) {
-			$context['organization_timezone'] = $organization_timezone;
-		}
-
 		return [
 			'items'      => $items,
-			'context'    => $context,
+			'context'    => [
+				'relational_data' => $relational,
+			],
 			'taxonomies' => $taxonomies,
 		];
 	}
@@ -1717,8 +1710,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			return new ChMSError( 'pco_fetch_error', 'No event source enabled' );
 		}
 
-		$organization_timezone = $this->fetch_organization_timezone();
-		$results               = [];
+		$results = [];
 
 		foreach ( $sources as $src ) {
 			if ( 'calendar' === $src ) {
@@ -1735,72 +1727,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$results[ $src ] = $result;
 		}
 
-		return self::merge_event_sources( $results, $organization_timezone );
-	}
-
-	/**
-	 * Read the organization time_zone from GET /calendar/v2.
-	 *
-	 * One request per sync. A missing or unusable value does not abort the
-	 * pull; formatters then keep using the WordPress site timezone.
-	 *
-	 * @return string IANA zone, or ''.
-	 */
-	public function fetch_organization_timezone() {
-		try {
-			$root = $this->api()
-				->module( 'calendar' )
-				->table( '' )
-				->get( 1 );
-		} catch ( \Throwable $e ) {
-			cp_sync()->logging->log( 'Calendar organization timezone request failed: ' . $e->getMessage() );
-			return '';
-		}
-
-		if ( false === $root || ! empty( $this->api()->errorMessage() ) ) {
-			$error = $this->api()->errorMessage();
-			cp_sync()->logging->log( 'Calendar organization timezone unavailable: ' . ( is_scalar( $error ) && '' !== (string) $error ? (string) $error : 'request failed' ) );
-			return '';
-		}
-
-		$timezone = self::timezone_from_organization_payload( $root );
-
-		if ( '' === $timezone ) {
-			cp_sync()->logging->log( 'Calendar organization response did not include a usable time_zone. Event times will use the site timezone.' );
-			return '';
-		}
-
-		cp_sync()->logging->log( 'Calendar organization timezone: ' . $timezone );
-
-		return $timezone;
-	}
-
-	/**
-	 * Pull time_zone off a Planning Center organization payload.
-	 *
-	 * Accepts the single-resource shape (`data.attributes`) and a one-item
-	 * list (`data.0.attributes`). Returns '' when the zone is missing or
-	 * not a zone PHP can apply.
-	 *
-	 * @param mixed $payload Decoded organization response.
-	 * @return string
-	 */
-	public static function timezone_from_organization_payload( $payload ) {
-		if ( ! is_array( $payload ) ) {
-			return '';
-		}
-
-		$attributes = null;
-
-		if ( isset( $payload['data']['attributes'] ) && is_array( $payload['data']['attributes'] ) ) {
-			$attributes = $payload['data']['attributes'];
-		} elseif ( isset( $payload['data'][0]['attributes'] ) && is_array( $payload['data'][0]['attributes'] ) ) {
-			$attributes = $payload['data'][0]['attributes'];
-		}
-
-		$timezone = is_array( $attributes ) ? ( $attributes['time_zone'] ?? '' ) : '';
-
-		return \CP_Sync\Events\EventTime::is_valid_timezone( $timezone ) ? $timezone : '';
+		return self::merge_event_sources( $results );
 	}
 
 	/**
@@ -1817,10 +1744,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		// Dual-source path: namespaced relational data, one slice per formatter.
 		if ( null !== $source && isset( $context['relational_data'][ $source ] ) ) {
 			$sub_context = [ 'relational_data' => $context['relational_data'][ $source ] ];
-
-			if ( isset( $context['organization_timezone'] ) ) {
-				$sub_context['organization_timezone'] = $context['organization_timezone'];
-			}
 
 			if ( 'calendar' === $source ) {
 				return $this->format_event_from_calendar( $event, $sub_context );
@@ -2122,12 +2045,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Build the provider-neutral record for one Planning Center calendar instance.
 	 *
-	 * Times are stored in UTC. The zone is the organization time_zone from
-	 * GET /calendar/v2 when the fetch supplied one, otherwise the WordPress
-	 * site timezone (the previous behavior).
+	 * Times are stored in UTC. The Events Calendar receives them in the
+	 * WordPress site timezone. Hidden and unapproved rows are dropped in
+	 * fetch_events_from_calendar(), not here.
 	 *
 	 * @param array $event_instance The event instance to format.
-	 * @param array $context        Relational data and, when known, organization_timezone.
+	 * @param array $context        Relational data.
 	 * @return array|false Neutral record, or false when the instance should be skipped.
 	 */
 	public function to_neutral_calendar_event( $event_instance, $context ) {
@@ -2141,19 +2064,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		$event      = $relational_data['Event'][ $event_id ] ?? [];
 		$attributes = $event['attributes'] ?? [];
-
-		// Same gate as the fetch filter. Show All does not skip these rows.
-		if ( $this->calendar_visibility_is_restrictive() && ! \CP_Sync\Events\EventVisibility::pco_calendar_is_syncable( $attributes ) ) {
-			\CP_Sync\Events\VisibilityRemovalNotice::record_skip( $event_instance['id'] ?? '' );
-			cp_sync()->logging->log(
-				sprintf(
-					'Skipping calendar event %s (%s): hidden in Church Center or not approved',
-					$event_instance['id'] ?? '?',
-					$attributes['name'] ?? 'unnamed'
-				)
-			);
-			return false;
-		}
 
 		$time_ids  = wp_list_pluck( $event_instance['relationships']['event_times']['data'], 'id' );
 		$date_time = current( $time_ids );
@@ -2176,31 +2086,17 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			return false;
 		}
 
-		$timezone      = $this->resolve_event_timezone( $context )[0];
-		$site_timezone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
-
+		$site_timezone    = \CP_Sync\Events\EventTime::wordpress_timezone_name();
 		$registration_url = $attributes['registration_url'] ?? '';
-		$registrations    = [];
-
-		if ( '' !== $registration_url ) {
-			$registrations[] = [
-				'label' => '',
-				'url'   => $registration_url,
-				'type'  => 'registration',
-			];
-		}
-
 		$venue            = [];
 		$location_name    = '';
-		$location_address = '';
 
 		if ( ! empty( $event_instance['attributes']['location'] ) ) {
 			$venue = self::parse_calendar_location( $event_instance['attributes']['location'] );
 			if ( empty( $venue['venue'] ) ) {
 				$venue = [];
 			} else {
-				$location_name    = $venue['venue'];
-				$location_address = self::venue_address_line( $venue );
+				$location_name = $venue['venue'];
 			}
 		}
 
@@ -2218,35 +2114,24 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		return [
-			'provider'             => 'pco',
-			'layout'               => 'calendar',
-			'chms_id'              => $event_instance['id'],
-			'series_id'            => (string) $event_id,
-			'title'                => $attributes['name'] ?? '',
-			'content'              => $attributes['description'] ?? '',
-			'excerpt'              => $attributes['summary'] ?? '',
-			'post_status'          => 'publish',
-			'thumbnail_url'        => $attributes['image_url'] ?? '',
-			'start_utc'            => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
-			'end_utc'              => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
-			'timezone'             => $timezone,
-			'site_timezone'        => $site_timezone,
-			'all_day'              => $event_instance['attributes']['all_day_event'] ?? false,
-			'location_name'        => $location_name,
-			'location_address'     => $location_address,
-			'venue'                => $venue,
-			'registration_url'     => $registration_url,
-			'registrations'        => $registrations,
-			'event_url'            => $registration_url,
-			'visible'              => array_key_exists( 'visible_in_church_center', $attributes ) ? \CP_Sync\Events\EventVisibility::is_truthy( $attributes['visible_in_church_center'] ) : null,
-			'approval_status'      => array_key_exists( 'approval_status', $attributes ) ? (string) $attributes['approval_status'] : '',
-			'church_center_url'    => $event_instance['attributes']['church_center_url'] ?? '',
-			'published_start_utc'  => self::optional_utc( $event_instance['attributes']['published_starts_at'] ?? '' ),
-			'published_end_utc'    => self::optional_utc( $event_instance['attributes']['published_ends_at'] ?? '' ),
-			'link_only'            => \CP_Sync\Events\EventVisibility::is_truthy( $attributes['link_only'] ?? false ),
-			'tax_input'            => $tax_input,
-			'event_category'       => [],
-			'meta_input'           => [
+			'provider'         => 'pco',
+			'chms_id'          => $event_instance['id'],
+			'title'            => $attributes['name'] ?? '',
+			'content'          => $attributes['description'] ?? '',
+			'excerpt'          => $attributes['summary'] ?? '',
+			'post_status'      => 'publish',
+			'thumbnail_url'    => $attributes['image_url'] ?? '',
+			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
+			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
+			'site_timezone'    => $site_timezone,
+			'all_day'          => $event_instance['attributes']['all_day_event'] ?? false,
+			'location_name'    => $location_name,
+			'venue'            => $venue,
+			'registration_url' => $registration_url,
+			'event_url'        => $registration_url,
+			'tax_input'        => $tax_input,
+			'event_category'   => [],
+			'meta_input'       => [
 				'registration_url' => $registration_url,
 			],
 		];
@@ -2262,66 +2147,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 */
 	public function calendar_visibility_is_restrictive() {
 		return 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
-	}
-
-	/**
-	 * Zone used to project UTC instants into TEC local fields.
-	 *
-	 * @param array $context Formatter context.
-	 * @return array{0: string, 1: bool} Zone name, and whether it came from the ChMS.
-	 */
-	protected function resolve_event_timezone( array $context ) {
-		$from_chms = \CP_Sync\Events\EventTime::first_valid_timezone(
-			[
-				$context['organization_timezone'] ?? '',
-			]
-		);
-
-		if ( '' !== $from_chms ) {
-			return [ $from_chms, true ];
-		}
-
-		$site = function_exists( 'wp_timezone' ) ? wp_timezone() : null;
-
-		if ( $site instanceof \DateTimeZone ) {
-			return [ $site->getName(), false ];
-		}
-
-		return [ 'UTC', false ];
-	}
-
-	/**
-	 * UTC `Y-m-d H:i:s` for an optional source instant, or ''.
-	 *
-	 * @param mixed $value Source datetime.
-	 * @return string
-	 */
-	protected static function optional_utc( $value ) {
-		if ( ! is_string( $value ) || '' === $value ) {
-			return '';
-		}
-
-		$instant = \CP_Sync\Events\EventTime::to_utc( $value );
-
-		return null === $instant ? '' : \CP_Sync\Events\EventTime::format_utc( $instant );
-	}
-
-	/**
-	 * Single address line from a TEC venue array.
-	 *
-	 * @param array $venue Venue args.
-	 * @return string
-	 */
-	protected static function venue_address_line( array $venue ) {
-		$parts = [];
-
-		foreach ( [ 'address', 'city', 'state', 'zip' ] as $key ) {
-			if ( ! empty( $venue[ $key ] ) ) {
-				$parts[] = $venue[ $key ];
-			}
-		}
-
-		return implode( ', ', $parts );
 	}
 
 	/**
@@ -2349,7 +2174,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * Church Center visibility and approval apply to calendar Events only.
 	 *
 	 * @param array $signup  The signup to format.
-	 * @param array $context Relational data and, when known, organization_timezone.
+	 * @param array $context Relational data.
 	 * @return array|false Neutral record, or false when the signup should be skipped.
 	 */
 	public function to_neutral_registration_event( $signup, $context ) {
@@ -2395,7 +2220,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			return false;
 		}
 
-		$timezone      = $this->resolve_event_timezone( $context )[0];
 		$site_timezone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
 
 		$registration_url = $signup['attributes']['new_registration_url'] ?? '';
@@ -2439,39 +2263,23 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			}
 		}
 
-		$registrations = [];
-		if ( '' !== $registration_url ) {
-			$registrations[] = [
-				'label' => '',
-				'url'   => $registration_url,
-				'type'  => 'registration',
-			];
-		}
-
 		return [
-			'provider'          => 'pco',
-			'layout'            => 'registrations',
-			'chms_id'           => 'reg_' . $signup['id'],
-			'series_id'         => '',
-			'title'             => $signup['attributes']['name'] ?? '',
-			'content'           => $signup['attributes']['description'] ?? '',
-			'excerpt'           => '',
-			'post_status'       => 'publish',
-			'thumbnail_url'     => ! empty( $signup['attributes']['logo_url'] ) ? $signup['attributes']['logo_url'] : '',
-			'start_utc'         => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
-			'end_utc'           => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
-			'timezone'          => $timezone,
-			'site_timezone'     => $site_timezone,
-			'all_day'           => (bool) $all_day,
-			'location_name'     => $venue['venue'] ?? '',
-			'location_address'  => self::venue_address_line( $venue ),
-			'venue'             => $venue,
-			'registration_url'  => $registration_url,
-			'registrations'     => $registrations,
-			'event_url'         => '',
-			'visible'           => null,
-			'approval_status'   => '',
-			'tax_input'         => [],
+			'provider'         => 'pco',
+			'chms_id'          => 'reg_' . $signup['id'],
+			'title'            => $signup['attributes']['name'] ?? '',
+			'content'          => $signup['attributes']['description'] ?? '',
+			'excerpt'          => '',
+			'post_status'      => 'publish',
+			'thumbnail_url'    => ! empty( $signup['attributes']['logo_url'] ) ? $signup['attributes']['logo_url'] : '',
+			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
+			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
+			'site_timezone'    => $site_timezone,
+			'all_day'          => (bool) $all_day,
+			'location_name'    => $venue['venue'] ?? '',
+			'venue'            => $venue,
+			'registration_url' => $registration_url,
+			'event_url'        => '',
+			'tax_input'        => [],
 			'event_category'    => $categories,
 			'meta_input'        => $meta_input,
 		];
