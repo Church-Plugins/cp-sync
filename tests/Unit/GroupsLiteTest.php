@@ -364,7 +364,7 @@ class GroupsLiteTest extends TestCase {
 			],
 		];
 
-		Lite::maybe_upgrade( false );
+		Lite::get_instance()->on_init( '' );
 
 		$this->assertFalse( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
 		$this->assertFalse( Lite::display_default() );
@@ -375,10 +375,32 @@ class GroupsLiteTest extends TestCase {
 			\CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'groups', Lite::stored_sync_groups() )
 		);
 
-		Lite::get_instance()->on_init( false );
-
 		$this->assertNull( $this->registered_post_type );
 		$this->assertFalse( Lite::is_registered() );
+	}
+
+	/**
+	 * WordPress calls init callbacks with an empty string, not null.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_empty_init_argument_with_cp_groups_saves_sync_groups_true() {
+		eval( 'namespace { function cp_groups() { return true; } }' );
+
+		$this->options['cp_sync_settings']     = [
+			'chms' => 'pco',
+		];
+		$this->options['cp_sync_pco_settings'] = [
+			'connect' => [
+				'subdomain' => 'demo',
+			],
+		];
+
+		Lite::get_instance()->on_init( '' );
+
+		$this->assertTrue( function_exists( 'cp_groups' ) );
+		$this->assertTrue( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
 	}
 
 	public function test_upgrade_with_cp_groups_keeps_the_1_1_sync_default() {

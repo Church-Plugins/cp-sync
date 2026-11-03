@@ -312,7 +312,9 @@ class Lite {
 	 * only marked current; their toggles stay unsaved and default on.
 	 *
 	 * @since 1.2.0
-	 * @param bool|null $cp_groups_active Null checks cp_groups().
+	 * @param bool|null $cp_groups_active True when cp_groups() exists. Anything
+	 *                                    other than a bool ( WordPress passes ''
+	 *                                    to init callbacks ) detects it.
 	 * @return void
 	 */
 	public static function maybe_upgrade( $cp_groups_active = null ) {
@@ -322,7 +324,7 @@ class Lite {
 			return;
 		}
 
-		if ( null === $cp_groups_active ) {
+		if ( ! is_bool( $cp_groups_active ) ) {
 			$cp_groups_active = function_exists( 'cp_groups' );
 		}
 
@@ -424,11 +426,13 @@ class Lite {
 	 * Late init: register Lite, or record that CP Groups owns the posts.
 	 *
 	 * @since 1.2.0
-	 * @param bool|null $cp_groups_active Null checks cp_groups(). Tests pass a bool.
+	 * @param bool|null $cp_groups_active True when cp_groups() exists. Anything
+	 *                                    other than a bool ( WordPress passes ''
+	 *                                    to init callbacks ) detects it. Tests pass a bool.
 	 * @return void
 	 */
 	public function on_init( $cp_groups_active = null ) {
-		if ( null === $cp_groups_active ) {
+		if ( ! is_bool( $cp_groups_active ) ) {
 			$cp_groups_active = function_exists( 'cp_groups' );
 		}
 

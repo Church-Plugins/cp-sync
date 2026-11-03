@@ -92,7 +92,9 @@
 .cp-sync-groups .page-numbers {
 	display: inline-flex;
 	align-items: center;
+	justify-content: center;
 	box-sizing: border-box;
+	min-width: 44px;
 	min-height: 44px;
 	padding: 0 0.75rem;
 }
