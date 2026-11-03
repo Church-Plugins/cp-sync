@@ -49,6 +49,13 @@ class GroupsLiteTest extends TestCase {
 	 */
 	private $type_exists = false;
 
+	/**
+	 * Value seen by a re-entrant Sync Groups read.
+	 *
+	 * @var mixed
+	 */
+	private $reentrant_sync = null;
+
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
@@ -72,6 +79,7 @@ class GroupsLiteTest extends TestCase {
 
 	protected function tearDown(): void {
 		$this->reset_registered_flag();
+		$this->reset_settings_read_state();
 		Monkey\tearDown();
 		parent::tearDown();
 	}
@@ -148,7 +156,9 @@ class GroupsLiteTest extends TestCase {
 			],
 		];
 
-		$this->assertTrue( Lite::is_existing_install() );
+		Lite::maybe_upgrade( false );
+
+		$this->assertTrue( Lite::upgraded_before_groups_display() );
 		$this->assertFalse( Lite::groups_sync_is_on() );
 		$this->assertFalse( Lite::display_default() );
 		$this->assertFalse( Lite::is_display_enabled() );
@@ -161,7 +171,8 @@ class GroupsLiteTest extends TestCase {
 
 	public function test_existing_install_registers_when_sync_and_display_are_on() {
 		$this->options['cp_sync_settings']     = [
-			'chms' => 'ccb',
+			'chms'                  => 'ccb',
+			'displayGroupsWithSync' => true,
 		];
 		$this->options['cp_sync_ccb_settings'] = [
 			'connect' => [
@@ -342,11 +353,10 @@ class GroupsLiteTest extends TestCase {
 		$this->assertStringNotContainsString( '<img', $bare );
 	}
 
-	public function test_unsaved_sync_groups_matches_the_engine_on_an_existing_install() {
+	public function test_upgraded_events_only_site_does_not_sync_or_register_groups() {
 		$this->options['cp_sync_settings']     = [
-			'chms'                  => 'pco',
-			'displayGroupsWithSync' => true,
-			'updateInterval'        => 'hourly',
+			'chms'           => 'pco',
+			'updateInterval' => 'hourly',
 		];
 		$this->options['cp_sync_pco_settings'] = [
 			'connect' => [
@@ -354,13 +364,74 @@ class GroupsLiteTest extends TestCase {
 			],
 		];
 
-		$engine = \CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'groups', Lite::stored_sync_groups() );
+		Lite::maybe_upgrade( false );
 
-		$this->assertTrue( Lite::is_existing_install() );
-		$this->assertNull( Lite::stored_sync_groups() );
-		$this->assertTrue( $engine );
-		$this->assertSame( $engine, Lite::groups_sync_is_on() );
-		$this->assertSame( $engine, Lite::should_register() );
+		$this->assertFalse( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
+		$this->assertFalse( Lite::display_default() );
+		$this->assertFalse( Lite::is_display_enabled() );
+		$this->assertFalse( Lite::groups_sync_is_on() );
+		$this->assertFalse( Lite::should_register() );
+		$this->assertFalse(
+			\CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'groups', Lite::stored_sync_groups() )
+		);
+
+		Lite::get_instance()->on_init( false );
+
+		$this->assertNull( $this->registered_post_type );
+		$this->assertFalse( Lite::is_registered() );
+	}
+
+	public function test_upgrade_with_cp_groups_keeps_the_1_1_sync_default() {
+		$this->options['cp_sync_settings']     = [
+			'chms' => 'pco',
+		];
+		$this->options['cp_sync_pco_settings'] = [
+			'connect' => [
+				'subdomain' => 'demo',
+			],
+		];
+
+		Lite::maybe_upgrade( true );
+
+		$this->assertTrue( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
+		$this->assertSame(
+			(bool) \CP_Sync\ChMS\ChMS::sync_toggle_default( 'groups' ),
+			Lite::groups_sync_is_on()
+		);
+		$this->assertFalse( Lite::display_default() );
+		$this->assertFalse( Lite::should_register() );
+	}
+
+	public function test_reentrant_chms_settings_read_is_not_unsaved() {
+		$test = $this;
+		Functions\when( 'get_option' )->alias(
+			static function ( $option, $default = false ) use ( $test ) {
+				if ( 'cp_sync_pco_settings' === $option ) {
+					$test->reentrant_sync = Lite::stored_sync_groups();
+
+					return [
+						'connect' => [
+							'sync_groups' => false,
+						],
+					];
+				}
+
+				if ( ! array_key_exists( $option, $test->options ) ) {
+					return $default;
+				}
+
+				return $test->options[ $option ];
+			}
+		);
+
+		$this->options['cp_sync_settings'] = [ 'chms' => 'pco' ];
+
+		$outer = Lite::stored_sync_groups();
+
+		$this->assertSame( Lite::SETTINGS_READ_IN_PROGRESS, $this->reentrant_sync );
+		$this->assertNotNull( $this->reentrant_sync );
+		$this->assertFalse( $outer );
+		$this->assertFalse( Lite::groups_sync_is_on() );
 	}
 
 	public function test_fresh_install_follows_the_sync_default_even_after_global_settings_are_saved() {
@@ -376,11 +447,16 @@ class GroupsLiteTest extends TestCase {
 			'updateInterval' => 'hourly',
 		];
 
-		$this->assertFalse( Lite::is_existing_install() );
+		Lite::maybe_upgrade( false );
+
+		$this->assertFalse( Lite::upgraded_before_groups_display() );
+		$this->assertNull( Lite::stored_sync_groups() );
+		$this->assertTrue( Lite::display_default() );
 		$this->assertSame(
 			\CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'groups', null ),
-			Lite::should_register()
+			Lite::groups_sync_is_on()
 		);
+		$this->assertTrue( Lite::should_register() );
 	}
 
 	public function test_shortcode_count_and_group_type_build_the_query() {
@@ -597,5 +673,18 @@ class GroupsLiteTest extends TestCase {
 		$property = new ReflectionProperty( Lite::class, 'registered' );
 		$property->setAccessible( true );
 		$property->setValue( null, false );
+	}
+
+	/**
+	 * @return void
+	 */
+	private function reset_settings_read_state() {
+		$reading = new ReflectionProperty( Lite::class, 'reading_chms_settings' );
+		$reading->setAccessible( true );
+		$reading->setValue( null, false );
+
+		$cache = new ReflectionProperty( Lite::class, 'chms_settings_cache' );
+		$cache->setAccessible( true );
+		$cache->setValue( null, [] );
 	}
 }

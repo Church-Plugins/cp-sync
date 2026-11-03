@@ -40,6 +40,38 @@ class Lite {
 	const REWRITE_STATE_OPTION = 'cp_sync_groups_rewrite_state';
 
 	/**
+	 * Stored plugin data version. 1.1.0 did not write this option.
+	 *
+	 * @var string
+	 */
+	const DB_VERSION_OPTION = 'cp_sync_db_version';
+
+	/**
+	 * Set when the 1.2.0 upgrade ran on a site that was already using CP Sync.
+	 *
+	 * Display groups stays off until an admin saves the toggle.
+	 *
+	 * @var string
+	 */
+	const UPGRADED_BEFORE_DISPLAY_OPTION = 'cp_sync_upgraded_before_1_2';
+
+	/**
+	 * Returned by a ChMS settings read that happens inside another ChMS settings read.
+	 *
+	 * This is not "unsaved". Callers must not pass it to sync_setting_is_enabled().
+	 *
+	 * @var string
+	 */
+	const SETTINGS_READ_IN_PROGRESS = '__cp_sync_settings_read_in_progress__';
+
+	/**
+	 * Release that introduces the groups display opt-in.
+	 *
+	 * @var string
+	 */
+	const GROUPS_OPT_IN_VERSION = '1.2.0';
+
+	/**
 	 * @var Lite
 	 */
 	protected static $instance;
@@ -61,6 +93,13 @@ class Lite {
 	 * @var bool
 	 */
 	protected static $reading_chms_settings = false;
+
+	/**
+	 * Last completed ChMS settings read, keyed by option name.
+	 *
+	 * @var array<string,mixed>
+	 */
+	protected static $chms_settings_cache = [];
 
 	/**
 	 * @return Lite
@@ -147,33 +186,46 @@ class Lite {
 	/**
 	 * Default for a missing display toggle.
 	 *
-	 * Events-only sites saved Sync Groups off. The display toggle stays off for
-	 * them so an upgrade does not add /groups/. An unsaved Sync Groups value is
-	 * on, the same as the sync engine, so the display toggle defaults on too.
+	 * Fresh installs are on. A site upgraded from before 1.2.0 is off until an
+	 * admin turns it on. The upgrade does not start showing groups.
 	 *
 	 * @since 1.2.0
 	 * @return bool
 	 */
 	public static function display_default() {
-		if ( self::is_existing_install() && ! self::groups_sync_is_on() ) {
-			return false;
-		}
+		return ! self::upgraded_before_groups_display();
+	}
 
-		return true;
+	/**
+	 * Whether this site was already using CP Sync when 1.2.0 first ran.
+	 *
+	 * @since 1.2.0
+	 * @return bool
+	 */
+	public static function upgraded_before_groups_display() {
+		return (bool) get_option( self::UPGRADED_BEFORE_DISPLAY_OPTION, false );
 	}
 
 	/**
 	 * Whether Groups sync is turned on for the active ChMS.
 	 *
 	 * Uses ChMS::sync_setting_is_enabled(), the same check as the pull. An
-	 * unsaved toggle is on for groups. Registration must follow that, or the
-	 * sync writes cp_group posts while /groups/ is not a registered archive.
+	 * unsaved toggle is on for groups. After the 1.2.0 upgrade, events-only
+	 * sites have sync_groups saved false, so the pull and registration agree.
+	 *
+	 * A read that lands inside another ChMS settings read is not "unsaved".
 	 *
 	 * @since 1.2.0
 	 * @return bool
 	 */
 	public static function groups_sync_is_on() {
-		return \CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'groups', self::stored_sync_groups() );
+		$stored = self::stored_sync_groups();
+
+		if ( self::SETTINGS_READ_IN_PROGRESS === $stored ) {
+			return false;
+		}
+
+		return \CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'groups', $stored );
 	}
 
 	/**
@@ -185,6 +237,10 @@ class Lite {
 	public static function stored_sync_groups() {
 		$chms_id  = self::active_chms_id();
 		$settings = self::read_chms_settings( 'cp_sync_' . $chms_id . '_settings' );
+
+		if ( self::SETTINGS_READ_IN_PROGRESS === $settings ) {
+			return self::SETTINGS_READ_IN_PROGRESS;
+		}
 
 		if ( ! is_array( $settings ) || ! isset( $settings['connect'] ) || ! is_array( $settings['connect'] ) ) {
 			return null;
@@ -228,14 +284,101 @@ class Lite {
 	 */
 	protected static function read_chms_settings( $option ) {
 		if ( self::$reading_chms_settings ) {
-			return null;
+			if ( array_key_exists( $option, self::$chms_settings_cache ) ) {
+				return self::$chms_settings_cache[ $option ];
+			}
+
+			return self::SETTINGS_READ_IN_PROGRESS;
 		}
 
 		self::$reading_chms_settings = true;
 		$value = get_option( $option, null );
 		self::$reading_chms_settings = false;
 
+		if ( self::SETTINGS_READ_IN_PROGRESS !== $value ) {
+			self::$chms_settings_cache[ $option ] = $value;
+		}
+
 		return $value;
+	}
+
+	/**
+	 * One-time upgrade from before 1.2.0.
+	 *
+	 * Saves the 1.1.0 Sync Groups state. Groups only synced when CP Groups was
+	 * active, so an unsaved toggle with CP Groups absent is stored false. An
+	 * unsaved toggle with CP Groups active is stored as that version's default
+	 * (on). A value the admin already saved is left alone. Fresh installs are
+	 * only marked current; their toggles stay unsaved and default on.
+	 *
+	 * @since 1.2.0
+	 * @param bool|null $cp_groups_active Null checks cp_groups().
+	 * @return void
+	 */
+	public static function maybe_upgrade( $cp_groups_active = null ) {
+		$stored = get_option( self::DB_VERSION_OPTION, '' );
+
+		if ( is_string( $stored ) && '' !== $stored && version_compare( $stored, self::GROUPS_OPT_IN_VERSION, '>=' ) ) {
+			return;
+		}
+
+		if ( null === $cp_groups_active ) {
+			$cp_groups_active = function_exists( 'cp_groups' );
+		}
+
+		if ( self::has_pre_1_2_data() ) {
+			self::freeze_sync_groups_from_1_1( $cp_groups_active );
+			update_option( self::UPGRADED_BEFORE_DISPLAY_OPTION, 1, false );
+		}
+
+		update_option( self::DB_VERSION_OPTION, self::GROUPS_OPT_IN_VERSION, false );
+	}
+
+	/**
+	 * ChMS settings saved by a copy of CP Sync from before the display toggle.
+	 *
+	 * Global settings alone do not count. A new site saves those as soon as an
+	 * admin picks a church management system.
+	 *
+	 * @since 1.2.0
+	 * @return bool
+	 */
+	public static function has_pre_1_2_data() {
+		return self::is_existing_install();
+	}
+
+	/**
+	 * Persist the 1.1.0 effective Sync Groups value when it was never saved.
+	 *
+	 * @since 1.2.0
+	 * @param bool $cp_groups_active Whether cp_groups() exists during the upgrade.
+	 * @return void
+	 */
+	public static function freeze_sync_groups_from_1_1( $cp_groups_active ) {
+		$effective = $cp_groups_active
+			? (bool) \CP_Sync\ChMS\ChMS::sync_toggle_default( 'groups' )
+			: false;
+
+		foreach ( [ 'pco', 'ccb' ] as $chms_id ) {
+			$option   = 'cp_sync_' . $chms_id . '_settings';
+			$settings = self::read_chms_settings( $option );
+
+			if ( ! is_array( $settings ) ) {
+				continue;
+			}
+
+			if ( ! isset( $settings['connect'] ) || ! is_array( $settings['connect'] ) ) {
+				$settings['connect'] = [];
+			}
+
+			if ( array_key_exists( 'sync_groups', $settings['connect'] ) ) {
+				continue;
+			}
+
+			$settings['connect']['sync_groups'] = $effective;
+			update_option( $option, $settings );
+			self::$chms_settings_cache[ $option ] = $settings;
+		}
 	}
 
 	/**
@@ -288,6 +431,8 @@ class Lite {
 		if ( null === $cp_groups_active ) {
 			$cp_groups_active = function_exists( 'cp_groups' );
 		}
+
+		self::maybe_upgrade( $cp_groups_active );
 
 		add_shortcode( 'cp-sync-groups', [ Display::class, 'shortcode' ] );
 

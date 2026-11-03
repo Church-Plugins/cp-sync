@@ -87,7 +87,7 @@ option on the event itself rather than this filter.
 
 ## Groups Lite templates
 
-When CP Groups is not active, **Display groups with CP Sync** is on, and **Sync Groups** is on for the active church management system, CP Sync registers `cp_group` (archive slug `groups`) plus `cp_group_type`, `cp_group_category`, and `cp_group_life_stage`. An events-only site does not get that archive. On an upgrade that had Groups sync off, the display toggle defaults off. Activating CP Groups registers those same names and takes over the posts. The life-stage rewrite slug stays `life stages` (with the space) until a follow-up in both plugins.
+When CP Groups is not active, **Display groups with CP Sync** is on, and **Sync Groups** is on for the active church management system, CP Sync registers `cp_group` (archive slug `groups`) plus `cp_group_type`, `cp_group_category`, and `cp_group_life_stage`. An events-only site does not get that archive. On a site that was using CP Sync before 1.2.0, the display toggle defaults off until an admin turns it on. The 1.2.0 upgrade also saves the 1.1.0 Sync Groups state: unsaved, with CP Groups inactive, is stored off. Activating CP Groups registers those same names and takes over the posts. The life-stage rewrite slug stays `life stages` (with the space) until a follow-up in both plugins.
 
 Theme overrides live in `cp-sync/` inside the theme:
 
