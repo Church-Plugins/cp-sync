@@ -471,28 +471,34 @@ class NeutralEventTecOutputTest extends TestCase {
 		$this->assertSame( '2026-01-15 07:00:00', $neutral['start_utc'] );
 	}
 
-	public function test_ccb_campus_timezone_is_used_when_the_row_has_none() {
+	public function test_ccb_without_timezone_matches_php_default_not_the_campus_zone() {
+		date_default_timezone_set( 'America/New_York' );
+
 		$event = [
 			'event_id'       => '12',
 			'name'           => 'Prayer',
 			'start_datetime' => '2026-08-05 14:00:00',
 			'end_datetime'   => '2026-08-05 15:00:00',
 		];
+		$context = [ 'organization_timezone' => 'America/Chicago' ];
 
-		$result = $this->makeCcb()->format_event(
-			$event,
-			[ 'organization_timezone' => 'America/Chicago' ]
-		);
+		// Master: new \DateTime( $start ) with no zone, then that zone's name.
+		$master_start = new \DateTime( '2026-08-05 14:00:00' );
+		$master_end   = new \DateTime( '2026-08-05 15:00:00' );
 
-		$this->assertSame( '2026-08-05 14:00:00', $result['EventStartDate'] );
-		$this->assertSame( 'America/Chicago', $result['EventTimezone'] );
+		$ccb     = $this->makeCcb();
+		$result  = $ccb->format_event( $event, $context );
+		$neutral = $ccb->to_neutral_event( $event, $context );
 
-		$neutral = $this->makeCcb()->to_neutral_event(
-			$event,
-			[ 'organization_timezone' => 'America/Chicago' ]
-		);
-		// August in Chicago is CDT (UTC-5).
-		$this->assertSame( '2026-08-05 19:00:00', $neutral['start_utc'] );
+		$this->assertSame( $master_start->format( 'Y-m-d H:i:s' ), $result['EventStartDate'] );
+		$this->assertSame( $master_end->format( 'Y-m-d H:i:s' ), $result['EventEndDate'] );
+		$this->assertSame( $master_start->getTimezone()->getName(), $result['EventTimezone'] );
+		$this->assertSame( 'America/New_York', $result['EventTimezone'] );
+		$this->assertNotSame( 'America/Chicago', $result['EventTimezone'] );
+		$this->assertSame( 'America/New_York', $neutral['timezone'] );
+		// 14:00 EDT (UTC-4), not 14:00 CDT (UTC-5).
+		$this->assertSame( '2026-08-05 18:00:00', $neutral['start_utc'] );
+		$this->assertSame( '2026-08-05 19:00:00', $neutral['end_utc'] );
 	}
 
 	public function test_ccb_without_any_timezone_keeps_the_server_default() {
@@ -502,12 +508,13 @@ class NeutralEventTecOutputTest extends TestCase {
 			'end_datetime'   => '2026-08-05 15:00:00',
 		];
 
-		$result = $this->makeCcb()->format_event( $event, [] );
+		$master_start = new \DateTime( '2026-08-05 14:00:00' );
+		$result       = $this->makeCcb()->format_event( $event, [] );
 
-		$this->assertSame( '2026-08-05 14:00:00', $result['EventStartDate'] );
-		$this->assertSame( 'UTC', $result['EventTimezone'] );
+		$this->assertSame( $master_start->format( 'Y-m-d H:i:s' ), $result['EventStartDate'] );
+		$this->assertSame( $master_start->getTimezone()->getName(), $result['EventTimezone'] );
 		$this->assertSame(
-			md5( 'Untitled' . ( new \DateTime( '2026-08-05 14:00:00' ) )->getTimestamp() ),
+			md5( 'Untitled' . $master_start->getTimestamp() ),
 			$result['chms_id']
 		);
 	}

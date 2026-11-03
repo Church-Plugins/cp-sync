@@ -80,7 +80,7 @@ Use the **Date Range** setting on the CCB **Events** tab:
 
 If you use **Custom date range**, the Start and End Dates do not move on their own. Check that the End Date is far enough out, or events after it won't sync.
 
-The public calendar listing is already limited to approved public events. A row that is marked unapproved, draft, or not listed is skipped. The clock time on the event stays the time CCB sent. The timezone stored with the event is the event's own zone when CCB sends one, otherwise the campus zone read once per sync. Create and update both store that zone.
+The public calendar listing is already limited to approved public events. A row that is marked unapproved, draft, or not listed is skipped. The clock time on the event stays the time CCB sent. When CCB sends a timezone, that zone is stored. When it does not, the server's default timezone is stored, the same as before.
 
 ### Event Enrichment
 

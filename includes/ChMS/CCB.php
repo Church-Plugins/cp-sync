@@ -848,11 +848,9 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	/**
 	 * Read a campus timezone once per sync.
 	 *
-	 * public_calendar_listing does not include a timezone. event_profile does,
-	 * per event, and that value wins inside format_event() when the row has
-	 * one. This call supplies the fallback: the first active campus from
-	 * campus_list, then that campus's profile. A failed lookup does not abort
-	 * the pull.
+	 * public_calendar_listing does not include a timezone. An event that has
+	 * none uses PHP's default zone, the same as before. This lookup is not
+	 * that fallback. A failed lookup does not abort the pull.
 	 *
 	 * @return string IANA zone, or ''.
 	 */
@@ -1114,9 +1112,10 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * Build the provider-neutral record for one CCB occurrence.
 	 *
 	 * Listing times are naive wall-clock values. They are read in the event
-	 * timezone when that field is present, otherwise the campus timezone, so
-	 * the neutral record can store UTC. The Events Calendar still receives
-	 * that same wall clock and the event or campus zone, not the site zone.
+	 * timezone when that field is present. When the event has no timezone,
+	 * they are read in PHP's default zone ( date_default_timezone_get() ),
+	 * and that same name is the EventTimezone label. The Events Calendar
+	 * receives that wall clock, not a site-timezone conversion.
 	 *
 	 * @param array $event   Normalized event row.
 	 * @param array $context May include organization_timezone.
@@ -1124,23 +1123,30 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 */
 	public function to_neutral_event( $event, $context ) {
 		$fallback_zone = date_default_timezone_get();
-		$explicit      = ( isset( $event['timezone'] ) && is_string( $event['timezone'] ) ) ? $event['timezone'] : '';
-		$organization  = ( isset( $context['organization_timezone'] ) && is_string( $context['organization_timezone'] ) ) ? $context['organization_timezone'] : '';
-		$conversion    = \CP_Sync\Events\EventTime::first_valid_timezone( [ $explicit, $organization, $fallback_zone ] );
+		if ( ! \CP_Sync\Events\EventTime::is_valid_timezone( $fallback_zone ) ) {
+			$fallback_zone = 'UTC';
+		}
 
-		if ( '' === $conversion ) {
-			$conversion = 'UTC';
+		$explicit     = ( isset( $event['timezone'] ) && is_string( $event['timezone'] ) ) ? $event['timezone'] : '';
+		$organization = ( isset( $context['organization_timezone'] ) && is_string( $context['organization_timezone'] ) ) ? $context['organization_timezone'] : '';
+
+		// No timezone on the event: master's fallback. new \DateTime() with
+		// no zone reads the wall clock in PHP's default zone, and
+		// EventTimezone is that zone's name. The campus zone is not used.
+		if ( '' === $explicit ) {
+			$conversion     = $fallback_zone;
+			$timezone_label = $fallback_zone;
+		} else {
+			$conversion = \CP_Sync\Events\EventTime::first_valid_timezone( [ $explicit, $organization, $fallback_zone ] );
+
+			if ( '' === $conversion ) {
+				$conversion = 'UTC';
+			}
+
+			$timezone_label = $explicit;
 		}
 
 		$site_timezone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
-
-		if ( '' !== $explicit ) {
-			$timezone_label = $explicit;
-		} elseif ( \CP_Sync\Events\EventTime::is_valid_timezone( $organization ) ) {
-			$timezone_label = $organization;
-		} else {
-			$timezone_label = $conversion;
-		}
 
 		$start_raw = $event['start_datetime'] ?? 'now';
 		$end_raw   = $event['end_datetime'] ?? 'now';
