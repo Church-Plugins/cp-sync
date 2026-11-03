@@ -51,6 +51,28 @@ class EventTime {
 	}
 
 	/**
+	 * WordPress site timezone name.
+	 *
+	 * Event times written for The Events Calendar use this zone, matching the
+	 * previous formatter. The ChMS organization zone stays on the neutral record.
+	 *
+	 * @return string
+	 */
+	public static function wordpress_timezone_name() {
+		if ( function_exists( 'wp_timezone' ) ) {
+			$zone = wp_timezone();
+
+			if ( $zone instanceof \DateTimeZone && self::is_valid_timezone( $zone->getName() ) ) {
+				return $zone->getName();
+			}
+		}
+
+		$fallback = date_default_timezone_get();
+
+		return self::is_valid_timezone( $fallback ) ? $fallback : 'UTC';
+	}
+
+	/**
 	 * Parse an instant into UTC.
 	 *
 	 * ISO-8601 values with Z or a numeric offset keep that offset. A naive

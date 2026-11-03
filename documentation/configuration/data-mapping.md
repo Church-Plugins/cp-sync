@@ -61,7 +61,7 @@ On the **Events** tab, set **Event source** to **Pull from Calendar** or **Calen
 | Name | Event title |
 | Description | Event page body |
 | Summary | Excerpt, used by listings that show a summary |
-| Start and end | Event start and end, in the Planning Center organization time zone |
+| Start and end | Event start and end, in the WordPress site timezone |
 | Location | Venue |
 | Image | Featured image |
 | Tag groups selected under **Tag groups** | Taxonomies on the event |
@@ -91,7 +91,7 @@ When **Event source** is **Calendar AND Registrations**, the **Events** tab show
 |--------------------------|---------------------|
 | Name | Event title |
 | Description | Event page body |
-| Start and end | Event start and end. The clock time is the time CCB sent. The time zone is the event's time zone, or the first active campus time zone when the event does not include one. |
+| Start and end | Event start and end, in the WordPress site timezone |
 | Image | Featured image |
 
 Each occurrence is imported as its own event. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).

@@ -98,7 +98,7 @@ A few things to know:
 - When the Event source is **Registrations** only, there is no Visibility setting, and these calendar checks are not used.
 - With **Only Visible in Church Center**, upcoming events already on the site that become hidden or explicitly unapproved are removed on the next sync. CP Sync shows an admin notice with how many were skipped and how many upcoming events were removed. Events whose end date has passed stay. Locked posts stay. **Show All** does not remove them for this reason.
 
-Event start and end times use the **organization time zone** Planning Center returns for the calendar account, not the WordPress site time zone. If that time zone cannot be read, times use the site time zone.
+Event start and end times on the site use the WordPress site timezone (Settings → General), the same as before.
 
 For how this used to work in 1.0.0, see [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-calendar-event-visibility).
 

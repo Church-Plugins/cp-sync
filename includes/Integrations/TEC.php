@@ -98,7 +98,95 @@ class TEC extends Integration {
 			$args['EventAllDay']      = ! empty( $item['EventAllDay'] );
 		}
 
+		// EventTimezone is intentionally absent. The date parts above are already
+		// in the WordPress site timezone. Passing a ChMS zone here would make
+		// update store a different UTC instant than create.
+
 		return $args;
+	}
+
+	/**
+	 * Post meta The Events Calendar stores for the event's start and end.
+	 *
+	 * Mirrors TEC when no EventTimezone is supplied: the local strings are the
+	 * site-timezone clock ( what the formatter already produced ), UTC meta is
+	 * that clock converted from the site timezone, and an all-day event is
+	 * stored from 00:00:00 through 23:59:59 on those dates. The event's
+	 * existing `_EventTimezone` is not part of this result and is not changed.
+	 *
+	 * @param array  $item          Formatted event, or the legacy update args.
+	 * @param string $site_timezone WordPress site timezone.
+	 * @return array
+	 */
+	public static function saved_date_meta( array $item, $site_timezone ) {
+		$start = self::compose_datetime( $item['EventStartDate'] ?? '', $item['EventStartHour'] ?? null, $item['EventStartMinute'] ?? null );
+		$end   = self::compose_datetime( $item['EventEndDate'] ?? '', $item['EventEndHour'] ?? null, $item['EventEndMinute'] ?? null );
+
+		if ( '' === $end ) {
+			$end = $start;
+		}
+
+		if ( ! empty( $item['EventAllDay'] ) && '' !== $start ) {
+			$start = substr( $start, 0, 10 ) . ' 00:00:00';
+			$end   = substr( $end, 0, 10 ) . ' 23:59:59';
+		}
+
+		$zone = \CP_Sync\Events\EventTime::is_valid_timezone( $site_timezone ) ? $site_timezone : 'UTC';
+
+		return array(
+			'_EventStartDate'    => $start,
+			'_EventEndDate'      => $end,
+			'_EventStartDateUTC' => self::local_mysql_to_utc( $start, $zone ),
+			'_EventEndDateUTC'   => self::local_mysql_to_utc( $end, $zone ),
+			'_EventAllDay'       => ! empty( $item['EventAllDay'] ) ? 'yes' : '',
+		);
+	}
+
+	/**
+	 * Write the date meta for a new or updated event.
+	 *
+	 * Create and update both call this with the same formatted item, so the
+	 * stored start and end ( local and UTC ) match. `_EventTimezone` is left
+	 * untouched.
+	 *
+	 * @param int   $post_id Event post ID.
+	 * @param array $item    Formatted event.
+	 * @return array The meta written.
+	 */
+	public static function persist_event_date_meta( $post_id, array $item ) {
+		$meta = self::saved_date_meta( $item, \CP_Sync\Events\EventTime::wordpress_timezone_name() );
+
+		foreach ( $meta as $key => $value ) {
+			if ( '' === $value ) {
+				delete_post_meta( $post_id, $key );
+				continue;
+			}
+
+			update_post_meta( $post_id, $key, $value );
+		}
+
+		return $meta;
+	}
+
+	/**
+	 * Convert a site-local `Y-m-d H:i:s` string to UTC.
+	 *
+	 * @param string $local         Local datetime.
+	 * @param string $site_timezone Site timezone.
+	 * @return string
+	 */
+	protected static function local_mysql_to_utc( $local, $site_timezone ) {
+		if ( '' === $local ) {
+			return '';
+		}
+
+		try {
+			$instant = new \DateTimeImmutable( $local, new \DateTimeZone( $site_timezone ) );
+		} catch ( \Exception $e ) {
+			return '';
+		}
+
+		return $instant->setTimezone( new \DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' );
 	}
 
 	/**
@@ -330,7 +418,10 @@ class TEC extends Integration {
 		$event['image'] = $item['thumbnail_url'] ?? '';
 		$event['start_date'] = self::compose_datetime( $item['EventStartDate'] ?? '', $item['EventStartHour'] ?? null, $item['EventStartMinute'] ?? null );
 		$event['end_date'] = self::compose_datetime( $item['EventEndDate'] ?? '', $item['EventEndHour'] ?? null, $item['EventEndMinute'] ?? null );
-		$event['timezone'] = $item['EventTimezone'] ?? '';
+		// Do not pass timezone. The start and end above are already in the
+		// WordPress site timezone. Setting the ChMS organization zone here
+		// only applies on create; the update path cannot carry it, and the
+		// stored UTC instant then shifts by the gap between the two zones.
 		$event['all_day'] = ! empty( $item['EventAllDay'] );
 		$event['url'] = $item['EventURL'] ?? '';
 		$event['recurrence'] = $item['EventRecurrence'] ?? '';
@@ -390,6 +481,10 @@ class TEC extends Integration {
 			} else {
 				delete_post_meta( $id, '_EventURL' );
 			}
+
+			// Same date meta on create and on update. Does not change
+			// `_EventTimezone`, so an event keeps the zone it already has.
+			self::persist_event_date_meta( $id, $item );
 
 			// Arbitrary post meta the formatter asked us to persist ( e.g. the
 			// registration_url that drives the Register button ). tribe_update_event()

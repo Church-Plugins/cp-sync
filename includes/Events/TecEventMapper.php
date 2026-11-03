@@ -39,13 +39,20 @@ class TecEventMapper {
 	}
 
 	/**
-	 * Local start and end in the record's timezone.
+	 * Local start and end in the WordPress site timezone.
+	 *
+	 * The neutral record's `timezone` is the ChMS zone and is not the zone
+	 * written onto the TEC event.
 	 *
 	 * @param array $event Neutral event record.
 	 * @return \DateTimeImmutable[]
 	 */
 	protected static function local_range( array $event ) {
-		$timezone = $event['timezone'] ?? 'UTC';
+		$timezone = $event['site_timezone'] ?? 'UTC';
+
+		if ( ! EventTime::is_valid_timezone( $timezone ) ) {
+			$timezone = 'UTC';
+		}
 
 		return array(
 			EventTime::to_local( $event['start_utc'], $timezone ),
@@ -81,10 +88,6 @@ class TecEventMapper {
 			'EventEndMinute'    => $end->format( 'i' ),
 			'EventURL'          => $event['event_url'] ?? '',
 		);
-
-		if ( ! empty( $event['include_timezone'] ) && '' !== (string) ( $event['timezone'] ?? '' ) ) {
-			$item['EventTimezone'] = $event['timezone'];
-		}
 
 		if ( ! empty( $event['venue'] ) && is_array( $event['venue'] ) ) {
 			$item['EventVenue'] = $event['venue'];
@@ -123,10 +126,6 @@ class TecEventMapper {
 			$item['EventAllDay'] = true;
 		}
 
-		if ( ! empty( $event['include_timezone'] ) && '' !== (string) ( $event['timezone'] ?? '' ) ) {
-			$item['EventTimezone'] = $event['timezone'];
-		}
-
 		if ( ! empty( $event['venue'] ) && is_array( $event['venue'] ) ) {
 			$item['EventVenue'] = $event['venue'];
 		}
@@ -152,7 +151,6 @@ class TecEventMapper {
 			'EventStartDate' => $start->format( 'Y-m-d H:i:s' ),
 			'EventEndDate'   => $end->format( 'Y-m-d H:i:s' ),
 			'EventAllDay'    => ! empty( $event['all_day'] ),
-			'EventTimezone'  => $event['timezone_label'] ?? ( $event['timezone'] ?? '' ),
 			'EventURL'       => $event['event_url'] ?? '',
 			'tax_input'      => $event['tax_input'] ?? array(),
 			'event_category' => $event['event_category'] ?? array(),

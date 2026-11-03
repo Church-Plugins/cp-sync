@@ -2176,7 +2176,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			return false;
 		}
 
-		list( $timezone, $from_chms ) = $this->resolve_event_timezone( $context );
+		$timezone      = $this->resolve_event_timezone( $context )[0];
+		$site_timezone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
 
 		$registration_url = $attributes['registration_url'] ?? '';
 		$registrations    = [];
@@ -2229,7 +2230,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'start_utc'            => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
 			'end_utc'              => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
 			'timezone'             => $timezone,
-			'include_timezone'     => $from_chms,
+			'site_timezone'        => $site_timezone,
 			'all_day'              => $event_instance['attributes']['all_day_event'] ?? false,
 			'location_name'        => $location_name,
 			'location_address'     => $location_address,
@@ -2394,7 +2395,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			return false;
 		}
 
-		list( $timezone, $from_chms ) = $this->resolve_event_timezone( $context );
+		$timezone      = $this->resolve_event_timezone( $context )[0];
+		$site_timezone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
 
 		$registration_url = $signup['attributes']['new_registration_url'] ?? '';
 		$meta_input       = [
@@ -2459,7 +2461,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'start_utc'         => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
 			'end_utc'           => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
 			'timezone'          => $timezone,
-			'include_timezone'  => $from_chms,
+			'site_timezone'     => $site_timezone,
 			'all_day'           => (bool) $all_day,
 			'location_name'     => $venue['venue'] ?? '',
 			'location_address'  => self::venue_address_line( $venue ),

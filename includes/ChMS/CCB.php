@@ -1115,8 +1115,8 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 *
 	 * Listing times are naive wall-clock values. They are read in the event
 	 * timezone when that field is present, otherwise the campus timezone from
-	 * the sync context, otherwise the server default (the previous fallback).
-	 * The TEC date strings stay that same wall clock.
+	 * the sync context, otherwise the server default. That instant is stored
+	 * in UTC. TEC dates are the same instant in the WordPress site timezone.
 	 *
 	 * @param array $event   Normalized event row.
 	 * @param array $context May include organization_timezone.
@@ -1132,10 +1132,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			$conversion = 'UTC';
 		}
 
-		// Keep an explicit zone string on the TEC item even when PHP cannot
-		// apply it, matching the previous formatter. Conversion still uses a
-		// zone PHP accepts so the wall clock round-trips.
-		$timezone_label = '' !== $explicit ? $explicit : $conversion;
+		$site_timezone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
 
 		$start_raw = $event['start_datetime'] ?? 'now';
 		$end_raw   = $event['end_datetime'] ?? 'now';
@@ -1187,7 +1184,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
 			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
 			'timezone'         => $conversion,
-			'timezone_label'   => $timezone_label,
+			'site_timezone'    => $site_timezone,
 			'all_day'          => self::is_all_day_span( $local_start, $local_end ),
 			'location_name'    => $location_name,
 			'location_address' => '',
