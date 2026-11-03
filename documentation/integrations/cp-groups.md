@@ -1,12 +1,12 @@
 # CP Groups Integration
 
-CP-Sync imports groups from Planning Center or Church Community Builder into the CP Groups plugin.
+CP-Sync imports groups from Planning Center or Church Community Builder. CP Groups is optional. Without it, CP Sync shows the groups on your site. See [Show Groups on Your Site](show-groups.md).
 
 ## Prerequisites
 
 Before using the CP Groups integration:
 
-- CP Groups must be installed and activated
+- CP Groups installed and activated, when you want its filters, map, and contact form
 - CP-Sync must be installed and activated
 - Your church management system must be connected
 - You need an account that can manage options (an Administrator)
@@ -18,7 +18,7 @@ Before using the CP Groups integration:
 3. Under **Sync**, turn on **Sync Groups**.
 4. Click **Save all Settings**.
 
-If CP Groups is not active, **Sync Groups** is disabled and the help text reads **Requires the CP Groups plugin, which is not active on this site.**
+If CP Groups is not active, groups still sync while **Display groups with CP Sync** is on. That toggle is on the **Advanced** tab and is on until you turn it off. If you turn it off, **Sync Groups** is disabled and the help text reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
 
 **Sync Groups** is on until you turn it off. The **Groups** tab appears after you are connected and the toggle is on.
 
@@ -51,7 +51,7 @@ Set **Update Interval** on the **Advanced** tab (**Hourly**, **Daily**, or **Wee
 
 ## Troubleshooting
 
-- **Groups not importing**: Confirm CP Groups is active and **Sync Groups** is on. On Planning Center, check **Visibility** and clear the **Groups** filter. On Church Community Builder, the group must be active and listed in public search.
+- **Groups not importing**: Confirm **Sync Groups** is on. Without CP Groups, also leave **Display groups with CP Sync** on. On Planning Center, check **Visibility** and clear the **Groups** filter. On Church Community Builder, the group must be active and listed in public search.
 - **A field is missing on the group**: Compare the group with [Data Mapping](../configuration/data-mapping.md#groups).
 
 To keep hand edits on one imported group, see [Preventing Sync Updates](../configuration/preventing-sync-updates.md).

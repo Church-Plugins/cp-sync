@@ -23,7 +23,7 @@ CP Sync provides integration with Church Community Builder (CCB), allowing you t
 
 ### Groups Synchronization
 
-Group sync needs the **CP Groups** plugin to be active. If it isn't, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
+Group sync does not need CP Groups. Without it, CP Sync shows the groups. See [Show Groups on Your Site](../integrations/show-groups.md). If **Display groups with CP Sync** is off and CP Groups is not active, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
 
 Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Church Community Builder, while **Sync Groups** is on.
 

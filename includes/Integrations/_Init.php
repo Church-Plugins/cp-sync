@@ -68,7 +68,8 @@ class _Init {
 	protected function includes() {
 		$integrations = [];
 
-		if ( function_exists( 'cp_groups' ) ) {
+		// CP Groups, or Groups Lite when that plugin is absent and display is on.
+		if ( \CP_Sync\Groups\Lite::target_available() ) {
 			$integrations[ 'cp_groups' ] = '\CP_Sync\Integrations\CP_Groups';
 		}
 
@@ -104,8 +105,9 @@ class _Init {
 	/**
 	 * Whether an integration type's required companion plugin is active.
 	 *
-	 * The two pinned conditions ( mirroring includes() ): Groups needs the CP Groups
-	 * plugin ( cp_groups() ), Events needs The Events Calendar ( TRIBE_EVENTS_FILE ).
+	 * Groups are available when CP Groups is active, or when Groups Lite is
+	 * displaying them ( CP Groups absent and "Display groups with CP Sync" is on ).
+	 * Events need The Events Calendar ( TRIBE_EVENTS_FILE ). Sermons need CP Sermons.
 	 * Any other type is treated as available ( it is gated elsewhere, e.g. the
 	 * supported-types check in pull_integration() ).
 	 *
@@ -116,7 +118,7 @@ class _Init {
 	public static function is_integration_available( $type ) {
 		switch ( $type ) {
 			case 'groups':
-				return function_exists( 'cp_groups' );
+				return \CP_Sync\Groups\Lite::target_available();
 			case 'events':
 				return defined( 'TRIBE_EVENTS_FILE' );
 			case 'sermons':
@@ -139,7 +141,7 @@ class _Init {
 	public static function integration_unavailable_message( $type ) {
 		switch ( $type ) {
 			case 'groups':
-				return __( 'Requires the CP Groups plugin, which is not active on this site.', 'cp-sync' );
+				return __( 'Turn on Display groups with CP Sync, or activate the CP Groups plugin.', 'cp-sync' );
 			case 'events':
 				return __( 'Requires The Events Calendar plugin, which is not active on this site.', 'cp-sync' );
 			case 'sermons':

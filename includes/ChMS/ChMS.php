@@ -246,7 +246,7 @@ abstract class ChMS {
 				'type'    => 'toggle',
 				'label'   => __( 'Sync Groups', 'cp-sync' ),
 				'default' => true,
-				'help'    => __( 'When enabled, groups are synced from your ChMS to CP Groups.', 'cp-sync' ),
+				'help'    => \CP_Sync\Groups\Lite::sync_groups_help(),
 			],
 			'sync_events' => [
 				'type'    => 'toggle',

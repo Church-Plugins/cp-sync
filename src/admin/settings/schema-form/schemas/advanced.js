@@ -4,10 +4,13 @@ import { __ } from '@wordpress/i18n';
  * Advanced screen schemas (plain JSON-serializable data).
  *
  * Split into TWO schema slices so the tab can interleave its action widgets in
- * the intended visual order: interval select → Pull Now button → uninstall
- * toggle → Danger Zone (see `components/advanced-tab.js`). Both slices render
- * through the same `<SchemaForm values={globalSettings}>`, so they share one
- * values object and save path.
+ * the intended visual order: groups display toggle → interval select → Pull
+ * Now button → uninstall toggle → Danger Zone (see `components/advanced-tab.js`).
+ * Both slices render through the same `<SchemaForm values={globalSettings}>`, so
+ * they share one values object and save path.
+ *
+ * `displayGroupsWithSync` maps 1:1 to the stored global settings key read by
+ * Groups Lite. Do not rename it. On until an admin turns it off.
  *
  * The `updateInterval` key maps 1:1 to the stored global settings key — do not
  * rename. Values (`hourly`/`daily`/`weekly`) match the previous MUI menu items.
@@ -20,6 +23,22 @@ import { __ } from '@wordpress/i18n';
 const advancedSchema = {
 	label: __( 'Advanced', 'cp-sync' ),
 	sections: [
+		{
+			title: __( 'Groups', 'cp-sync' ),
+			fields: {
+				displayGroupsWithSync: {
+					type: 'toggle',
+					label: __( 'Display groups with CP Sync', 'cp-sync' ),
+					// On until an admin turns it off. PHP treats a missing key the same way
+					// when CP Groups is absent. The key must match Groups\Lite::DISPLAY_SETTING.
+					default: true,
+					help: __(
+						'CP Groups adds filters, a map, and a contact form.',
+						'cp-sync'
+					),
+				},
+			},
+		},
 		{
 			fields: {
 				updateInterval: {

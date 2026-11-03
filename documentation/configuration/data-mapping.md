@@ -4,7 +4,7 @@ CP Sync copies fields from your church management system into WordPress on a fix
 
 ## Groups
 
-Groups are created as CP Groups. Turn on **Sync Groups** on the **Connect** tab, with CP Groups active. See [CP Groups](../integrations/cp-groups.md).
+Groups are created as group posts. Turn on **Sync Groups** on the **Connect** tab. Without CP Groups, CP Sync shows them on your site. See [Show Groups on Your Site](../integrations/show-groups.md). With CP Groups active, that plugin shows them. See [CP Groups](../integrations/cp-groups.md).
 
 ### Planning Center
 

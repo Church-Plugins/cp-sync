@@ -29,17 +29,17 @@ Changing **Church Management System** while you are connected leaves the Plannin
 
 After you are connected, the same tab shows a **Sync** section. Choose what to sync, then click **Save all Settings**:
 
-- **Sync Groups** — When enabled, groups are synced from your ChMS to CP Groups.
+- **Sync Groups** — When enabled, groups are synced from your ChMS. With CP Groups active, they go to CP Groups. Without it, CP Sync shows them on your site.
 - **Sync Events** — When enabled, events are synced from your ChMS to The Events Calendar.
 - **Sync Sermons** — When enabled, sermons are synced from your ChMS to CP Sermons. This toggle is off until you turn it on.
 
-If the companion plugin is not active, that toggle is disabled. Its help text is **Requires the CP Groups plugin, which is not active on this site.**, **Requires The Events Calendar plugin, which is not active on this site.**, or **Requires the CP Sermons plugin, which is not active on this site.**
+**Sync Events** is disabled until The Events Calendar is active. Its help text is **Requires The Events Calendar plugin, which is not active on this site.** **Sync Sermons** is disabled until CP Sermons is active. Its help text is **Requires the CP Sermons plugin, which is not active on this site.** **Sync Groups** stays available without CP Groups. It is disabled only when **Display groups with CP Sync** is off and CP Groups is not active. The help text then reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
 
 ## Configuring Data Synchronization
 
 ### Groups Synchronization
 
-Group sync needs the **CP Groups** plugin to be active. If it isn't, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
+Group sync does not need CP Groups. Without it, CP Sync shows the groups. See [Show Groups on Your Site](../integrations/show-groups.md). If **Display groups with CP Sync** is off and CP Groups is not active, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
 
 Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Planning Center, while **Sync Groups** is on.
 

@@ -85,6 +85,17 @@ add_filter('cp_sync_remove_past_events', function($remove_past, $chms_id, $post_
 To keep an individual event untouched by sync entirely — past or future — use the lock
 option on the event itself rather than this filter.
 
+## Groups Lite templates
+
+When CP Groups is not active and **Display groups with CP Sync** is on, CP Sync registers `cp_group` (archive slug `groups`) plus `cp_group_type`, `cp_group_category`, and `cp_group_life_stage`. Activating CP Groups registers those same names and takes over the posts.
+
+Theme overrides live in `cp-sync/` inside the theme:
+
+- `cp-sync/groups/archive.php`
+- `cp-sync/groups/single.php`
+
+The lookup is `CP_Sync\get_template_hierarchy()`. The shortcode is `[cp-sync-groups count="12" type="small-groups"]`. Leader output reads the `leaders` meta rows first (name only), then the legacy `leader` value. Emails are not printed.
+
 ## REST API Endpoints
 
 CP-Sync provides REST API endpoints for programmatic access:

@@ -33,7 +33,7 @@ CP Sync connects your WordPress site to your church management system (ChMS), ke
 = Integrations =
 
 * **The Events Calendar** — ChMS events become Events Calendar entries with mapped venues, organizers, and categories
-* **CP Groups** — Display synced groups using the Church Plugins Groups plugin
+* **CP Groups** — Optional. CP Sync can show groups on your site without it. CP Groups adds filters, a map, and a contact form, and it uses the same groups.
 
 = CCB Event Enrichment =
 
@@ -67,7 +67,7 @@ CP Sync currently supports Planning Center Online (PCO) and Church Community Bui
 
 = Do I need The Events Calendar plugin? =
 
-Only if you want to sync events. Groups syncing works independently. If you sync events, install and activate The Events Calendar — CP Sync creates events in that plugin's format.
+Only if you want to sync events. Groups can show on your site without another plugin. If you sync events, install and activate The Events Calendar — CP Sync creates events in that plugin's format.
 
 = Why are my CCB venues missing addresses? =
 
@@ -92,7 +92,8 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 == Changelog ==
 
 = 1.2.0 =
-* Church Community Builder events that have no timezone of their own now use the WordPress site timezone. On sites whose WordPress timezone isn't UTC, the first resync changes the saved timezone once. The local clock time stays the same.
+* Groups can be shown on the site without CP Groups: a groups page at /groups/, a page for each group, and the [cp-sync-groups] shortcode. Leader email addresses are not shown. CP Groups adds filters, a map, and a contact form, and it takes over the same groups when you activate it.
+* The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
 
 = 1.1.0 =
 * New: Planning Center group leaders now sync to CP Groups. Group Leader gets every leader's name, and Group Leader Email gets the group's contact email, or the email of the first leader who has one (developers can change this with the `cp_sync_pco_group_leader_email` filter). On CP Groups 1.2 or later, leaders are saved as Group Leaders rows instead, each with that leader's own email; the contact email is only used when no leader has one. If the leaders request fails, leaders already stored are kept.

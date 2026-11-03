@@ -30,6 +30,7 @@ Click **Save all Settings** after you change **Enable Debug Mode**.
 
 Open the **Advanced** tab.
 
+- **Display groups with CP Sync**: on until you turn it off. Shows a groups page and the `[cp-sync-groups]` shortcode when CP Groups is not active. CP Groups adds filters, a map, and a contact form. See [Show Groups on Your Site](../integrations/show-groups.md).
 - **Update Interval**: **Hourly** (the default), **Daily**, or **Weekly**.
 - **Pull now**: starts a sync of every feed that is turned on. The tab shows **Hard pull started successfully**.
 - **Delete all data on uninstall**: off until you turn it on. See [Reset Tool](../advanced/reset-tool.md).
