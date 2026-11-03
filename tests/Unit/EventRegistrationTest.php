@@ -201,6 +201,45 @@ class EventRegistrationTest extends TestCase {
 
 		$this->assertSame( 'event-series', $args['has_archive'] );
 		$this->assertSame( 'event-series', $args['rewrite']['slug'] );
+		$this->assertFalse( $args['rewrite']['with_front'] );
+	}
+
+	public function test_upgrade_from_the_previous_rewrite_version_flushes_once() {
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$stored  = 'on|2|events|event-series';
+		$flushed = 0;
+		Functions\when( 'get_option' )->alias(
+			static function ( $key, $default = false ) use ( &$stored ) {
+				if ( Display::REWRITE_OPTION === $key ) {
+					return $stored;
+				}
+
+				return $default;
+			}
+		);
+		Functions\when( 'update_option' )->alias(
+			static function ( $key, $value ) use ( &$stored ) {
+				if ( Display::REWRITE_OPTION === $key ) {
+					$stored = $value;
+				}
+
+				return true;
+			}
+		);
+		Functions\when( 'flush_rewrite_rules' )->alias(
+			static function () use ( &$flushed ) {
+				$flushed++;
+			}
+		);
+
+		$method = new \ReflectionMethod( Display::class, 'maybe_flush_rewrites' );
+		$method->setAccessible( true );
+		$method->invoke( null, true );
+		$method->invoke( null, true );
+
+		$this->assertSame( 1, $flushed );
+		$this->assertSame( 'on|3|events|event-series', $stored );
 	}
 
 	public function test_a_blank_title_still_gets_a_permalink_slug() {

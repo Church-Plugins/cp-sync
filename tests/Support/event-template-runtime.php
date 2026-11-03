@@ -41,6 +41,9 @@ if ( ! class_exists( 'CP_Sync_Template_Query' ) ) {
 		/** @var int */
 		public $index = 0;
 
+		/** @var CP_Sync_Template_Post|null */
+		public $post = null;
+
 		public function rewind() {
 			$this->index = 0;
 		}
@@ -56,7 +59,8 @@ if ( ! class_exists( 'CP_Sync_Template_Query' ) ) {
 		}
 
 		public function the_post() {
-			$GLOBALS['post'] = $this->posts[ $this->index ];
+			$this->post      = $this->posts[ $this->index ];
+			$GLOBALS['post'] = $this->post;
 			$this->index++;
 		}
 	}
@@ -210,13 +214,24 @@ if ( ! function_exists( 'get_post' ) ) {
 }
 
 if ( ! function_exists( 'setup_postdata' ) ) {
+	/**
+	 * WordPress does not assign the global post here. Templates that call
+	 * this must set $GLOBALS['post'] themselves.
+	 *
+	 * @param mixed $post Post object. Unused, matching core.
+	 * @return void
+	 */
 	function setup_postdata( $post ) {
-		$GLOBALS['post'] = $post;
+		unset( $post );
 	}
 }
 
 if ( ! function_exists( 'wp_reset_postdata' ) ) {
-	function wp_reset_postdata() {}
+	function wp_reset_postdata() {
+		if ( isset( $GLOBALS['wp_query'] ) && is_object( $GLOBALS['wp_query'] ) && isset( $GLOBALS['wp_query']->post ) ) {
+			$GLOBALS['post'] = $GLOBALS['wp_query']->post;
+		}
+	}
 }
 
 if ( ! function_exists( 'get_the_ID' ) ) {

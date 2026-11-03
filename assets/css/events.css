@@ -75,6 +75,24 @@
 	min-height: 44px;
 }
 
+.cp-sync-events .nav-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+}
+
+.cp-sync-events a.page-numbers,
+.cp-sync-events span.page-numbers {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	min-width: 44px;
+	min-height: 44px;
+	padding: 0 0.75rem;
+}
+
 .cp-sync-event-card__title a {
 	color: inherit;
 }

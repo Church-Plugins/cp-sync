@@ -146,6 +146,37 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringContainsString( 'cp-sync-event-card__summary', $series_archive );
 	}
 
+	public function test_list_renders_a_different_title_and_link_for_each_event() {
+		$second              = new CP_Sync_Template_Post();
+		$second->ID          = 42;
+		$second->post_title  = 'Wednesday Prayer';
+		$second->post_name   = 'wednesday-prayer';
+		$second->post_type   = 'cp_event';
+
+		$decoy             = new CP_Sync_Template_Post();
+		$decoy->ID         = 99;
+		$decoy->post_title = 'Not On The List';
+		$decoy->post_name  = 'not-on-the-list';
+		$decoy->post_type  = 'cp_event';
+		$GLOBALS['post']   = $decoy;
+
+		$html = \CP_Sync\get_template_part(
+			'events/list',
+			array(
+				'events'           => array( $this->event, $second ),
+				'show_series_link' => false,
+			),
+			true
+		);
+
+		$this->assertIsString( $html );
+		$this->assertStringContainsString( 'Sunday Service', $html );
+		$this->assertStringContainsString( 'Wednesday Prayer', $html );
+		$this->assertStringContainsString( 'href="https://example.com/events/sunday-service"', $html );
+		$this->assertStringContainsString( 'href="https://example.com/events/wednesday-prayer"', $html );
+		$this->assertStringNotContainsString( 'Not On The List', $html );
+	}
+
 	/**
 	 * Render one top-level template with the main query set to $posts.
 	 *

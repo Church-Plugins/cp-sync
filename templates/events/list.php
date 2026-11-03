@@ -25,6 +25,8 @@ if ( empty( $events ) || ! is_array( $events ) ) {
 		if ( ! $cp_sync_event instanceof WP_Post ) {
 			continue;
 		}
+		// setup_postdata() does not assign the global post. Template tags read it.
+		$GLOBALS['post'] = $cp_sync_event; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 		setup_postdata( $cp_sync_event );
 		echo '<li class="cp-sync-events__item">';
 		\CP_Sync\get_template_part(

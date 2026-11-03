@@ -304,7 +304,7 @@ class Display {
 			return;
 		}
 
-		$load = is_post_type_archive( PostTypes::EVENT ) || is_singular( array( PostTypes::EVENT, PostTypes::SERIES ) );
+		$load = is_post_type_archive( array( PostTypes::EVENT, PostTypes::SERIES ) ) || is_singular( array( PostTypes::EVENT, PostTypes::SERIES ) );
 
 		if ( ! $load && is_singular() ) {
 			$post = get_post();
@@ -358,7 +358,8 @@ class Display {
 	 * @return void
 	 */
 	protected static function maybe_flush_rewrites( $enabled ) {
-		$version = $enabled ? 'on|2|' . PostTypes::event_slug() . '|' . PostTypes::series_slug() : 'off';
+		// on|3 includes the series archive slug. Sites that stored on|2 flush once.
+		$version = $enabled ? 'on|3|' . PostTypes::event_slug() . '|' . PostTypes::series_slug() : 'off';
 
 		if ( get_option( self::REWRITE_OPTION ) === $version ) {
 			return;
