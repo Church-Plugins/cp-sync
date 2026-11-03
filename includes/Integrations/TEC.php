@@ -140,8 +140,8 @@ class TEC extends Integration {
 			'_EventEndDate'      => $end,
 			'_EventStartDateUTC' => self::local_mysql_to_utc( $start, $zone ),
 			'_EventEndDateUTC'   => self::local_mysql_to_utc( $end, $zone ),
-			// Timed events keep the string 'no'. Deleting the key would change
-			// events that already store _EventAllDay as no.
+			// "no" is only this model's label for a timed event. persist_event_date_meta()
+			// does not write it: The Events Calendar deletes a non-yes value.
 			'_EventAllDay'       => ! empty( $item['EventAllDay'] ) ? 'yes' : 'no',
 		);
 	}
@@ -172,8 +172,18 @@ class TEC extends Integration {
 		}
 
 		foreach ( $meta as $key => $value ) {
+			// Timed events store nothing for _EventAllDay. Writing "no" makes
+			// The Events Calendar delete the key, which clears a stored "no".
+			// All-day events still get "yes". tribe_update_event() clears a
+			// stale all-day flag when EventAllDay is false.
+			if ( '_EventAllDay' === $key && 'yes' !== $value ) {
+				unset( $meta[ $key ] );
+				continue;
+			}
+
 			if ( '' === $value ) {
 				delete_post_meta( $post_id, $key );
+				unset( $meta[ $key ] );
 				continue;
 			}
 
