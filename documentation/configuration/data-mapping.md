@@ -68,7 +68,7 @@ On the **Events** tab, set **Event source** to **Pull from Calendar** or **Calen
 
 **Summary** and **Description** are described in [Planning Center Online](../chms/planning-center.md#how-event-text-maps-from-planning-center) and [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-how-event-text-maps).
 
-Calendar sync imports future event instances that are visible in Church Center and approved. Hidden and unapproved events are skipped.
+Calendar sync imports future event instances. With **Only Visible in Church Center**, hidden events and events with an explicit non-approved status are skipped. **Show All** does not apply that filter.
 
 ### Planning Center Registrations
 
@@ -112,4 +112,4 @@ Open the feed tab and use its filter:
 
 The filter line reads **Pull Groups where**, **Pull Events where**, **Pull Sermons where**, **Pull Calendar Filters where**, or **Pull Registration Filters where**, then **All** or **Any**, then **of the following match**. Add a rule with **Add Condition**.
 
-For Planning Center Calendar events, **Visibility** under **Calendar Settings** is separate from the **Calendar Filters** builder. An empty **Calendar Filters** builder does not turn the visibility and approval checks off. Hidden and unapproved calendar events are skipped with either Visibility choice. When **Only Visible in Church Center** is selected for groups, groups that are not listed or not public are skipped when Planning Center sends those fields.
+For Planning Center Calendar events, **Visibility** under **Calendar Settings** is separate from the **Calendar Filters** builder. An empty **Calendar Filters** builder does not turn **Visibility** off. **Only Visible in Church Center** skips hidden events and events with an explicit non-approved status. **Show All** does not. When **Only Visible in Church Center** is selected for groups, groups that are not listed or not public are skipped when Planning Center sends those fields.

@@ -86,13 +86,17 @@ In CP Sync 1.0.0 and later, events keep their real times, and past events are ke
 
 ### Calendar Settings: Visibility
 
-Calendar events sync only when Planning Center marks them **visible in Church Center** and **approved** (approval status A). Hidden events and events that are pending or rejected are not synced. This applies with either **Visibility** choice, including **Show All**.
+When your Planning Center **Event source** is **Calendar** or **Both**, the **Calendar Settings** section includes a **Visibility** option:
 
-- **Only Visible in Church Center** (default) and **Show All** both skip hidden and unapproved calendar events.
-- **Link Only** events still sync when they are visible in Church Center and approved.
-- If the Calendar Filters builder is left empty, no extra filter rules run. The visibility and approval checks still apply.
+- **Only Visible in Church Center** (default) — Keeps events that Planning Center marks as visible in Church Center and approved. Hidden events, and events whose approval status is an explicit non-approved value such as pending or rejected, are not synced. An empty or missing approval status is treated as approved.
+- **Show All** — Does not filter on Church Center visibility or approval.
+
+A few things to know:
+
+- **Link Only** events still sync when **Only Visible in Church Center** is selected, as long as they are visible and not explicitly unapproved.
+- If the Calendar Filters builder is left empty, no extra filter rules run. With **Only Visible in Church Center**, the visibility and approval checks still apply.
 - When the Event source is **Registrations** only, there is no Visibility setting, and these calendar checks are not used.
-- Upcoming events already on the site that become hidden or unapproved are removed on the next sync. Events whose end date has passed stay. Locked posts stay.
+- With **Only Visible in Church Center**, upcoming events already on the site that become hidden or explicitly unapproved are removed on the next sync. CP Sync shows an admin notice with how many were skipped and how many upcoming events were removed. Events whose end date has passed stay. Locked posts stay. **Show All** does not remove them for this reason.
 
 Event start and end times use the **organization time zone** Planning Center returns for the calendar account, not the WordPress site time zone. If that time zone cannot be read, times use the site time zone.
 

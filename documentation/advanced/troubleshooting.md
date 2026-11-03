@@ -45,7 +45,7 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
 
 2. **Review filters**:
    - Planning Center groups: **Visibility** and the **Groups** filter on the **Groups** tab.
-   - Planning Center events: **Event source**, **Visibility**, **Calendar Filters**, and **Registration Filters** on the **Events** tab. Calendar events also have to be visible in Church Center and approved.
+   - Planning Center events: **Event source**, **Visibility**, **Calendar Filters**, and **Registration Filters** on the **Events** tab. With **Only Visible in Church Center**, calendar events also have to be visible in Church Center and not explicitly unapproved. **Show All** does not apply that filter. An admin notice reports when that filter removes upcoming events already on the site.
    - Planning Center sermons: the **Sermons** filter. Only episodes published to the Church Center library are imported.
    - Church Community Builder groups: the **Groups** filter. Groups that are inactive or not listed in public search are skipped.
    - Church Community Builder events: **Date Range** and the **Events** filter. Unapproved, draft, or unlisted rows are skipped.

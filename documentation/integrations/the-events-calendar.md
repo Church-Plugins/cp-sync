@@ -30,7 +30,7 @@ On the **Events** tab:
 - **Show Register button on events**: on until you turn it off. Synced events that have a registration link get a **Register** button. When the signup is at capacity, the button reads **Sold Out**.
 - **Calendar Settings** (shown for **Pull from Calendar** and **Calendar AND Registrations**):
   - **Tag groups**: selected tag groups become taxonomies on the event.
-  - **Visibility**: **Only Visible in Church Center** (the default) or **Show All**. Either choice skips calendar events that are hidden in Church Center or not approved. **Link Only** events still sync when they are visible and approved.
+  - **Visibility**: **Only Visible in Church Center** (the default) skips calendar events that are hidden in Church Center or explicitly not approved. **Show All** does not apply that filter. **Link Only** events still sync when they are visible and not explicitly unapproved.
   - **Calendar Filters**: **Pull Calendar Filters where**, then **All** or **Any**, and **Add Condition**.
 - **Registration Settings** (shown for **Pull from Registrations** and **Calendar AND Registrations**):
   - **Registration Filters**: **Pull Registration Filters where**, then **All** or **Any**, and **Add Condition**.

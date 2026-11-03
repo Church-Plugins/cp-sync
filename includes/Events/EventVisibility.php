@@ -20,8 +20,8 @@ class EventVisibility {
 	/**
 	 * Planning Center Calendar event attributes may sync.
 	 *
-	 * Requires `visible_in_church_center` to be true and `approval_status`
-	 * to be `A` when those attributes are present.
+	 * Requires `visible_in_church_center` to be true when that attribute is
+	 * present. Approval blocks sync only for an explicit non-approved value.
 	 *
 	 * @param array $attributes Event attributes.
 	 * @return bool
@@ -31,7 +31,7 @@ class EventVisibility {
 			return false;
 		}
 
-		if ( array_key_exists( 'approval_status', $attributes ) && 'A' !== $attributes['approval_status'] ) {
+		if ( array_key_exists( 'approval_status', $attributes ) && self::approval_status_blocks_sync( $attributes['approval_status'] ) ) {
 			return false;
 		}
 
@@ -49,7 +49,7 @@ class EventVisibility {
 	 * @return bool
 	 */
 	public static function ccb_is_syncable( array $event ) {
-		if ( array_key_exists( 'approval_status', $event ) && ! self::is_approved_label( $event['approval_status'] ) ) {
+		if ( array_key_exists( 'approval_status', $event ) && self::approval_status_blocks_sync( $event['approval_status'] ) ) {
 			return false;
 		}
 
@@ -114,7 +114,19 @@ class EventVisibility {
 	 * @return array
 	 */
 	public static function filter_pco_calendar_items( array $items, array $relational_data ) {
-		$kept = array();
+		return self::partition_pco_calendar_items( $items, $relational_data )['kept'];
+	}
+
+	/**
+	 * Split calendar rows into those that sync and the instance ids that do not.
+	 *
+	 * @param array $items           Event instance rows.
+	 * @param array $relational_data Included Event records, keyed by id.
+	 * @return array{kept: array, skipped_ids: array}
+	 */
+	public static function partition_pco_calendar_items( array $items, array $relational_data ) {
+		$kept        = array();
+		$skipped_ids = array();
 
 		foreach ( $items as $item ) {
 			if ( ! is_array( $item ) ) {
@@ -131,10 +143,18 @@ class EventVisibility {
 
 			if ( self::pco_calendar_is_syncable( $event ) ) {
 				$kept[] = $item;
+				continue;
+			}
+
+			if ( isset( $item['id'] ) && '' !== (string) $item['id'] ) {
+				$skipped_ids[] = (string) $item['id'];
 			}
 		}
 
-		return $kept;
+		return array(
+			'kept'        => $kept,
+			'skipped_ids' => $skipped_ids,
+		);
 	}
 
 	/**
@@ -176,10 +196,7 @@ class EventVisibility {
 	}
 
 	/**
-	 * Approved labels used by Church Community Builder.
-	 *
-	 * Planning Center calendar uses the exact code `A` and is checked
-	 * separately. CCB's event profile and the v2 calendar use "approved".
+	 * Approved labels used by Church Community Builder and Planning Center.
 	 *
 	 * @param mixed $status The raw approval status.
 	 * @return bool
@@ -188,5 +205,30 @@ class EventVisibility {
 		$status = strtoupper( trim( (string) $status ) );
 
 		return in_array( $status, array( 'A', 'APPROVED' ), true );
+	}
+
+	/**
+	 * Whether this approval_status should block sync.
+	 *
+	 * 'A', 'APPROVED', null, and empty are treated as approved. Only an
+	 * explicit non-approved value blocks sync, for example 'P' (pending)
+	 * or 'R' (rejected). Which codes Planning Center actually sends is
+	 * unverified against live PCO data.
+	 *
+	 * @param mixed $status Raw approval_status.
+	 * @return bool
+	 */
+	public static function approval_status_blocks_sync( $status ) {
+		if ( null === $status ) {
+			return false;
+		}
+
+		$status = trim( (string) $status );
+
+		if ( '' === $status ) {
+			return false;
+		}
+
+		return ! self::is_approved_label( $status );
 	}
 }

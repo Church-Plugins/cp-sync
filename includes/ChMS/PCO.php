@@ -384,7 +384,6 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 								'type'    => 'radio',
 								'label'   => __( 'Visibility', 'cp-sync' ),
 								'default' => 'public',
-								'help'    => __( 'Calendar events sync only when Planning Center marks them visible in Church Center and approved. Hidden and unapproved events are skipped either way, including Show All. Link Only events still sync.', 'cp-sync' ),
 								'options' => [
 									[ 'value' => 'all', 'label' => __( 'Show All', 'cp-sync' ) ],
 									[ 'value' => 'public', 'label' => __( 'Only Visible in Church Center', 'cp-sync' ) ],
@@ -1953,20 +1952,26 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$filter_type = $filter_settings['type'] ?? 'all';
 		$conditions  = $filter_settings['conditions'] ?? [];
 
-		// Hidden and unapproved calendar events are always skipped. This is
-		// separate from the user's condition group so an "any" group cannot
-		// include them. The Visibility setting no longer bypasses it.
-		$before_visibility = count( $items );
-		$items             = \CP_Sync\Events\EventVisibility::filter_pco_calendar_items( $items, $relational_data );
-		$skipped           = $before_visibility - count( $items );
+		// Show All leaves hidden and unapproved events in the feed. The
+		// restrictive option ( Only Visible in Church Center ) applies the
+		// visibility and approval checks on their own, so an "any" condition
+		// group cannot include them again.
+		if ( $this->calendar_visibility_is_restrictive() ) {
+			$partition = \CP_Sync\Events\EventVisibility::partition_pco_calendar_items( $items, $relational_data );
+			$items     = $partition['kept'];
 
-		if ( $skipped > 0 ) {
-			cp_sync()->logging->log(
-				sprintf(
-					'Calendar visibility filter skipped %d hidden or unapproved event instances',
-					$skipped
-				)
-			);
+			foreach ( $partition['skipped_ids'] as $skipped_id ) {
+				\CP_Sync\Events\VisibilityRemovalNotice::record_skip( $skipped_id );
+			}
+
+			if ( ! empty( $partition['skipped_ids'] ) ) {
+				cp_sync()->logging->log(
+					sprintf(
+						'Calendar visibility filter skipped %d hidden or unapproved event instances',
+						count( $partition['skipped_ids'] )
+					)
+				);
+			}
 		}
 
 		$filter = new \CP_Sync\Setup\DataFilter(
@@ -2137,7 +2142,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$event      = $relational_data['Event'][ $event_id ] ?? [];
 		$attributes = $event['attributes'] ?? [];
 
-		if ( ! \CP_Sync\Events\EventVisibility::pco_calendar_is_syncable( $attributes ) ) {
+		// Same gate as the fetch filter. Show All does not skip these rows.
+		if ( $this->calendar_visibility_is_restrictive() && ! \CP_Sync\Events\EventVisibility::pco_calendar_is_syncable( $attributes ) ) {
+			\CP_Sync\Events\VisibilityRemovalNotice::record_skip( $event_instance['id'] ?? '' );
 			cp_sync()->logging->log(
 				sprintf(
 					'Skipping calendar event %s (%s): hidden in Church Center or not approved',
@@ -2242,6 +2249,18 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				'registration_url' => $registration_url,
 			],
 		];
+	}
+
+	/**
+	 * Whether calendar visibility and approval filters are on.
+	 *
+	 * Only the restrictive setting ( "Only Visible in Church Center" )
+	 * filters. "Show All" does not.
+	 *
+	 * @return bool
+	 */
+	public function calendar_visibility_is_restrictive() {
+		return 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
 	}
 
 	/**

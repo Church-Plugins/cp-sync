@@ -217,7 +217,8 @@ abstract class Integration extends \WP_Background_Process {
 		// store below so later syncs keep re-evaluating them — otherwise they would
 		// fall out of tracking on the first run and a filter flipped to "remove" later
 		// could never reach them.
-		$preserved = [];
+		$preserved   = [];
+		$removed_ids = [];
 
 		foreach( $item_store as $chms_id => $hash ) {
 			// Never remove a locked post, even if it has disappeared from the ChMS —
@@ -238,9 +239,17 @@ abstract class Integration extends \WP_Background_Process {
 
 			if ( $should_remove ) {
 				$this->remove_item( $chms_id );
+				$removed_ids[] = $chms_id;
 			} else {
 				$preserved[ $chms_id ] = $hash;
 			}
+		}
+
+		if ( 'events' === $this->type ) {
+			\CP_Sync\Events\VisibilityRemovalNotice::publish(
+				\CP_Sync\Events\VisibilityRemovalNotice::skipped_ids(),
+				$removed_ids ?? []
+			);
 		}
 
 		// Record hashes for everything EXCEPT locked items. While locked, an item's

@@ -1076,6 +1076,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 */
 	public function format_event( $event, $context ) {
 		if ( ! \CP_Sync\Events\EventVisibility::ccb_is_syncable( $event ) ) {
+			\CP_Sync\Events\VisibilityRemovalNotice::record_skip( $event['event_id'] ?? ( $event['id'] ?? '' ) );
 			cp_sync()->logging->log(
 				sprintf(
 					'Skipping CCB event "%s": not approved or not publicly listed',

@@ -53,6 +53,7 @@ class _Init {
 	protected function actions() {
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue' ] );
 		add_action( 'admin_init', [ $this, 'maybe_admin_message' ] );
+		add_action( 'admin_notices', [ \CP_Sync\Events\VisibilityRemovalNotice::class, 'render' ] );
 	}
 
 	/** Actions ***************************************************/

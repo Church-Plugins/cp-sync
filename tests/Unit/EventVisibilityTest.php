@@ -12,6 +12,7 @@ use Brain\Monkey\Functions;
 use CP_Sync\ChMS\CCB;
 use CP_Sync\ChMS\PCO;
 use CP_Sync\Events\EventVisibility;
+use CP_Sync\Events\VisibilityRemovalNotice;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -48,6 +49,7 @@ class EventVisibilityTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
+		VisibilityRemovalNotice::reset();
 		Monkey\tearDown();
 		parent::tearDown();
 	}
@@ -105,8 +107,8 @@ class EventVisibilityTest extends TestCase {
 		$this->assertFalse( $this->makePco()->format_event_from_calendar( $instance, $context ) );
 	}
 
-	public function test_unapproved_calendar_event_is_skipped() {
-		foreach ( [ 'P', 'R', '', 'a' ] as $status ) {
+	public function test_explicitly_unapproved_calendar_events_are_skipped() {
+		foreach ( [ 'P', 'R' ] as $status ) {
 			list( $instance, $context ) = $this->calendar(
 				[
 					'visible_in_church_center' => true,
@@ -115,6 +117,79 @@ class EventVisibilityTest extends TestCase {
 			);
 			$this->assertFalse( $this->makePco()->format_event_from_calendar( $instance, $context ), $status );
 		}
+	}
+
+	public function test_approval_status_a_missing_null_and_empty_are_approved() {
+		$this->assertFalse( EventVisibility::approval_status_blocks_sync( 'A' ) );
+		$this->assertFalse( EventVisibility::approval_status_blocks_sync( 'a' ) );
+		$this->assertFalse( EventVisibility::approval_status_blocks_sync( null ) );
+		$this->assertFalse( EventVisibility::approval_status_blocks_sync( '' ) );
+		$this->assertFalse( EventVisibility::approval_status_blocks_sync( '   ' ) );
+		$this->assertTrue( EventVisibility::approval_status_blocks_sync( 'P' ) );
+		$this->assertTrue( EventVisibility::approval_status_blocks_sync( 'R' ) );
+
+		$pco = $this->makePco();
+
+		foreach ( [ 'A', 'a', '' ] as $status ) {
+			$attributes = [
+				'visible_in_church_center' => true,
+				'approval_status'          => $status,
+			];
+			list( $instance, $context ) = $this->calendar( $attributes );
+			$result = $pco->format_event_from_calendar( $instance, $context );
+			$this->assertSame( 'Service', $result['post_title'], 'status ' . var_export( $status, true ) );
+		}
+
+		// Missing approval_status: the key is absent entirely.
+		list( $instance, $context ) = $this->calendar( [ 'visible_in_church_center' => true ] );
+		$this->assertSame( 'Service', $pco->format_event_from_calendar( $instance, $context )['post_title'] );
+
+		// Null is a present key, not a missing one.
+		list( $instance, $context ) = $this->calendar(
+			[
+				'visible_in_church_center' => true,
+				'approval_status'          => null,
+			]
+		);
+		$this->assertSame( 'Service', $pco->format_event_from_calendar( $instance, $context )['post_title'] );
+	}
+
+	public function test_show_all_does_not_filter_hidden_or_unapproved_events() {
+		Functions\when( 'get_option' )->alias(
+			static function ( $key, $default = [] ) {
+				if ( 'cp_sync_pco_settings' === $key ) {
+					return [ 'ecp' => [ 'visibility' => 'all' ] ];
+				}
+				return $default;
+			}
+		);
+
+		$pco = $this->makePco();
+		$this->assertFalse( $pco->calendar_visibility_is_restrictive() );
+
+		list( $instance, $context ) = $this->calendar(
+			[
+				'visible_in_church_center' => false,
+				'approval_status'          => 'P',
+			]
+		);
+
+		$result = $pco->format_event_from_calendar( $instance, $context );
+
+		$this->assertSame( 'Service', $result['post_title'] );
+	}
+
+	public function test_only_visible_in_church_center_is_the_restrictive_option() {
+		Functions\when( 'get_option' )->alias(
+			static function ( $key, $default = [] ) {
+				if ( 'cp_sync_pco_settings' === $key ) {
+					return [ 'ecp' => [ 'visibility' => 'public' ] ];
+				}
+				return $default;
+			}
+		);
+
+		$this->assertTrue( $this->makePco()->calendar_visibility_is_restrictive() );
 	}
 
 	public function test_visible_approved_calendar_event_syncs() {
