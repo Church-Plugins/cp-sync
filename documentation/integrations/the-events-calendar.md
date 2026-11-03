@@ -40,7 +40,7 @@ When **Event source** is **Calendar AND Registrations**, the tab shows **Events 
 
 Calendar sync imports future event instances. **Visibility** is separate from **Calendar Filters**. An empty **Calendar Filters** builder does not turn the visibility and approval checks off.
 
-Planning Center start and end times are saved in the WordPress site timezone (Settings → General). A later sync stores the same times. Church Community Builder keeps the clock time CCB sent. When CCB sends a timezone PHP can use, that zone is stored. When it does not, the WordPress site timezone is stored. On a site whose WordPress timezone is not UTC, the first resync of an event with no timezone of its own changes the stored timezone and the UTC start and end once. The clock time stays the same.
+Planning Center start and end times are saved in the WordPress site timezone (Settings → General). A later sync stores the same times. Event times on your site use your WordPress timezone (Settings → General). Make sure it matches the timezone set in your Planning Center account, or event times may look shifted. Church Community Builder keeps the clock time CCB sent. When CCB sends a valid timezone, that zone is stored. When it does not, the WordPress site timezone is stored. The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
 
 ## Church Community Builder
 
@@ -51,7 +51,7 @@ On the **Events** tab, the heading reads **Select data to pull from Church Commu
 - **Events**, under **Event Filters**: **Pull Events where**, then **All** or **Any**, and **Add Condition**.
 - **Generate Preview** and **Pull Now**. **Pull Now** shows **Import started**.
 
-Each occurrence is imported as its own event. The public calendar listing is already limited to approved public events. A row that CCB marks unapproved, draft, or not listed is skipped. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
+Each occurrence is imported as its own event. The public calendar listing is already limited to approved public events. If CCB marks an event as not approved, it is skipped. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
 
 ## What Is Copied
 

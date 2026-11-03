@@ -48,7 +48,7 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
    - Planning Center events: **Event source**, **Visibility**, **Calendar Filters**, and **Registration Filters** on the **Events** tab. With **Only Visible in Church Center**, calendar events also have to be visible in Church Center and not explicitly unapproved. **Show All** does not apply that filter. An admin notice reports when that filter removes upcoming events already on the site.
    - Planning Center sermons: the **Sermons** filter. Only episodes published to the Church Center library are imported.
    - Church Community Builder groups: the **Groups** filter. Groups that are inactive or not listed in public search are skipped.
-   - Church Community Builder events: **Date Range** and the **Events** filter. Unapproved, draft, or unlisted rows are skipped.
+   - Church Community Builder events: **Date Range** and the **Events** filter. If CCB marks an event as not approved, it is skipped.
    - Remove a condition with the trash icon on that row, then click **Generate Preview**.
 
 3. **API permissions**:
