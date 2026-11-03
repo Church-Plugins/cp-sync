@@ -10,7 +10,8 @@ import { __ } from '@wordpress/i18n';
  * they share one values object and save path.
  *
  * `displayGroupsWithSync` maps 1:1 to the stored global settings key read by
- * Groups Lite. Do not rename it. On until an admin turns it off.
+ * Groups Lite. Do not rename it. The schema default is on for a new site. PHP
+ * fills in off when an existing install had Groups sync turned off.
  *
  * The `updateInterval` key maps 1:1 to the stored global settings key — do not
  * rename. Values (`hourly`/`daily`/`weekly`) match the previous MUI menu items.
@@ -29,8 +30,8 @@ const advancedSchema = {
 				displayGroupsWithSync: {
 					type: 'toggle',
 					label: __( 'Display groups with CP Sync', 'cp-sync' ),
-					// On until an admin turns it off. PHP treats a missing key the same way
-					// when CP Groups is absent. The key must match Groups\Lite::DISPLAY_SETTING.
+					// New-site default. An events-only upgrade is sent `false` from PHP when
+					// the key has never been saved. The key must match Groups\Lite::DISPLAY_SETTING.
 					default: true,
 					help: __(
 						'CP Groups adds filters, a map, and a contact form.',

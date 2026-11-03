@@ -9,7 +9,9 @@ namespace CP_Sync\Tests\Unit;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
+use CP_Sync\ChMS\PCO;
 use CP_Sync\Groups\Display;
+use CP_Sync\Groups\GroupMeta;
 use CP_Sync\Groups\Lite;
 use CP_Sync\Integrations\CP_Groups;
 use PHPUnit\Framework\TestCase;
@@ -112,6 +114,69 @@ class GroupsLiteTest extends TestCase {
 		$this->assertNull( $this->registered_post_type );
 		$this->assertSame( 0, $this->flushes );
 		$this->assertArrayNotHasKey( Lite::REWRITE_STATE_OPTION, $this->options );
+	}
+
+	public function test_does_not_register_when_groups_sync_is_off() {
+		// Events-only site: Sync Groups is off, even if the display toggle is on.
+		$this->options['cp_sync_settings']     = [
+			'chms'                   => 'pco',
+			'displayGroupsWithSync'  => true,
+		];
+		$this->options['cp_sync_pco_settings'] = [
+			'connect' => [
+				'sync_groups' => false,
+				'sync_events' => true,
+			],
+		];
+
+		Lite::get_instance()->on_init( false );
+
+		$this->assertNull( $this->registered_post_type );
+		$this->assertFalse( Lite::is_registered() );
+		$this->assertSame( 'off', $this->options[ Lite::REWRITE_STATE_OPTION ] );
+	}
+
+	public function test_upgrade_with_groups_sync_off_defaults_display_off() {
+		// Existing install, display key never saved, Groups sync explicitly off.
+		$this->options['cp_sync_settings']     = [
+			'chms'           => 'pco',
+			'updateInterval' => 'daily',
+		];
+		$this->options['cp_sync_pco_settings'] = [
+			'connect' => [
+				'sync_groups' => false,
+			],
+		];
+
+		$this->assertTrue( Lite::is_existing_install() );
+		$this->assertFalse( Lite::groups_sync_is_on() );
+		$this->assertFalse( Lite::display_default() );
+		$this->assertFalse( Lite::is_display_enabled() );
+
+		Lite::get_instance()->on_init( false );
+
+		$this->assertNull( $this->registered_post_type );
+		$this->assertFalse( Lite::is_registered() );
+	}
+
+	public function test_existing_install_registers_when_sync_and_display_are_on() {
+		$this->options['cp_sync_settings']     = [
+			'chms' => 'ccb',
+		];
+		$this->options['cp_sync_ccb_settings'] = [
+			'connect' => [
+				'sync_groups' => true,
+			],
+		];
+
+		$this->assertTrue( Lite::display_default() );
+		$this->assertTrue( Lite::should_register() );
+
+		Lite::get_instance()->on_init( false );
+
+		$this->assertSame( 'cp_group', $this->registered_post_type['type'] );
+		$this->assertSame( 'groups', $this->registered_post_type['args']['has_archive'] );
+		$this->assertTrue( Lite::is_registered() );
 	}
 
 	public function test_does_not_register_when_display_is_off() {
@@ -276,6 +341,100 @@ class GroupsLiteTest extends TestCase {
 		$this->assertSame( '1.2.0', CP_Groups::leader_storage_version() );
 	}
 
+	public function test_lite_sync_group_stays_on_the_archive_and_single_after_cp_groups() {
+		// Planning Center does not send is_group_full when the group is open.
+		$synced = [
+			'post_status' => 'publish',
+			'post_title'  => 'Young Adults',
+			'meta_input'  => [
+				'time_desc' => 'Thursdays at 6pm',
+				'location'  => 'Room 4',
+			],
+		];
+
+		$this->assertFalse( GroupMeta::visible_in_cp_groups_archive( $synced['meta_input'] ) );
+		$this->assertFalse( GroupMeta::single_is_reachable( $synced ) );
+
+		$synced['meta_input'] = GroupMeta::ensure( $synced['meta_input'] );
+
+		$this->assertSame( 0, $synced['meta_input']['is_group_full'] );
+		$this->assertTrue( GroupMeta::visible_in_cp_groups_archive( $synced['meta_input'] ) );
+		$this->assertTrue( GroupMeta::single_is_reachable( $synced ) );
+
+		$full = GroupMeta::ensure(
+			[
+				'is_group_full' => 'on',
+				'time_desc'     => 'Mondays',
+			]
+		);
+		$this->assertSame( 'on', $full['is_group_full'] );
+		$this->assertFalse( GroupMeta::visible_in_cp_groups_archive( $full ) );
+	}
+
+	public function test_backfill_writes_the_not_full_default_only_when_the_flag_is_missing() {
+		$updates = GroupMeta::backfill_updates(
+			[
+				[
+					'ID'   => 5,
+					'meta' => [ 'time_desc' => 'Thursdays' ],
+				],
+				[
+					'ID'   => 6,
+					'meta' => [ 'is_group_full' => 'on' ],
+				],
+				[
+					'ID'   => 7,
+					'meta' => [ 'is_group_full' => 0 ],
+				],
+			]
+		);
+
+		$this->assertSame( [ 5 => 0 ], $updates );
+	}
+
+	public function test_shortcode_count_is_not_replaced_by_cp_groups_per_page() {
+		$args = Display::query_args( [ 'count' => '3' ] );
+
+		$this->assertSame( 3, $args['posts_per_page'] );
+		$this->assertSame( 3, $args['cp_sync_groups_limit'] );
+
+		$query = new class( $args ) {
+			/** @var array */
+			private $vars;
+
+			public function __construct( array $vars ) {
+				$this->vars = $vars;
+			}
+
+			public function get( $key ) {
+				return array_key_exists( $key, $this->vars ) ? $this->vars[ $key ] : null;
+			}
+
+			public function set( $key, $value ) {
+				$this->vars[ $key ] = $value;
+			}
+		};
+
+		// CP Groups' pre_get_posts replaces the shortcode count with Groups per page.
+		$query->set( 'posts_per_page', 6 );
+
+		Display::protect_shortcode_count( $query );
+
+		$this->assertSame( 3, $query->get( 'posts_per_page' ) );
+	}
+
+	public function test_group_boundary_dates_do_not_pass_null_to_strtotime() {
+		$empty = PCO::group_boundary_dates( null, null );
+
+		$this->assertSame( '', $empty['start_date'] );
+		$this->assertNull( $empty['end_date'] );
+
+		$open = PCO::group_boundary_dates( '2024-06-01', '' );
+
+		$this->assertSame( '2024-06-01', $open['start_date'] );
+		$this->assertNull( $open['end_date'] );
+	}
+
 	/**
 	 * @return void
 	 */
@@ -347,6 +506,10 @@ class GroupsLiteTest extends TestCase {
 				];
 			}
 		);
+		Functions\when( 'get_posts' )->justReturn( [] );
+		Functions\when( 'update_post_meta' )->justReturn( true );
+		Functions\when( 'add_action' )->justReturn( true );
+		Functions\when( 'add_filter' )->justReturn( true );
 	}
 
 	/**

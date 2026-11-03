@@ -30,7 +30,7 @@ After activating the plugin:
 1. Go to **Church Plugins → CP Sync** (`admin.php?page=cps_settings`). You need an account that can manage options (an Administrator).
 2. On the **Connect** tab, set **Church Management System** to **Planning Center Online** or **Church Community Builder**.
 3. Connect that system. See [API Connections](../configuration/api-connections.md).
-4. Under **Sync**, turn on the feeds you want. **Sync Groups** is on until you turn it off. Without CP Groups, groups show on your site while **Display groups with CP Sync** is on (Advanced tab; on until you turn it off). **Sync Events** needs The Events Calendar. **Sync Sermons** (Planning Center only) needs CP Sermons and is off until you turn it on. **Sync Events** is on until you turn it off. See [Show Groups on Your Site](../integrations/show-groups.md).
+4. Under **Sync**, turn on the feeds you want. **Sync Groups** is on until you turn it off. Without CP Groups, groups show on your site only when **Sync Groups** and **Display groups with CP Sync** (Advanced tab) are both on. A site that already syncs only events keeps the display toggle off. **Sync Events** needs The Events Calendar. **Sync Sermons** (Planning Center only) needs CP Sermons and is off until you turn it on. **Sync Events** is on until you turn it off. See [Show Groups on Your Site](../integrations/show-groups.md).
 5. Click **Save all Settings**.
 
 > **Note (CP Sync 1.0.0):** Settings live under **Church Plugins > CP Sync**. The old Settings link no longer works. See [What's New in CP Sync 1.0.0](whats-new-1-0-0.md).

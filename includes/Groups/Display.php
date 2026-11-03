@@ -85,8 +85,10 @@ class Display {
 			'posts_per_page'      => $parsed['count'],
 			'orderby'             => 'title',
 			'order'               => 'ASC',
-			'ignore_sticky_posts' => true,
-			'no_found_rows'       => true,
+			'ignore_sticky_posts'  => true,
+			'no_found_rows'        => true,
+			// CP Groups' archive query replaces posts_per_page. This flag lets us put the shortcode count back.
+			'cp_sync_groups_limit' => $parsed['count'],
 		];
 
 		if ( '' !== $parsed['type'] ) {
@@ -100,6 +102,32 @@ class Display {
 		}
 
 		return $args;
+	}
+
+	/**
+	 * Keep `[cp-sync-groups count]` after CP Groups rewrites the query.
+	 *
+	 * CP Groups hooks pre_get_posts and sets posts_per_page to its Groups per
+	 * page setting for every front-end cp_group query. That replaced a
+	 * shortcode count of 3 with whatever that setting was. Run later than
+	 * that hook and put the shortcode count back.
+	 *
+	 * @since 1.2.0
+	 * @param object $query Query object with get() and set().
+	 * @return void
+	 */
+	public static function protect_shortcode_count( $query ) {
+		if ( ! is_object( $query ) || ! method_exists( $query, 'get' ) || ! method_exists( $query, 'set' ) ) {
+			return;
+		}
+
+		$count = $query->get( 'cp_sync_groups_limit' );
+
+		if ( null === $count || false === $count || '' === $count ) {
+			return;
+		}
+
+		$query->set( 'posts_per_page', (int) $count );
 	}
 
 	/**

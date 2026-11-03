@@ -93,7 +93,7 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 
 = 1.2.0 =
 * Groups can be shown on the site without CP Groups: a groups page at /groups/, a page for each group, and the [cp-sync-groups] shortcode. Leader email addresses are not shown. CP Groups adds filters, a map, and a contact form, and it takes over the same groups when you activate it.
-* The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
+* Church Community Builder events: The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
 
 = 1.1.0 =
 * New: Planning Center group leaders now sync to CP Groups. Group Leader gets every leader's name, and Group Leader Email gets the group's contact email, or the email of the first leader who has one (developers can change this with the `cp_sync_pco_group_leader_email` filter). On CP Groups 1.2 or later, leaders are saved as Group Leaders rows instead, each with that leader's own email; the contact email is only used when no leader has one. If the leaders request fails, leaders already stored are kept.

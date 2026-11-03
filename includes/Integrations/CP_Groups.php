@@ -37,6 +37,13 @@ class CP_Groups extends Integration {
 			$item['meta_input'] = self::prepare_leader_meta( $item['meta_input'], $leader_version );
 		}
 
+		// CP Groups' archive query requires is_group_full = 0. Groups synced
+		// before that key existed would disappear once CP Groups is activated.
+		if ( ! isset( $item['meta_input'] ) || ! is_array( $item['meta_input'] ) ) {
+			$item['meta_input'] = [];
+		}
+		$item['meta_input'] = \CP_Sync\Groups\GroupMeta::ensure( $item['meta_input'] );
+
 		$id = wp_insert_post( $item );
 
 		if ( ! $id || is_wp_error( $id ) ) {

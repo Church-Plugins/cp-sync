@@ -175,8 +175,13 @@ class SyncToggleFieldsTest extends TestCase {
 	/* ------------------------------------------- _Init availability helpers */
 
 	public function test_is_integration_available_uses_groups_lite_when_cp_groups_is_absent() {
-		// No stored toggle: Groups Lite is on by default. Events still need TEC.
-		Functions\when( 'get_option' )->justReturn( [] );
+		// No saved options: a new install defaults the display toggle on.
+		Functions\when( 'get_option' )->alias(
+			static function ( $option, $default = false ) {
+				unset( $option );
+				return $default;
+			}
+		);
 		$this->assertTrue( Integrations_Init::is_integration_available( 'groups' ) );
 		$this->assertFalse( Integrations_Init::is_integration_available( 'events' ) );
 		// Unknown types are not gated by this helper.

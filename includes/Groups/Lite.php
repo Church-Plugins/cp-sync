@@ -13,9 +13,11 @@ require_once dirname( __DIR__ ) . '/Templates.php';
  * Registers the CP Groups post type and taxonomies for sites that do not run CP Groups.
  *
  * CP Groups uses the same slugs, so activating it takes over these posts with no migration.
- * Registration runs at a late `init` and only when `cp_groups()` is absent and the post
- * type is not already registered. Rewrite rules are flushed once when Lite turns on,
- * turns off, or hands the posts back to CP Groups.
+ * Registration runs at a late `init` and only when `cp_groups()` is absent, the post
+ * type is not already registered, Groups sync is turned on for the active ChMS, and
+ * "Display groups with CP Sync" is on. An events-only site does not gain /groups/.
+ * Rewrite rules are flushed once when Lite turns on, turns off, or hands the posts
+ * back to CP Groups.
  *
  * @since 1.2.0
  */
@@ -67,6 +69,9 @@ class Lite {
 		add_action( 'init', [ $this, 'on_init' ], 99 );
 		add_filter( 'template_include', [ $this, 'template_include' ] );
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_styles' ] );
+		add_filter( 'cp_sync_global_settings', [ $this, 'expose_display_default' ] );
+		// After CP Groups' pre_get_posts ( priority 10 ), which replaces posts_per_page.
+		add_action( 'pre_get_posts', [ Display::class, 'protect_shortcode_count' ], 20 );
 	}
 
 	/**
@@ -82,7 +87,7 @@ class Lite {
 	 * Whether group sync has somewhere to write.
 	 *
 	 * CP Groups wins when it is active. Otherwise the display toggle decides.
-	 * The toggle is on when it has never been saved and CP Groups is absent.
+	 * The archive is registered only when Groups sync is also on; see should_register().
 	 *
 	 * @since 1.2.0
 	 * @return bool
@@ -96,10 +101,24 @@ class Lite {
 	}
 
 	/**
+	 * Whether Lite should register cp_group and the /groups/ archive.
+	 *
+	 * Both the display toggle and the active ChMS's Sync Groups setting must be on.
+	 * A site that syncs events only does not get the post type.
+	 *
+	 * @since 1.2.0
+	 * @return bool
+	 */
+	public static function should_register() {
+		return self::is_display_enabled() && self::groups_sync_is_on();
+	}
+
+	/**
 	 * Whether "Display groups with CP Sync" is on.
 	 *
-	 * Missing setting means on. CP Groups being active does not change the stored
-	 * value; Lite still refuses to register while `cp_groups()` exists.
+	 * A saved value wins. When the key has never been saved, a new install defaults
+	 * on. An existing install whose Groups sync is off defaults off, so an upgrade
+	 * does not start showing groups.
 	 *
 	 * @since 1.2.0
 	 * @return bool
@@ -107,11 +126,116 @@ class Lite {
 	public static function is_display_enabled() {
 		$settings = get_option( 'cp_sync_settings', [] );
 
-		if ( ! is_array( $settings ) || ! array_key_exists( self::DISPLAY_SETTING, $settings ) ) {
+		if ( is_array( $settings ) && array_key_exists( self::DISPLAY_SETTING, $settings ) ) {
+			return self::is_truthy( $settings[ self::DISPLAY_SETTING ] );
+		}
+
+		return self::display_default();
+	}
+
+	/**
+	 * Default for a missing display toggle.
+	 *
+	 * @since 1.2.0
+	 * @return bool
+	 */
+	public static function display_default() {
+		if ( self::is_existing_install() && ! self::groups_sync_is_on() ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Whether Groups sync is turned on for the active ChMS.
+	 *
+	 * A saved `connect.sync_groups` value is used as stored. When nothing is saved,
+	 * a new install follows the groups default (on). An existing install does not:
+	 * groups did not sync without CP Groups, so an events-only site must not gain
+	 * a public /groups/ archive on upgrade.
+	 *
+	 * @since 1.2.0
+	 * @return bool
+	 */
+	public static function groups_sync_is_on() {
+		$stored = self::stored_sync_groups();
+
+		if ( null === $stored ) {
+			return ! self::is_existing_install();
+		}
+
+		return self::is_truthy( $stored );
+	}
+
+	/**
+	 * Saved Sync Groups value, or null when this install has not stored one.
+	 *
+	 * @since 1.2.0
+	 * @return mixed|null
+	 */
+	public static function stored_sync_groups() {
+		$chms_id  = self::active_chms_id();
+		$settings = get_option( 'cp_sync_' . $chms_id . '_settings', null );
+
+		if ( ! is_array( $settings ) || ! isset( $settings['connect'] ) || ! is_array( $settings['connect'] ) ) {
+			return null;
+		}
+
+		if ( ! array_key_exists( 'sync_groups', $settings['connect'] ) ) {
+			return null;
+		}
+
+		return $settings['connect']['sync_groups'];
+	}
+
+	/**
+	 * Whether this site already had CP Sync settings before the display toggle.
+	 *
+	 * @since 1.2.0
+	 * @return bool
+	 */
+	public static function is_existing_install() {
+		$global = get_option( 'cp_sync_settings', false );
+
+		if ( false !== $global && null !== $global ) {
 			return true;
 		}
 
-		return self::is_truthy( $settings[ self::DISPLAY_SETTING ] );
+		foreach ( [ 'pco', 'ccb' ] as $chms_id ) {
+			$settings = get_option( 'cp_sync_' . $chms_id . '_settings', false );
+
+			if ( false !== $settings && null !== $settings ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Active ChMS id, used to find that system's settings option.
+	 *
+	 * @since 1.2.0
+	 * @return string
+	 */
+	public static function active_chms_id() {
+		$global  = get_option( 'cp_sync_settings', [] );
+		$chms_id = 'pco';
+
+		if ( is_array( $global ) && isset( $global['chms'] ) && is_string( $global['chms'] ) && preg_match( '/^[a-z0-9_-]+$/', $global['chms'] ) ) {
+			$chms_id = $global['chms'];
+		}
+
+		if ( function_exists( 'apply_filters' ) ) {
+			$filtered = apply_filters( 'cp_sync_active_chms', $chms_id );
+
+			if ( is_string( $filtered ) && preg_match( '/^[a-z0-9_-]+$/', $filtered ) ) {
+				$chms_id = $filtered;
+			}
+		}
+
+		return $chms_id;
 	}
 
 	/**
@@ -148,13 +272,15 @@ class Lite {
 			$state = 'cp-groups';
 		} elseif ( post_type_exists( 'cp_group' ) ) {
 			// Something else already registered the type. Leave its rewrite rules alone.
+			GroupMeta::backfill();
 			return;
-		} elseif ( self::is_display_enabled() && $this->register_objects() ) {
+		} elseif ( self::should_register() && $this->register_objects() ) {
 			self::$registered = true;
 			$state            = 'lite';
 		}
 
 		$this->flush_rewrites_on_change( $state );
+		GroupMeta::backfill();
 	}
 
 	/**
@@ -324,6 +450,26 @@ class Lite {
 			[],
 			file_exists( $path ) ? (string) filemtime( $path ) : '1.2.0'
 		);
+	}
+
+	/**
+	 * Put the computed display default into the settings screen when nothing is stored.
+	 *
+	 * The Advanced toggle then shows off on an events-only upgrade instead of the
+	 * schema's new-install default.
+	 *
+	 * @since 1.2.0
+	 * @param mixed $settings Global settings passed to the settings app.
+	 * @return mixed
+	 */
+	public function expose_display_default( $settings ) {
+		if ( ! is_array( $settings ) || array_key_exists( self::DISPLAY_SETTING, $settings ) ) {
+			return $settings;
+		}
+
+		$settings[ self::DISPLAY_SETTING ] = self::display_default();
+
+		return $settings;
 	}
 
 	/**

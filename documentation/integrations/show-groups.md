@@ -10,12 +10,18 @@ CP Groups adds filters, a map, and a contact form. If you activate CP Groups lat
 
 1. Go to **Church Plugins → CP Sync**.
 2. Open the **Advanced** tab.
-3. Leave **Display groups with CP Sync** on. It is on until you turn it off.
-4. On the **Connect** tab, turn on **Sync Groups**.
+3. Turn on **Display groups with CP Sync**. A new site has this on. A site that was already using CP Sync only for events has it off until you turn it on.
+4. On the **Connect** tab, turn on **Sync Groups**. Both this and the display toggle need to be on. If **Sync Groups** is off, the groups page is not created.
 5. Click **Save all Settings**.
 6. After a sync, open `yoursite.org/groups/`.
 
-Each group also has its own page. The title on the groups page links to that page.
+When Groups sync is on, the groups list uses `/groups/`. If a page on your site already uses that address, rename that page's slug. In **Pages**, open the page, change the slug (the last part of its web address) to something else, such as `groups-info`, and update the page. The groups list stays at `/groups/`. If the old address still opens the page, go to **Settings → Permalinks** and click **Save Changes**.
+
+With **Show All**, every group syncs and appears on your site, including groups unlisted in your ChMS.
+
+Each group also has its own page. The title on the groups page links to that page. On the groups list, the description is shortened to about 40 words. The group's own page shows the full description. The web address of each group stays the same if you install CP Groups later, because CP Groups uses these same groups.
+
+To stop showing groups, turn off **Display groups with CP Sync** on the **Advanced** tab.
 
 If you turn **Display groups with CP Sync** off and CP Groups is not active, **Sync Groups** is disabled. Its help text reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
 
@@ -30,8 +36,10 @@ Add this shortcode to any page or post:
 That shows 12 groups. To show a different number:
 
 ```
-[cp-sync-groups count="6"]
+[cp-sync-groups count="3"]
 ```
+
+The count you set is the number of groups shown, including after you install CP Groups. CP Groups' own groups page uses its **Groups per page** setting instead of this count.
 
 `count="-1"` shows every group.
 
