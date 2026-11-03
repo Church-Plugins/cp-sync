@@ -151,7 +151,7 @@ class EventRegistrationTest extends TestCase {
 
 		$this->assertArrayNotHasKey( 'disabled', $fields['sync_events'] );
 		$this->assertSame(
-			'Shows events with The Events Calendar if it\'s active. Otherwise, turn on Display events with CP Sync on the Advanced tab.',
+			'Events are shown on CP Sync\'s own event pages at /events/.',
 			$fields['sync_events']['help']
 		);
 	}

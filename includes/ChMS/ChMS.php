@@ -320,7 +320,7 @@ abstract class ChMS {
 			$fields['sync_events']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'events' );
 		} elseif ( empty( $availability['events'] ) ) {
 			// Enabled while The Events Calendar is off, which means Display events is on.
-			$fields['sync_events']['help'] = __( 'Shows events with The Events Calendar if it\'s active. Otherwise, turn on Display events with CP Sync on the Advanced tab.', 'cp-sync' );
+			$fields['sync_events']['help'] = __( 'Events are shown on CP Sync\'s own event pages at /events/.', 'cp-sync' );
 		}
 
 		return $fields;
