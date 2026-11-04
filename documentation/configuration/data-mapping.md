@@ -84,6 +84,7 @@ Set **Event source** to **Pull from Registrations** or **Calendar AND Registrati
 | Signup location | Venue |
 | Logo | Featured image |
 | Categories | Event categories |
+| Public registration prices | Event cost. One option shows that price. Several options show a range from the lowest to the highest, such as $75 – $200. When every public option is free, the event says Free. A signup with no public price has no cost. |
 
 When **Event source** is **Calendar AND Registrations**, the **Events** tab shows **Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.**
 

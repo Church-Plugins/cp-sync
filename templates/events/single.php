@@ -25,6 +25,7 @@ while ( have_posts() ) {
 	);
 	$cp_sync_location = (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::LOCATION, true );
 	$cp_sync_url      = (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::REGISTRATION_URL, true );
+	$cp_sync_price    = (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::REGISTRATION_PRICE, true );
 	$cp_sync_image    = (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::IMAGE_URL, true );
 	$cp_sync_series   = (int) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::SERIES_ID, true );
 	?>
@@ -65,9 +66,14 @@ while ( have_posts() ) {
 			<?php echo wp_kses_post( apply_filters( 'the_content', get_post_field( 'post_content', $cp_sync_post_id ) ) ); ?>
 		</div>
 
-		<?php if ( '' !== $cp_sync_url ) : ?>
+		<?php if ( '' !== $cp_sync_price || '' !== $cp_sync_url ) : ?>
 			<p class="cp-sync-event__register">
-				<a href="<?php echo esc_url( $cp_sync_url ); ?>"><?php esc_html_e( 'Register', 'cp-sync' ); ?></a>
+				<?php if ( '' !== $cp_sync_price ) : ?>
+					<span class="cp-sync-event__price"><?php echo esc_html( $cp_sync_price ); ?></span>
+				<?php endif; ?>
+				<?php if ( '' !== $cp_sync_url ) : ?>
+					<a href="<?php echo esc_url( $cp_sync_url ); ?>"><?php esc_html_e( 'Register', 'cp-sync' ); ?></a>
+				<?php endif; ?>
 			</p>
 		<?php endif; ?>
 

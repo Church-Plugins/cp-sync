@@ -47,6 +47,16 @@ class WpEventStore implements EventStore {
 
 		$meta = Meta::event_meta( $record );
 		$meta[ Meta::REGISTRATION_URL ] = esc_url_raw( $meta[ Meta::REGISTRATION_URL ] );
+
+		if ( array_key_exists( Meta::REGISTRATION_PRICE, $meta ) ) {
+			$meta[ Meta::REGISTRATION_PRICE ] = sanitize_text_field( $meta[ Meta::REGISTRATION_PRICE ] );
+
+			if ( '' === $meta[ Meta::REGISTRATION_PRICE ] ) {
+				delete_post_meta( $post_id, Meta::REGISTRATION_PRICE );
+				unset( $meta[ Meta::REGISTRATION_PRICE ] );
+			}
+		}
+
 		$this->update_meta( $post_id, $meta );
 
 		$this->assign_categories( $post_id, isset( $record['categories'] ) ? $record['categories'] : array() );
