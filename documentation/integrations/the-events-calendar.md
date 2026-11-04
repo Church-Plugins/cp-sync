@@ -40,7 +40,7 @@ On the **Events** tab:
 
 When **Event source** is **Calendar AND Registrations**, the tab shows **Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.**
 
-A registration's public price is saved as the event cost. One option shows that price. Several options show a range from the lowest to the highest. A free registration shows **Free**. The next sync updates that cost, or clears it when Planning Center no longer has a public price, as long as the cost still matches what the sync saved. A cost you edited by hand is left as you set it. If the price request fails, the saved cost stays.
+A registration's public price is saved as the event cost. One option shows that price. Several options show a range from the lowest to the highest, such as $75 – $200. A free registration shows **Free**. The next sync updates that cost, or clears it when Planning Center no longer has a public price, as long as the cost still matches what the sync saved. A cost you edited by hand is left as you set it. If the price request fails, the saved cost stays.
 
 Calendar sync imports future event instances. **Visibility** is separate from **Calendar Filters**. An empty **Calendar Filters** builder does not turn the visibility and approval checks off.
 

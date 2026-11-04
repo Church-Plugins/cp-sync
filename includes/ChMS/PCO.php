@@ -2645,13 +2645,15 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			);
 		}
 
-		// The Events Calendar reads a hyphenated numeric range and applies one
-		// currency symbol itself. The display string already includes a symbol
-		// on each end. A signup is one currency; the lowest price's symbol is
-		// the one stored for The Events Calendar.
+		// A spaced en dash separates the ends. The Events Calendar pulls the
+		// numbers back out and applies one currency symbol. The display string
+		// already includes a symbol on each end. A signup is one currency; the
+		// lowest price's symbol is the one stored for The Events Calendar.
+		$separator = ' – ';
+
 		return array(
-			'display'  => $min['symbol'] . $min['formatted'] . ' - ' . $max['symbol'] . $max['formatted'],
-			'cost'     => $min['formatted'] . ' - ' . $max['formatted'],
+			'display'  => $min['symbol'] . $min['formatted'] . $separator . $max['symbol'] . $max['formatted'],
+			'cost'     => $min['formatted'] . $separator . $max['formatted'],
 			'symbol'   => $min['symbol'],
 			'position' => '' !== $min['symbol'] ? 'prefix' : '',
 		);

@@ -97,8 +97,8 @@ class RegistrationPriceTest extends TestCase {
 			)
 		);
 
-		$this->assertSame( '$10.00 - $40.00', $price['display'] );
-		$this->assertSame( '10.00 - 40.00', $price['cost'] );
+		$this->assertSame( '$10.00 – $40.00', $price['display'] );
+		$this->assertSame( '10.00 – 40.00', $price['cost'] );
 		$this->assertSame( '$', $price['symbol'] );
 		$this->assertSame( 'prefix', $price['position'] );
 	}
@@ -197,7 +197,7 @@ class RegistrationPriceTest extends TestCase {
 			)
 		);
 
-		$this->assertSame( '£5.00 - £20.00', $range['display'] );
+		$this->assertSame( '£5.00 – £20.00', $range['display'] );
 		$this->assertSame( '£', $range['symbol'] );
 	}
 

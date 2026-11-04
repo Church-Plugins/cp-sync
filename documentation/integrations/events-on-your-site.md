@@ -54,7 +54,7 @@ Dates that are still in the feed are published again. Future dates that are no l
 
 Each date from your church management system becomes its own event.
 
-- The list of upcoming dates is at `/events/`. Dates are in order, soonest first. Each date has a linked title and one button. The button says **Register** when your church management system sent a link, and **Learn more** when it did not. **Learn more** opens that date's page. A Planning Center registration shows its price next to **Register**. One option shows that price. Several options show a range from the lowest to the highest. A free registration says **Free**. A date that is part of a series also links to that series.
+- The list of upcoming dates is at `/events/`. Dates are in order, soonest first. Each date has a linked title and one button. The button says **Register** when your church management system sent a link, and **Learn more** when it did not. **Learn more** opens that date's page. A Planning Center registration shows its price next to **Register**. One option shows that price. Several options show a range from the lowest to the highest, such as $75 – $200. A free registration says **Free**. A date that is part of a series also links to that series.
 - An event page shows the date and time in your WordPress timezone (**Settings → General → Timezone**), the location, the image, the description, and a **Register** button when the church management system sent a link. The price, when there is one, is next to **Register**. The button goes to that link. It does not use a form on your site.
 - A series page shows the description, the image, the next upcoming dates, and the same **Register** button.
 
@@ -78,7 +78,7 @@ Series pages use `/event-series/` so they do not take the `/series/` address CP 
 | Location | Location line |
 | Image | Featured image. If the download fails, the page uses the image address from your ChMS. |
 | Registration link, or the Church Community Builder event page | **Register** button |
-| Planning Center registration price | Price next to **Register**. One option shows that price. Several options show a range. A free registration says **Free**. |
+| Planning Center registration price | Price next to **Register**. One option shows that price. Several options show a range, such as $75 – $200. A free registration says **Free**. |
 | Planning Center tags, registration categories, or a Church Community Builder event type | Event category, when the feed already includes one |
 
 Events that the sync imports are published pages. CP Sync does not save a separate private copy of an event the visibility setting left out.
