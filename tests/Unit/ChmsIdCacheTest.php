@@ -58,12 +58,68 @@ class ChmsIdCacheTest extends TestCase {
 				return $thing instanceof \WP_Error;
 			}
 		);
+		Functions\when( 'add_filter' )->alias(
+			static function ( $tag, $callback, $priority = 10, $accepted = 1 ) use ( $world ) {
+				$world->filters[ $tag ][ $priority ][] = array( $callback, (int) $accepted );
+				return true;
+			}
+		);
+		Functions\when( 'remove_filter' )->alias(
+			static function ( $tag, $callback, $priority = 10 ) use ( $world ) {
+				if ( empty( $world->filters[ $tag ][ $priority ] ) ) {
+					return true;
+				}
+
+				foreach ( $world->filters[ $tag ][ $priority ] as $index => $row ) {
+					if ( $row[0] === $callback ) {
+						unset( $world->filters[ $tag ][ $priority ][ $index ] );
+					}
+				}
+
+				return true;
+			}
+		);
 		Functions\when( 'apply_filters' )->alias(
-			static function ( $tag, $value ) {
+			static function ( $tag, $value, ...$args ) use ( $world ) {
+				if ( empty( $world->filters[ $tag ] ) ) {
+					return $value;
+				}
+
+				ksort( $world->filters[ $tag ] );
+
+				foreach ( $world->filters[ $tag ] as $callbacks ) {
+					foreach ( $callbacks as $row ) {
+						$call  = array_merge( array( $value ), array_slice( $args, 0, max( 0, $row[1] - 1 ) ) );
+						$value = call_user_func_array( $row[0], $call );
+					}
+				}
+
 				return $value;
 			}
 		);
-		Functions\when( 'do_action' )->justReturn( null );
+		Functions\when( 'add_action' )->alias(
+			static function ( $tag, $callback, $priority = 10, $accepted = 1 ) use ( $world ) {
+				$world->actions[ $tag ][ $priority ][] = array( $callback, (int) $accepted );
+				return true;
+			}
+		);
+		Functions\when( 'do_action' )->alias(
+			static function ( $tag, ...$args ) use ( $world ) {
+				if ( empty( $world->actions[ $tag ] ) ) {
+					return null;
+				}
+
+				ksort( $world->actions[ $tag ] );
+
+				foreach ( $world->actions[ $tag ] as $callbacks ) {
+					foreach ( $callbacks as $row ) {
+						call_user_func_array( $row[0], array_slice( $args, 0, $row[1] ) );
+					}
+				}
+
+				return null;
+			}
+		);
 		Functions\when( 'taxonomy_exists' )->justReturn( false );
 		Functions\when( 'sanitize_title' )->returnArg( 1 );
 		Functions\when( 'wp_slash' )->returnArg( 1 );
@@ -291,6 +347,28 @@ class ChmsIdCacheTest extends TestCase {
 		$this->assertSame( '', $this->world->get_meta( $original, '_cp_sync_trashed' ) );
 	}
 
+	public function test_admin_restore_then_admin_trash_is_not_revived() {
+		$integration = $this->integration();
+		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden' ) ) );
+		$original = $this->only_published( 'tribe_events', 'hidden' );
+
+		$integration->trash_item( 'hidden' );
+		$this->assertSame( '1', (string) $this->world->get_meta( $original, '_cp_sync_trashed' ) );
+
+		// An administrator restores from the Trash screen. WordPress fires
+		// untrashed_post, which drops the sync marker.
+		$this->world->untrash_post( $original );
+		$this->assertSame( '', $this->world->get_meta( $original, '_cp_sync_trashed' ) );
+		$this->assertSame( '', $this->world->get_meta( $original, '_cp_sync_trashed_status' ) );
+
+		$this->world->trash_post( $original );
+		$integration->sync_feed( array( $this->item( 'hidden', 'Shown' ) ) );
+
+		$this->assertSame( array( $original ), $this->ids_with_status( 'tribe_events', 'hidden', 'trash' ) );
+		$this->assertSame( array(), $this->ids_with_status( 'tribe_events', 'hidden', 'publish' ) );
+		$this->assertNotContains( 'wp_publish_post', $this->call_names() );
+	}
+
 	public function test_hide_then_unhide_runs_through_dispatch_and_the_queue_worker() {
 		Functions\when( 'wp_die' )->justReturn( null );
 		Functions\when( 'wp_doing_ajax' )->justReturn( false );
@@ -364,27 +442,7 @@ class ChmsIdCacheTest extends TestCase {
 		$this->world->set_meta( $dead, '_cp_sync_normalized_url', $url );
 		$this->world->set_meta( $dead, '_wp_attached_file', '/tmp/cp-sync-missing-logo.jpg' );
 
-		$world = $this->world;
-		Functions\when( 'get_attached_file' )->alias(
-			static function ( $attachment_id ) use ( $world ) {
-				$file = $world->get_meta( $attachment_id, '_wp_attached_file' );
-				return is_string( $file ) ? $file : '';
-			}
-		);
-		Functions\when( 'set_post_thumbnail' )->alias(
-			static function ( $post_id, $thumb_id ) use ( $world ) {
-				$file = $world->get_meta( $thumb_id, '_wp_attached_file' );
-
-				// Same rule as WordPress: an attachment with no image clears the thumbnail.
-				if ( ! is_string( $file ) || '' === $file || ! file_exists( $file ) ) {
-					unset( $world->posts[ (int) $post_id ]['meta']['_thumbnail_id'] );
-					return false;
-				}
-
-				$world->set_meta( $post_id, '_thumbnail_id', (int) $thumb_id );
-				return true;
-			}
-		);
+		$this->stub_thumbnail_api();
 
 		$this->assertFalse( $integration->get_existing_attachment( $url ) );
 		$this->assertSame( '', $this->world->get_meta( $dead, '_cp_sync_normalized_url' ) );
@@ -406,6 +464,55 @@ class ChmsIdCacheTest extends TestCase {
 		$this->assertNotSame( $dead, $thumb );
 		$this->assertSame( $url, $this->world->get_meta( $post, '_thumbnail_url' ) );
 		@unlink( $fresh );
+		$this->assertSame( 1, $integration->created );
+	}
+
+	public function test_offloaded_image_is_reused_when_the_local_file_is_missing() {
+		$integration = $this->image_integration();
+		$post        = $this->world->save_post(
+			array(
+				'post_type'   => 'tribe_events',
+				'post_status' => 'publish',
+				'post_title'  => 'Registration',
+			)
+		);
+		$kept = $this->world->save_post(
+			array(
+				'post_type'   => 'attachment',
+				'post_status' => 'inherit',
+				'post_title'  => 'CDN logo',
+			)
+		);
+		$url = 'https://cdn.example.com/logo.jpg';
+		$this->world->set_meta( $kept, '_cp_sync_normalized_url', $url );
+		$this->world->set_meta( $kept, '_wp_attached_file', '/tmp/cp-sync-offloaded-logo.jpg' );
+		$this->assertFileDoesNotExist( '/tmp/cp-sync-offloaded-logo.jpg' );
+
+		$this->stub_thumbnail_api();
+		add_filter(
+			'wp_get_attachment_image_src',
+			static function ( $src, $attachment_id ) use ( $kept, $url ) {
+				if ( (int) $attachment_id === (int) $kept ) {
+					return array( $url, 640, 480, false );
+				}
+
+				return $src;
+			},
+			10,
+			2
+		);
+
+		$integration->maybe_sideload_thumb(
+			array(
+				'thumbnail_url' => $url,
+				'post_title'    => 'Registration',
+			),
+			$post
+		);
+
+		$this->assertSame( 0, $integration->created );
+		$this->assertSame( $kept, (int) $this->world->get_meta( $post, '_thumbnail_id' ) );
+		$this->assertSame( $url, $this->world->get_meta( $kept, '_cp_sync_normalized_url' ) );
 	}
 
 	public function test_existing_post_updates_in_place() {
@@ -521,6 +628,7 @@ class ChmsIdCacheTest extends TestCase {
 	private function integration() {
 		$integration = ( new ReflectionClass( IdCacheIntegration::class ) )->newInstanceWithoutConstructor();
 		$integration->world = $this->world;
+		$integration->actions();
 		return $integration;
 	}
 
@@ -532,6 +640,7 @@ class ChmsIdCacheTest extends TestCase {
 		$integration->world = $this->world;
 		$integration->identifier = 'wp_pull_events';
 		$integration->cron_hook_identifier = 'wp_pull_events_cron';
+		$integration->actions();
 		return $integration;
 	}
 
@@ -541,7 +650,51 @@ class ChmsIdCacheTest extends TestCase {
 	private function image_integration() {
 		$integration = ( new ReflectionClass( RecreateImageIntegration::class ) )->newInstanceWithoutConstructor();
 		$integration->world = $this->world;
+		$integration->actions();
 		return $integration;
+	}
+
+	/**
+	 * Image HTML follows wp_get_attachment_image_src, including a filtered URL.
+	 * set_post_thumbnail() keeps the thumbnail only when that HTML is non-empty.
+	 *
+	 * @return void
+	 */
+	private function stub_thumbnail_api() {
+		$world = $this->world;
+
+		Functions\when( 'wp_get_attachment_image' )->alias(
+			static function ( $attachment_id ) use ( $world ) {
+				$src = apply_filters( 'wp_get_attachment_image_src', false, $attachment_id, 'thumbnail' );
+
+				if ( is_array( $src ) && ! empty( $src[0] ) ) {
+					return '<img src="' . $src[0] . '" alt="" />';
+				}
+
+				$file = $world->get_meta( $attachment_id, '_wp_attached_file' );
+
+				if ( is_string( $file ) && '' !== $file && file_exists( $file ) ) {
+					return '<img src="file://local" alt="" />';
+				}
+
+				return '';
+			}
+		);
+		Functions\when( 'set_post_thumbnail' )->alias(
+			static function ( $post_id, $thumb_id ) use ( $world ) {
+				if ( ! $world->get_post( $post_id ) || ! $world->get_post( $thumb_id ) ) {
+					return false;
+				}
+
+				if ( wp_get_attachment_image( $thumb_id, 'thumbnail' ) ) {
+					$world->set_meta( $post_id, '_thumbnail_id', (int) $thumb_id );
+					return true;
+				}
+
+				unset( $world->posts[ (int) $post_id ]['meta']['_thumbnail_id'] );
+				return false;
+			}
+		);
 	}
 
 	/**
@@ -830,6 +983,9 @@ class RecreateImageIntegration extends IdCacheIntegration {
 	/** @var string */
 	public $fresh_file = '';
 
+	/** @var int */
+	public $created = 0;
+
 	public function sideload_image( $item, $id, $ignore_existing = false ) {
 		$normalized = $this->normalize_thumbnail_url( $item['thumbnail_url'] );
 
@@ -840,6 +996,8 @@ class RecreateImageIntegration extends IdCacheIntegration {
 				return $existing;
 			}
 		}
+
+		$this->created++;
 
 		$attachment = $this->world->save_post(
 			array(
@@ -907,6 +1065,12 @@ class PostWorld {
 
 	/** @var array */
 	public $calls = array();
+
+	/** @var array */
+	public $filters = array();
+
+	/** @var array */
+	public $actions = array();
 
 	/** @var string[] */
 	public $logs = array();
@@ -995,8 +1159,15 @@ class PostWorld {
 			return null;
 		}
 
-		$previous = $this->posts[ $id ]['previous_status'] ?? 'publish';
-		$this->posts[ $id ]['post_status'] = $previous ? $previous : 'publish';
+		if ( 'trash' !== $this->posts[ $id ]['post_status'] ) {
+			return false;
+		}
+
+		// WordPress 5.6 restores to draft unless wp_untrash_post_status says otherwise.
+		$previous = $this->posts[ $id ]['previous_status'] ?? '';
+		$status   = apply_filters( 'wp_untrash_post_status', 'draft', $id, $previous );
+		$this->posts[ $id ]['post_status'] = ( is_string( $status ) && '' !== $status ) ? $status : 'draft';
+		do_action( 'untrashed_post', $id, $previous );
 
 		return $this->get_post( $id );
 	}

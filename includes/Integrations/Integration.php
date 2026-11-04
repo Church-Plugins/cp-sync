@@ -89,6 +89,7 @@ abstract class Integration extends \WP_Background_Process {
 	 */
 	public function actions() {
 		add_action( 'init', [ $this, 'load_taxonomies' ] );
+		add_action( 'untrashed_post', [ $this, 'clear_sync_trash_marker' ] );
 	}
 
 	/**
@@ -872,9 +873,9 @@ abstract class Integration extends \WP_Background_Process {
 			$normalized_url
 		) );
 
-		// The row has to be an attachment that still has its file. A deleted
-		// post, or one whose file was removed, must not be reused: passing that
-		// id to set_post_thumbnail() makes WordPress clear the featured image.
+		// Reuse only an attachment WordPress can still render. A missing post,
+		// or one with no image, must not be passed to set_post_thumbnail(),
+		// which clears the featured image in that case.
 		if ( $attachment_id && $this->attachment_file_is_usable( $attachment_id ) ) {
 			return (int) $attachment_id;
 		}
@@ -888,6 +889,10 @@ abstract class Integration extends \WP_Background_Process {
 
 	/**
 	 * Whether this attachment can still be used as a featured image.
+	 *
+	 * Matches the check in set_post_thumbnail(): the post is an attachment and
+	 * wp_get_attachment_image() is non-empty. Local files are not required.
+	 * A host that stores images elsewhere can still return an image tag.
 	 *
 	 * @param int $attachment_id Attachment post id.
 	 * @return bool
@@ -905,13 +910,13 @@ abstract class Integration extends \WP_Background_Process {
 			return false;
 		}
 
-		if ( 'trash' === ( $post->post_status ?? '' ) ) {
+		if ( ! function_exists( 'wp_get_attachment_image' ) ) {
 			return false;
 		}
 
-		$file = get_attached_file( $attachment_id );
+		$image = wp_get_attachment_image( $attachment_id, 'thumbnail' );
 
-		return is_string( $file ) && '' !== $file && file_exists( $file );
+		return is_string( $image ) && '' !== $image;
 	}
 
 	public function sideload_image( $item, $id, $ignore_existing = false ) {
@@ -1227,8 +1232,9 @@ abstract class Integration extends \WP_Background_Process {
 	 * Bring back a post this plugin trashed, at the status it had before.
 	 *
 	 * Posts an admin trashed by hand have no marker and are not touched.
-	 * wp_untrash_post() restores the status WordPress stored when the post
-	 * was trashed, including a draft.
+	 * Since WordPress 5.6, wp_untrash_post() restores a post to draft unless
+	 * wp_untrash_post_status says otherwise. The filter is added only for this
+	 * call and returns the status saved when CP Sync trashed the post.
 	 *
 	 * @param string $chms_id ChMS id.
 	 * @return void
@@ -1244,7 +1250,35 @@ abstract class Integration extends \WP_Background_Process {
 			return;
 		}
 
+		$restore_status = get_post_meta( $post_id, self::TRASHED_STATUS_META_KEY, true );
+		$filter         = static function ( $new_status, $untrash_id ) use ( $post_id, $restore_status ) {
+			if ( (int) $untrash_id !== (int) $post_id ) {
+				return $new_status;
+			}
+
+			if ( is_string( $restore_status ) && '' !== $restore_status ) {
+				return $restore_status;
+			}
+
+			return $new_status;
+		};
+
+		add_filter( 'wp_untrash_post_status', $filter, 10, 2 );
 		wp_untrash_post( $post_id );
+		remove_filter( 'wp_untrash_post_status', $filter, 10 );
+	}
+
+	/**
+	 * Drop the sync trash marker when a post leaves the Trash.
+	 *
+	 * An administrator can restore the post from the Trash screen. If the
+	 * marker stayed, trashing it again by hand would look like a sync trash
+	 * and the next sync would bring it back.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return void
+	 */
+	public function clear_sync_trash_marker( $post_id ) {
 		delete_post_meta( $post_id, self::TRASHED_META_KEY );
 		delete_post_meta( $post_id, self::TRASHED_STATUS_META_KEY );
 	}
