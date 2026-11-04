@@ -90,6 +90,15 @@ class ChmsIdCacheTest extends TestCase {
 				return true;
 			}
 		);
+		Functions\when( 'delete_post_meta' )->alias(
+			static function ( $post_id, $key ) use ( $world ) {
+				$id = (int) $post_id;
+				if ( isset( $world->posts[ $id ]['meta'][ $key ] ) ) {
+					unset( $world->posts[ $id ]['meta'][ $key ] );
+				}
+				return true;
+			}
+		);
 		Functions\when( 'get_post_thumbnail_id' )->alias(
 			static function ( $post_id ) use ( $world ) {
 				return (int) $world->get_meta( $post_id, '_thumbnail_id' );
@@ -164,8 +173,17 @@ class ChmsIdCacheTest extends TestCase {
 		);
 
 		$plugin          = new \stdClass();
-		$plugin->logging = new class() {
-			public function log( $message ) {}
+		$plugin->logging = new class( $world ) {
+			/** @var PostWorld */
+			private $world;
+
+			public function __construct( PostWorld $world ) {
+				$this->world = $world;
+			}
+
+			public function log( $message ) {
+				$this->world->logs[] = (string) $message;
+			}
 		};
 		Functions\when( 'cp_sync' )->justReturn( $plugin );
 
@@ -216,12 +234,13 @@ class ChmsIdCacheTest extends TestCase {
 		$this->assertSame( array( $created ), $this->ids_with_status( 'tribe_events', 'hidden', 'publish' ) );
 	}
 
-	public function test_trashed_post_is_kept_and_restored() {
+	public function test_admin_trashed_post_stays_trashed_and_is_not_duplicated() {
 		$integration = $this->integration();
 		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden' ), $this->item( 'kept', 'Kept' ) ) );
 		$original = $this->only_published( 'tribe_events', 'hidden' );
 
 		$this->world->trash_post( $original );
+		$this->assertSame( '', $this->world->get_meta( $original, '_cp_sync_trashed' ) );
 		$this->assertSame( $original, (int) $integration->get_chms_item_id( 'hidden' ) );
 
 		$integration->flush_chms_id_cache();
@@ -229,8 +248,164 @@ class ChmsIdCacheTest extends TestCase {
 
 		$integration->sync_feed( array( $this->item( 'hidden', 'Shown' ), $this->item( 'kept', 'Kept' ) ) );
 
+		$this->assertSame( array( $original ), $this->ids_with_status( 'tribe_events', 'hidden', 'trash' ) );
+		$this->assertSame( array(), $this->ids_with_status( 'tribe_events', 'hidden', 'publish' ) );
+		$this->assertNotContains( 'wp_untrash_post', $this->call_names() );
+		$this->assertNotContains( 'wp_publish_post', $this->call_names() );
+		$logged = implode( "\n", $this->world->logs );
+		$this->assertStringContainsString( 'was not moved there by CP Sync', $logged );
+	}
+
+	public function test_sync_trashed_draft_comes_back_as_a_draft() {
+		$integration = $this->integration();
+		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden' ) ) );
+		$original = $this->only_published( 'tribe_events', 'hidden' );
+		$this->world->posts[ $original ]['post_status'] = 'draft';
+
+		$integration->trash_item( 'hidden' );
+
+		$this->assertSame( 'trash', $this->world->posts[ $original ]['post_status'] );
+		$this->assertSame( '1', (string) $this->world->get_meta( $original, '_cp_sync_trashed' ) );
+		$this->assertSame( 'draft', $this->world->get_meta( $original, '_cp_sync_trashed_status' ) );
+
+		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden' ) ) );
+
+		$this->assertSame( 'draft', $this->world->posts[ $original ]['post_status'] );
+		$this->assertSame( '', $this->world->get_meta( $original, '_cp_sync_trashed' ) );
+		$this->assertSame( array( $original ), $this->ids_with_status( 'tribe_events', 'hidden', 'draft' ) );
+		$this->assertNotContains( 'wp_publish_post', $this->call_names() );
+	}
+
+	public function test_sync_trashed_published_post_comes_back_published() {
+		$integration = $this->integration();
+		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden' ) ) );
+		$original = $this->only_published( 'tribe_events', 'hidden' );
+
+		$integration->trash_item( 'hidden' );
+		$this->assertSame( 'publish', $this->world->get_meta( $original, '_cp_sync_trashed_status' ) );
+
+		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden again' ) ) );
+
 		$this->assertSame( array( $original ), $this->ids_with_status( 'tribe_events', 'hidden', 'publish' ) );
-		$this->assertSame( array(), $this->ids_with_status( 'tribe_events', 'hidden', 'trash' ) );
+		$this->assertSame( 'Hidden again', $this->world->posts[ $original ]['post_title'] );
+		$this->assertSame( '', $this->world->get_meta( $original, '_cp_sync_trashed' ) );
+	}
+
+	public function test_hide_then_unhide_runs_through_dispatch_and_the_queue_worker() {
+		Functions\when( 'wp_die' )->justReturn( null );
+		Functions\when( 'wp_doing_ajax' )->justReturn( false );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'absint' )->alias(
+			static function ( $value ) {
+				return abs( (int) $value );
+			}
+		);
+		Functions\when( 'wp_generate_uuid4' )->justReturn( '11111111-1111-4111-8111-111111111111' );
+		Functions\when( 'wp_convert_hr_to_bytes' )->justReturn( PHP_INT_MAX );
+		Functions\when( 'get_site_transient' )->justReturn( false );
+		Functions\when( 'set_site_transient' )->justReturn( true );
+		Functions\when( 'delete_site_transient' )->justReturn( true );
+		Functions\when( 'delete_site_option' )->justReturn( true );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+		Functions\when( 'wp_unschedule_event' )->justReturn( true );
+
+		$integration = $this->queue_integration();
+
+		// Same request as the fetch: nothing is hidden, both items are queued,
+		// dispatch starts the worker, and the worker creates the posts.
+		$integration->process( array( $this->item( 'hidden', 'Family Movie Night' ), $this->item( 'kept', 'Kept' ) ) );
+		$this->assertSame( 1, $integration->dispatched );
+		$integration->run_worker();
+		$original = $this->only_published( 'tribe_events', 'hidden' );
+
+		// Fetch records the hidden id, then process() trashes it before dispatch.
+		// The worker is a later request, so the static skip list is empty there.
+		VisibilityRemovalNotice::record_skip( 'hidden' );
+		$integration->process( array( $this->item( 'kept', 'Kept' ) ) );
+		$this->assertSame( 'trash', $this->world->posts[ $original ]['post_status'] );
+		$this->assertSame( '1', (string) $this->world->get_meta( $original, '_cp_sync_trashed' ) );
+		$this->assertSame( 2, $integration->dispatched );
+
+		VisibilityRemovalNotice::reset();
+		$integration->run_worker();
+		$this->assertSame( 'trash', $this->world->posts[ $original ]['post_status'] );
+		$this->assertSame( array( $original ), $this->ids_with_status( 'tribe_events', 'hidden', 'trash' ) );
+
+		// Unhide queues the item. The worker, not process(), restores it.
+		$integration->process( array( $this->item( 'hidden', 'Family Movie Night' ), $this->item( 'kept', 'Kept' ) ) );
+		$this->assertSame( 'trash', $this->world->posts[ $original ]['post_status'] );
+		$this->assertSame( 3, $integration->dispatched );
+		VisibilityRemovalNotice::reset();
+		$integration->run_worker();
+
+		$this->assertSame( array( $original ), $this->ids_with_status( 'tribe_events', 'hidden', 'publish' ) );
+		$this->assertSame( '', $this->world->get_meta( $original, '_cp_sync_trashed' ) );
+	}
+
+	public function test_recreated_post_gets_a_new_image_when_the_old_file_is_gone() {
+		$integration = $this->image_integration();
+		$post        = $this->world->save_post(
+			array(
+				'post_type'   => 'tribe_events',
+				'post_status' => 'publish',
+				'post_title'  => 'Registration',
+			)
+		);
+		$this->world->set_meta( $post, '_chms_id', 'reg-1' );
+
+		$dead = $this->world->save_post(
+			array(
+				'post_type'   => 'attachment',
+				'post_status' => 'inherit',
+				'post_title'  => 'Old logo',
+			)
+		);
+		$url = 'https://cdn.example.com/logo.jpg';
+		$this->world->set_meta( $dead, '_cp_sync_normalized_url', $url );
+		$this->world->set_meta( $dead, '_wp_attached_file', '/tmp/cp-sync-missing-logo.jpg' );
+
+		$world = $this->world;
+		Functions\when( 'get_attached_file' )->alias(
+			static function ( $attachment_id ) use ( $world ) {
+				$file = $world->get_meta( $attachment_id, '_wp_attached_file' );
+				return is_string( $file ) ? $file : '';
+			}
+		);
+		Functions\when( 'set_post_thumbnail' )->alias(
+			static function ( $post_id, $thumb_id ) use ( $world ) {
+				$file = $world->get_meta( $thumb_id, '_wp_attached_file' );
+
+				// Same rule as WordPress: an attachment with no image clears the thumbnail.
+				if ( ! is_string( $file ) || '' === $file || ! file_exists( $file ) ) {
+					unset( $world->posts[ (int) $post_id ]['meta']['_thumbnail_id'] );
+					return false;
+				}
+
+				$world->set_meta( $post_id, '_thumbnail_id', (int) $thumb_id );
+				return true;
+			}
+		);
+
+		$this->assertFalse( $integration->get_existing_attachment( $url ) );
+		$this->assertSame( '', $this->world->get_meta( $dead, '_cp_sync_normalized_url' ) );
+
+		$fresh = tempnam( sys_get_temp_dir(), 'cpsync' );
+		file_put_contents( $fresh, 'image' );
+		$integration->fresh_file = $fresh;
+
+		$integration->maybe_sideload_thumb(
+			array(
+				'thumbnail_url' => $url,
+				'post_title'    => 'Registration',
+			),
+			$post
+		);
+
+		$thumb = (int) $this->world->get_meta( $post, '_thumbnail_id' );
+		$this->assertGreaterThan( 0, $thumb );
+		$this->assertNotSame( $dead, $thumb );
+		$this->assertSame( $url, $this->world->get_meta( $post, '_thumbnail_url' ) );
+		@unlink( $fresh );
 	}
 
 	public function test_existing_post_updates_in_place() {
@@ -332,7 +507,8 @@ class ChmsIdCacheTest extends TestCase {
 		$this->assertSame( array(), $this->ids_with_status( 'tribe_events', 'hidden', 'trash' ) );
 		$this->assertSame( array(), $this->ids_with_status( 'cp_event', 'hidden', 'trash' ) );
 		$this->assertContains( 'wp_untrash_post', $this->call_names() );
-		$this->assertContains( 'wp_publish_post', $this->call_names() );
+		$this->assertNotContains( 'wp_publish_post', $this->call_names() );
+		$this->assertSame( '', $this->world->get_meta( $tec_id, '_cp_sync_trashed' ) );
 		$this->assertSame( $attachment, (int) $this->world->get_meta( $tec_id, '_thumbnail_id' ) );
 		$this->assertCount( 6, $this->world->files );
 		$this->assertSame( 'publish', $this->world->posts[ $tec_id ]['post_status'] );
@@ -344,6 +520,26 @@ class ChmsIdCacheTest extends TestCase {
 	 */
 	private function integration() {
 		$integration = ( new ReflectionClass( IdCacheIntegration::class ) )->newInstanceWithoutConstructor();
+		$integration->world = $this->world;
+		return $integration;
+	}
+
+	/**
+	 * @return QueuePathIntegration
+	 */
+	private function queue_integration() {
+		$integration = ( new ReflectionClass( QueuePathIntegration::class ) )->newInstanceWithoutConstructor();
+		$integration->world = $this->world;
+		$integration->identifier = 'wp_pull_events';
+		$integration->cron_hook_identifier = 'wp_pull_events_cron';
+		return $integration;
+	}
+
+	/**
+	 * @return RecreateImageIntegration
+	 */
+	private function image_integration() {
+		$integration = ( new ReflectionClass( RecreateImageIntegration::class ) )->newInstanceWithoutConstructor();
 		$integration->world = $this->world;
 		return $integration;
 	}
@@ -477,8 +673,7 @@ class IdCacheIntegration extends Integration {
 
 		if ( $existing ) {
 			$id = (int) $existing;
-			$this->world->posts[ $id ]['post_title']  = $item['post_title'] ?? '';
-			$this->world->posts[ $id ]['post_status'] = 'publish';
+			$this->world->posts[ $id ]['post_title'] = $item['post_title'] ?? '';
 			return $id;
 		}
 
@@ -540,6 +735,127 @@ class IdCacheIntegration extends Integration {
 }
 
 /**
+ * Uses the real queue: process() saves a batch and dispatch() returns, then
+ * run_worker() is the later request that calls handle().
+ */
+class QueuePathIntegration extends IdCacheIntegration {
+
+	/** @var array */
+	public $batches = array();
+
+	/** @var int */
+	public $dispatched = 0;
+
+	/** @var string */
+	public $identifier = 'wp_pull_events';
+
+	/** @var string */
+	public $cron_hook_identifier = 'wp_pull_events_cron';
+
+	public function push_to_queue( $data ) {
+		if ( ! is_array( $this->data ) ) {
+			$this->data = array();
+		}
+
+		$this->data[] = $data;
+		return $this;
+	}
+
+	public function save() {
+		if ( ! empty( $this->data ) ) {
+			$this->batches[] = (object) array(
+				'key'  => 'batch-' . count( $this->batches ),
+				'data' => $this->data,
+			);
+		}
+
+		$this->data = array();
+		return $this;
+	}
+
+	public function get_batches( $limit = 0 ) {
+		$batches = $this->batches;
+
+		if ( $limit ) {
+			$batches = array_slice( $batches, 0, $limit );
+		}
+
+		return $batches;
+	}
+
+	public function update( $key, $data ) {
+		foreach ( $this->batches as $batch ) {
+			if ( $batch->key === $key ) {
+				$batch->data = $data;
+			}
+		}
+
+		return $this;
+	}
+
+	public function delete( $key ) {
+		$this->batches = array_values(
+			array_filter(
+				$this->batches,
+				static function ( $batch ) use ( $key ) {
+					return $batch->key !== $key;
+				}
+			)
+		);
+
+		return $this;
+	}
+
+	public function dispatch() {
+		$this->dispatched++;
+		return array( 'response' => array( 'code' => 200 ) );
+	}
+
+	/**
+	 * The queue worker. Skipped ids from the fetch request are already gone.
+	 *
+	 * @return void
+	 */
+	public function run_worker() {
+		VisibilityRemovalNotice::reset();
+		$this->handle();
+	}
+}
+
+/**
+ * Sideloads a new file when the stored attachment cannot be reused.
+ */
+class RecreateImageIntegration extends IdCacheIntegration {
+
+	/** @var string */
+	public $fresh_file = '';
+
+	public function sideload_image( $item, $id, $ignore_existing = false ) {
+		$normalized = $this->normalize_thumbnail_url( $item['thumbnail_url'] );
+
+		if ( ! $ignore_existing ) {
+			$existing = $this->get_existing_attachment( $normalized );
+
+			if ( $existing ) {
+				return $existing;
+			}
+		}
+
+		$attachment = $this->world->save_post(
+			array(
+				'post_type'   => 'attachment',
+				'post_status' => 'inherit',
+				'post_title'  => 'Fresh logo',
+			)
+		);
+		$this->world->set_meta( $attachment, '_wp_attached_file', $this->fresh_file );
+		$this->world->set_meta( $attachment, '_cp_sync_normalized_url', $normalized );
+
+		return $attachment;
+	}
+}
+
+/**
  * Event store that skips image and category writes.
  */
 class QuietWpEventStore extends WpEventStore {
@@ -591,6 +907,9 @@ class PostWorld {
 
 	/** @var array */
 	public $calls = array();
+
+	/** @var string[] */
+	public $logs = array();
 
 	/** @var int */
 	private $next = 1;
@@ -729,6 +1048,10 @@ class CacheWpdb {
 
 	public $postmeta = 'wp_postmeta';
 
+	public $options = 'wp_options';
+
+	public $sitemeta = 'wp_sitemeta';
+
 	/** @var PostWorld */
 	private $world;
 
@@ -768,6 +1091,24 @@ class CacheWpdb {
 	}
 
 	public function get_var( $prepared ) {
+		if ( ! is_array( $prepared ) ) {
+			return null;
+		}
+
+		$query = $prepared['query'] ?? '';
+
+		if ( false === strpos( $query, '_cp_sync_normalized_url' ) ) {
+			return null;
+		}
+
+		$url = $prepared['args'][0] ?? '';
+
+		foreach ( $this->world->posts as $id => $post ) {
+			if ( ( $post['meta']['_cp_sync_normalized_url'] ?? '' ) === $url ) {
+				return (string) $id;
+			}
+		}
+
 		return null;
 	}
 }

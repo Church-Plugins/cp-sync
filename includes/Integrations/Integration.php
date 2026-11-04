@@ -18,6 +18,22 @@ abstract class Integration extends \WP_Background_Process {
 	const LOCK_META_KEY = '_cp_sync_lock';
 
 	/**
+	 * Set on a post this plugin moved to the Trash, so a later sync can bring it back.
+	 *
+	 * A post an admin trashed by hand does not have this marker and is left alone.
+	 *
+	 * @var string
+	 */
+	const TRASHED_META_KEY = '_cp_sync_trashed';
+
+	/**
+	 * Status the post had before this plugin trashed it.
+	 *
+	 * @var string
+	 */
+	const TRASHED_STATUS_META_KEY = '_cp_sync_trashed_status';
+
+	/**
 	 * @var | Unique ID for this integration
 	 */
 	public $id;
@@ -419,8 +435,14 @@ abstract class Integration extends \WP_Background_Process {
 
 		unset( $item['tax_input'] ); // child classes don't need access to this
 
-		// A hidden event is still the same post. Publish it again before the
-		// update so the ChMS id keeps pointing at that id.
+		// An admin moved this post to the Trash. The ChMS id still points at it,
+		// so creating another post would duplicate it. Leave the trashed post as it is.
+		if ( $this->is_admin_trashed( $chms_id ) ) {
+			cp_sync()->logging->log( "Skipping {$chms_id}: it is in the Trash and was not moved there by CP Sync, so this sync leaves it there." );
+			return false;
+		}
+
+		// A post this plugin trashed comes back at the status it had before.
 		$this->restore_trashed_item( $chms_id );
 
 		try {
@@ -811,11 +833,22 @@ abstract class Integration extends \WP_Background_Process {
 
 		$thumb_id = $this->sideload_image( $item, $id );
 
+		// A reused attachment whose file is gone must not be passed to
+		// set_post_thumbnail(). WordPress then deletes _thumbnail_id, so the
+		// new post is left with no image. Download a fresh copy instead.
+		if ( $thumb_id && ! is_wp_error( $thumb_id ) && ! $this->attachment_file_is_usable( $thumb_id ) ) {
+			delete_post_meta( (int) $thumb_id, '_cp_sync_normalized_url' );
+			$thumb_id = $this->sideload_image( $item, $id, true );
+		}
+
 		if ( is_wp_error( $thumb_id ) ) {
 			cp_sync()->logging->log( 'Could not import image: ' . $thumb_id->get_error_message() );
-		} else if ( $thumb_id ) {
-			set_post_thumbnail( $id, $thumb_id );
-			update_post_meta( $id, '_thumbnail_url', $thumbnail_url );
+		} else if ( $thumb_id && $this->attachment_file_is_usable( $thumb_id ) ) {
+			$set = set_post_thumbnail( $id, $thumb_id );
+
+			if ( $set && get_post_thumbnail_id( $id ) ) {
+				update_post_meta( $id, '_thumbnail_url', $thumbnail_url );
+			}
 		}
 	}
 
@@ -839,15 +872,49 @@ abstract class Integration extends \WP_Background_Process {
 			$normalized_url
 		) );
 
-		// Verify the attachment still exists
-		if ( $attachment_id && get_post( $attachment_id ) ) {
+		// The row has to be an attachment that still has its file. A deleted
+		// post, or one whose file was removed, must not be reused: passing that
+		// id to set_post_thumbnail() makes WordPress clear the featured image.
+		if ( $attachment_id && $this->attachment_file_is_usable( $attachment_id ) ) {
 			return (int) $attachment_id;
+		}
+
+		if ( $attachment_id ) {
+			delete_post_meta( (int) $attachment_id, '_cp_sync_normalized_url' );
 		}
 
 		return false;
 	}
 
-	public function sideload_image( $item, $id ) {
+	/**
+	 * Whether this attachment can still be used as a featured image.
+	 *
+	 * @param int $attachment_id Attachment post id.
+	 * @return bool
+	 */
+	protected function attachment_file_is_usable( $attachment_id ) {
+		$attachment_id = (int) $attachment_id;
+
+		if ( $attachment_id < 1 ) {
+			return false;
+		}
+
+		$post = get_post( $attachment_id );
+
+		if ( ! is_object( $post ) || 'attachment' !== ( $post->post_type ?? '' ) ) {
+			return false;
+		}
+
+		if ( 'trash' === ( $post->post_status ?? '' ) ) {
+			return false;
+		}
+
+		$file = get_attached_file( $attachment_id );
+
+		return is_string( $file ) && '' !== $file && file_exists( $file );
+	}
+
+	public function sideload_image( $item, $id, $ignore_existing = false ) {
 		require_once( ABSPATH . 'wp-admin/includes/media.php' );
 		require_once( ABSPATH . 'wp-admin/includes/file.php' );
 		require_once( ABSPATH . 'wp-admin/includes/image.php' );
@@ -855,10 +922,12 @@ abstract class Integration extends \WP_Background_Process {
 		$thumbnail_url = $item['thumbnail_url'];
 		$normalized_url = $this->normalize_thumbnail_url( $thumbnail_url );
 
-		// Check if we already have this image in the media library
-		$existing_attachment = $this->get_existing_attachment( $normalized_url );
-		if ( $existing_attachment ) {
-			return $existing_attachment;
+		// Check if we already have this image in the media library.
+		if ( ! $ignore_existing ) {
+			$existing_attachment = $this->get_existing_attachment( $normalized_url );
+			if ( $existing_attachment ) {
+				return $existing_attachment;
+			}
 		}
 
 		$file_name     = sanitize_title( $item['post_title'] ) . '-' . $id . '-' . md5( $normalized_url );
@@ -1148,11 +1217,18 @@ abstract class Integration extends \WP_Background_Process {
 			return;
 		}
 
+		$status = get_post_status( $id );
+		update_post_meta( $id, self::TRASHED_META_KEY, '1' );
+		update_post_meta( $id, self::TRASHED_STATUS_META_KEY, is_string( $status ) ? $status : 'publish' );
 		wp_trash_post( $id );
 	}
 
 	/**
-	 * Publish a trashed post again when its ChMS id comes back.
+	 * Bring back a post this plugin trashed, at the status it had before.
+	 *
+	 * Posts an admin trashed by hand have no marker and are not touched.
+	 * wp_untrash_post() restores the status WordPress stored when the post
+	 * was trashed, including a draft.
 	 *
 	 * @param string $chms_id ChMS id.
 	 * @return void
@@ -1164,8 +1240,29 @@ abstract class Integration extends \WP_Background_Process {
 			return;
 		}
 
+		if ( ! get_post_meta( $post_id, self::TRASHED_META_KEY, true ) ) {
+			return;
+		}
+
 		wp_untrash_post( $post_id );
-		wp_publish_post( $post_id );
+		delete_post_meta( $post_id, self::TRASHED_META_KEY );
+		delete_post_meta( $post_id, self::TRASHED_STATUS_META_KEY );
+	}
+
+	/**
+	 * Whether an admin trashed this post, rather than a sync.
+	 *
+	 * @param string $chms_id ChMS id.
+	 * @return bool
+	 */
+	protected function is_admin_trashed( $chms_id ) {
+		$post_id = $this->get_chms_item_id( $chms_id );
+
+		if ( empty( $post_id ) || 'trash' !== get_post_status( $post_id ) ) {
+			return false;
+		}
+
+		return ! get_post_meta( $post_id, self::TRASHED_META_KEY, true );
 	}
 
 	/**
