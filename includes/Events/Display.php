@@ -72,6 +72,9 @@ class Display {
 	 * Null is not the same as the toggle default. Callers that need the
 	 * default use PostTypes::sync_is_on().
 	 *
+	 * Reads the same option the pull reads, including when a site filters
+	 * cp_sync_active_chms.
+	 *
 	 * @return mixed
 	 */
 	public static function stored_sync_events() {
@@ -79,15 +82,8 @@ class Display {
 			return null;
 		}
 
-		$global = get_option( 'cp_sync_settings', array() );
-		$chms   = 'pco';
-
-		if ( is_array( $global ) && ! empty( $global['chms'] ) && is_string( $global['chms'] ) ) {
-			$chms = $global['chms'];
-		}
-
-		$key      = 'ccb' === $chms ? 'cp_sync_ccb_settings' : 'cp_sync_pco_settings';
-		$settings = get_option( $key, array() );
+		$chms     = \CP_Sync\Groups\Lite::active_chms_id();
+		$settings = get_option( 'cp_sync_' . $chms . '_settings', array() );
 
 		if ( ! is_array( $settings ) || empty( $settings['connect'] ) || ! is_array( $settings['connect'] ) ) {
 			return null;

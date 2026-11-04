@@ -135,6 +135,62 @@ class EventRegistrationTest extends TestCase {
 		$this->assertFalse( Display::is_enabled() );
 	}
 
+	/**
+	 * Registration must agree with the pull for every stored value, or events
+	 * import into cp_event while its post types are never registered.
+	 *
+	 * @dataProvider stored_sync_values
+	 */
+	public function test_sync_check_matches_the_pull( $stored ) {
+		$this->assertSame(
+			ChMS::sync_setting_is_enabled( 'events', $stored ),
+			PostTypes::sync_is_on( $stored )
+		);
+		$this->assertSame(
+			ChMS::sync_setting_is_enabled( 'events', $stored ),
+			PostTypes::should_register( false, true, $stored )
+		);
+	}
+
+	public function stored_sync_values() {
+		return array(
+			'unset'          => array( null ),
+			'true'           => array( true ),
+			'false'          => array( false ),
+			'int 1'          => array( 1 ),
+			'int 0'          => array( 0 ),
+			'string 1'       => array( '1' ),
+			'string 0'       => array( '0' ),
+			'empty string'   => array( '' ),
+			'string "false"' => array( 'false' ),
+			'string "no"'    => array( 'no' ),
+		);
+	}
+
+	public function test_stored_sync_events_reads_the_filtered_active_chms() {
+		Functions\when( 'get_option' )->alias(
+			static function ( $key, $default = array() ) {
+				if ( 'cp_sync_settings' === $key ) {
+					return array( 'chms' => 'pco' );
+				}
+				if ( 'cp_sync_ccb_settings' === $key ) {
+					return array(
+						'connect' => array( 'sync_events' => false ),
+					);
+				}
+				if ( 'cp_sync_pco_settings' === $key ) {
+					return array(
+						'connect' => array( 'sync_events' => true ),
+					);
+				}
+				return $default;
+			}
+		);
+		Monkey\Filters\expectApplied( 'cp_sync_active_chms' )->andReturn( 'ccb' );
+
+		$this->assertFalse( Display::stored_sync_events() );
+	}
+
 	public function test_display_on_enables_the_sync_events_toggle_without_the_events_calendar() {
 		$chms = new class() extends ChMS {
 			public function __construct() {}
