@@ -1005,20 +1005,35 @@ abstract class Integration extends \WP_Background_Process {
 	}
 
 	/**
-	 * Remove a term via a chms_id
+	 * Remove a term the ChMS no longer returns.
 	 *
-	 * @param $chms_id
+	 * Callers pass the compound `_chms_id` term meta (`{taxonomy}_{chms_id}`),
+	 * which is only the lookup key. wp_delete_term() needs the WordPress term
+	 * ID and the real taxonomy slug. Passing the compound id as the taxonomy
+	 * makes the delete fail and leaves the term in place.
+	 *
+	 * Deleting the term drops it from every post that uses it, including posts
+	 * locked against sync. That is intentional.
+	 *
+	 * @param string $chms_id Compound `_chms_id` (`{taxonomy}_{chms_id}`).
 	 *
 	 * @since  1.1.0
 	 */
 	public function remove_term( $chms_id ) {
-		$id = $this->get_chms_term_ids( $chms_id );
+		$ids = $this->get_chms_term_ids( $chms_id );
 
-		if ( ! $id ) {
+		if ( ! $ids ) {
 			return;
 		}
 
-		wp_delete_term( current( $id ), $chms_id );
+		$term_id = (int) current( $ids );
+		$term    = get_term( $term_id );
+
+		if ( ! $term || is_wp_error( $term ) ) {
+			return;
+		}
+
+		wp_delete_term( $term_id, $term->taxonomy );
 	}
 
 	/**
@@ -1317,11 +1332,50 @@ abstract class Integration extends \WP_Background_Process {
 			foreach ( $taxonomies as $taxonomy ) {
 				$this->create_taxonomy( $taxonomy );
 			}
-	
-			$this->process_taxonomies( $taxonomies );
+
+			// process() is the only zero-item guard, and it runs after this.
+			// PCO builds Group Type terms from the groups in this payload, so a
+			// successful fetch of zero groups is an empty term list. Running the
+			// removal pass would delete every stored term, including on locked posts.
+			if ( empty( $posts ) && $this->has_saved_terms() ) {
+				cp_sync()->logging->log( sprintf(
+					'Skipping term removal for %s: fetch returned 0 items while synced terms are still stored. Not treating an empty fetch as a mass term removal.',
+					$this->label
+				) );
+			} else {
+				$this->process_taxonomies( $taxonomies );
+			}
 		}
-	
+
 		$this->process( $posts );
+	}
+
+	/**
+	 * Whether a previous sync stored any ChMS terms for this integration.
+	 *
+	 * Term hashes live in the per-taxonomy store groups named by the
+	 * `taxonomies` store. An empty post fetch must not prune those terms.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return bool
+	 */
+	protected function has_saved_terms() {
+		$taxonomies = $this->get_store( 'taxonomies' );
+
+		if ( ! is_array( $taxonomies ) || empty( $taxonomies ) ) {
+			return false;
+		}
+
+		foreach ( array_keys( $taxonomies ) as $taxonomy ) {
+			$terms = $this->get_store( $taxonomy );
+
+			if ( is_array( $terms ) && ! empty( $terms ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
