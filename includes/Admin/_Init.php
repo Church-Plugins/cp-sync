@@ -54,6 +54,7 @@ class _Init {
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue' ] );
 		add_action( 'admin_init', [ $this, 'maybe_admin_message' ] );
 		add_action( 'admin_init', [ \CP_Sync\Events\VisibilityRemovalNotice::class, 'maybe_dismiss' ] );
+		add_action( 'wp_ajax_' . \CP_Sync\Events\VisibilityRemovalNotice::DISMISS_ACTION, [ \CP_Sync\Events\VisibilityRemovalNotice::class, 'ajax_dismiss' ] );
 		add_action( 'admin_notices', [ \CP_Sync\Events\VisibilityRemovalNotice::class, 'render' ] );
 	}
 

@@ -22,6 +22,7 @@ class VisibilityRemovalNoticeTest extends TestCase {
 		Monkey\setUp();
 		Functions\when( '__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
+		Functions\when( 'esc_attr' )->returnArg( 1 );
 		VisibilityRemovalNotice::reset();
 	}
 
@@ -94,7 +95,7 @@ class VisibilityRemovalNoticeTest extends TestCase {
 		VisibilityRemovalNotice::render();
 		$html = ob_get_clean();
 
-		$this->assertStringContainsString( 'notice-warning', $html );
+		$this->assertStringContainsString( 'notice notice-warning is-dismissible', $html );
 		$this->assertStringContainsString( '4', $html );
 		$this->assertStringContainsString( '2', $html );
 
@@ -112,13 +113,40 @@ class VisibilityRemovalNoticeTest extends TestCase {
 		$this->assertSame( '', ob_get_clean() );
 	}
 
-	public function test_dismiss_deletes_the_notice_only_with_a_valid_nonce_and_capability() {
-		$option = array(
-			'skipped'          => 4,
-			'removed_upcoming' => 2,
-		);
-		$deleted = 0;
+	public function test_dismissal_hides_the_notice_only_for_that_user_until_a_newer_removal() {
+		$option       = null;
+		$meta         = array();
+		$current_user = 7;
 
+		Functions\when( 'update_option' )->alias(
+			static function ( $key, $value ) use ( &$option ) {
+				$option = $value;
+
+				return true;
+			}
+		);
+		Functions\when( 'get_option' )->alias(
+			static function () use ( &$option ) {
+				return $option;
+			}
+		);
+		Functions\when( 'get_current_user_id' )->alias(
+			static function () use ( &$current_user ) {
+				return $current_user;
+			}
+		);
+		Functions\when( 'update_user_meta' )->alias(
+			static function ( $user_id, $key, $value ) use ( &$meta ) {
+				$meta[ $user_id ][ $key ] = $value;
+
+				return true;
+			}
+		);
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( $user_id, $key ) use ( &$meta ) {
+				return $meta[ $user_id ][ $key ] ?? '';
+			}
+		);
 		Functions\when( 'current_user_can' )->alias(
 			static function ( $cap ) {
 				return 'manage_options' === $cap;
@@ -131,27 +159,25 @@ class VisibilityRemovalNoticeTest extends TestCase {
 				return 'good' === $nonce && VisibilityRemovalNotice::DISMISS_ACTION === $action;
 			}
 		);
-		Functions\when( 'delete_option' )->alias(
-			static function ( $key ) use ( &$option, &$deleted ) {
-				if ( VisibilityRemovalNotice::OPTION === $key ) {
-					$option = null;
-					$deleted++;
-				}
 
-				return true;
-			}
-		);
+		VisibilityRemovalNotice::publish( array( 'a' ), array( 'a' ) );
+		$first_id = $option['id'];
+		$this->assertNotSame( '', $first_id );
 
-		$_GET[ VisibilityRemovalNotice::DISMISS_QUERY ] = '1';
-		$_GET['_wpnonce']                               = 'bad';
+		ob_start();
+		VisibilityRemovalNotice::render();
+		$this->assertStringContainsString( 'is-dismissible', ob_get_clean() );
+
+		$_GET[ VisibilityRemovalNotice::DISMISS_QUERY ]    = '1';
+		$_GET[ VisibilityRemovalNotice::NOTICE_ID_QUERY ] = $first_id;
+		$_GET['_wpnonce']                                  = 'bad';
 		VisibilityRemovalNotice::maybe_dismiss();
-		$this->assertSame( 0, $deleted );
-		$this->assertNotNull( $option );
+		$this->assertArrayNotHasKey( 7, $meta );
 
-		Functions\when( 'current_user_can' )->justReturn( false );
 		$_GET['_wpnonce'] = 'good';
+		Functions\when( 'current_user_can' )->justReturn( false );
 		VisibilityRemovalNotice::maybe_dismiss();
-		$this->assertSame( 0, $deleted );
+		$this->assertArrayNotHasKey( 7, $meta );
 
 		Functions\when( 'current_user_can' )->alias(
 			static function ( $cap ) {
@@ -159,10 +185,32 @@ class VisibilityRemovalNoticeTest extends TestCase {
 			}
 		);
 		VisibilityRemovalNotice::maybe_dismiss();
-		$this->assertSame( 1, $deleted );
-		$this->assertNull( $option );
+		$this->assertSame( $first_id, $meta[7][ VisibilityRemovalNotice::USER_META ] );
 
-		unset( $_GET[ VisibilityRemovalNotice::DISMISS_QUERY ], $_GET['_wpnonce'] );
+		ob_start();
+		VisibilityRemovalNotice::render();
+		$this->assertSame( '', ob_get_clean() );
+
+		$current_user = 8;
+		ob_start();
+		VisibilityRemovalNotice::render();
+		$this->assertStringContainsString( 'is-dismissible', ob_get_clean() );
+
+		$current_user = 7;
+		VisibilityRemovalNotice::publish( array( 'c', 'd' ), array( 'c', 'd' ) );
+		$this->assertNotSame( $first_id, $option['id'] );
+
+		ob_start();
+		VisibilityRemovalNotice::render();
+		$again = ob_get_clean();
+		$this->assertStringContainsString( 'is-dismissible', $again );
+		$this->assertStringContainsString( 'notice-warning', $again );
+
+		unset(
+			$_GET[ VisibilityRemovalNotice::DISMISS_QUERY ],
+			$_GET[ VisibilityRemovalNotice::NOTICE_ID_QUERY ],
+			$_GET['_wpnonce']
+		);
 	}
 
 	public function test_a_newer_removal_replaces_the_notice() {
@@ -185,6 +233,7 @@ class VisibilityRemovalNoticeTest extends TestCase {
 		$this->assertSame( VisibilityRemovalNotice::OPTION, $stored[0] );
 		$this->assertSame( 3, $stored[1]['skipped'] );
 		$this->assertSame( 2, $stored[1]['removed_upcoming'] );
+		$this->assertNotSame( '', $stored[1]['id'] );
 	}
 
 	public function test_render_includes_a_nonce_dismiss_link_for_admins() {
@@ -196,8 +245,11 @@ class VisibilityRemovalNoticeTest extends TestCase {
 			)
 		);
 		Functions\when( 'add_query_arg' )->alias(
-			static function ( $key, $value ) {
-				return 'https://example.test/wp-admin/?' . $key . '=' . $value;
+			static function ( $key, $value, $url = '' ) {
+				$base = is_string( $url ) && '' !== $url ? $url : 'https://example.test/wp-admin/';
+				$join = false === strpos( $base, '?' ) ? '?' : '&';
+
+				return $base . $join . $key . '=' . $value;
 			}
 		);
 		Functions\when( 'wp_nonce_url' )->alias(
