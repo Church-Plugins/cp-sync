@@ -114,6 +114,10 @@ class EventTemplateBootstrapTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
+		$GLOBALS['cp_sync_template_is_tax']      = false;
+		$GLOBALS['cp_sync_template_is_category'] = false;
+		$GLOBALS['cp_sync_template_is_tag']      = false;
+		unset( $GLOBALS['cp_sync_template_term_title'] );
 		Monkey\tearDown();
 		parent::tearDown();
 	}
@@ -145,6 +149,38 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringContainsString( 'cp-sync-series-card', $series_archive );
 		$this->assertStringNotContainsString( 'cp-sync-event-card', $series_archive );
 		$this->assertStringNotContainsString( '<time', $series_archive );
+	}
+
+	public function test_taxonomy_archive_heading_uses_the_term_name() {
+		$GLOBALS['cp_sync_template_is_tax']     = true;
+		$GLOBALS['cp_sync_template_term_title'] = 'Youth <group>';
+
+		$html = $this->render_main_template( 'events/archive', array( $this->event ), '' );
+
+		$this->assertMatchesRegularExpression( '/<h1>\s*Youth &lt;group&gt;\s*<\/h1>/', $html );
+
+		$GLOBALS['cp_sync_template_is_tax']      = false;
+		$GLOBALS['cp_sync_template_is_category'] = true;
+		$GLOBALS['cp_sync_template_term_title']  = 'Small Groups';
+
+		$category = $this->render_main_template( 'events/archive', array( $this->event ), 'Events' );
+
+		$this->assertMatchesRegularExpression( '/<h1>\s*Small Groups\s*<\/h1>/', $category );
+
+		$GLOBALS['cp_sync_template_is_category'] = false;
+		$GLOBALS['cp_sync_template_is_tag']      = true;
+		$GLOBALS['cp_sync_template_term_title']  = 'Outreach';
+
+		$tag = $this->render_main_template( 'events/archive', array( $this->event ), 'Events' );
+
+		$this->assertMatchesRegularExpression( '/<h1>\s*Outreach\s*<\/h1>/', $tag );
+
+		$GLOBALS['cp_sync_template_is_tag']     = false;
+		$GLOBALS['cp_sync_template_term_title'] = 'Youth';
+
+		$archive = $this->render_main_template( 'events/archive', array( $this->event ), 'Events' );
+
+		$this->assertMatchesRegularExpression( '/<h1>\s*Events\s*<\/h1>/', $archive );
 	}
 
 	public function test_series_archive_lists_each_published_series_without_an_event_date() {

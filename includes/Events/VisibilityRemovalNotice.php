@@ -359,7 +359,7 @@ class VisibilityRemovalNotice {
 			$url = esc_url( $url );
 		}
 
-		return ' <a class="cp-sync-visibility-notice__dismiss" href="' . $url . '">' . esc_html( __( 'Dismiss', 'cp-sync' ) ) . '</a>';
+		return ' <a class="cp-sync-visibility-notice__dismiss" style="display:inline-flex;align-items:center;min-height:44px;" href="' . $url . '">' . esc_html( __( 'Dismiss', 'cp-sync' ) ) . '</a>';
 	}
 
 	/**

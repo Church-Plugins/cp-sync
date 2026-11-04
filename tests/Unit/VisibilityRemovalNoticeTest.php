@@ -264,6 +264,7 @@ class VisibilityRemovalNoticeTest extends TestCase {
 		$html = ob_get_clean();
 
 		$this->assertStringContainsString( 'cp-sync-visibility-notice__dismiss', $html );
+		$this->assertStringContainsString( 'display:inline-flex;align-items:center;min-height:44px', $html );
 		$this->assertStringContainsString( 'Dismiss', $html );
 		$this->assertStringContainsString( VisibilityRemovalNotice::DISMISS_QUERY . '=1', $html );
 		$this->assertStringContainsString( VisibilityRemovalNotice::DISMISS_ACTION, $html );
