@@ -65,7 +65,9 @@ Event sync needs **The Events Calendar** plugin to be active. If it isn't, the *
 
 1. Go to the **Events** tab in the CCB settings
 2. Choose how far ahead events sync with **Date Range** (see below)
-3. Click **Save all Settings**
+3. Optionally, turn off **Show Register button on events** (on by default) to hide the Register button on synced events that have a registration link.
+4. Optionally, add conditions under **Event Filters**.
+5. Click **Save all Settings**
 
 #### How Far Ahead Events Sync
 
@@ -105,9 +107,9 @@ See [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#hand-edi
 
 ## Advanced Settings
 
-- **Filter Data**: Apply advanced filters to control which data is imported
-- **Import Schedule**: Configure automatic sync schedules
-- **Logging**: Enable detailed logging for troubleshooting
+- **Filters**: set on the **Groups** and **Events** tabs. See [Data Mapping](../configuration/data-mapping.md#filters).
+- **Sync schedule**: **Update Interval** (**Hourly**, **Daily**, or **Weekly**) on the **Advanced** tab. See [General Settings](../configuration/general-settings.md#sync-schedule).
+- **Logging**: **Enable Debug Mode** on the **Log** tab. See [General Settings](../configuration/general-settings.md#log).
 
 ## XML API Considerations
 
