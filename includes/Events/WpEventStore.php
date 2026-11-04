@@ -119,6 +119,16 @@ class WpEventStore implements EventStore {
 		);
 		$rows = array();
 
+		if ( is_array( $ids ) && ! empty( $ids ) ) {
+			if ( function_exists( 'update_meta_cache' ) ) {
+				update_meta_cache( 'post', $ids );
+			}
+
+			if ( function_exists( '_prime_post_caches' ) ) {
+				_prime_post_caches( $ids );
+			}
+		}
+
 		foreach ( $ids as $post_id ) {
 			$post_id = (int) $post_id;
 			$row     = array(
@@ -167,7 +177,18 @@ class WpEventStore implements EventStore {
 			if ( 'trash' === get_post_status( $post_id ) ) {
 				wp_untrash_post( $post_id );
 			}
+
+			// wp_update_post() merges the stored row. wp_insert_post() with an
+			// ID does not, so an update that omits these fields would reset the
+			// slug, the published date, and the author (0 under cron).
 			$postarr['ID'] = $post_id;
+			$result        = wp_update_post( wp_slash( $postarr ), true );
+
+			if ( is_wp_error( $result ) || ! $result ) {
+				return 0;
+			}
+
+			return (int) $result;
 		} else {
 			$unique   = '';
 			$fallback = 'event-series';

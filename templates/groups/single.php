@@ -31,6 +31,7 @@ $archive = get_post_type_archive_link( 'cp_group' );
 			]
 		);
 	endwhile;
+	wp_reset_postdata();
 	?>
 	<?php if ( is_string( $archive ) && '' !== $archive ) : ?>
 		<p class="cp-sync-groups__back">

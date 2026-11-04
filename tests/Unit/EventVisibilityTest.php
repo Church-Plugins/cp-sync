@@ -265,6 +265,43 @@ class EventVisibilityTest extends TestCase {
 		$this->assertSame( [ 'keep', 'no-event' ], array_column( $kept, 'id' ) );
 	}
 
+	public function test_ccb_approval_status_with_attributes_does_not_skip_or_mass_remove() {
+		$base = [
+			'event_id'       => '3',
+			'name'           => 'Public',
+			'start_datetime' => '2026-08-05 10:00:00',
+			'end_datetime'   => '2026-08-05 11:00:00',
+		];
+		$ccb  = $this->makeCcb();
+
+		$attributed = [
+			'@attributes' => [ 'ccb_id' => '3' ],
+			'@value'      => 'Approved',
+		];
+
+		$this->assertFalse( EventVisibility::approval_status_blocks_sync( $attributed ) );
+		$this->assertTrue( EventVisibility::ccb_is_syncable( array_merge( $base, [ 'approval_status' => $attributed ] ) ) );
+
+		$approved = $ccb->format_event( array_merge( $base, [ 'approval_status' => $attributed ] ), [] );
+		$this->assertNotFalse( $approved );
+		$this->assertSame( 'Approved', $approved['meta_input']['approval_status'] );
+
+		$unreadable = [ '@attributes' => [ 'ccb_id' => '3' ] ];
+		$this->assertFalse( EventVisibility::approval_status_blocks_sync( $unreadable ) );
+		$this->assertNotFalse( $ccb->format_event( array_merge( $base, [ 'approval_status' => $unreadable ] ), [] ) );
+
+		$xml = simplexml_load_string( '<approval_status id="3">Approved</approval_status>' );
+		$this->assertFalse( EventVisibility::approval_status_blocks_sync( $xml ) );
+		$this->assertNotFalse( $ccb->format_event( array_merge( $base, [ 'approval_status' => $xml ] ), [] ) );
+
+		$pending = [
+			'@attributes' => [ 'ccb_id' => '3' ],
+			'@value'      => 'P',
+		];
+		$this->assertTrue( EventVisibility::approval_status_blocks_sync( $pending ) );
+		$this->assertFalse( $ccb->format_event( array_merge( $base, [ 'approval_status' => $pending ] ), [] ) );
+	}
+
 	public function test_ccb_unapproved_rows_are_skipped() {
 		$base = [
 			'event_id'       => '3',

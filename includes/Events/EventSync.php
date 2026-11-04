@@ -12,7 +12,9 @@ namespace CP_Sync\Events;
  *
  * Planning Center instances are one date each. A Planning Center Event with
  * two or more instances is a series. A Church Community Builder event id with
- * two or more listing rows is a series. One date never gets a series post.
+ * two or more listing rows is a series. One date never gets a new series
+ * post. An existing series stays published when the feed still has one
+ * of its dates, so past dates keep their series page.
  *
  * @since 1.2.0
  */
@@ -92,10 +94,24 @@ class EventSync {
 			$series_post_ids[ $key ] = (int) $store->save_series( $record );
 		}
 
+		$feed_series_keys = array();
+
+		foreach ( $normalized as $row ) {
+			$series_id = isset( $row['series_id'] ) ? trim( (string) $row['series_id'] ) : '';
+
+			if ( '' === $series_id || '' === $row['provider'] ) {
+				continue;
+			}
+
+			$feed_series_keys[ $row['provider'] . '|' . $series_id ] = true;
+		}
+
 		foreach ( $existing_series as $row ) {
 			$key = isset( $row['series_key'] ) ? (string) $row['series_key'] : '';
 
-			if ( '' === $key || isset( $grouped['series'][ $key ] ) ) {
+			// group() only builds a series for two or more dates still in
+			// the feed. One remaining date must not trash the series post.
+			if ( '' === $key || isset( $grouped['series'][ $key ] ) || isset( $feed_series_keys[ $key ] ) ) {
 				continue;
 			}
 
@@ -228,7 +244,7 @@ class EventSync {
 	 * already one per date.
 	 *
 	 * @param array  $event    Neutral event record.
-	 * @param string $timezone WordPress timezone.
+	 * @param string $timezone WordPress timezone, used when the record has none.
 	 * @return array|null
 	 */
 	public static function normalize( array $event, $timezone = 'UTC' ) {
@@ -245,7 +261,15 @@ class EventSync {
 			$end = $start;
 		}
 
-		$zone = EventTime::is_valid_timezone( $timezone ) ? $timezone : 'UTC';
+		$zone = $timezone;
+
+		if ( isset( $event['timezone'] ) && is_string( $event['timezone'] ) && EventTime::is_valid_timezone( $event['timezone'] ) ) {
+			$zone = $event['timezone'];
+		}
+
+		if ( ! EventTime::is_valid_timezone( $zone ) ) {
+			$zone = 'UTC';
+		}
 
 		try {
 			$start_local = EventTime::to_local( $start, $zone )->format( 'Y-m-d H:i:s' );

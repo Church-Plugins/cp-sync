@@ -2313,6 +2313,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 
 		return [
 			'provider'         => 'pco',
+			'kind'             => 'registration',
 			'chms_id'          => 'reg_' . $signup['id'],
 			'title'            => $signup['attributes']['name'] ?? '',
 			'content'          => $signup['attributes']['description'] ?? '',

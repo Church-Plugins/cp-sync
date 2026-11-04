@@ -178,6 +178,12 @@ class EventVisibility {
 	 * or 'R' (rejected). Which codes Planning Center actually sends is
 	 * unverified against live PCO data.
 	 *
+	 * An approval element that cannot be read does not block. Church
+	 * Community Builder XML with attributes arrives as an array
+	 * ( `@value` plus `@attributes` ) or a SimpleXMLElement. Casting that
+	 * array to a string is the word "Array", which would skip every event
+	 * and the removal pass would delete them.
+	 *
 	 * @param mixed $status Raw approval_status.
 	 * @return bool
 	 */
@@ -186,12 +192,71 @@ class EventVisibility {
 			return false;
 		}
 
-		$status = trim( (string) $status );
+		$text = self::approval_status_scalar( $status );
 
-		if ( '' === $status ) {
+		if ( null === $text ) {
 			return false;
 		}
 
-		return ! self::is_approved_label( $status );
+		$text = trim( $text );
+
+		if ( '' === $text ) {
+			return false;
+		}
+
+		return ! self::is_approved_label( $text );
+	}
+
+	/**
+	 * Scalar text stored for an approval status.
+	 *
+	 * Unreadable values are stored as an empty string, which the sync
+	 * treats as approved.
+	 *
+	 * @param mixed $status Raw approval_status.
+	 * @return string
+	 */
+	public static function approval_status_text( $status ) {
+		$text = self::approval_status_scalar( $status );
+
+		return null === $text ? '' : $text;
+	}
+
+	/**
+	 * Text of an approval status, or null when the value cannot be read.
+	 *
+	 * @param mixed $status Raw approval_status.
+	 * @return string|null
+	 */
+	protected static function approval_status_scalar( $status ) {
+		if ( null === $status ) {
+			return '';
+		}
+
+		if ( is_bool( $status ) ) {
+			return $status ? '1' : '';
+		}
+
+		if ( is_int( $status ) || is_float( $status ) || is_string( $status ) ) {
+			return (string) $status;
+		}
+
+		if ( $status instanceof \SimpleXMLElement ) {
+			return (string) $status;
+		}
+
+		if ( is_object( $status ) && method_exists( $status, '__toString' ) ) {
+			return (string) $status;
+		}
+
+		if ( is_array( $status ) ) {
+			if ( array_key_exists( '@value', $status ) && ! is_array( $status['@value'] ) ) {
+				return self::approval_status_scalar( $status['@value'] );
+			}
+
+			return null;
+		}
+
+		return null;
 	}
 }

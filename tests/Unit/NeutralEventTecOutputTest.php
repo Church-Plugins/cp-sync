@@ -312,6 +312,9 @@ class NeutralEventTecOutputTest extends TestCase {
 			],
 		];
 
+		$neutral = $this->makePco()->to_neutral_registration_event( $signup, $context );
+		$this->assertSame( 'registration', $neutral['kind'] );
+
 		$result = $this->makePco()->format_event_from_registrations( $signup, $context );
 
 		$this->assertSame(
@@ -468,5 +471,19 @@ class NeutralEventTecOutputTest extends TestCase {
 			md5( 'Untitled' . ( new \DateTime( '2026-08-05 14:00:00' ) )->getTimestamp() ),
 			$result['chms_id']
 		);
+	}
+
+	public function test_an_unparseable_ccb_start_is_skipped() {
+		$result = $this->makeCcb()->to_neutral_event(
+			[
+				'event_id'       => '9',
+				'name'           => 'TBD night',
+				'start_datetime' => 'TBD',
+				'end_datetime'   => '2026-08-01 18:00:00',
+			],
+			[]
+		);
+
+		$this->assertFalse( $result );
 	}
 }

@@ -27,7 +27,10 @@ class TecEventMapper {
 	 */
 	public static function to_tec_item( array $event ) {
 		$is_ccb          = 'ccb' === ( $event['provider'] ?? '' );
-		$is_registration = ! $is_ccb && 0 === strpos( (string) ( $event['chms_id'] ?? '' ), 'reg_' );
+		$is_registration = ! $is_ccb && (
+			'registration' === ( $event['kind'] ?? '' )
+			|| 0 === strpos( (string) ( $event['chms_id'] ?? '' ), 'reg_' )
+		);
 		$zone            = $is_ccb ? ( $event['timezone'] ?? '' ) : ( $event['site_timezone'] ?? '' );
 
 		if ( ! EventTime::is_valid_timezone( $zone ) ) {

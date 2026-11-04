@@ -44,6 +44,7 @@ if ( ! is_string( $title ) || '' === $title ) {
 				</li>
 				<?php
 			endwhile;
+			wp_reset_postdata();
 			?>
 		</ul>
 		<?php

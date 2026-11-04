@@ -513,6 +513,56 @@ class GroupsLiteTest extends TestCase {
 		$this->assertSame( Display::DEFAULT_COUNT, Display::query_args( [] )['posts_per_page'] );
 	}
 
+	public function test_type_filter_uses_sanitize_title_for_non_ascii_names() {
+		Functions\when( 'sanitize_title' )->alias(
+			static function ( $title ) {
+				if ( 'Jóvenes' === $title ) {
+					return 'jovenes';
+				}
+
+				if ( '청년부' === $title ) {
+					return '%ec%b2%ad%eb%85%84%eb%b6%80';
+				}
+
+				$title = strtolower( trim( (string) $title ) );
+				$title = preg_replace( '/[^a-z0-9]+/', '-', $title );
+
+				return trim( (string) $title, '-' );
+			}
+		);
+
+		$accented = Display::query_args( [ 'type' => 'Jóvenes' ] );
+		$hangul   = Display::query_args( [ 'type' => '청년부' ] );
+
+		$this->assertSame( 'jovenes', $accented['tax_query'][0]['terms'] );
+		$this->assertSame( '%ec%b2%ad%eb%85%84%eb%b6%80', $hangul['tax_query'][0]['terms'] );
+	}
+
+	public function test_group_description_is_not_run_as_a_shortcode_or_embed() {
+		$html = Display::render_group(
+			[
+				'title'   => 'Youth',
+				'content' => "[gallery ids=\"1\"]\nhttps://youtu.be/abc123\n<p>https://vimeo.com/42</p>",
+			],
+			[
+				'summary' => false,
+				'heading' => 'h1',
+			]
+		);
+
+		$this->assertStringContainsString( '&#91;gallery ids="1"]', $html );
+		$this->assertStringNotContainsString( '[gallery', $html );
+		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://youtu.be/abc123</span>', $html );
+		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://vimeo.com/42</span>', $html );
+
+		$protected = Display::protect_block_template_html( "<script>var items = [1];</script>\n[gallery]\nhttps://youtu.be/abc123\n" );
+
+		$this->assertStringContainsString( 'var items = [1];', $protected );
+		$this->assertStringContainsString( '&#91;gallery]', $protected );
+		$this->assertStringNotContainsString( "\n[gallery]", $protected );
+		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://youtu.be/abc123</span>', $protected );
+	}
+
 	public function test_lite_stores_the_cp_groups_1_2_leader_shape() {
 		$this->assertSame( '1.2.0', CP_Groups::leader_storage_version() );
 	}
@@ -637,7 +687,10 @@ class GroupsLiteTest extends TestCase {
 		Functions\when( 'apply_filters' )->returnArg( 2 );
 		Functions\when( 'sanitize_title' )->alias(
 			static function ( $title ) {
-				return strtolower( (string) $title );
+				$title = strtolower( trim( (string) $title ) );
+				$title = preg_replace( '/[^a-z0-9]+/', '-', $title );
+
+				return trim( (string) $title, '-' );
 			}
 		);
 		Functions\when( 'get_option' )->alias(

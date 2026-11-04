@@ -102,7 +102,10 @@ class VisibilityRemovalNotice {
 	}
 
 	/**
-	 * Store the summary for the admin notice, or clear it when nothing upcoming was removed.
+	 * Store the summary for the admin notice.
+	 *
+	 * A later sync that removes nothing must not clear the notice. The
+	 * hourly cron would otherwise delete it before an administrator logs in.
 	 *
 	 * @param array $skipped_ids Ids the visibility filter skipped.
 	 * @param array $removed_ids Ids the sync removed.
@@ -111,12 +114,8 @@ class VisibilityRemovalNotice {
 	public static function publish( array $skipped_ids, array $removed_ids ) {
 		$summary = self::summarize( $skipped_ids, $removed_ids );
 
-		if ( function_exists( 'update_option' ) && function_exists( 'delete_option' ) ) {
-			if ( $summary['removed_upcoming'] > 0 ) {
-				update_option( self::OPTION, $summary, false );
-			} else {
-				delete_option( self::OPTION );
-			}
+		if ( function_exists( 'update_option' ) && $summary['removed_upcoming'] > 0 ) {
+			update_option( self::OPTION, $summary, false );
 		}
 
 		self::reset();

@@ -198,20 +198,51 @@ class EventSyncTest extends TestCase {
 		$this->assertSame( '586|2026-07-15 20:00:00', $events[0]['occurrence_id'] );
 	}
 
-	public function test_a_series_that_shrinks_to_one_date_is_removed() {
-		$store = new MemoryEventStore();
-		$now   = '2026-07-01 00:00:00';
-		$first = $this->pco( 'inst-1', 'event-9', '2026-08-01 15:30:00', '2026-08-01 17:00:00' );
+	public function test_a_series_that_shrinks_to_one_date_is_kept() {
+		$store  = new MemoryEventStore();
+		$now    = '2026-07-01 00:00:00';
+		$first  = $this->pco( 'inst-1', 'event-9', '2026-08-01 15:30:00', '2026-08-01 17:00:00' );
 		$second = $this->pco( 'inst-2', 'event-9', '2026-08-08 15:30:00', '2026-08-08 17:00:00' );
 
 		EventSync::sync( array( $first, $second ), $store, $now, 'UTC' );
 		$this->assertCount( 1, $this->published( $store->series() ) );
 
-		EventSync::sync( array( $first ), $store, $now, 'UTC' );
+		$result = EventSync::sync( array( $first ), $store, $now, 'UTC' );
 
-		$this->assertCount( 0, $this->published( $store->series() ) );
-		$this->assertSame( 'trash', $store->series()[0]['status'] );
+		$this->assertSame( 0, $result['trashed_series'] );
+		$this->assertCount( 1, $this->published( $store->series() ) );
+		$this->assertSame( 'publish', $store->series()[0]['status'] );
+		$this->assertSame( 'pco|event-9', $store->series()[0]['series_key'] );
 		$this->assertSame( 0, $this->published( $store->events() )[0]['series_post_id'] );
+	}
+
+	public function test_a_series_with_no_dates_left_in_the_feed_is_trashed() {
+		$store = new MemoryEventStore();
+		$now   = '2026-07-01 00:00:00';
+
+		EventSync::sync(
+			array(
+				$this->pco( 'inst-1', 'event-9', '2026-08-01 15:30:00', '2026-08-01 17:00:00' ),
+				$this->pco( 'inst-2', 'event-9', '2026-08-08 15:30:00', '2026-08-08 17:00:00' ),
+			),
+			$store,
+			$now,
+			'UTC'
+		);
+
+		EventSync::sync(
+			array( $this->pco( 'other', 'event-other', '2026-09-01 15:30:00', '2026-09-01 17:00:00' ) ),
+			$store,
+			$now,
+			'UTC'
+		);
+
+		$by_key = array();
+		foreach ( $store->series() as $series ) {
+			$by_key[ $series['series_key'] ] = $series['status'];
+		}
+
+		$this->assertSame( 'trash', $by_key['pco|event-9'] );
 	}
 
 	public function test_a_single_date_creates_no_series() {
@@ -258,6 +289,35 @@ class EventSyncTest extends TestCase {
 		$this->assertCount( 0, $store->series() );
 		$this->assertSame( 'reg_44', $store->events()[0]['occurrence_id'] );
 		$this->assertSame( 'https://example.com/signup', $store->events()[0]['registration_url'] );
+	}
+
+	public function test_ccb_local_time_uses_the_event_timezone() {
+		$event               = $this->ccb( '586', '2026-08-02 00:00:00', '2026-08-02 01:00:00' );
+		$event['timezone']   = 'America/Chicago';
+		$row                 = EventSync::normalize( $event, 'America/New_York' );
+
+		$this->assertNotNull( $row );
+		$this->assertSame( 'America/Chicago', $row['timezone'] );
+		$this->assertSame( '2026-08-01 19:00:00', $row['start_local'] );
+		$this->assertSame( '2026-08-01 20:00:00', $row['end_local'] );
+	}
+
+	public function test_registration_kind_does_not_depend_on_the_id_prefix() {
+		$item = TecEventMapper::to_tec_item(
+			array(
+				'provider'      => 'pco',
+				'kind'          => 'registration',
+				'chms_id'       => '99',
+				'title'         => 'Signup',
+				'start_utc'     => '2026-08-01 15:00:00',
+				'end_utc'       => '2026-08-01 16:00:00',
+				'site_timezone' => 'UTC',
+			)
+		);
+
+		$this->assertArrayNotHasKey( 'EventURL', $item );
+		$this->assertSame( '15', $item['EventStartHour'] );
+		$this->assertArrayNotHasKey( 'post_excerpt', $item );
 	}
 
 	public function test_local_times_are_stored_in_the_wordpress_timezone() {

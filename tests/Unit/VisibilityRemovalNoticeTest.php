@@ -51,7 +51,7 @@ class VisibilityRemovalNoticeTest extends TestCase {
 		$this->assertStringContainsString( 'upcoming', $message );
 	}
 
-	public function test_publish_stores_the_summary_and_clears_it_when_nothing_upcoming_was_removed() {
+	public function test_publish_keeps_the_notice_when_a_later_sync_removes_nothing() {
 		$stored  = null;
 		$deleted = 0;
 
@@ -77,7 +77,8 @@ class VisibilityRemovalNoticeTest extends TestCase {
 
 		VisibilityRemovalNotice::publish( [ 'a' ], [] );
 
-		$this->assertSame( 1, $deleted );
+		$this->assertSame( 0, $deleted );
+		$this->assertSame( 1, $stored[1]['removed_upcoming'] );
 	}
 
 	public function test_render_shows_the_counts_to_admins_and_stays_quiet_otherwise() {

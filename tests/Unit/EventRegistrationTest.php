@@ -53,6 +53,7 @@ class EventRegistrationTest extends TestCase {
 		$this->assertSame( '', Display::template_for( true, true, true, 'event' ) );
 		$this->assertSame( '', Display::template_for( true, true, true, 'series' ) );
 		$this->assertSame( '', Display::template_for( true, true, true, 'series-archive' ) );
+		$this->assertSame( '', Display::template_for( true, true, true, 'category' ) );
 	}
 
 	public function test_upgrade_leaves_display_off_unless_event_sync_was_already_on() {
@@ -261,10 +262,12 @@ class EventRegistrationTest extends TestCase {
 				return $default;
 			}
 		);
+		$autoload = null;
 		Functions\when( 'update_option' )->alias(
-			static function ( $key, $value ) use ( &$stored ) {
+			static function ( $key, $value, $load = null ) use ( &$stored, &$autoload ) {
 				if ( Display::REWRITE_OPTION === $key ) {
-					$stored = $value;
+					$stored   = $value;
+					$autoload = $load;
 				}
 
 				return true;
@@ -283,6 +286,123 @@ class EventRegistrationTest extends TestCase {
 
 		$this->assertSame( 1, $flushed );
 		$this->assertSame( 'on|3|events|event-series', $stored );
+		$this->assertTrue( $autoload );
+	}
+
+	public function test_recording_off_does_not_flush_permalinks() {
+		$stored   = false;
+		$flushed  = 0;
+		$autoload = null;
+
+		Functions\when( 'get_option' )->alias(
+			static function ( $key, $default = false ) use ( &$stored ) {
+				if ( Display::REWRITE_OPTION === $key ) {
+					return false === $stored ? $default : $stored;
+				}
+
+				return $default;
+			}
+		);
+		Functions\when( 'update_option' )->alias(
+			static function ( $key, $value, $load = null ) use ( &$stored, &$autoload ) {
+				if ( Display::REWRITE_OPTION === $key ) {
+					$stored   = $value;
+					$autoload = $load;
+				}
+
+				return true;
+			}
+		);
+		Functions\when( 'flush_rewrite_rules' )->alias(
+			static function () use ( &$flushed ) {
+				$flushed++;
+			}
+		);
+
+		$method = new \ReflectionMethod( Display::class, 'maybe_flush_rewrites' );
+		$method->setAccessible( true );
+		$method->invoke( null, false );
+		$method->invoke( null, false );
+
+		$this->assertSame( 0, $flushed );
+		$this->assertSame( 'off', $stored );
+		$this->assertTrue( $autoload );
+	}
+
+	public function test_rewrite_flush_is_scheduled_after_init() {
+		$hooks = array();
+
+		Functions\when( 'add_action' )->alias(
+			static function ( $hook, $callback ) use ( &$hooks ) {
+				$method  = is_array( $callback ) ? (string) $callback[1] : '';
+				$hooks[] = $hook . '|' . $method;
+
+				return true;
+			}
+		);
+		Functions\when( 'add_filter' )->justReturn( true );
+
+		Display::boot();
+
+		$this->assertContains( 'init|on_init', $hooks );
+		$this->assertContains( 'wp_loaded|flush_rewrites_after_init', $hooks );
+	}
+
+	public function test_category_archive_uses_the_upcoming_event_query_and_template() {
+		Functions\when( 'is_admin' )->justReturn( false );
+
+		$query = new class() {
+			/** @var array */
+			public $vars = array();
+
+			public function is_main_query() {
+				return true;
+			}
+
+			public function is_singular() {
+				return false;
+			}
+
+			public function is_post_type_archive( $type = '' ) {
+				unset( $type );
+
+				return false;
+			}
+
+			public function is_tax( $taxonomy = '' ) {
+				return PostTypes::CATEGORY === $taxonomy;
+			}
+
+			public function set( $key, $value ) {
+				$this->vars[ $key ] = $value;
+			}
+		};
+
+		Display::upcoming_archive( $query );
+
+		$this->assertSame( Meta::START_UTC, $query->vars['meta_key'] );
+		$this->assertSame( 'ASC', $query->vars['order'] );
+		$this->assertSame( Meta::END_UTC, $query->vars['meta_query'][0]['key'] );
+		$this->assertSame( '>=', $query->vars['meta_query'][0]['compare'] );
+		$this->assertSame( 'events/archive', Display::template_for( false, true, true, 'category' ) );
+	}
+
+	public function test_rest_settings_include_filtered_defaults() {
+		Functions\when( 'get_option' )->justReturn( array( 'chms' => 'pco' ) );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $tag, $value ) {
+				if ( 'cp_sync_global_settings' === $tag && is_array( $value ) ) {
+					$value['displayGroupsWithSync'] = false;
+				}
+
+				return $value;
+			}
+		);
+
+		$settings = Display::rest_global_settings();
+
+		$this->assertSame( 'pco', $settings['chms'] );
+		$this->assertFalse( $settings['displayGroupsWithSync'] );
 	}
 
 	public function test_a_blank_title_still_gets_a_permalink_slug() {

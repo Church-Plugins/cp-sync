@@ -575,11 +575,21 @@ class Lite {
 		}
 
 		if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
-			global $_wp_current_template_content;
+			global $_wp_current_template_content, $post;
+
+			$previous = ( isset( $post ) && $post instanceof \WP_Post ) ? $post : null;
 
 			ob_start();
 			include $file;
-			$_wp_current_template_content = ob_get_clean();
+			// Block themes run this string through autoembed and do_shortcode.
+			$_wp_current_template_content = Display::protect_block_template_html( ob_get_clean() );
+
+			if ( $previous instanceof \WP_Post && function_exists( 'setup_postdata' ) ) {
+				$post = $previous;
+				setup_postdata( $previous );
+			} elseif ( function_exists( 'wp_reset_postdata' ) ) {
+				wp_reset_postdata();
+			}
 
 			return $template;
 		}
