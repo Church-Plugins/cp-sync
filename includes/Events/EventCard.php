@@ -24,8 +24,8 @@ class EventCard {
 	 * HTML for one card.
 	 *
 	 * @param array $event Event fields: title, permalink, registration_url,
-	 *                     image, description, when, all_day, iso, location,
-	 *                     series_title, series_url.
+	 *                     price, image, description, when, all_day, iso,
+	 *                     location, series_title, series_url.
 	 * @param array $args  show_series_link.
 	 * @return string
 	 */
@@ -58,7 +58,11 @@ class EventCard {
 			);
 		}
 
-		$html .= self::button_html( $button['url'], $button['label'] );
+		$html .= self::button_html(
+			$button['url'],
+			$button['label'],
+			isset( $event['price'] ) ? $event['price'] : ''
+		);
 		$html .= '</article>';
 
 		return $html;
@@ -206,10 +210,16 @@ class EventCard {
 	 *
 	 * @param string $url   Destination.
 	 * @param string $label Register or Learn more.
+	 * @param mixed  $price Registration price shown beside the button.
 	 * @return string
 	 */
-	protected static function button_html( $url, $label ) {
-		$html = '<p class="cp-sync-event-card__action">';
+	protected static function button_html( $url, $label, $price = '' ) {
+		$html  = '<p class="cp-sync-event-card__action">';
+		$price = trim( (string) $price );
+
+		if ( '' !== $price ) {
+			$html .= '<span class="cp-sync-event-card__price">' . self::esc_html_text( $price ) . '</span>';
+		}
 
 		if ( '' === $url ) {
 			$html .= '<span class="cp-sync-event-card__button">' . self::esc_html_text( $label ) . '</span>';

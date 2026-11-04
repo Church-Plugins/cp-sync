@@ -40,6 +40,8 @@ On the **Events** tab:
 
 When **Event source** is **Calendar AND Registrations**, the tab shows **Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.**
 
+A registration's public price is saved as the event cost. One option shows that price. Several options show a range from the lowest to the highest. A free registration shows **Free**. A signup with no public price leaves the cost empty. The next sync updates the cost, or clears it when Planning Center no longer has one.
+
 Calendar sync imports future event instances. **Visibility** is separate from **Calendar Filters**. An empty **Calendar Filters** builder does not turn the visibility and approval checks off.
 
 Event times on your site use your WordPress timezone (Settings → General). Make sure it matches the timezone set in your Planning Center account, or event times may look shifted. Church Community Builder keeps the clock time CCB sent. When CCB sends a valid timezone, that zone is stored. When it does not, the WordPress site timezone is stored. The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.

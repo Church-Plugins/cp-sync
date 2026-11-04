@@ -198,6 +198,22 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringNotContainsString( '<time', $html );
 	}
 
+	public function test_single_and_list_card_escape_the_price_next_to_register() {
+		$GLOBALS['cp_sync_template_meta'][41]['_cp_registration_price'] = '<script>alert(1)</script>';
+
+		$single = $this->render_main_template( 'events/single', array( $this->event ), 'Events' );
+		$this->assertStringContainsString( 'cp-sync-event__price', $single );
+		$this->assertStringContainsString( '&lt;script&gt;alert(1)&lt;/script&gt;', $single );
+		$this->assertStringNotContainsString( '<script>', $single );
+		$this->assertLessThan( strpos( $single, '>Register</a>' ), strpos( $single, 'cp-sync-event__price' ) );
+
+		$archive = $this->render_main_template( 'events/archive', array( $this->event ), 'Events' );
+		$this->assertStringContainsString( 'cp-sync-event-card__price', $archive );
+		$this->assertStringContainsString( '&lt;script&gt;alert(1)&lt;/script&gt;', $archive );
+		$this->assertStringNotContainsString( '<script>', $archive );
+		$this->assertLessThan( strpos( $archive, '>Register</a>' ), strpos( $archive, 'cp-sync-event-card__price' ) );
+	}
+
 	public function test_list_renders_a_different_title_and_link_for_each_event() {
 		$second              = new CP_Sync_Template_Post();
 		$second->ID          = 42;

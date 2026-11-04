@@ -297,4 +297,60 @@ class FormatEventRegistrationsTest extends TestCase {
 		$this->assertSame( [], PCO::parse_signup_location( [] ) );
 		$this->assertSame( [], PCO::parse_signup_location( [ 'name' => '', 'formatted_address' => '' ] ) );
 	}
+
+	/**
+	 * No selection types still imports the signup, with empty price keys so a
+	 * re-sync can clear a price stored earlier.
+	 */
+	public function test_missing_selection_types_still_imports_and_clears_the_price() {
+		$result = $this->makePco()->format_event_from_registrations( $this->minimalSignup(), $this->minimalContext() );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( '', $result['meta_input']['_cp_registration_price'] );
+		$this->assertSame( '', $result['meta_input']['_EventCost'] );
+		$this->assertSame( '', $result['meta_input']['_EventCurrencySymbol'] );
+		$this->assertSame( '', $result['meta_input']['_EventCurrencyPosition'] );
+	}
+
+	/**
+	 * A linked public selection type is stored. A hidden one is not part of the price.
+	 */
+	public function test_formatter_stores_only_the_public_selection_type_price() {
+		$signup  = $this->minimalSignup();
+		$context = $this->minimalContext();
+		$signup['relationships']['selection_types'] = [
+			'data' => [
+				[ 'type' => 'SelectionType', 'id' => 'public' ],
+				[ 'type' => 'SelectionType', 'id' => 'hidden' ],
+				[ 'type' => 'SelectionType', 'id' => 'missing' ],
+			],
+		];
+		$context['relational_data']['SelectionType'] = [
+			'public' => [
+				'attributes' => [
+					'price_cents'            => 2500,
+					'price_formatted'        => '25.00',
+					'price_currency'         => 'USD',
+					'price_currency_symbol'  => '$',
+					'publicly_available'     => true,
+				],
+			],
+			'hidden' => [
+				'attributes' => [
+					'price_cents'            => 10000,
+					'price_formatted'        => '100.00',
+					'price_currency'         => 'USD',
+					'price_currency_symbol'  => '$',
+					'publicly_available'     => false,
+				],
+			],
+		];
+
+		$result = $this->makePco()->format_event_from_registrations( $signup, $context );
+
+		$this->assertSame( '$25.00', $result['meta_input']['_cp_registration_price'] );
+		$this->assertSame( '25.00', $result['meta_input']['_EventCost'] );
+		$this->assertSame( '$', $result['meta_input']['_EventCurrencySymbol'] );
+		$this->assertSame( 'prefix', $result['meta_input']['_EventCurrencyPosition'] );
+	}
 }

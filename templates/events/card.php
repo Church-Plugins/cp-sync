@@ -47,6 +47,7 @@ echo \CP_Sync\Events\EventCard::render( // phpcs:ignore WordPress.Security.Escap
 		'title'            => get_the_title(),
 		'permalink'        => (string) get_permalink(),
 		'registration_url' => (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::REGISTRATION_URL, true ),
+		'price'            => (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::REGISTRATION_PRICE, true ),
 		'image'            => $cp_sync_image,
 		'description'      => $cp_sync_description,
 		'when'             => $cp_sync_when['text'],

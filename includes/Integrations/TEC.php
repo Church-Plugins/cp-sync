@@ -514,9 +514,21 @@ class TEC extends Integration {
 			// Arbitrary post meta the formatter asked us to persist ( e.g. the
 			// registration_url that drives the Register button ). tribe_update_event()
 			// only handles its own known fields, so meta_input was silently dropped
-			// before — write it here.
+			// before — write it here. Registration price keys are included even
+			// when empty so a re-sync deletes a cost Planning Center removed.
 			if ( ! empty( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) {
+				$price_writes = self::price_meta_writes( $item['meta_input'] );
+
 				foreach ( $item['meta_input'] as $meta_key => $meta_value ) {
+					if ( array_key_exists( $meta_key, $price_writes ) ) {
+						if ( null === $price_writes[ $meta_key ] ) {
+							delete_post_meta( $id, $meta_key );
+						} else {
+							update_post_meta( $id, $meta_key, $price_writes[ $meta_key ] );
+						}
+						continue;
+					}
+
 					update_post_meta( $id, $meta_key, $meta_value );
 				}
 			}
@@ -549,6 +561,48 @@ class TEC extends Integration {
 
 	public function register_taxonomy($taxonomy, $args) {
 		register_taxonomy( $taxonomy, 'tribe_events', $args );
+	}
+
+	/**
+	 * Post meta for a Planning Center registration price.
+	 *
+	 * The display string is `_cp_registration_price`. The Events Calendar reads
+	 * `_EventCost` (the amount, a `min - max` range, or Free) and
+	 * `_EventCurrencySymbol`. `_EventCurrencyPosition` is `prefix` so the
+	 * symbol stays in front of the amount. An empty string deletes that key,
+	 * which clears a price on the next sync.
+	 *
+	 * Keys that are absent from $meta_input are left alone, so a calendar
+	 * event does not wipe a cost entered by hand.
+	 *
+	 * @param array $meta_input Formatted event meta.
+	 * @return array Key => value to store, or null to delete the key.
+	 */
+	public static function price_meta_writes( array $meta_input ) {
+		$keys   = array(
+			\CP_Sync\Events\Meta::REGISTRATION_PRICE,
+			'_EventCost',
+			'_EventCurrencySymbol',
+			'_EventCurrencyPosition',
+		);
+		$writes = array();
+
+		foreach ( $keys as $key ) {
+			if ( ! array_key_exists( $key, $meta_input ) ) {
+				continue;
+			}
+
+			$value = $meta_input[ $key ];
+
+			if ( null === $value || '' === $value ) {
+				$writes[ $key ] = null;
+				continue;
+			}
+
+			$writes[ $key ] = $value;
+		}
+
+		return $writes;
 	}
 
 	/**
