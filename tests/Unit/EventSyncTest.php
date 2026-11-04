@@ -95,6 +95,20 @@ class EventSyncTest extends TestCase {
 		$this->assertSame( 'publish', $by_source['keep'] );
 	}
 
+	public function test_empty_end_utc_uses_the_start_time() {
+		$event = $this->pco( 'open-end', 'e1', '2026-08-01 15:00:00', '' );
+		$event['site_timezone'] = 'UTC';
+
+		$item = TecEventMapper::to_tec_item( $event );
+
+		$this->assertSame( '2026-08-01', $item['EventStartDate'] );
+		$this->assertSame( '2026-08-01', $item['EventEndDate'] );
+		$this->assertSame( $item['EventStartHour'], $item['EventEndHour'] );
+		$this->assertSame( $item['EventStartMinute'], $item['EventEndMinute'] );
+		$this->assertSame( '15', $item['EventEndHour'] );
+		$this->assertSame( '00', $item['EventEndMinute'] );
+	}
+
 	public function test_an_event_with_no_end_time_does_not_stop_the_feed() {
 		$open = $this->pco( 'open-end', 'e1', '2026-08-01 15:00:00', '' );
 		$next = $this->pco( 'after', 'e2', '2026-08-02 15:00:00', '2026-08-02 16:00:00', 'After' );
@@ -109,7 +123,9 @@ class EventSyncTest extends TestCase {
 
 		$this->assertCount( 2, $mapped );
 		$this->assertSame( 'Sunday Service', $mapped[0]['post_title'] );
-		$this->assertNotSame( '', $mapped[0]['EventEndDate'] );
+		$this->assertSame( '2026-08-01', $mapped[0]['EventEndDate'] );
+		$this->assertSame( '15', $mapped[0]['EventEndHour'] );
+		$this->assertSame( '00', $mapped[0]['EventEndMinute'] );
 		$this->assertSame( 'After', $mapped[1]['post_title'] );
 		$this->assertSame( '2026-08-02', $mapped[1]['EventStartDate'] );
 		$this->assertSame( '16', $mapped[1]['EventEndHour'] );
