@@ -141,9 +141,10 @@ class WpEventStore implements EventStore {
 			if ( $series ) {
 				$row['series_key'] = (string) get_post_meta( $post_id, Meta::SERIES_KEY, true );
 			} else {
-				$row['occurrence_id'] = (string) get_post_meta( $post_id, Meta::OCCURRENCE_ID, true );
-				$row['start_utc']     = (string) get_post_meta( $post_id, Meta::START_UTC, true );
-				$row['end_utc']       = (string) get_post_meta( $post_id, Meta::END_UTC, true );
+				$row['occurrence_id']  = (string) get_post_meta( $post_id, Meta::OCCURRENCE_ID, true );
+				$row['start_utc']      = (string) get_post_meta( $post_id, Meta::START_UTC, true );
+				$row['end_utc']        = (string) get_post_meta( $post_id, Meta::END_UTC, true );
+				$row['series_post_id'] = (int) get_post_meta( $post_id, Meta::SERIES_ID, true );
 			}
 
 			$rows[] = $row;

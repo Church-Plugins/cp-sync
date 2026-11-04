@@ -21,6 +21,16 @@ class VisibilityRemovalNotice {
 	const OPTION = 'cp_sync_event_visibility_notice';
 
 	/**
+	 * Query arg and nonce action for the Dismiss link.
+	 */
+	const DISMISS_ACTION = 'cp_sync_dismiss_event_visibility_notice';
+
+	/**
+	 * Query flag on the Dismiss link.
+	 */
+	const DISMISS_QUERY = 'cp_sync_dismiss_event_visibility';
+
+	/**
 	 * Instance ids skipped during the current pull.
 	 *
 	 * @var array
@@ -104,8 +114,9 @@ class VisibilityRemovalNotice {
 	/**
 	 * Store the summary for the admin notice.
 	 *
-	 * A later sync that removes nothing must not clear the notice. The
-	 * hourly cron would otherwise delete it before an administrator logs in.
+	 * A later sync that removes nothing leaves the notice in place. A later
+	 * sync that removes upcoming events replaces it. An administrator
+	 * dismisses it with the nonce link.
 	 *
 	 * @param array $skipped_ids Ids the visibility filter skipped.
 	 * @param array $removed_ids Ids the sync removed.
@@ -121,6 +132,29 @@ class VisibilityRemovalNotice {
 		self::reset();
 
 		return $summary;
+	}
+
+	/**
+	 * Delete the notice when an administrator follows the Dismiss link.
+	 *
+	 * @return void
+	 */
+	public static function maybe_dismiss() {
+		if ( ! isset( $_GET[ self::DISMISS_QUERY ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			return;
+		}
+
+		if ( ! function_exists( 'current_user_can' ) || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$nonce = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+
+		if ( ! function_exists( 'wp_verify_nonce' ) || ! wp_verify_nonce( $nonce, self::DISMISS_ACTION ) ) {
+			return;
+		}
+
+		delete_option( self::OPTION );
 	}
 
 	/**
@@ -146,8 +180,31 @@ class VisibilityRemovalNotice {
 		}
 
 		printf(
-			'<div class="notice notice-warning"><p>%s</p></div>',
-			esc_html( $message )
+			'<div class="notice notice-warning"><p>%s%s</p></div>',
+			esc_html( $message ),
+			self::dismiss_link() // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- dismiss_link() escapes the URL and label.
 		);
+	}
+
+	/**
+	 * Nonce URL that deletes the notice. Empty when the helpers are unavailable.
+	 *
+	 * @return string
+	 */
+	protected static function dismiss_link() {
+		if ( ! function_exists( 'wp_nonce_url' ) || ! function_exists( 'add_query_arg' ) ) {
+			return '';
+		}
+
+		$url = wp_nonce_url(
+			add_query_arg( self::DISMISS_QUERY, '1' ),
+			self::DISMISS_ACTION
+		);
+
+		if ( function_exists( 'esc_url' ) ) {
+			$url = esc_url( $url );
+		}
+
+		return ' <a class="cp-sync-visibility-notice__dismiss" href="' . $url . '">' . esc_html( __( 'Dismiss', 'cp-sync' ) ) . '</a>';
 	}
 }

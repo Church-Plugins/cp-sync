@@ -97,17 +97,8 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 * New: Sites that do not use The Events Calendar can show events from Planning Center or Church Community Builder. Each date is a page under Events. A Planning Center event with more than one date, or a Church Community Builder event with more than one date, also gets a series page under Event Series. A single date does not. Turn on Display events with CP Sync (Advanced) and Sync Events (Connect). On an upgrade, Display events stays off unless event sync was already on, so a page you already have at /events/ is left alone. The list is at /events/. Add `[cp-sync-events]` to a page to show the next few dates. Sites that use The Events Calendar are unchanged.
 * New: Groups can be shown on the site without CP Groups: a groups page at /groups/, a page for each group, and the [cp-sync-groups] shortcode. Leader email addresses are not shown. CP Groups adds filters, a map, and a contact form, and it takes over the same groups when you activate it. On sites updated from an earlier version, turn on Display groups with CP Sync (Advanced).
 * Church Community Builder events: The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
-* Fix: A Church Community Builder event whose approval status includes XML attributes is no longer treated as unapproved, and an unreadable status no longer removes the event. An event start that is not a date, such as TBD, is skipped instead of stopping the sync.
-* Fix: Updating an event in The Events Calendar no longer clears its saved dates when the update has no start time.
-* Fix: On a block theme, shortcodes and bare video links in a group description are shown as text. The groups list also restores the page's original post when it finishes.
-* Fix: The groups shortcode type attribute now matches non-English type names, such as Jóvenes.
-* Fix: The notice that hidden or unapproved events were removed stays up after the next scheduled sync, so an administrator who logs in later still sees it.
-* Fix: Syncing an event or a series keeps its permalink, published date, and author.
-* Fix: An event series stays published when only one of its dates is still in the feed. Past dates on that series keep their series page.
-* Fix: Church Community Builder event times on CP Sync's own event pages use the event's time zone. A 7:00 pm Chicago event stays 7:00 pm on a site set to New York.
-* Fix: An event category page, such as /event-category/youth/, lists upcoming events with the same layout as the events page.
-* Fix: Reloading the settings screen keeps the Display groups choice that was filled in on the first load.
-* Fix: Event permalinks are refreshed after other plugins have registered, and the first page load on a site that uses The Events Calendar does not rewrite permalinks.
+* Fix: A Church Community Builder event whose start or end is not a date, such as TBD, is skipped instead of stopping the sync.
+* Fix: The notice that hidden or unapproved events were removed stays until an administrator dismisses it.
 
 = 1.1.0 =
 * New: Planning Center group leaders now sync to CP Groups. Group Leader gets every leader's name, and Group Leader Email gets the group's contact email, or the email of the first leader who has one (developers can change this with the `cp_sync_pco_group_leader_email` filter). On CP Groups 1.2 or later, leaders are saved as Group Leaders rows instead, each with that leader's own email; the contact email is only used when no leader has one. If the leaders request fails, leaders already stored are kept.

@@ -94,24 +94,20 @@ class EventSync {
 			$series_post_ids[ $key ] = (int) $store->save_series( $record );
 		}
 
-		$feed_series_keys = array();
+		foreach ( $grouped['events'] as $record ) {
+			$ident = self::identity( $record['provider'], $record['occurrence_id'] );
 
-		foreach ( $normalized as $row ) {
-			$series_id = isset( $row['series_id'] ) ? trim( (string) $row['series_id'] ) : '';
-
-			if ( '' === $series_id || '' === $row['provider'] ) {
-				continue;
+			if ( '' !== $ident ) {
+				$seen[ $ident ] = true;
 			}
-
-			$feed_series_keys[ $row['provider'] . '|' . $series_id ] = true;
 		}
+
+		$referenced_series = self::referenced_series_ids( $existing_events, $seen, $providers, $now_utc );
 
 		foreach ( $existing_series as $row ) {
 			$key = isset( $row['series_key'] ) ? (string) $row['series_key'] : '';
 
-			// group() only builds a series for two or more dates still in
-			// the feed. One remaining date must not trash the series post.
-			if ( '' === $key || isset( $grouped['series'][ $key ] ) || isset( $feed_series_keys[ $key ] ) ) {
+			if ( '' === $key || isset( $grouped['series'][ $key ] ) ) {
 				continue;
 			}
 
@@ -120,6 +116,13 @@ class EventSync {
 			}
 
 			if ( empty( $providers[ $row['provider'] ?? '' ] ) ) {
+				continue;
+			}
+
+			// A past date that is no longer in the feed still points at this
+			// series through _cp_series_id. Leave the series published until
+			// no synced date references it.
+			if ( ! empty( $referenced_series[ (int) $row['post_id'] ] ) ) {
 				continue;
 			}
 
@@ -138,12 +141,14 @@ class EventSync {
 		}
 
 		foreach ( $grouped['events'] as $record ) {
-			$ident          = self::identity( $record['provider'], $record['occurrence_id'] );
+			$ident = self::identity( $record['provider'], $record['occurrence_id'] );
 			$seen[ $ident ] = true;
 			$record['series_post_id'] = 0;
 
 			if ( '' !== $record['series_key'] && isset( $series_post_ids[ $record['series_key'] ] ) ) {
-				$record['series_post_id'] = $series_post_ids[ $record['series_key'] ];
+				$record['series_post_id'] = (int) $series_post_ids[ $record['series_key'] ];
+			} elseif ( '' !== $record['series_key'] && isset( $series_by_key[ $record['series_key'] ] ) ) {
+				$record['series_post_id'] = (int) $series_by_key[ $record['series_key'] ]['post_id'];
 			}
 
 			if ( isset( $events_by_key[ $ident ] ) ) {
@@ -217,7 +222,9 @@ class EventSync {
 
 		foreach ( $buckets as $key => $members ) {
 			if ( count( $members ) < 2 ) {
-				$members[0]['series_key'] = '';
+				// One feed date does not create a series. It keeps the key so
+				// an existing series post stays linked through _cp_series_id.
+				$members[0]['series_key'] = $key;
 				$events[]                 = $members[0];
 				continue;
 			}
@@ -429,6 +436,70 @@ class EventSync {
 			'image_url'        => $image,
 			'registration_url' => $url,
 		);
+	}
+
+	/**
+	 * Series post IDs that a synced date will still reference after this run.
+	 *
+	 * Dates this sync is about to trash do not count. Past dates that stay
+	 * published do, including when they are no longer in the feed.
+	 *
+	 * @param array  $existing_events Stored date rows.
+	 * @param array  $seen            Occurrence identities in this feed.
+	 * @param array  $providers       Providers present in this feed.
+	 * @param string $now_utc         Current UTC `Y-m-d H:i:s`.
+	 * @return array<int,bool>
+	 */
+	protected static function referenced_series_ids( array $existing_events, array $seen, array $providers, $now_utc ) {
+		$ids = array();
+
+		foreach ( $existing_events as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+
+			$series_id = isset( $row['series_post_id'] ) ? (int) $row['series_post_id'] : 0;
+
+			if ( $series_id < 1 || ! self::date_remains( $row, $seen, $providers, $now_utc ) ) {
+				continue;
+			}
+
+			$ids[ $series_id ] = true;
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * Whether this stored date will still be on the site after the removal pass.
+	 *
+	 * @param array  $row       Stored date row.
+	 * @param array  $seen      Occurrence identities in this feed.
+	 * @param array  $providers Providers present in this feed.
+	 * @param string $now_utc   Current UTC `Y-m-d H:i:s`.
+	 * @return bool
+	 */
+	protected static function date_remains( array $row, array $seen, array $providers, $now_utc ) {
+		if ( 'trash' === ( $row['status'] ?? '' ) ) {
+			return false;
+		}
+
+		$provider = isset( $row['provider'] ) ? (string) $row['provider'] : '';
+		$ident    = self::identity( $provider, $row['occurrence_id'] ?? '' );
+
+		if ( '' !== $ident && isset( $seen[ $ident ] ) ) {
+			return true;
+		}
+
+		if ( ! empty( $row['locked'] ) || empty( $providers[ $provider ] ) ) {
+			return true;
+		}
+
+		$end = isset( $row['end_utc'] ) && '' !== (string) $row['end_utc']
+			? (string) $row['end_utc']
+			: (string) ( $row['start_utc'] ?? '' );
+
+		return '' !== $end && strcmp( $end, (string) $now_utc ) < 0;
 	}
 
 	/**

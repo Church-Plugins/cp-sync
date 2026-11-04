@@ -395,7 +395,7 @@ class Display {
 	 * @return string
 	 */
 	protected static function title_html( $title, $permalink, $link ) {
-		$safe_title = esc_html( $title );
+		$safe_title = self::protect_block_template_html( esc_html( $title ) );
 		$permalink  = self::http_url( $permalink );
 
 		if ( ! $link || '' === $permalink ) {
@@ -429,21 +429,16 @@ class Display {
 		}
 
 		if ( $summary ) {
-			$text = esc_html( wp_trim_words( wp_strip_all_tags( $content ), 40, '…' ) );
-			$text = self::neutralize_shortcodes( $text );
+			$text = self::protect_block_template_html( esc_html( wp_trim_words( wp_strip_all_tags( $content ), 40, '…' ) ) );
 
 			if ( '' === $text ) {
 				return $card ? '<p class="cp-sync-groups__description"></p>' : '';
 			}
 
-			if ( self::is_bare_url( $text ) ) {
-				$text = '<span class="cp-sync-groups__url">' . $text . '</span>';
-			}
-
 			return '<p class="cp-sync-groups__description">' . $text . '</p>';
 		}
 
-		$html = self::guard_autoembed_urls( self::neutralize_shortcodes( wp_kses_post( $content ) ) );
+		$html = self::protect_block_template_html( wp_kses_post( $content ) );
 
 		if ( '' === trim( $html ) ) {
 			return '';
@@ -464,7 +459,7 @@ class Display {
 			return '';
 		}
 
-		return '<p class="cp-sync-groups__meta"><span class="cp-sync-groups__label">' . esc_html( $label ) . '</span> ' . esc_html( $value ) . '</p>';
+		return '<p class="cp-sync-groups__meta"><span class="cp-sync-groups__label">' . esc_html( $label ) . '</span> ' . self::protect_block_template_html( esc_html( $value ) ) . '</p>';
 	}
 
 	/**
@@ -479,7 +474,7 @@ class Display {
 		$safe = [];
 
 		foreach ( $names as $name ) {
-			$safe[] = esc_html( $name );
+			$safe[] = self::protect_block_template_html( esc_html( $name ) );
 		}
 
 		$label = ( 1 === count( $names ) )
@@ -641,13 +636,5 @@ class Display {
 		}
 
 		return implode( '', $parts );
-	}
-
-	/**
-	 * @param string $text Plain text.
-	 * @return bool
-	 */
-	protected static function is_bare_url( $text ) {
-		return 1 === preg_match( '#^https?://[^\s<>"]+$#i', $text );
 	}
 }

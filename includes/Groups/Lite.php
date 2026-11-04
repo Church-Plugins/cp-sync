@@ -581,8 +581,9 @@ class Lite {
 
 			ob_start();
 			include $file;
-			// Block themes run this string through autoembed and do_shortcode.
-			$_wp_current_template_content = Display::protect_block_template_html( ob_get_clean() );
+			// Theme and hook markup stays as the template printed it. ChMS
+			// text is protected when the group markup is built.
+			$_wp_current_template_content = ob_get_clean();
 
 			if ( $previous instanceof \WP_Post && function_exists( 'setup_postdata' ) ) {
 				$post = $previous;

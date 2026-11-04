@@ -555,12 +555,12 @@ class GroupsLiteTest extends TestCase {
 		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://youtu.be/abc123</span>', $html );
 		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://vimeo.com/42</span>', $html );
 
-		$protected = Display::protect_block_template_html( "<script>var items = [1];</script>\n[gallery]\nhttps://youtu.be/abc123\n" );
+		$theme = "<header class=\"theme\">[keep-shortcode]\nhttps://example.com/theme-only\n</header>";
+		$page  = $theme . $html;
 
-		$this->assertStringContainsString( 'var items = [1];', $protected );
-		$this->assertStringContainsString( '&#91;gallery]', $protected );
-		$this->assertStringNotContainsString( "\n[gallery]", $protected );
-		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://youtu.be/abc123</span>', $protected );
+		$this->assertStringContainsString( '[keep-shortcode]', $page );
+		$this->assertStringContainsString( "\nhttps://example.com/theme-only\n", $page );
+		$this->assertStringContainsString( '&#91;gallery ids="1"]', $page );
 	}
 
 	public function test_lite_stores_the_cp_groups_1_2_leader_shape() {

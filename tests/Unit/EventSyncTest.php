@@ -11,8 +11,10 @@ use Brain\Monkey;
 use Brain\Monkey\Functions;
 use CP_Sync\ChMS\CCB;
 use CP_Sync\ChMS\PCO;
+use CP_Sync\Events\Display;
 use CP_Sync\Events\EventStore;
 use CP_Sync\Events\EventSync;
+use CP_Sync\Events\PostTypes;
 use CP_Sync\Events\TecEventMapper;
 use PHPUnit\Framework\TestCase;
 
@@ -213,36 +215,76 @@ class EventSyncTest extends TestCase {
 		$this->assertCount( 1, $this->published( $store->series() ) );
 		$this->assertSame( 'publish', $store->series()[0]['status'] );
 		$this->assertSame( 'pco|event-9', $store->series()[0]['series_key'] );
-		$this->assertSame( 0, $this->published( $store->events() )[0]['series_post_id'] );
+		$this->assertSame( (int) $store->series()[0]['post_id'], (int) $this->published( $store->events() )[0]['series_post_id'] );
 	}
 
-	public function test_a_series_with_no_dates_left_in_the_feed_is_trashed() {
-		$store = new MemoryEventStore();
-		$now   = '2026-07-01 00:00:00';
+	public function test_a_series_is_kept_while_a_past_date_references_it_and_trashed_when_none_do() {
+		$store  = new MemoryEventStore();
+		$now    = '2026-08-01 12:00:00';
+		$past   = $this->pco( 'past', 'event-9', '2026-01-01 15:00:00', '2026-01-01 16:00:00' );
+		$future = $this->pco( 'future', 'event-9', '2026-09-01 15:00:00', '2026-09-01 16:00:00' );
+		$other  = $this->pco( 'other', 'event-other', '2026-10-01 15:00:00', '2026-10-01 16:00:00' );
 
-		EventSync::sync(
-			array(
-				$this->pco( 'inst-1', 'event-9', '2026-08-01 15:30:00', '2026-08-01 17:00:00' ),
-				$this->pco( 'inst-2', 'event-9', '2026-08-08 15:30:00', '2026-08-08 17:00:00' ),
-			),
-			$store,
-			$now,
-			'UTC'
-		);
+		EventSync::sync( array( $past, $future ), $store, $now, 'UTC' );
+		$series_id = (int) $store->series()[0]['post_id'];
 
-		EventSync::sync(
-			array( $this->pco( 'other', 'event-other', '2026-09-01 15:30:00', '2026-09-01 17:00:00' ) ),
-			$store,
-			$now,
-			'UTC'
-		);
+		EventSync::sync( array( $other ), $store, $now, 'UTC' );
 
-		$by_key = array();
-		foreach ( $store->series() as $series ) {
-			$by_key[ $series['series_key'] ] = $series['status'];
+		$this->assertSame( 'publish', $store->series()[0]['status'] );
+		$past_row = $this->event_by_occurrence( $store, 'past' );
+		$this->assertSame( 'publish', $past_row['status'] );
+		$this->assertSame( $series_id, (int) $past_row['series_post_id'] );
+		$this->assertSame( 'trash', $this->event_by_occurrence( $store, 'future' )['status'] );
+
+		foreach ( $store->events as $id => $event ) {
+			$store->events[ $id ]['series_post_id'] = 0;
 		}
 
-		$this->assertSame( 'trash', $by_key['pco|event-9'] );
+		EventSync::sync( array( $other ), $store, $now, 'UTC' );
+
+		$this->assertSame( 'trash', $store->series()[0]['status'] );
+	}
+
+	public function test_series_links_and_archive_survive_three_dates_then_one_then_none() {
+		$store = new MemoryEventStore();
+		$now   = '2026-08-01 12:00:00';
+		$dates = array(
+			$this->pco( 'd1', 'event-9', '2026-01-01 15:00:00', '2026-01-01 16:00:00', 'Series' ),
+			$this->pco( 'd2', 'event-9', '2026-02-01 15:00:00', '2026-02-01 16:00:00', 'Series' ),
+			$this->pco( 'd3', 'event-9', '2026-09-01 15:00:00', '2026-09-01 16:00:00', 'Series' ),
+		);
+
+		EventSync::sync( $dates, $store, $now, 'UTC' );
+		$series_id = (int) $this->published( $store->series() )[0]['post_id'];
+
+		foreach ( array( 'd1', 'd2', 'd3' ) as $occurrence ) {
+			$this->assertSame( $series_id, (int) $this->event_by_occurrence( $store, $occurrence )['series_post_id'] );
+		}
+
+		EventSync::sync( array( $dates[2] ), $store, $now, 'UTC' );
+
+		$this->assertSame( 'publish', $store->series()[0]['status'] );
+		foreach ( array( 'd1', 'd2', 'd3' ) as $occurrence ) {
+			$row = $this->event_by_occurrence( $store, $occurrence );
+			$this->assertSame( 'publish', $row['status'] );
+			$this->assertSame( $series_id, (int) $row['series_post_id'] );
+		}
+		$this->assertTrue( $this->series_archive_lists_published_series() );
+
+		EventSync::sync(
+			array( $this->pco( 'other', 'event-other', '2026-10-01 15:00:00', '2026-10-01 16:00:00' ) ),
+			$store,
+			$now,
+			'UTC'
+		);
+
+		$this->assertSame( 'publish', $store->series()[0]['status'] );
+		$this->assertSame( 'trash', $this->event_by_occurrence( $store, 'd3' )['status'] );
+		$this->assertSame( $series_id, (int) $this->event_by_occurrence( $store, 'd1' )['series_post_id'] );
+		$this->assertSame( $series_id, (int) $this->event_by_occurrence( $store, 'd2' )['series_post_id'] );
+		$this->assertSame( 'publish', $this->event_by_occurrence( $store, 'd1' )['status'] );
+		$this->assertSame( 'publish', $this->event_by_occurrence( $store, 'd2' )['status'] );
+		$this->assertTrue( $this->series_archive_lists_published_series() );
 	}
 
 	public function test_a_single_date_creates_no_series() {
@@ -442,6 +484,34 @@ class EventSyncTest extends TestCase {
 			'location_name' => 'Fellowship Hall',
 			'meta_input'    => array( 'event_type' => 'Fellowship' ),
 		);
+	}
+
+	/**
+	 * The /event-series/ query is published series with no date filter.
+	 *
+	 * @return bool
+	 */
+	private function series_archive_lists_published_series() {
+		$vars = Display::series_archive_query_vars();
+
+		return PostTypes::SERIES === $vars['post_type']
+			&& 'publish' === $vars['post_status']
+			&& array() === $vars['meta_query'];
+	}
+
+	/**
+	 * @param MemoryEventStore $store      Store.
+	 * @param string           $occurrence Occurrence id.
+	 * @return array
+	 */
+	private function event_by_occurrence( MemoryEventStore $store, $occurrence ) {
+		foreach ( $store->events() as $event ) {
+			if ( $occurrence === ( $event['occurrence_id'] ?? '' ) ) {
+				return $event;
+			}
+		}
+
+		return array();
 	}
 
 	/**
