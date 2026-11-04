@@ -82,6 +82,9 @@ Set **Event source** to **Pull from Registrations** or **Calendar AND Registrati
 | Signup location | Venue |
 | Logo | Featured image |
 | Categories | Event categories |
+| Registration link | **Register** button on the event (reads **Sold Out** when the signup is at capacity; hide it with [**Show Register button on events**](../integrations/the-events-calendar.md#planning-center)) |
+
+Signups with no scheduled times (for example, ongoing registrations) are skipped.
 
 When **Event source** is **Calendar AND Registrations**, the **Events** tab shows **Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.**
 
