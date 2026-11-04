@@ -42,6 +42,9 @@ class RemovalGuardIntegration extends Integration {
 	/** @var array */
 	public $removed = [];
 
+	/** @var array */
+	public $trashed = [];
+
 	/** @var bool */
 	public $dispatched = false;
 
@@ -76,6 +79,10 @@ class RemovalGuardIntegration extends Integration {
 
 	public function remove_item( $chms_id ) {
 		$this->removed[] = $chms_id;
+	}
+
+	public function trash_item( $chms_id ) {
+		$this->trashed[] = $chms_id;
 	}
 
 	public function is_locked( $chms_id ) {
@@ -262,7 +269,8 @@ class IntegrationRemovalGuardTest extends TestCase {
 
 		$integration->process( [ [ 'chms_id' => 'evt_1', 'post_title' => 'Kept' ] ] );
 
-		$this->assertSame( [ 'hidden-1' ], $integration->removed );
+		$this->assertSame( [], $integration->removed, 'A hidden event is trashed, not deleted' );
+		$this->assertSame( [ 'hidden-1' ], $integration->trashed );
 		$this->assertFalse( $deleted );
 		$this->assertSame( VisibilityRemovalNotice::OPTION, $stored[0] );
 		$this->assertSame( 3, $stored[1]['skipped'] );

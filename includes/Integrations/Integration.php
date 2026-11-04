@@ -238,7 +238,14 @@ abstract class Integration extends \WP_Background_Process {
 			$should_remove = apply_filters( "cp_sync_{$this->type}_should_remove_item", true, $chms_id, $this );
 
 			if ( $should_remove ) {
-				$this->remove_item( $chms_id );
+				// Hidden or unapproved events stay in the Trash so showing them
+				// again restores the same post. Anything else ( removed at the
+				// source, or filtered out for another reason ) is deleted.
+				if ( $this->is_visibility_skip( $chms_id ) ) {
+					$this->trash_item( $chms_id );
+				} else {
+					$this->remove_item( $chms_id );
+				}
 				$removed_ids[] = $chms_id;
 			} else {
 				$preserved[ $chms_id ] = $hash;
@@ -411,6 +418,10 @@ abstract class Integration extends \WP_Background_Process {
 		$tax_input = $item['tax_input'] ?? [];
 
 		unset( $item['tax_input'] ); // child classes don't need access to this
+
+		// A hidden event is still the same post. Publish it again before the
+		// update so the ChMS id keeps pointing at that id.
+		$this->restore_trashed_item( $chms_id );
 
 		try {
 			$id = $this->update_item( $item );
@@ -1101,6 +1112,10 @@ abstract class Integration extends \WP_Background_Process {
 	public function remove_item( $chms_id ) {
 		$id = $this->get_chms_item_id( $chms_id );
 
+		if ( empty( $id ) ) {
+			return;
+		}
+
 		// Only delete the image if nothing else is using it. Sideloaded attachments are
 		// deduplicated by source URL, so this one may equally be the featured image of
 		// another synced post — deleting it with this post would break that one.
@@ -1112,6 +1127,79 @@ abstract class Integration extends \WP_Background_Process {
 		}
 
 		wp_delete_post( $id, true );
+
+		unset( $this->chms_id_cache[ $chms_id ] );
+		wp_cache_set( 'chms_id_cache_' . $this->id, $this->chms_id_cache, 'cp_sync' );
+	}
+
+	/**
+	 * Move a hidden or unapproved event to the Trash.
+	 *
+	 * The featured image and its files stay attached. The ChMS id cache keeps
+	 * this post id so the next sync that includes the event can publish it again.
+	 *
+	 * @param string $chms_id ChMS id.
+	 * @return void
+	 */
+	public function trash_item( $chms_id ) {
+		$id = $this->get_chms_item_id( $chms_id );
+
+		if ( empty( $id ) || 'trash' === get_post_status( $id ) ) {
+			return;
+		}
+
+		wp_trash_post( $id );
+	}
+
+	/**
+	 * Publish a trashed post again when its ChMS id comes back.
+	 *
+	 * @param string $chms_id ChMS id.
+	 * @return void
+	 */
+	public function restore_trashed_item( $chms_id ) {
+		$post_id = $this->get_chms_item_id( $chms_id );
+
+		if ( empty( $post_id ) || 'trash' !== get_post_status( $post_id ) ) {
+			return;
+		}
+
+		wp_untrash_post( $post_id );
+		wp_publish_post( $post_id );
+	}
+
+	/**
+	 * Whether this leftover was left out because it is hidden or not approved.
+	 *
+	 * Those ids are recorded while the feed is fetched. A post that disappeared
+	 * because it was removed at the source is not in that list.
+	 *
+	 * @param string $chms_id ChMS id.
+	 * @return bool
+	 */
+	protected function is_visibility_skip( $chms_id ) {
+		if ( 'events' !== $this->type ) {
+			return false;
+		}
+
+		$skipped = array_map( 'strval', \CP_Sync\Events\VisibilityRemovalNotice::skipped_ids() );
+
+		return in_array( (string) $chms_id, $skipped, true );
+	}
+
+	/**
+	 * Forget the in-memory and object-cache maps of ChMS id to post id.
+	 *
+	 * @return void
+	 */
+	public function flush_chms_id_cache() {
+		$this->chms_id_cache = null;
+
+		if ( empty( $this->id ) ) {
+			return;
+		}
+
+		wp_cache_delete( 'chms_id_cache_' . $this->id, 'cp_sync' );
 	}
 
 	/**
@@ -1164,7 +1252,52 @@ abstract class Integration extends \WP_Background_Process {
 	 */
 	public function get_chms_item_id( $chms_id ) {
 		$this->prime_cache();
-		return $this->chms_id_cache[ $chms_id ] ?? null;
+
+		if ( ! isset( $this->chms_id_cache[ $chms_id ] ) ) {
+			return null;
+		}
+
+		$post_id = $this->chms_id_cache[ $chms_id ];
+
+		// A trashed post still exists. Drop the id only when the post is gone,
+		// or when it is no longer a post of this integration. The event display
+		// restores a trashed post by this id, and a hidden TEC event does too.
+		if ( $this->cached_post_still_exists( $post_id ) ) {
+			return $post_id;
+		}
+
+		unset( $this->chms_id_cache[ $chms_id ] );
+		wp_cache_set( 'chms_id_cache_' . $this->id, $this->chms_id_cache, 'cp_sync' );
+
+		return null;
+	}
+
+	/**
+	 * Whether a cached post id still refers to a post of this integration.
+	 *
+	 * Trash counts as existing. A missing row does not.
+	 *
+	 * @param int $post_id Post id from the cache.
+	 * @return bool
+	 */
+	protected function cached_post_still_exists( $post_id ) {
+		$post_id = (int) $post_id;
+
+		if ( $post_id < 1 ) {
+			return false;
+		}
+
+		$post = get_post( $post_id );
+
+		if ( ! is_object( $post ) || empty( $post->ID ) ) {
+			return false;
+		}
+
+		if ( ! empty( $this->post_type ) && isset( $post->post_type ) && $this->post_type !== $post->post_type ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
