@@ -299,17 +299,36 @@ class FormatEventRegistrationsTest extends TestCase {
 	}
 
 	/**
-	 * No selection types still imports the signup, with empty price keys so a
-	 * re-sync can clear a price stored earlier.
+	 * A response with no selection_types data leaves every price key off the item.
 	 */
-	public function test_missing_selection_types_still_imports_and_clears_the_price() {
+	public function test_response_without_selection_types_omits_price_keys() {
 		$result = $this->makePco()->format_event_from_registrations( $this->minimalSignup(), $this->minimalContext() );
 
 		$this->assertIsArray( $result );
+		$this->assertArrayNotHasKey( '_cp_registration_price', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_EventCost', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_EventCurrencySymbol', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_EventCurrencyPosition', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_cp_sync_event_cost', $result['meta_input'] );
+
+		$neutral = $this->makePco()->to_neutral_registration_event( $this->minimalSignup(), $this->minimalContext() );
+		$this->assertArrayNotHasKey( 'registration_price', $neutral );
+	}
+
+	/**
+	 * An empty selection_types relationship is a real "no public price".
+	 */
+	public function test_empty_selection_types_relationship_clears_the_display_price() {
+		$signup = $this->minimalSignup();
+		$signup['relationships']['selection_types'] = [ 'data' => [] ];
+
+		$result = $this->makePco()->format_event_from_registrations( $signup, $this->minimalContext() );
+
 		$this->assertSame( '', $result['meta_input']['_cp_registration_price'] );
-		$this->assertSame( '', $result['meta_input']['_EventCost'] );
-		$this->assertSame( '', $result['meta_input']['_EventCurrencySymbol'] );
-		$this->assertSame( '', $result['meta_input']['_EventCurrencyPosition'] );
+		$this->assertSame( '', $result['meta_input']['_cp_sync_event_cost'] );
+		$this->assertArrayNotHasKey( '_EventCost', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_EventCurrencySymbol', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_EventCurrencyPosition', $result['meta_input'] );
 	}
 
 	/**
@@ -352,5 +371,6 @@ class FormatEventRegistrationsTest extends TestCase {
 		$this->assertSame( '25.00', $result['meta_input']['_EventCost'] );
 		$this->assertSame( '$', $result['meta_input']['_EventCurrencySymbol'] );
 		$this->assertSame( 'prefix', $result['meta_input']['_EventCurrencyPosition'] );
+		$this->assertSame( '25.00', $result['meta_input']['_cp_sync_event_cost'] );
 	}
 }

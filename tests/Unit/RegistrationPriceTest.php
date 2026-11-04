@@ -27,6 +27,36 @@ class RegistrationPriceTest extends TestCase {
 		parent::setUp();
 		Monkey\setUp();
 		Functions\when( '__' )->returnArg( 1 );
+		Functions\when( 'wp_timezone' )->justReturn( new \DateTimeZone( 'UTC' ) );
+		Functions\when( 'sanitize_title' )->alias(
+			static function ( $title ) {
+				return strtolower( $title );
+			}
+		);
+		Functions\when( 'wp_list_pluck' )->alias(
+			static function ( $list, $field ) {
+				$list = is_array( $list ) ? $list : array();
+
+				return array_map(
+					static function ( $row ) use ( $field ) {
+						return is_array( $row ) ? ( $row[ $field ] ?? null ) : null;
+					},
+					$list
+				);
+			}
+		);
+		Functions\when( 'cp_sync' )->justReturn(
+			new class() {
+				/** @var object */
+				public $logging;
+
+				public function __construct() {
+					$this->logging = new class() {
+						public function log( $message ) {}
+					};
+				}
+			}
+		);
 	}
 
 	protected function tearDown(): void {
@@ -212,36 +242,178 @@ class RegistrationPriceTest extends TestCase {
 		$this->assertArrayNotHasKey( Meta::REGISTRATION_PRICE, $calendar );
 	}
 
-	public function test_events_calendar_cost_is_written_and_cleared() {
-		$writes = TEC::price_meta_writes(
-			array(
-				Meta::REGISTRATION_PRICE => '€12.50',
-				'_EventCost'             => '12.50',
-				'_EventCurrencySymbol'   => '€',
-				'_EventCurrencyPosition' => 'prefix',
-				'registration_url'       => 'https://example.com/register',
-			)
+	public function test_stored_price_survives_a_fallback_and_a_response_without_selection_types() {
+		$pco    = ( new \ReflectionClass( PCO::class ) )->newInstanceWithoutConstructor();
+		$signup = array(
+			'id'         => '9',
+			'attributes' => array(
+				'name'                 => 'Retreat',
+				'description'          => '',
+				'new_registration_url' => 'https://church.center/signups/9',
+			),
+			'relationships' => array(
+				'signup_times' => array( 'data' => array( array( 'type' => 'SignupTime', 'id' => 'st1' ) ) ),
+			),
+		);
+		$context = array(
+			'relational_data' => array(
+				'SignupTime' => array(
+					'st1' => array(
+						'attributes' => array(
+							'starts_at' => '2026-09-10T09:00:00Z',
+							'ends_at'   => '2026-09-10T11:00:00Z',
+						),
+					),
+				),
+				'SelectionType' => array(
+					'1' => $this->type( 2500, '25.00', '$' ),
+				),
+			),
+		);
+		$stored = array(
+			Meta::REGISTRATION_PRICE => '$25.00',
+			'_EventCost'             => '25.00',
+			'_EventCurrencySymbol'   => '$',
+			'_EventCurrencyPosition' => 'prefix',
+			Meta::SYNC_EVENT_COST    => '25.00',
 		);
 
-		$this->assertSame( '€12.50', $writes[ Meta::REGISTRATION_PRICE ] );
-		$this->assertSame( '12.50', $writes['_EventCost'] );
-		$this->assertSame( '€', $writes['_EventCurrencySymbol'] );
-		$this->assertSame( 'prefix', $writes['_EventCurrencyPosition'] );
-		$this->assertArrayNotHasKey( 'registration_url', $writes );
+		$fallback = $context;
+		$fallback['registration_prices_known'] = false;
+		$signup['relationships']['selection_types'] = array(
+			'data' => array( array( 'type' => 'SelectionType', 'id' => '1' ) ),
+		);
 
-		$clear = TEC::price_meta_writes(
+		$this->assertSame( $stored, $this->price_after_sync( $pco, $signup, $fallback, $stored ) );
+
+		unset( $signup['relationships']['selection_types'] );
+		unset( $context['relational_data']['SelectionType'] );
+
+		$this->assertFalse( PCO::payload_includes_selection_types( array( $signup ), $context['relational_data'] ) );
+		$this->assertSame( $stored, $this->price_after_sync( $pco, $signup, $context, $stored ) );
+	}
+
+	public function test_hand_entered_event_cost_is_kept() {
+		$stored = array(
+			'_EventCost'             => '10.00',
+			'_EventCurrencySymbol'   => '$',
+			'_EventCurrencyPosition' => 'prefix',
+			Meta::SYNC_EVENT_COST    => '25.00',
+		);
+		$incoming = array(
+			Meta::REGISTRATION_PRICE => '$40.00',
+			'_EventCost'             => '40.00',
+			'_EventCurrencySymbol'   => '$',
+			'_EventCurrencyPosition' => 'prefix',
+			Meta::SYNC_EVENT_COST    => '40.00',
+		);
+
+		$writes = TEC::price_meta_writes( $incoming, $stored );
+
+		$this->assertSame( '$40.00', $writes[ Meta::REGISTRATION_PRICE ] );
+		$this->assertArrayNotHasKey( '_EventCost', $writes );
+		$this->assertArrayNotHasKey( '_EventCurrencySymbol', $writes );
+		$this->assertArrayNotHasKey( '_EventCurrencyPosition', $writes );
+		$this->assertArrayNotHasKey( Meta::SYNC_EVENT_COST, $writes );
+
+		$untouched = array(
+			'_EventCost' => '10.00',
+		);
+		$cleared = TEC::price_meta_writes(
 			array(
 				Meta::REGISTRATION_PRICE => '',
-				'_EventCost'             => '',
-				'_EventCurrencySymbol'   => '',
-				'_EventCurrencyPosition' => '',
+				Meta::SYNC_EVENT_COST    => '',
+			),
+			$untouched
+		);
+
+		$this->assertNull( $cleared[ Meta::REGISTRATION_PRICE ] );
+		$this->assertArrayNotHasKey( '_EventCost', $cleared );
+	}
+
+	public function test_sync_owned_event_cost_is_updated() {
+		$writes = TEC::price_meta_writes(
+			array(
+				Meta::REGISTRATION_PRICE => '$40.00',
+				'_EventCost'             => '40.00',
+				'_EventCurrencySymbol'   => '$',
+				'_EventCurrencyPosition' => 'prefix',
+				Meta::SYNC_EVENT_COST    => '40.00',
+			),
+			array(
+				'_EventCost'             => '25.00',
+				'_EventCurrencySymbol'   => '$',
+				'_EventCurrencyPosition' => 'prefix',
+				Meta::SYNC_EVENT_COST    => '25.00',
 			)
 		);
 
-		$this->assertNull( $clear[ Meta::REGISTRATION_PRICE ] );
-		$this->assertNull( $clear['_EventCost'] );
-		$this->assertNull( $clear['_EventCurrencySymbol'] );
-		$this->assertNull( $clear['_EventCurrencyPosition'] );
+		$this->assertSame( '40.00', $writes['_EventCost'] );
+		$this->assertSame( '$', $writes['_EventCurrencySymbol'] );
+		$this->assertSame( 'prefix', $writes['_EventCurrencyPosition'] );
+		$this->assertSame( '40.00', $writes[ Meta::SYNC_EVENT_COST ] );
+	}
+
+	public function test_sync_owned_event_cost_is_cleared_when_the_price_is_gone() {
+		$writes = TEC::price_meta_writes(
+			array(
+				Meta::REGISTRATION_PRICE => '',
+				Meta::SYNC_EVENT_COST    => '',
+			),
+			array(
+				'_EventCost'             => '25.00',
+				'_EventCurrencySymbol'   => '$',
+				'_EventCurrencyPosition' => 'prefix',
+				Meta::SYNC_EVENT_COST    => '25.00',
+			)
+		);
+
+		$this->assertNull( $writes[ Meta::REGISTRATION_PRICE ] );
+		$this->assertNull( $writes['_EventCost'] );
+		$this->assertNull( $writes['_EventCurrencySymbol'] );
+		$this->assertNull( $writes['_EventCurrencyPosition'] );
+		$this->assertNull( $writes[ Meta::SYNC_EVENT_COST ] );
+	}
+
+	/**
+	 * Apply one formatted signup the way the stores do: absent price keys stay.
+	 *
+	 * @param PCO   $pco     Formatter.
+	 * @param array $signup  Signup resource.
+	 * @param array $context Formatter context.
+	 * @param array $stored  Price meta already on the event.
+	 * @return array
+	 */
+	private function price_after_sync( PCO $pco, array $signup, array $context, array $stored ) {
+		$neutral = $pco->to_neutral_registration_event( $signup, $context );
+		$this->assertIsArray( $neutral );
+
+		$normalized = EventSync::normalize( $neutral, 'UTC' );
+		$meta       = Meta::event_meta( $normalized );
+		$after      = $stored;
+
+		foreach ( $meta as $key => $value ) {
+			if ( Meta::REGISTRATION_PRICE === $key ) {
+				if ( '' === $value ) {
+					unset( $after[ $key ] );
+				} else {
+					$after[ $key ] = $value;
+				}
+			}
+		}
+
+		$item   = \CP_Sync\Events\TecEventMapper::to_tec_item( $neutral );
+		$writes = TEC::price_meta_writes( $item['meta_input'], $stored );
+
+		foreach ( $writes as $key => $value ) {
+			if ( null === $value ) {
+				unset( $after[ $key ] );
+			} else {
+				$after[ $key ] = $value;
+			}
+		}
+
+		return $after;
 	}
 
 	/**

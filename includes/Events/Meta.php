@@ -44,11 +44,21 @@ class Meta {
 	const REGISTRATION_URL = '_cp_registration_url';
 
 	/**
-	 * Display price from Planning Center Registrations. Empty when the signup
-	 * has no public price. A re-sync writes the current value, including an
-	 * empty string, so a removed price does not stay on the event.
+	 * Display price from Planning Center Registrations.
+	 *
+	 * The key is omitted when the response did not include selection types,
+	 * so a stored price is left alone. An empty string is written only when
+	 * a good response shows the signup has no public price.
 	 */
 	const REGISTRATION_PRICE = '_cp_registration_price';
+
+	/**
+	 * `_EventCost` value last written by a registration sync.
+	 *
+	 * A later sync clears `_EventCost` only when the stored cost still equals
+	 * this marker. A different value is a hand edit and is left in place.
+	 */
+	const SYNC_EVENT_COST = '_cp_sync_event_cost';
 
 	/**
 	 * WordPress post ID of the series this date belongs to.
@@ -124,9 +134,8 @@ class Meta {
 			self::SERIES_ID        => (string) $series_id,
 		);
 
-		// Only registrations carry a price. Leaving the key off other events
-		// keeps a re-sync from writing an empty price onto calendar dates.
-		// When the key is present, an empty string replaces a previous price.
+		// Absent means leave the stored price alone. Present and empty clears
+		// a price a good response showed is gone.
 		if ( array_key_exists( 'registration_price', $record ) ) {
 			$meta[ self::REGISTRATION_PRICE ] = (string) $record['registration_price'];
 		}

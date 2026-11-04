@@ -514,10 +514,11 @@ class TEC extends Integration {
 			// Arbitrary post meta the formatter asked us to persist ( e.g. the
 			// registration_url that drives the Register button ). tribe_update_event()
 			// only handles its own known fields, so meta_input was silently dropped
-			// before — write it here. Registration price keys are included even
-			// when empty so a re-sync deletes a cost Planning Center removed.
+			// before — write it here. Price keys that the formatter left out are
+			// left alone. A known-empty price clears _EventCost only when it
+			// still matches the value this sync last wrote.
 			if ( ! empty( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) {
-				$price_writes = self::price_meta_writes( $item['meta_input'] );
+				$price_writes = self::price_meta_writes( $item['meta_input'], self::stored_event_cost( $id ) );
 
 				foreach ( $item['meta_input'] as $meta_key => $meta_value ) {
 					if ( array_key_exists( $meta_key, $price_writes ) ) {
@@ -564,45 +565,140 @@ class TEC extends Integration {
 	}
 
 	/**
+	 * Cost meta already stored on the event.
+	 *
+	 * @param int $post_id Event post ID.
+	 * @return array
+	 */
+	public static function stored_event_cost( $post_id ) {
+		$marker = \CP_Sync\Events\Meta::SYNC_EVENT_COST;
+
+		return array(
+			'_EventCost'             => (string) get_post_meta( $post_id, '_EventCost', true ),
+			'_EventCurrencySymbol'   => (string) get_post_meta( $post_id, '_EventCurrencySymbol', true ),
+			'_EventCurrencyPosition' => (string) get_post_meta( $post_id, '_EventCurrencyPosition', true ),
+			$marker                  => (string) get_post_meta( $post_id, $marker, true ),
+		);
+	}
+
+	/**
 	 * Post meta for a Planning Center registration price.
 	 *
-	 * The display string is `_cp_registration_price`. The Events Calendar reads
-	 * `_EventCost` (the amount, a `min - max` range, or Free) and
-	 * `_EventCurrencySymbol`. `_EventCurrencyPosition` is `prefix` so the
-	 * symbol stays in front of the amount. An empty string deletes that key,
-	 * which clears a price on the next sync.
+	 * The display string is `_cp_registration_price`. Keys absent from
+	 * $meta_input are left alone, so a fallback or an ignored include does
+	 * not wipe a stored price.
 	 *
-	 * Keys that are absent from $meta_input are left alone, so a calendar
-	 * event does not wipe a cost entered by hand.
+	 * `_EventCost`, `_EventCurrencySymbol`, and `_EventCurrencyPosition` are
+	 * written only when Planning Center returned a price, and only when the
+	 * stored cost is empty or still equals `_cp_sync_event_cost`. That marker
+	 * is set to the cost this sync writes. On a later good sync with no price,
+	 * `_EventCost` (and the symbol, position, and marker) is deleted only when
+	 * the stored cost still equals the marker. A different cost is a hand edit
+	 * and is not overwritten or deleted.
 	 *
 	 * @param array $meta_input Formatted event meta.
+	 * @param array $stored     Current `_EventCost`, symbol, position, and marker.
 	 * @return array Key => value to store, or null to delete the key.
 	 */
-	public static function price_meta_writes( array $meta_input ) {
-		$keys   = array(
-			\CP_Sync\Events\Meta::REGISTRATION_PRICE,
-			'_EventCost',
-			'_EventCurrencySymbol',
-			'_EventCurrencyPosition',
-		);
+	public static function price_meta_writes( array $meta_input, array $stored = array() ) {
 		$writes = array();
+		$marker = \CP_Sync\Events\Meta::SYNC_EVENT_COST;
 
-		foreach ( $keys as $key ) {
-			if ( ! array_key_exists( $key, $meta_input ) ) {
-				continue;
+		if ( array_key_exists( \CP_Sync\Events\Meta::REGISTRATION_PRICE, $meta_input ) ) {
+			$display = $meta_input[ \CP_Sync\Events\Meta::REGISTRATION_PRICE ];
+			$writes[ \CP_Sync\Events\Meta::REGISTRATION_PRICE ] = ( null === $display || '' === $display ) ? null : $display;
+		}
+
+		$incoming = array_key_exists( '_EventCost', $meta_input ) ? $meta_input['_EventCost'] : null;
+		$has_cost = null !== $incoming && '' !== $incoming;
+		$clear    = ! $has_cost && self::meta_requests_cost_clear( $meta_input );
+
+		if ( $has_cost ) {
+			if ( self::event_cost_is_hand_edit( $stored ) ) {
+				return $writes;
 			}
 
-			$value = $meta_input[ $key ];
+			$cost                       = (string) $incoming;
+			$writes['_EventCost']       = $cost;
+			$writes[ $marker ]          = $cost;
+			$writes['_EventCurrencySymbol']   = self::blank_to_null( $meta_input['_EventCurrencySymbol'] ?? '' );
+			$writes['_EventCurrencyPosition'] = self::blank_to_null( $meta_input['_EventCurrencyPosition'] ?? '' );
 
-			if ( null === $value || '' === $value ) {
-				$writes[ $key ] = null;
-				continue;
-			}
+			return $writes;
+		}
 
-			$writes[ $key ] = $value;
+		if ( $clear && self::sync_owns_event_cost( $stored ) ) {
+			$writes['_EventCost']             = null;
+			$writes['_EventCurrencySymbol']   = null;
+			$writes['_EventCurrencyPosition'] = null;
+			$writes[ $marker ]                = null;
 		}
 
 		return $writes;
+	}
+
+	/**
+	 * Whether the formatter knows there is no public price.
+	 *
+	 * An empty `_cp_sync_event_cost` or an empty `_EventCost` in meta_input
+	 * is that signal. Absent keys are not.
+	 *
+	 * @param array $meta_input Formatted event meta.
+	 * @return bool
+	 */
+	protected static function meta_requests_cost_clear( array $meta_input ) {
+		$marker = \CP_Sync\Events\Meta::SYNC_EVENT_COST;
+
+		if ( array_key_exists( $marker, $meta_input ) && ( null === $meta_input[ $marker ] || '' === $meta_input[ $marker ] ) ) {
+			return true;
+		}
+
+		return array_key_exists( '_EventCost', $meta_input ) && ( null === $meta_input['_EventCost'] || '' === $meta_input['_EventCost'] );
+	}
+
+	/**
+	 * The stored cost was not written by the last sync, or was edited since.
+	 *
+	 * @param array $stored Current cost meta.
+	 * @return bool
+	 */
+	protected static function event_cost_is_hand_edit( array $stored ) {
+		$current = isset( $stored['_EventCost'] ) ? (string) $stored['_EventCost'] : '';
+
+		if ( '' === $current ) {
+			return false;
+		}
+
+		$marker = isset( $stored[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] ) ? (string) $stored[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] : '';
+
+		return '' === $marker || $current !== $marker;
+	}
+
+	/**
+	 * The stored cost is still the value this sync last wrote.
+	 *
+	 * @param array $stored Current cost meta.
+	 * @return bool
+	 */
+	protected static function sync_owns_event_cost( array $stored ) {
+		$current = isset( $stored['_EventCost'] ) ? (string) $stored['_EventCost'] : '';
+		$marker  = isset( $stored[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] ) ? (string) $stored[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] : '';
+
+		return '' !== $marker && $current === $marker;
+	}
+
+	/**
+	 * Empty price meta deletes the key. A value is stored as given.
+	 *
+	 * @param mixed $value Meta value.
+	 * @return mixed|null
+	 */
+	protected static function blank_to_null( $value ) {
+		if ( null === $value || '' === $value ) {
+			return null;
+		}
+
+		return $value;
 	}
 
 	/**

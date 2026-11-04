@@ -1701,6 +1701,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$relational = [];
 		$taxonomies = [];
 
+		$prices_known = null;
+
 		foreach ( $results as $source => $result ) {
 			$relational[ $source ] = $result['context']['relational_data'] ?? [];
 
@@ -1713,13 +1715,23 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			if ( 'calendar' === $source && ! empty( $result['taxonomies'] ) ) {
 				$taxonomies = $result['taxonomies'];
 			}
+
+			if ( 'registrations' === $source && isset( $result['context'] ) && is_array( $result['context'] ) && array_key_exists( 'registration_prices_known', $result['context'] ) ) {
+				$prices_known = (bool) $result['context']['registration_prices_known'];
+			}
+		}
+
+		$context = array(
+			'relational_data' => $relational,
+		);
+
+		if ( null !== $prices_known ) {
+			$context['registration_prices_known'] = $prices_known;
 		}
 
 		return [
 			'items'      => $items,
-			'context'    => [
-				'relational_data' => $relational,
-			],
+			'context'    => $context,
 			'taxonomies' => $taxonomies,
 		];
 	}
@@ -1786,6 +1798,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				return $this->format_event_from_calendar( $event, $sub_context );
 			}
 			if ( 'registrations' === $source ) {
+				if ( array_key_exists( 'registration_prices_known', $context ) ) {
+					$sub_context['registration_prices_known'] = $context['registration_prices_known'];
+				}
 				return $this->format_event_from_registrations( $event, $sub_context );
 			}
 			return false;
@@ -2021,13 +2036,15 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		//
 		// Price lives on SelectionType, included on this same request. A failure
 		// there is retried without selection types so a missing price cannot abort
-		// the signup import. The formatter then stores no price.
-		$raw_events = $this->request_registration_signups( $limit, true );
+		// the signup import. That fallback does not touch prices already stored.
+		$requested_prices = true;
+		$raw_events       = $this->request_registration_signups( $limit, true );
 
 		if ( false === $raw_events || ! empty( $this->api()->errorMessage() ) ) {
 			$price_error = $this->api()->errorMessage() ?: 'signups request failed with no error detail';
 			cp_sync()->logging->log( 'Registrations price request failed; retrying without selection types: ' . var_export( $price_error, true ) );
-			$raw_events = $this->request_registration_signups( $limit, false );
+			$requested_prices = false;
+			$raw_events       = $this->request_registration_signups( $limit, false );
 		}
 
 		// A failed fetch must ABORT, not proceed with an empty list: an empty list
@@ -2092,13 +2109,47 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			cp_sync()->logging->log( 'Sample events to import: ' . implode( ', ', $event_names ) . ( $filtered_count > 5 ? '...' : '' ) );
 		}
 
+		// A fallback, or a successful response that never included selection
+		// types, is not evidence that signups have no price. Leave stored prices
+		// alone. An empty selection_types relationship is real data.
+		$prices_known = $requested_prices && self::payload_includes_selection_types( $raw_events['data'] ?? array(), $relational_data );
+
 		return [
 			'items'      => $items,
 			'context'    => [
-				'relational_data' => $relational_data,
+				'relational_data'            => $relational_data,
+				'registration_prices_known'  => $prices_known,
 			],
 			'taxonomies' => [],
 		];
+	}
+
+	/**
+	 * Whether a signups payload actually carried selection type data.
+	 *
+	 * An ignored include omits both the relationship and the included records.
+	 * An empty relationship on a signup is still data: that signup has no types.
+	 *
+	 * @param array $items            Raw signup resources, before the archived filter.
+	 * @param array $relational_data  Included records keyed by type, then id.
+	 * @return bool
+	 */
+	public static function payload_includes_selection_types( array $items, array $relational_data ) {
+		if ( ! empty( $relational_data['SelectionType'] ) && is_array( $relational_data['SelectionType'] ) ) {
+			return true;
+		}
+
+		foreach ( $items as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+
+			if ( array_key_exists( 'selection_types', $item['relationships'] ?? array() ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -2350,55 +2401,101 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			}
 		}
 
-		// A missing or unreadable price must not drop the signup. The keys are
-		// always present, including empty strings, so a later sync can clear a
-		// price that Planning Center no longer sends.
-		$price = self::empty_registration_price();
+		// A missing or unreadable price must not drop the signup. When selection
+		// types were not in the response, the price keys stay off the record so
+		// stored values are left alone. A good response with no public price
+		// writes an empty display price, which clears it.
+		$prices_known = self::registration_prices_known( $signup, is_array( $relational_data ) ? $relational_data : array(), $context );
+		$price        = self::empty_registration_price();
 
-		try {
-			$price = self::registration_price_from_signup(
-				$signup,
-				is_array( $relational_data ) ? $relational_data : array()
-			);
-		} catch ( \Throwable $e ) {
-			if ( function_exists( 'cp_sync' ) ) {
-				cp_sync()->logging->log(
-					sprintf(
-						'Registration price skipped for signup %s: %s',
-						$signup['id'] ?? '?',
-						$e->getMessage()
-					)
+		if ( $prices_known ) {
+			try {
+				$price = self::registration_price_from_signup(
+					$signup,
+					is_array( $relational_data ) ? $relational_data : array()
 				);
+			} catch ( \Throwable $e ) {
+				$prices_known = false;
+				if ( function_exists( 'cp_sync' ) ) {
+					cp_sync()->logging->log(
+						sprintf(
+							'Registration price skipped for signup %s: %s',
+							$signup['id'] ?? '?',
+							$e->getMessage()
+						)
+					);
+				}
 			}
-			$price = self::empty_registration_price();
+		}
+
+		$record = [
+			'provider'         => 'pco',
+			'chms_id'          => 'reg_' . $signup['id'],
+			'title'            => $signup['attributes']['name'] ?? '',
+			'content'          => $signup['attributes']['description'] ?? '',
+			'excerpt'          => '',
+			'post_status'      => 'publish',
+			'thumbnail_url'    => ! empty( $signup['attributes']['logo_url'] ) ? $signup['attributes']['logo_url'] : '',
+			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
+			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
+			'site_timezone'    => $site_timezone,
+			'all_day'          => (bool) $all_day,
+			'location_name'    => $venue['venue'] ?? '',
+			'venue'            => $venue,
+			'registration_url' => $registration_url,
+			'event_url'        => '',
+			'tax_input'        => [],
+			'event_category'   => $categories,
+			'meta_input'       => $meta_input,
+		];
+
+		if ( ! $prices_known ) {
+			return $record;
 		}
 
 		$meta_input[ \CP_Sync\Events\Meta::REGISTRATION_PRICE ] = $price['display'];
-		$meta_input['_EventCost']                               = $price['cost'];
-		$meta_input['_EventCurrencySymbol']                     = $price['symbol'];
-		$meta_input['_EventCurrencyPosition']                   = $price['position'];
+		$record['registration_price']                           = $price['display'];
 
-		return [
-			'provider'           => 'pco',
-			'chms_id'            => 'reg_' . $signup['id'],
-			'title'              => $signup['attributes']['name'] ?? '',
-			'content'            => $signup['attributes']['description'] ?? '',
-			'excerpt'            => '',
-			'post_status'        => 'publish',
-			'thumbnail_url'      => ! empty( $signup['attributes']['logo_url'] ) ? $signup['attributes']['logo_url'] : '',
-			'start_utc'          => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
-			'end_utc'            => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
-			'site_timezone'      => $site_timezone,
-			'all_day'            => (bool) $all_day,
-			'location_name'      => $venue['venue'] ?? '',
-			'venue'              => $venue,
-			'registration_url'   => $registration_url,
-			'registration_price' => $price['display'],
-			'event_url'          => '',
-			'tax_input'          => [],
-			'event_category'     => $categories,
-			'meta_input'         => $meta_input,
-		];
+		if ( '' !== $price['cost'] ) {
+			// TEC cost fields are written only when Planning Center sent a price.
+			// The marker is the value this sync stored, so a later empty price
+			// can tell a sync-owned cost from a hand edit.
+			$meta_input['_EventCost']                            = $price['cost'];
+			$meta_input['_EventCurrencySymbol']                  = $price['symbol'];
+			$meta_input['_EventCurrencyPosition']                = $price['position'];
+			$meta_input[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] = $price['cost'];
+		} else {
+			$meta_input[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] = '';
+		}
+
+		$record['meta_input'] = $meta_input;
+
+		return $record;
+	}
+
+	/**
+	 * Whether this signup's price can be read from the response.
+	 *
+	 * An explicit context flag wins. It is false after a fallback request and
+	 * when the payload carried no selection_types data. Without a flag, a
+	 * selection_types relationship or included SelectionType means the include
+	 * arrived. Anything else is treated as "not in the response".
+	 *
+	 * @param array $signup          Signup resource.
+	 * @param array $relational_data Included records.
+	 * @param array $context         Formatter context.
+	 * @return bool
+	 */
+	public static function registration_prices_known( $signup, array $relational_data, $context ) {
+		if ( is_array( $context ) && array_key_exists( 'registration_prices_known', $context ) ) {
+			return (bool) $context['registration_prices_known'];
+		}
+
+		if ( is_array( $signup ) && array_key_exists( 'selection_types', $signup['relationships'] ?? array() ) ) {
+			return true;
+		}
+
+		return ! empty( $relational_data['SelectionType'] ) && is_array( $relational_data['SelectionType'] );
 	}
 
 	/**
@@ -2561,7 +2658,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
-	 * No price. Callers still write the keys so a re-sync clears a stored price.
+	 * No public price. Callers write this only when selection types were in the response.
 	 *
 	 * @return array{display: string, cost: string, symbol: string, position: string}
 	 */
