@@ -890,9 +890,11 @@ abstract class Integration extends \WP_Background_Process {
 	/**
 	 * Whether this attachment can still be used as a featured image.
 	 *
-	 * Matches the check in set_post_thumbnail(): the post is an attachment and
-	 * wp_get_attachment_image() is non-empty. Local files are not required.
-	 * A host that stores images elsewhere can still return an image tag.
+	 * The post must exist and be an attachment, and wp_get_attachment_image_src()
+	 * must be non-empty. That is the same source set_post_thumbnail() uses when
+	 * it decides the image tag is real. A missing local file is not a reason to
+	 * discard the attachment: some hosts store the file elsewhere and filter the
+	 * image source to a URL.
 	 *
 	 * @param int $attachment_id Attachment post id.
 	 * @return bool
@@ -910,13 +912,13 @@ abstract class Integration extends \WP_Background_Process {
 			return false;
 		}
 
-		if ( ! function_exists( 'wp_get_attachment_image' ) ) {
+		if ( ! function_exists( 'wp_get_attachment_image_src' ) ) {
 			return false;
 		}
 
-		$image = wp_get_attachment_image( $attachment_id, 'thumbnail' );
+		$src = wp_get_attachment_image_src( $attachment_id, 'thumbnail' );
 
-		return is_string( $image ) && '' !== $image;
+		return ! empty( $src );
 	}
 
 	public function sideload_image( $item, $id, $ignore_existing = false ) {

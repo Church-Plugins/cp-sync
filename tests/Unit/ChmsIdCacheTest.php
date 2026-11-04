@@ -655,29 +655,29 @@ class ChmsIdCacheTest extends TestCase {
 	}
 
 	/**
-	 * Image HTML follows wp_get_attachment_image_src, including a filtered URL.
-	 * set_post_thumbnail() keeps the thumbnail only when that HTML is non-empty.
+	 * wp_get_attachment_image_src applies its filter, then falls back to a local
+	 * file. set_post_thumbnail() keeps the thumbnail only when that source is set.
 	 *
 	 * @return void
 	 */
 	private function stub_thumbnail_api() {
 		$world = $this->world;
 
-		Functions\when( 'wp_get_attachment_image' )->alias(
-			static function ( $attachment_id ) use ( $world ) {
-				$src = apply_filters( 'wp_get_attachment_image_src', false, $attachment_id, 'thumbnail' );
+		Functions\when( 'wp_get_attachment_image_src' )->alias(
+			static function ( $attachment_id, $size = 'thumbnail' ) use ( $world ) {
+				$src = apply_filters( 'wp_get_attachment_image_src', false, $attachment_id, $size );
 
-				if ( is_array( $src ) && ! empty( $src[0] ) ) {
-					return '<img src="' . $src[0] . '" alt="" />';
+				if ( ! empty( $src ) ) {
+					return $src;
 				}
 
 				$file = $world->get_meta( $attachment_id, '_wp_attached_file' );
 
 				if ( is_string( $file ) && '' !== $file && file_exists( $file ) ) {
-					return '<img src="file://local" alt="" />';
+					return array( 'file://local', 10, 10, false );
 				}
 
-				return '';
+				return false;
 			}
 		);
 		Functions\when( 'set_post_thumbnail' )->alias(
@@ -686,7 +686,7 @@ class ChmsIdCacheTest extends TestCase {
 					return false;
 				}
 
-				if ( wp_get_attachment_image( $thumb_id, 'thumbnail' ) ) {
+				if ( ! empty( wp_get_attachment_image_src( $thumb_id, 'thumbnail' ) ) ) {
 					$world->set_meta( $post_id, '_thumbnail_id', (int) $thumb_id );
 					return true;
 				}
