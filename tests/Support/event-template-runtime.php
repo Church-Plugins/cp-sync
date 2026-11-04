@@ -179,6 +179,42 @@ if ( ! function_exists( 'post_class' ) ) {
 	}
 }
 
+if ( ! function_exists( 'is_tax' ) ) {
+	function is_tax( $taxonomy = '', $term = '' ) {
+		unset( $taxonomy, $term );
+
+		return ! empty( $GLOBALS['cp_sync_template_is_tax'] );
+	}
+}
+
+if ( ! function_exists( 'is_category' ) ) {
+	function is_category( $category = '' ) {
+		unset( $category );
+
+		return ! empty( $GLOBALS['cp_sync_template_is_category'] );
+	}
+}
+
+if ( ! function_exists( 'is_tag' ) ) {
+	function is_tag( $tag = '' ) {
+		unset( $tag );
+
+		return ! empty( $GLOBALS['cp_sync_template_is_tag'] );
+	}
+}
+
+if ( ! function_exists( 'single_term_title' ) ) {
+	function single_term_title( $prefix = '', $display = true ) {
+		$title = isset( $GLOBALS['cp_sync_template_term_title'] ) ? (string) $GLOBALS['cp_sync_template_term_title'] : '';
+
+		if ( $display ) {
+			echo esc_html( $prefix . $title );
+		}
+
+		return $prefix . $title;
+	}
+}
+
 if ( ! function_exists( 'post_type_archive_title' ) ) {
 	function post_type_archive_title( $prefix = '', $display = true ) {
 		$title = isset( $GLOBALS['cp_sync_template_archive_title'] ) ? $GLOBALS['cp_sync_template_archive_title'] : 'Events';

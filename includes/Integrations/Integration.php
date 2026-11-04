@@ -248,7 +248,7 @@ abstract class Integration extends \WP_Background_Process {
 		if ( 'events' === $this->type ) {
 			\CP_Sync\Events\VisibilityRemovalNotice::publish(
 				\CP_Sync\Events\VisibilityRemovalNotice::skipped_ids(),
-				$removed_ids ?? []
+				$removed_ids
 			);
 		}
 

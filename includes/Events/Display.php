@@ -27,6 +27,9 @@ class Display {
 	 */
 	public static function boot() {
 		add_action( 'init', array( __CLASS__, 'on_init' ) );
+		// After other plugins register post types on init. Flushing at
+		// priority 10 drops those rules until permalinks are saved again.
+		add_action( 'wp_loaded', array( __CLASS__, 'flush_rewrites_after_init' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_styles' ) );
 		add_filter( 'template_include', array( __CLASS__, 'template_include' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'upcoming_archive' ) );
@@ -69,6 +72,9 @@ class Display {
 	 * Null is not the same as the toggle default. Callers that need the
 	 * default use PostTypes::sync_is_on().
 	 *
+	 * Reads the same option the pull reads, including when a site filters
+	 * cp_sync_active_chms.
+	 *
 	 * @return mixed
 	 */
 	public static function stored_sync_events() {
@@ -76,15 +82,8 @@ class Display {
 			return null;
 		}
 
-		$global = get_option( 'cp_sync_settings', array() );
-		$chms   = 'pco';
-
-		if ( is_array( $global ) && ! empty( $global['chms'] ) && is_string( $global['chms'] ) ) {
-			$chms = $global['chms'];
-		}
-
-		$key      = 'ccb' === $chms ? 'cp_sync_ccb_settings' : 'cp_sync_pco_settings';
-		$settings = get_option( $key, array() );
+		$chms     = \CP_Sync\Groups\Lite::active_chms_id();
+		$settings = get_option( 'cp_sync_' . $chms . '_settings', array() );
 
 		if ( ! is_array( $settings ) || empty( $settings['connect'] ) || ! is_array( $settings['connect'] ) ) {
 			return null;
@@ -152,6 +151,25 @@ class Display {
 	}
 
 	/**
+	 * Global settings for GET /cp-sync/v1/settings.
+	 *
+	 * The filter is what adds defaults the settings screen did not store,
+	 * including Display groups. Calling only fill_display_default() drops
+	 * those on a refetch.
+	 *
+	 * @return array
+	 */
+	public static function rest_global_settings() {
+		if ( ! function_exists( 'apply_filters' ) ) {
+			$settings = function_exists( 'get_option' ) ? get_option( 'cp_sync_settings', array() ) : array();
+
+			return self::fill_display_default( is_array( $settings ) ? $settings : array() );
+		}
+
+		return \CP_Sync\Admin\Settings::filtered_global_settings();
+	}
+
+	/**
 	 * Register types, the shortcode, and permalinks.
 	 *
 	 * Turning the feature off flushes rewrite rules once so a Page that
@@ -164,7 +182,14 @@ class Display {
 			PostTypes::register();
 			EventsShortcode::register();
 		}
+	}
 
+	/**
+	 * Flush permalinks after init, once every plugin has registered.
+	 *
+	 * @return void
+	 */
+	public static function flush_rewrites_after_init() {
 		self::maybe_flush_rewrites( self::is_enabled() );
 	}
 
@@ -174,9 +199,23 @@ class Display {
 	 * @param array $neutral_events Neutral event records.
 	 * @return true
 	 */
-	public static function import_neutral( array $neutral_events ) {
+	public static function import_neutral( array $neutral_events, $store = null, $now_utc = null ) {
+		if ( ! $store instanceof EventStore ) {
+			$store = new WpEventStore();
+		}
+
+		if ( ! is_string( $now_utc ) || '' === $now_utc ) {
+			$now_utc = gmdate( 'Y-m-d H:i:s' );
+		}
+
 		$timezone = EventTime::wordpress_timezone_name();
-		$summary  = EventSync::sync( $neutral_events, new WpEventStore(), gmdate( 'Y-m-d H:i:s' ), $timezone );
+		$summary  = EventSync::sync( $neutral_events, $store, $now_utc, $timezone );
+
+		$removed = ( isset( $summary['removed_source_ids'] ) && is_array( $summary['removed_source_ids'] ) )
+			? $summary['removed_source_ids']
+			: array();
+
+		VisibilityRemovalNotice::publish( VisibilityRemovalNotice::skipped_ids(), $removed );
 
 		if ( function_exists( 'cp_sync' ) ) {
 			$plugin = cp_sync();
@@ -205,11 +244,25 @@ class Display {
 	 * @return void
 	 */
 	public static function upcoming_archive( $query ) {
-		if ( is_admin() || ! $query instanceof \WP_Query || ! $query->is_main_query() || $query->is_singular() ) {
+		if ( function_exists( 'is_admin' ) && is_admin() ) {
 			return;
 		}
 
-		if ( $query->is_post_type_archive( PostTypes::SERIES ) || ! $query->is_post_type_archive( PostTypes::EVENT ) ) {
+		if ( ! is_object( $query ) || ! method_exists( $query, 'is_main_query' ) || ! method_exists( $query, 'is_post_type_archive' ) || ! method_exists( $query, 'set' ) ) {
+			return;
+		}
+
+		if ( ! $query->is_main_query() || ( method_exists( $query, 'is_singular' ) && $query->is_singular() ) ) {
+			return;
+		}
+
+		if ( $query->is_post_type_archive( PostTypes::SERIES ) ) {
+			return;
+		}
+
+		$category = method_exists( $query, 'is_tax' ) && $query->is_tax( PostTypes::CATEGORY );
+
+		if ( ! $category && ! $query->is_post_type_archive( PostTypes::EVENT ) ) {
 			return;
 		}
 
@@ -291,7 +344,7 @@ class Display {
 			return '';
 		}
 
-		if ( 'archive' === $screen ) {
+		if ( 'archive' === $screen || 'category' === $screen ) {
 			return 'events/archive';
 		}
 
@@ -319,7 +372,9 @@ class Display {
 	public static function template_include( $template ) {
 		$screen = '';
 
-		if ( is_post_type_archive( PostTypes::EVENT ) ) {
+		if ( function_exists( 'is_tax' ) && is_tax( PostTypes::CATEGORY ) ) {
+			$screen = 'category';
+		} elseif ( is_post_type_archive( PostTypes::EVENT ) ) {
 			$screen = 'archive';
 		} elseif ( is_post_type_archive( PostTypes::SERIES ) ) {
 			$screen = 'series-archive';
@@ -351,6 +406,10 @@ class Display {
 		}
 
 		$load = is_post_type_archive( array( PostTypes::EVENT, PostTypes::SERIES ) ) || is_singular( array( PostTypes::EVENT, PostTypes::SERIES ) );
+
+		if ( ! $load && function_exists( 'is_tax' ) && is_tax( PostTypes::CATEGORY ) ) {
+			$load = true;
+		}
 
 		if ( ! $load && is_singular() ) {
 			$post = get_post();
@@ -406,12 +465,67 @@ class Display {
 	protected static function maybe_flush_rewrites( $enabled ) {
 		// on|3 includes the series archive slug. Sites that stored on|2 flush once.
 		$version = $enabled ? 'on|3|' . PostTypes::event_slug() . '|' . PostTypes::series_slug() : 'off';
+		$stored  = get_option( self::REWRITE_OPTION );
 
-		if ( get_option( self::REWRITE_OPTION ) === $version ) {
+		if ( $stored === $version ) {
+			self::ensure_rewrite_option_autoloads( $version );
 			return;
 		}
 
-		flush_rewrite_rules( false );
-		update_option( self::REWRITE_OPTION, $version, false );
+		// The first request after an upgrade on a site that uses The Events
+		// Calendar only records "off". Groups Lite does the same when it is
+		// not the one taking over /groups/.
+		$first_off = ! $enabled && ( false === $stored || null === $stored || '' === $stored );
+
+		if ( ! $first_off && function_exists( 'flush_rewrite_rules' ) ) {
+			flush_rewrite_rules( false );
+		}
+
+		if ( function_exists( 'update_option' ) ) {
+			update_option( self::REWRITE_OPTION, $version, true );
+		}
+	}
+
+	/**
+	 * Autoload the rewrite marker so the front end does not query it every request.
+	 *
+	 * @param string $version Stored marker.
+	 * @return void
+	 */
+	protected static function ensure_rewrite_option_autoloads( $version ) {
+		unset( $version );
+
+		if ( ! function_exists( 'wp_load_alloptions' ) ) {
+			return;
+		}
+
+		$all = wp_load_alloptions();
+
+		if ( ! is_array( $all ) || array_key_exists( self::REWRITE_OPTION, $all ) ) {
+			return;
+		}
+
+		// One update of the autoload flag. Deleting the row first lets another
+		// request treat the marker as missing and flush permalinks.
+		if ( function_exists( 'wp_set_option_autoload' ) ) {
+			wp_set_option_autoload( self::REWRITE_OPTION, true );
+			return;
+		}
+
+		global $wpdb;
+
+		if ( ! isset( $wpdb ) || ! is_object( $wpdb ) || ! method_exists( $wpdb, 'update' ) || empty( $wpdb->options ) ) {
+			return;
+		}
+
+		$wpdb->update(
+			$wpdb->options,
+			array( 'autoload' => 'yes' ),
+			array( 'option_name' => self::REWRITE_OPTION )
+		);
+
+		if ( function_exists( 'wp_cache_delete' ) ) {
+			wp_cache_delete( 'alloptions', 'options' );
+		}
 	}
 }

@@ -211,6 +211,12 @@ abstract class ChMS {
 			return (bool) self::sync_toggle_default( $type );
 		}
 
+		// (bool) 'false' is true. A string written outside the settings screen
+		// (WP-CLI, update_option) must not turn a feed on when it says off.
+		if ( is_string( $stored ) && in_array( strtolower( trim( $stored ) ), [ '', '0', 'false', 'off', 'no' ], true ) ) {
+			return false;
+		}
+
 		return (bool) $stored;
 	}
 

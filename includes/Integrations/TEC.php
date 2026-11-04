@@ -171,7 +171,18 @@ class TEC extends Integration {
 			$meta['_EventTimezone'] = $item['EventTimezone'];
 		}
 
+		$date_keys     = array( '_EventStartDate', '_EventEndDate', '_EventStartDateUTC', '_EventEndDateUTC' );
+		$start_missing = '' === ( $meta['_EventStartDate'] ?? '' );
+
 		foreach ( $meta as $key => $value ) {
+			// An empty start means the formatter had no date. Leave the stored
+			// date, all-day flag, and timezone alone. legacy_update_args()
+			// omits those keys for the same reason.
+			if ( $start_missing && ( in_array( $key, $date_keys, true ) || '_EventAllDay' === $key || '_EventTimezone' === $key ) ) {
+				unset( $meta[ $key ] );
+				continue;
+			}
+
 			// Timed events must not store _EventAllDay as "no". Delete any
 			// previous value. All-day events still get "yes".
 			if ( '_EventAllDay' === $key && 'yes' !== $value ) {

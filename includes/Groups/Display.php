@@ -215,7 +215,6 @@ class Display {
 				'leaders'          => get_post_meta( $post_id, 'leaders', true ),
 				'leader'           => get_post_meta( $post_id, 'leader', true ),
 				'registration_url' => get_post_meta( $post_id, 'registration_url', true ),
-				'public_url'       => get_post_meta( $post_id, 'public_url', true ),
 			],
 			$args
 		);
@@ -386,7 +385,9 @@ class Display {
 			return '<div class="cp-sync-groups__placeholder" aria-hidden="true"></div>';
 		}
 
-		return '<img class="cp-sync-groups__image" src="' . $src . '" alt="' . esc_attr( $alt ) . '" />';
+		$alt = self::protect_block_template_html( esc_attr( $alt ), true );
+
+		return '<img class="cp-sync-groups__image" src="' . $src . '" alt="' . $alt . '" />';
 	}
 
 	/**
@@ -396,7 +397,7 @@ class Display {
 	 * @return string
 	 */
 	protected static function title_html( $title, $permalink, $link ) {
-		$safe_title = esc_html( $title );
+		$safe_title = self::protect_block_template_html( esc_html( $title ) );
 		$permalink  = self::http_url( $permalink );
 
 		if ( ! $link || '' === $permalink ) {
@@ -430,7 +431,7 @@ class Display {
 		}
 
 		if ( $summary ) {
-			$text = esc_html( wp_trim_words( wp_strip_all_tags( $content ), 40, '…' ) );
+			$text = self::protect_block_template_html( esc_html( wp_trim_words( wp_strip_all_tags( $content ), 40, '…' ) ) );
 
 			if ( '' === $text ) {
 				return $card ? '<p class="cp-sync-groups__description"></p>' : '';
@@ -439,7 +440,7 @@ class Display {
 			return '<p class="cp-sync-groups__description">' . $text . '</p>';
 		}
 
-		$html = wp_kses_post( $content );
+		$html = self::protect_block_template_html( wp_kses_post( $content ) );
 
 		if ( '' === trim( $html ) ) {
 			return '';
@@ -460,7 +461,7 @@ class Display {
 			return '';
 		}
 
-		return '<p class="cp-sync-groups__meta"><span class="cp-sync-groups__label">' . esc_html( $label ) . '</span> ' . esc_html( $value ) . '</p>';
+		return '<p class="cp-sync-groups__meta"><span class="cp-sync-groups__label">' . esc_html( $label ) . '</span> ' . self::protect_block_template_html( esc_html( $value ) ) . '</p>';
 	}
 
 	/**
@@ -475,7 +476,7 @@ class Display {
 		$safe = [];
 
 		foreach ( $names as $name ) {
-			$safe[] = esc_html( $name );
+			$safe[] = self::protect_block_template_html( esc_html( $name ) );
 		}
 
 		$label = ( 1 === count( $names ) )
@@ -498,7 +499,7 @@ class Display {
 			return '';
 		}
 
-		$href = esc_url( $action['url'] );
+		$href = self::protect_block_template_html( esc_url( $action['url'] ), true );
 
 		if ( '' === $href ) {
 			return '';
@@ -544,15 +545,105 @@ class Display {
 	}
 
 	/**
-	 * ASCII slug, close to sanitize_title for group type names.
+	 * Slug for a group type name.
+	 *
+	 * sanitize_title() keeps accented and non-Latin names aligned with the
+	 * term slug WordPress stored. The ASCII fallback is only for tests and
+	 * hosts where that function is unavailable.
 	 *
 	 * @param string $value Raw attribute.
 	 * @return string
 	 */
 	protected static function slug( $value ) {
-		$value = strtolower( trim( (string) $value ) );
+		$value = trim( (string) $value );
+
+		if ( '' === $value ) {
+			return '';
+		}
+
+		if ( function_exists( 'sanitize_title' ) ) {
+			$slug = sanitize_title( $value );
+
+			return is_string( $slug ) ? $slug : '';
+		}
+
+		$value = strtolower( $value );
 		$value = preg_replace( '/[^a-z0-9]+/', '-', $value );
 
 		return trim( (string) $value, '-' );
+	}
+
+	/**
+	 * Keep square brackets as text so a later do_shortcode() cannot run them.
+	 *
+	 * @param string $html Markup or plain text.
+	 * @return string
+	 */
+	public static function neutralize_shortcodes( $html ) {
+		return str_replace( '[', '&#91;', (string) $html );
+	}
+
+	/**
+	 * Stop a URL that sits alone on a line or in a paragraph from being autoembedded.
+	 *
+	 * Block themes run the captured template through WP_Embed::autoembed().
+	 *
+	 * @param string $html Markup.
+	 * @return string
+	 */
+	public static function guard_autoembed_urls( $html ) {
+		$html    = (string) $html;
+		$guarded = preg_replace(
+			'#(<p(?:\s[^>]*)?>\s*)(https?://[^\s<>"]+)(\s*</p>)#i',
+			'$1<span class="cp-sync-groups__url">$2</span>$3',
+			$html
+		);
+
+		if ( is_string( $guarded ) ) {
+			$html = $guarded;
+		}
+
+		$guarded = preg_replace(
+			'#(^|\n)([ \t]*)(https?://[^\s<>"]+)([ \t]*)(?=\r?\n|$)#',
+			'$1$2<span class="cp-sync-groups__url">$3</span>$4',
+			$html
+		);
+
+		return is_string( $guarded ) ? $guarded : $html;
+	}
+
+	/**
+	 * Markup captured for a block theme, with ChMS text left as text.
+	 *
+	 * get_the_block_template_html() runs autoembed, do_shortcode, and
+	 * do_blocks on this string. Script and style tags are left unchanged.
+	 *
+	 * @param string $html       Rendered template HTML, or one attribute value.
+	 * @param bool   $attribute True for an attribute value. Autoembed wrapping
+	 *                          would turn a registration URL into a span.
+	 * @return string
+	 */
+	public static function protect_block_template_html( $html, $attribute = false ) {
+		$html = (string) $html;
+
+		if ( $attribute ) {
+			return self::neutralize_shortcodes( $html );
+		}
+
+		$parts = preg_split( '#(<script\b[^>]*>.*?</script>|<style\b[^>]*>.*?</style>)#is', $html, -1, PREG_SPLIT_DELIM_CAPTURE );
+
+		if ( ! is_array( $parts ) ) {
+			return self::guard_autoembed_urls( self::neutralize_shortcodes( $html ) );
+		}
+
+		foreach ( $parts as $index => $part ) {
+			if ( preg_match( '#^<(script|style)\b#i', $part ) ) {
+				continue;
+			}
+
+			$parts[ $index ] = self::guard_autoembed_urls( self::neutralize_shortcodes( $part ) );
+		}
+
+		return implode( '', $parts );
 	}
 }

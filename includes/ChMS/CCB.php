@@ -1031,15 +1031,26 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		$start_raw = $event['start_datetime'] ?? 'now';
 		$end_raw   = $event['end_datetime'] ?? 'now';
 
-		// The id fallback hash uses the same instant the previous formatter used.
-		$legacy_start = new \DateTime( $start_raw );
-		$event_id     = $event['event_id'] ?? $event['id'] ?? md5( ( $event['name'] ?? '' ) . $legacy_start->getTimestamp() );
-
 		$start_utc = \CP_Sync\Events\EventTime::to_utc( $start_raw, $zone );
 		$end_utc   = \CP_Sync\Events\EventTime::to_utc( $end_raw, $zone );
 
+		// A start such as "TBD" used to throw from DateTime before this
+		// guard, which aborted the whole sync instead of skipping the row.
 		if ( null === $start_utc || null === $end_utc ) {
 			return false;
+		}
+
+		// The id fallback hash uses the same instant the previous formatter used.
+		$event_id = $event['event_id'] ?? $event['id'] ?? '';
+
+		if ( '' === (string) $event_id ) {
+			try {
+				$legacy_start = new \DateTime( $start_raw );
+			} catch ( \Exception $e ) {
+				return false;
+			}
+
+			$event_id = md5( ( $event['name'] ?? '' ) . $legacy_start->getTimestamp() );
 		}
 
 		$local_start = \CP_Sync\Events\EventTime::to_local( \CP_Sync\Events\EventTime::format_utc( $start_utc ), $zone );
@@ -1074,14 +1085,14 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			'location_name'    => $location_name,
 			'event_url'        => $event_url,
 			'visible'          => null,
-			'approval_status'  => array_key_exists( 'approval_status', $event ) ? (string) $event['approval_status'] : '',
+			'approval_status'  => array_key_exists( 'approval_status', $event ) ? \CP_Sync\Events\EventVisibility::approval_status_text( $event['approval_status'] ) : '',
 			'tax_input'        => [],
 			'event_category'   => [],
 			'meta_input'       => [
 				'event_type'      => $event['event_type'] ?? '',
 				'group_name'      => $event['group'] ?? '',
 				'organizer_name'  => $event['organizer'] ?? '',
-				'approval_status' => $event['approval_status'] ?? '',
+				'approval_status' => \CP_Sync\Events\EventVisibility::approval_status_text( $event['approval_status'] ?? '' ),
 				'_chms_modified'  => $event['_chms_modified'] ?? '',
 			],
 		];

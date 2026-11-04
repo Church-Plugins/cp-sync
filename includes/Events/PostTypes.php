@@ -61,7 +61,7 @@ class PostTypes {
 	 */
 	public static function display_is_on( $display_setting, $sync_events = null ) {
 		if ( null === $display_setting ) {
-			return null !== $sync_events && self::setting_is_on( $sync_events );
+			return null !== $sync_events && self::sync_is_on( $sync_events );
 		}
 
 		return self::setting_is_on( $display_setting );
@@ -70,17 +70,15 @@ class PostTypes {
 	/**
 	 * Whether event sync is on.
 	 *
-	 * A missing value uses the Connect toggle default, which is on.
+	 * A missing value uses the Connect toggle default, which is on. Uses
+	 * ChMS::sync_setting_is_enabled(), the same check as the pull, so the
+	 * post types are registered exactly when events are imported into them.
 	 *
 	 * @param mixed $sync_events Stored sync_events value, or null when unset.
 	 * @return bool
 	 */
 	public static function sync_is_on( $sync_events ) {
-		if ( null === $sync_events ) {
-			return true;
-		}
-
-		return self::setting_is_on( $sync_events );
+		return \CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'events', $sync_events );
 	}
 
 	/**

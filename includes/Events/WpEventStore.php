@@ -119,6 +119,10 @@ class WpEventStore implements EventStore {
 		);
 		$rows = array();
 
+		if ( is_array( $ids ) && ! empty( $ids ) && function_exists( 'update_meta_cache' ) ) {
+			update_meta_cache( 'post', $ids );
+		}
+
 		foreach ( $ids as $post_id ) {
 			$post_id = (int) $post_id;
 			$row     = array(
@@ -131,9 +135,11 @@ class WpEventStore implements EventStore {
 			if ( $series ) {
 				$row['series_key'] = (string) get_post_meta( $post_id, Meta::SERIES_KEY, true );
 			} else {
-				$row['occurrence_id'] = (string) get_post_meta( $post_id, Meta::OCCURRENCE_ID, true );
-				$row['start_utc']     = (string) get_post_meta( $post_id, Meta::START_UTC, true );
-				$row['end_utc']       = (string) get_post_meta( $post_id, Meta::END_UTC, true );
+				$row['occurrence_id']  = (string) get_post_meta( $post_id, Meta::OCCURRENCE_ID, true );
+				$row['source_id']      = (string) get_post_meta( $post_id, Meta::SOURCE_ID, true );
+				$row['start_utc']      = (string) get_post_meta( $post_id, Meta::START_UTC, true );
+				$row['end_utc']        = (string) get_post_meta( $post_id, Meta::END_UTC, true );
+				$row['series_post_id'] = (int) get_post_meta( $post_id, Meta::SERIES_ID, true );
 			}
 
 			$rows[] = $row;
@@ -167,7 +173,18 @@ class WpEventStore implements EventStore {
 			if ( 'trash' === get_post_status( $post_id ) ) {
 				wp_untrash_post( $post_id );
 			}
+
+			// wp_update_post() merges the stored row. wp_insert_post() with an
+			// ID does not, so an update that omits these fields would reset the
+			// slug, the published date, and the author (0 under cron).
 			$postarr['ID'] = $post_id;
+			$result        = wp_update_post( wp_slash( $postarr ), true );
+
+			if ( is_wp_error( $result ) || ! $result ) {
+				return 0;
+			}
+
+			return (int) $result;
 		} else {
 			$unique   = '';
 			$fallback = 'event-series';

@@ -537,11 +537,61 @@ class Lite {
 
 		// Flush when Lite starts showing groups, stops, or hands them to CP Groups.
 		// Recording an existing CP Groups site for the first time does not flush.
+		// The flush waits until wp_loaded so post types registered later on init
+		// are included. The option is recorded now so this request does not queue twice.
 		if ( 'lite' === $state || 'lite' === $stored ) {
-			flush_rewrite_rules( false );
+			$this->queue_rewrite_flush();
 		}
 
 		update_option( self::REWRITE_STATE_OPTION, $state );
+	}
+
+	/**
+	 * Whether a permalink flush is waiting for wp_loaded.
+	 *
+	 * @var bool
+	 */
+	protected $rewrite_flush_pending = false;
+
+	/**
+	 * Flush permalinks after init, once other plugins have registered.
+	 *
+	 * @since 1.2.0
+	 * @return void
+	 */
+	protected function queue_rewrite_flush() {
+		if ( $this->rewrite_flush_pending ) {
+			return;
+		}
+
+		$this->rewrite_flush_pending = true;
+
+		if ( function_exists( 'did_action' ) && did_action( 'wp_loaded' ) ) {
+			$this->run_rewrite_flush();
+			return;
+		}
+
+		if ( function_exists( 'add_action' ) ) {
+			add_action( 'wp_loaded', array( $this, 'run_rewrite_flush' ) );
+			return;
+		}
+
+		$this->run_rewrite_flush();
+	}
+
+	/**
+	 * Run a flush that queue_rewrite_flush() deferred.
+	 *
+	 * @since 1.2.0
+	 * @return void
+	 */
+	public function run_rewrite_flush() {
+		if ( ! $this->rewrite_flush_pending ) {
+			return;
+		}
+
+		$this->rewrite_flush_pending = false;
+		flush_rewrite_rules( false );
 	}
 
 	/**
@@ -575,11 +625,22 @@ class Lite {
 		}
 
 		if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
-			global $_wp_current_template_content;
+			global $_wp_current_template_content, $post;
+
+			$previous = ( isset( $post ) && $post instanceof \WP_Post ) ? $post : null;
 
 			ob_start();
 			include $file;
+			// Theme and hook markup stays as the template printed it. ChMS
+			// text is protected when the group markup is built.
 			$_wp_current_template_content = ob_get_clean();
+
+			if ( $previous instanceof \WP_Post && function_exists( 'setup_postdata' ) ) {
+				$post = $previous;
+				setup_postdata( $previous );
+			} elseif ( function_exists( 'wp_reset_postdata' ) ) {
+				wp_reset_postdata();
+			}
 
 			return $template;
 		}

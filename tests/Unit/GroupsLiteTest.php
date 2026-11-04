@@ -106,6 +106,7 @@ class GroupsLiteTest extends TestCase {
 		$this->options[ Lite::REWRITE_STATE_OPTION ] = 'lite';
 
 		Lite::get_instance()->on_init( true );
+		Lite::get_instance()->run_rewrite_flush();
 
 		$this->assertNull( $this->registered_post_type );
 		$this->assertSame( [], $this->registered_taxes );
@@ -195,6 +196,7 @@ class GroupsLiteTest extends TestCase {
 		$this->options[ Lite::REWRITE_STATE_OPTION ] = 'lite';
 
 		Lite::get_instance()->on_init( false );
+		Lite::get_instance()->run_rewrite_flush();
 
 		$this->assertNull( $this->registered_post_type );
 		$this->assertSame( 'off', $this->options[ Lite::REWRITE_STATE_OPTION ] );
@@ -213,7 +215,9 @@ class GroupsLiteTest extends TestCase {
 		$lite = Lite::get_instance();
 
 		$lite->on_init( false );
+		$lite->run_rewrite_flush();
 		$lite->on_init( false );
+		$lite->run_rewrite_flush();
 
 		$this->assertSame( 'lite', $this->options[ Lite::REWRITE_STATE_OPTION ] );
 		$this->assertSame( 1, $this->flushes );
@@ -513,6 +517,63 @@ class GroupsLiteTest extends TestCase {
 		$this->assertSame( Display::DEFAULT_COUNT, Display::query_args( [] )['posts_per_page'] );
 	}
 
+	public function test_type_filter_uses_sanitize_title_for_non_ascii_names() {
+		Functions\when( 'sanitize_title' )->alias(
+			static function ( $title ) {
+				if ( 'Jóvenes' === $title ) {
+					return 'jovenes';
+				}
+
+				if ( '청년부' === $title ) {
+					return '%ec%b2%ad%eb%85%84%eb%b6%80';
+				}
+
+				$title = strtolower( trim( (string) $title ) );
+				$title = preg_replace( '/[^a-z0-9]+/', '-', $title );
+
+				return trim( (string) $title, '-' );
+			}
+		);
+
+		$accented = Display::query_args( [ 'type' => 'Jóvenes' ] );
+		$hangul   = Display::query_args( [ 'type' => '청년부' ] );
+
+		$this->assertSame( 'jovenes', $accented['tax_query'][0]['terms'] );
+		$this->assertSame( '%ec%b2%ad%eb%85%84%eb%b6%80', $hangul['tax_query'][0]['terms'] );
+	}
+
+	public function test_group_description_is_not_run_as_a_shortcode_or_embed() {
+		$html = Display::render_group(
+			[
+				'title'            => '[contact-form-7 id="1"]',
+				'image'            => 'https://church.example/photo.jpg',
+				'registration_url' => 'https://church.example/register?form=[contact-form-7]',
+				'permalink'        => 'https://church.example/groups/youth',
+				'content'          => "[gallery ids=\"1\"]\nhttps://youtu.be/abc123\n<p>https://vimeo.com/42</p>",
+			],
+			[
+				'summary' => false,
+				'heading' => 'h1',
+			]
+		);
+
+		$this->assertStringContainsString( '&#91;gallery ids="1"]', $html );
+		$this->assertStringNotContainsString( '[gallery', $html );
+		$this->assertStringContainsString( 'alt="&#91;contact-form-7 id=&quot;1&quot;]"', $html );
+		$this->assertStringNotContainsString( 'alt="[contact-form-7', $html );
+		$this->assertStringContainsString( 'href="https://church.example/register?form=&#91;contact-form-7]"', $html );
+		$this->assertStringNotContainsString( 'form=[contact-form-7', $html );
+		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://youtu.be/abc123</span>', $html );
+		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://vimeo.com/42</span>', $html );
+
+		$theme = "<header class=\"theme\">[keep-shortcode]\nhttps://example.com/theme-only\n</header>";
+		$page  = $theme . $html;
+
+		$this->assertStringContainsString( '[keep-shortcode]', $page );
+		$this->assertStringContainsString( "\nhttps://example.com/theme-only\n", $page );
+		$this->assertStringContainsString( '&#91;gallery ids="1"]', $page );
+	}
+
 	public function test_lite_stores_the_cp_groups_1_2_leader_shape() {
 		$this->assertSame( '1.2.0', CP_Groups::leader_storage_version() );
 	}
@@ -637,7 +698,10 @@ class GroupsLiteTest extends TestCase {
 		Functions\when( 'apply_filters' )->returnArg( 2 );
 		Functions\when( 'sanitize_title' )->alias(
 			static function ( $title ) {
-				return strtolower( (string) $title );
+				$title = strtolower( trim( (string) $title ) );
+				$title = preg_replace( '/[^a-z0-9]+/', '-', $title );
+
+				return trim( (string) $title, '-' );
 			}
 		);
 		Functions\when( 'get_option' )->alias(

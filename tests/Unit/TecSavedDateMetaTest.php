@@ -274,6 +274,37 @@ class TecSavedDateMetaTest extends TestCase {
 		$this->assertSame( '2026-08-05 19:00:00', $this->meta['_EventStartDateUTC'] );
 	}
 
+	public function test_empty_start_keeps_stored_dates() {
+		$this->meta['_EventStartDate']    = '2026-07-15 11:00:00';
+		$this->meta['_EventEndDate']      = '2026-07-15 12:30:00';
+		$this->meta['_EventStartDateUTC'] = '2026-07-15 18:00:00';
+		$this->meta['_EventEndDateUTC']   = '2026-07-15 19:30:00';
+		$this->meta['_EventAllDay']       = 'yes';
+		$this->meta['_EventTimezone']     = 'America/Chicago';
+
+		$item = array(
+			'post_title'     => 'Kept',
+			'post_content'   => 'Body',
+			'EventStartDate' => '',
+			'EventEndDate'   => '',
+			'EventAllDay'    => false,
+			'EventTimezone'  => 'America/New_York',
+		);
+
+		$args = TEC::legacy_update_args( $item );
+		$this->assertArrayNotHasKey( 'EventStartDate', $args );
+		$this->assertArrayNotHasKey( 'EventEndDate', $args );
+
+		TEC::persist_event_date_meta( 42, $item );
+
+		$this->assertSame( '2026-07-15 11:00:00', $this->meta['_EventStartDate'] );
+		$this->assertSame( '2026-07-15 12:30:00', $this->meta['_EventEndDate'] );
+		$this->assertSame( '2026-07-15 18:00:00', $this->meta['_EventStartDateUTC'] );
+		$this->assertSame( '2026-07-15 19:30:00', $this->meta['_EventEndDateUTC'] );
+		$this->assertSame( 'yes', $this->meta['_EventAllDay'] );
+		$this->assertSame( 'America/Chicago', $this->meta['_EventTimezone'] );
+	}
+
 	public function test_timed_event_deletes_all_day_meta() {
 		$item    = $this->calendarItem( '2026-07-15T18:00:00Z', '2026-07-15T19:00:00Z' );
 		$deleted = array();

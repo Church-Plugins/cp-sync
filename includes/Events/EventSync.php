@@ -12,7 +12,9 @@ namespace CP_Sync\Events;
  *
  * Planning Center instances are one date each. A Planning Center Event with
  * two or more instances is a series. A Church Community Builder event id with
- * two or more listing rows is a series. One date never gets a series post.
+ * two or more listing rows is a series. One date never gets a new series
+ * post. An existing series stays published when the feed still has one
+ * of its dates, so past dates keep their series page.
  *
  * @since 1.2.0
  */
@@ -51,11 +53,12 @@ class EventSync {
 			self::log( 'Skipping event display sync: the feed was empty while events are already stored.' );
 
 			return array(
-				'skipped'         => true,
-				'events'          => 0,
-				'series'          => 0,
-				'trashed_events'  => 0,
-				'trashed_series'  => 0,
+				'skipped'            => true,
+				'events'             => 0,
+				'series'             => 0,
+				'trashed_events'     => 0,
+				'trashed_series'     => 0,
+				'removed_source_ids' => array(),
 			);
 		}
 
@@ -66,8 +69,9 @@ class EventSync {
 		$series_by_key    = array();
 		$events_by_key    = array();
 		$seen             = array();
-		$trashed_events   = 0;
-		$trashed_series   = 0;
+		$trashed_events      = 0;
+		$trashed_series      = 0;
+		$removed_source_ids  = array();
 
 		foreach ( $normalized as $row ) {
 			$providers[ $row['provider'] ] = true;
@@ -92,6 +96,16 @@ class EventSync {
 			$series_post_ids[ $key ] = (int) $store->save_series( $record );
 		}
 
+		foreach ( $grouped['events'] as $record ) {
+			$ident = self::identity( $record['provider'], $record['occurrence_id'] );
+
+			if ( '' !== $ident ) {
+				$seen[ $ident ] = true;
+			}
+		}
+
+		$referenced_series = self::referenced_series_ids( $existing_events, $seen, $providers, $now_utc );
+
 		foreach ( $existing_series as $row ) {
 			$key = isset( $row['series_key'] ) ? (string) $row['series_key'] : '';
 
@@ -107,7 +121,17 @@ class EventSync {
 				continue;
 			}
 
+			// A past date that is no longer in the feed still points at this
+			// series through _cp_series_id. Leave the series published until
+			// no synced date references it.
+			if ( ! empty( $referenced_series[ (int) $row['post_id'] ] ) ) {
+				continue;
+			}
+
 			$store->trash_series( $row['post_id'] );
+			if ( isset( $series_by_key[ $key ] ) ) {
+				$series_by_key[ $key ]['status'] = 'trash';
+			}
 			$trashed_series++;
 		}
 
@@ -122,12 +146,16 @@ class EventSync {
 		}
 
 		foreach ( $grouped['events'] as $record ) {
-			$ident          = self::identity( $record['provider'], $record['occurrence_id'] );
+			$ident = self::identity( $record['provider'], $record['occurrence_id'] );
 			$seen[ $ident ] = true;
 			$record['series_post_id'] = 0;
 
 			if ( '' !== $record['series_key'] && isset( $series_post_ids[ $record['series_key'] ] ) ) {
-				$record['series_post_id'] = $series_post_ids[ $record['series_key'] ];
+				$record['series_post_id'] = (int) $series_post_ids[ $record['series_key'] ];
+			} elseif ( '' !== $record['series_key'] && isset( $series_by_key[ $record['series_key'] ] ) && 'trash' !== ( $series_by_key[ $record['series_key'] ]['status'] ?? '' ) ) {
+				// A trashed series, including one trashed earlier in this run,
+				// must not become _cp_series_id on a new date.
+				$record['series_post_id'] = (int) $series_by_key[ $record['series_key'] ]['post_id'];
 			}
 
 			if ( isset( $events_by_key[ $ident ] ) ) {
@@ -163,15 +191,21 @@ class EventSync {
 			if ( '' === $end || strcmp( $end, (string) $now_utc ) >= 0 ) {
 				$store->trash_event( $row['post_id'] );
 				$trashed_events++;
+				$source = isset( $row['source_id'] ) ? trim( (string) $row['source_id'] ) : '';
+
+				if ( '' !== $source ) {
+					$removed_source_ids[] = $source;
+				}
 			}
 		}
 
 		return array(
-			'skipped'        => false,
-			'events'         => count( $grouped['events'] ),
-			'series'         => count( $grouped['series'] ),
-			'trashed_events' => $trashed_events,
-			'trashed_series' => $trashed_series,
+			'skipped'            => false,
+			'events'             => count( $grouped['events'] ),
+			'series'             => count( $grouped['series'] ),
+			'trashed_events'     => $trashed_events,
+			'trashed_series'     => $trashed_series,
+			'removed_source_ids' => $removed_source_ids,
 		);
 	}
 
@@ -201,7 +235,9 @@ class EventSync {
 
 		foreach ( $buckets as $key => $members ) {
 			if ( count( $members ) < 2 ) {
-				$members[0]['series_key'] = '';
+				// One feed date does not create a series. It keeps the key so
+				// an existing series post stays linked through _cp_series_id.
+				$members[0]['series_key'] = $key;
 				$events[]                 = $members[0];
 				continue;
 			}
@@ -228,7 +264,7 @@ class EventSync {
 	 * already one per date.
 	 *
 	 * @param array  $event    Neutral event record.
-	 * @param string $timezone WordPress timezone.
+	 * @param string $timezone WordPress timezone, used when the record has none.
 	 * @return array|null
 	 */
 	public static function normalize( array $event, $timezone = 'UTC' ) {
@@ -245,7 +281,15 @@ class EventSync {
 			$end = $start;
 		}
 
-		$zone = EventTime::is_valid_timezone( $timezone ) ? $timezone : 'UTC';
+		$zone = $timezone;
+
+		if ( isset( $event['timezone'] ) && is_string( $event['timezone'] ) && EventTime::is_valid_timezone( $event['timezone'] ) ) {
+			$zone = $event['timezone'];
+		}
+
+		if ( ! EventTime::is_valid_timezone( $zone ) ) {
+			$zone = 'UTC';
+		}
 
 		try {
 			$start_local = EventTime::to_local( $start, $zone )->format( 'Y-m-d H:i:s' );
@@ -405,6 +449,70 @@ class EventSync {
 			'image_url'        => $image,
 			'registration_url' => $url,
 		);
+	}
+
+	/**
+	 * Series post IDs that a synced date will still reference after this run.
+	 *
+	 * Dates this sync is about to trash do not count. Past dates that stay
+	 * published do, including when they are no longer in the feed.
+	 *
+	 * @param array  $existing_events Stored date rows.
+	 * @param array  $seen            Occurrence identities in this feed.
+	 * @param array  $providers       Providers present in this feed.
+	 * @param string $now_utc         Current UTC `Y-m-d H:i:s`.
+	 * @return array<int,bool>
+	 */
+	protected static function referenced_series_ids( array $existing_events, array $seen, array $providers, $now_utc ) {
+		$ids = array();
+
+		foreach ( $existing_events as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+
+			$series_id = isset( $row['series_post_id'] ) ? (int) $row['series_post_id'] : 0;
+
+			if ( $series_id < 1 || ! self::date_remains( $row, $seen, $providers, $now_utc ) ) {
+				continue;
+			}
+
+			$ids[ $series_id ] = true;
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * Whether this stored date will still be on the site after the removal pass.
+	 *
+	 * @param array  $row       Stored date row.
+	 * @param array  $seen      Occurrence identities in this feed.
+	 * @param array  $providers Providers present in this feed.
+	 * @param string $now_utc   Current UTC `Y-m-d H:i:s`.
+	 * @return bool
+	 */
+	protected static function date_remains( array $row, array $seen, array $providers, $now_utc ) {
+		if ( 'trash' === ( $row['status'] ?? '' ) ) {
+			return false;
+		}
+
+		$provider = isset( $row['provider'] ) ? (string) $row['provider'] : '';
+		$ident    = self::identity( $provider, $row['occurrence_id'] ?? '' );
+
+		if ( '' !== $ident && isset( $seen[ $ident ] ) ) {
+			return true;
+		}
+
+		if ( ! empty( $row['locked'] ) || empty( $providers[ $provider ] ) ) {
+			return true;
+		}
+
+		$end = isset( $row['end_utc'] ) && '' !== (string) $row['end_utc']
+			? (string) $row['end_utc']
+			: (string) ( $row['start_utc'] ?? '' );
+
+		return '' !== $end && strcmp( $end, (string) $now_utc ) < 0;
 	}
 
 	/**

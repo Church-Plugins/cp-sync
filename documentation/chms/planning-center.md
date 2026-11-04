@@ -96,7 +96,7 @@ A few things to know:
 - **Link Only** events still sync when **Only Visible in Church Center** is selected, as long as they are visible and not explicitly unapproved.
 - If the Calendar Filters builder is left empty, no extra filter rules run. With **Only Visible in Church Center**, the visibility and approval checks still apply.
 - When the Event source is **Registrations** only, there is no Visibility setting, and these calendar checks are not used.
-- With **Only Visible in Church Center**, upcoming events already on the site that become hidden or explicitly unapproved are removed on the next sync. CP Sync shows an admin notice with how many were skipped and how many upcoming events were removed. The notice appears only when events were removed, and it goes away after a sync that removes nothing. Events whose end date has passed stay. Locked posts stay. **Show All** does not remove them for this reason.
+- With **Only Visible in Church Center**, upcoming events already on the site that become hidden or explicitly unapproved are removed on the next sync. CP Sync shows an admin notice with how many were skipped and how many upcoming events were removed. The notice appears only when events were removed. It stays until each administrator dismisses it, using the X or the Dismiss link. A later sync that removes more events shows the notice again. A sync that removes nothing does not clear it. Events whose end date has passed stay. Locked posts stay. **Show All** does not remove them for this reason.
 
 Event times on your site use your WordPress timezone (Settings → General). Make sure it matches the timezone set in your Planning Center account, or event times may look shifted.
 
