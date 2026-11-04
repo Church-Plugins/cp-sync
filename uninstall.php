@@ -295,7 +295,7 @@ function cp_sync_uninstall_current_site() {
 	}
 
 	// 3. Imported content — only items/terms tagged with _chms_id.
-	cp_sync_uninstall_delete_tagged_posts( $wpdb, array( 'cp_group', 'tribe_events', 'cpl_item' ) );
+	cp_sync_uninstall_delete_tagged_posts( $wpdb, array( 'cp_group', 'tribe_events', 'cpl_item', 'cp_event', 'cp_event_series' ) );
 	cp_sync_uninstall_delete_tagged_terms( $wpdb );
 
 	// 4. Sideloaded attachments + the on-disk image cache directory.

@@ -991,6 +991,8 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			return false;
 		}
 
+		\CP_Sync\Events\NeutralFeed::add( $neutral );
+
 		// Skip venue creation during initial import for CCB events.
 		// public_calendar_listing only provides a venue name (no address), so creating
 		// a venue here would produce an incomplete record. The enrichment process
@@ -1059,6 +1061,7 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 		return [
 			'provider'         => 'ccb',
 			'chms_id'          => $event_id,
+			'series_id'        => (string) $event_id,
 			'title'            => trim( $event['name'] ?? '' ),
 			'content'          => $event['description'] ?? '',
 			'excerpt'          => '',

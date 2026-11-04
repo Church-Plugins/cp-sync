@@ -100,11 +100,18 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
    - On the **Groups** tab, check **Visibility** (Planning Center) and the **Groups** filter.
    - Church Community Builder skips groups that are inactive or not listed in public search.
 
+### Events are missing and The Events Calendar is not installed
+
+1. On the **Advanced** tab, turn on **Display events with CP Sync**. On the **Connect** tab, **Sync Events** is on. Click **Save all Settings**, then **Pull now**. If a page already uses `/events/`, turning display on replaces that address. Turn display off to give the page back. See [Events on your site](../integrations/events-on-your-site.md#if-you-already-have-a-page-at-events).
+2. If `/events/` says the page was not found, open **Settings → Permalinks** and click **Save Changes**.
+3. On the **Log** tab, set **Enable Debug Mode** to **Enable** and run the sync again. Look for `Event display sync`.
+4. The **Events** tab settings apply without The Events Calendar. For Planning Center, **Event source** chooses the feed. **Pull from Calendar** (the usual setting) imports calendar events. **Pull from Registrations** imports signups that are not archived, and does not use **Visibility**. **Calendar AND Registrations** imports both, and an event in both is imported twice. **Visibility** applies to the calendar only. **Only Visible in Church Center** (the usual setting) skips calendar events that are hidden in Church Center or explicitly not approved. **Show All** publishes the calendar events the feed returns, including ones hidden in Church Center. For Church Community Builder, **Date Range** is the window that is fetched. **Current and upcoming events** (the usual setting) is today through one year ahead. An event CCB marks as not approved is skipped. See [Events on your site](../integrations/events-on-your-site.md#planning-center-visibility).
+
 ### The Events Calendar Integration Issues
 
 1. **Plugin and toggle**:
    - The Events Calendar is installed and activated.
-   - On the **Connect** tab, **Sync Events** is on. If The Events Calendar is inactive, the toggle is disabled and the help text reads **Requires The Events Calendar plugin, which is not active on this site.**
+   - On the **Connect** tab, **Sync Events** is on. If The Events Calendar is inactive and **Display events with CP Sync** is off, the toggle is disabled and the help text reads **Turn on Display events with CP Sync, or activate The Events Calendar.**
 
 2. **Church Community Builder venues**:
    - Venue name, street, city, state, zip, and the event image are filled in after import, for events that have a numeric CCB id.

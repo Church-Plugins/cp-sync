@@ -34,8 +34,14 @@ class TecEventMapper {
 			$zone = 'UTC';
 		}
 
+		$end_utc = isset( $event['end_utc'] ) ? trim( (string) $event['end_utc'] ) : '';
+
+		if ( '' === $end_utc ) {
+			$end_utc = $event['start_utc'];
+		}
+
 		$start = EventTime::to_local( $event['start_utc'], $zone );
-		$end   = EventTime::to_local( $event['end_utc'], $zone );
+		$end   = EventTime::to_local( $end_utc, $zone );
 
 		$item = array(
 			'chms_id'      => $event['chms_id'],

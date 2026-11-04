@@ -274,13 +274,23 @@ class TecSavedDateMetaTest extends TestCase {
 		$this->assertSame( '2026-08-05 19:00:00', $this->meta['_EventStartDateUTC'] );
 	}
 
-	public function test_timed_event_keeps_all_day_no_on_create_and_update() {
+	public function test_timed_event_deletes_all_day_meta() {
 		$item    = $this->calendarItem( '2026-07-15T18:00:00Z', '2026-07-15T19:00:00Z' );
 		$deleted = array();
+		$written = array();
+		$store   = &$this->meta;
 
 		Functions\when( 'delete_post_meta' )->alias(
-			static function ( $post_id, $key ) use ( &$deleted ) {
+			static function ( $post_id, $key ) use ( &$deleted, &$store ) {
 				$deleted[] = $key;
+				unset( $store[ $key ] );
+				return true;
+			}
+		);
+		Functions\when( 'update_post_meta' )->alias(
+			static function ( $post_id, $key, $value ) use ( &$written, &$store ) {
+				$written[]    = $key;
+				$store[ $key ] = $value;
 				return true;
 			}
 		);
@@ -290,10 +300,11 @@ class TecSavedDateMetaTest extends TestCase {
 		$created = TEC::persist_event_date_meta( 9, $item );
 		$updated = TEC::persist_event_date_meta( 9, $item );
 
-		$this->assertSame( 'no', $created['_EventAllDay'] );
-		$this->assertSame( 'no', $updated['_EventAllDay'] );
-		$this->assertSame( 'no', $this->meta['_EventAllDay'] );
-		$this->assertNotContains( '_EventAllDay', $deleted );
+		$this->assertArrayNotHasKey( '_EventAllDay', $created );
+		$this->assertArrayNotHasKey( '_EventAllDay', $updated );
+		$this->assertArrayNotHasKey( '_EventAllDay', $this->meta );
+		$this->assertNotContains( '_EventAllDay', $written );
+		$this->assertContains( '_EventAllDay', $deleted );
 	}
 
 	public function test_update_does_not_replace_an_existing_timezone() {

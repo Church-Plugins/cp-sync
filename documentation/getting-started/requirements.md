@@ -72,6 +72,7 @@ If you plan to use specific integrations:
 
 ### The Events Calendar Integration
 - The Events Calendar plugin (by Modern Tribe) installed and activated (version 5.0 or higher)
+- Not required if you show events with CP Sync itself. See [Events on your site](../integrations/events-on-your-site.md).
 
 ### CP Sermons Integration
 - CP Sermons installed and activated (Planning Center only)

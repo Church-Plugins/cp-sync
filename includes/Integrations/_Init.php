@@ -143,7 +143,7 @@ class _Init {
 			case 'groups':
 				return __( 'Turn on Display groups with CP Sync, or activate the CP Groups plugin.', 'cp-sync' );
 			case 'events':
-				return __( 'Requires The Events Calendar plugin, which is not active on this site.', 'cp-sync' );
+				return __( 'Turn on Display events with CP Sync, or activate The Events Calendar.', 'cp-sync' );
 			case 'sermons':
 				return __( 'Requires the CP Sermons plugin, which is not active on this site.', 'cp-sync' );
 			default:
@@ -245,10 +245,15 @@ class _Init {
 			return new WP_Error( 'invalid_integration_type', 'Invalid integration type. Supported types are `' . implode( '`, `', self::$supported_types ) . '`' );
 		}
 
+		// CP Sync's own event pages are a destination only when The Events Calendar
+		// is absent and Display events is on. Sync Events is still required, below.
+		// is_integration_available() stays "The Events Calendar is active".
+		$native_events = 'events' === $integration_type && \CP_Sync\Events\Display::display_toggle_on();
+
 		// (a) Availability: the required companion plugin must be active. Guards the
 		// manual pull buttons, the REST /pull + /pull/{type} routes, and the cron path
 		// ( which funnels through pull_content() → here ).
-		if ( ! self::is_integration_available( $integration_type ) ) {
+		if ( ! self::is_integration_available( $integration_type ) && ! $native_events ) {
 			$message = self::integration_unavailable_message( $integration_type );
 			cp_sync()->logging->log( sprintf( 'Skipping %s pull: %s', $integration_type, $message ) );
 			return new WP_Error( 'integration_unavailable', $message );
@@ -259,6 +264,9 @@ class _Init {
 		// shared with the schema FieldDef ( groups/events default ON, preserving
 		// long-standing behavior; sermons default OFF so updates never silently start
 		// syncing them ).
+		// Native event pages use the same Sync Events switch. The stored value,
+		// including its default, is what the ChMS fetch reads for visibility,
+		// date range, and registration source.
 		$active_chms = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
 		if ( $active_chms && ! $active_chms->is_sync_enabled( $integration_type ) ) {
 			$message = sprintf(
@@ -278,13 +286,29 @@ class _Init {
 		 * @param string     $integration_type The integration type to pull.
 		 * @return array|null|WP_Error
 		 */
-		$data = apply_filters( "cp_sync_pull_$integration_type", null, $integration_type );
+		$neutral_events = array();
+
+		if ( $native_events ) {
+			\CP_Sync\Events\NeutralFeed::start();
+		}
+
+		try {
+			$data = apply_filters( "cp_sync_pull_$integration_type", null, $integration_type );
+		} finally {
+			if ( $native_events ) {
+				$neutral_events = \CP_Sync\Events\NeutralFeed::finish();
+			}
+		}
 
 		if ( is_wp_error( $data ) ) {
 			return $data;
 		}
 
 		if ( null !== $data ) {
+			if ( $native_events ) {
+				return \CP_Sync\Events\Display::import_neutral( $neutral_events );
+			}
+
 			// process the data for all integrations that have this type
 			foreach( self::$_integrations as $integration ) {
 				if ( $integration->type === $integration_type ) {

@@ -37,7 +37,9 @@ Yes, CP-Sync provides extensive filtering options. You can filter by group type,
 No. CP Sync copies a fixed set of fields. There is no field-mapping setting.
 
 ### How does CP-Sync handle recurring events?
-CP-Sync imports each occurrence of a recurring event as its own event in The Events Calendar. It does not create a recurring event series.
+With The Events Calendar, CP Sync imports each occurrence as its own event. It does not create a recurring series there.
+
+Without The Events Calendar, each date is still its own event page. A Planning Center event with more than one date, or a Church Community Builder event with more than one date, also gets a series page. One date does not. See [Events on your site](../integrations/events-on-your-site.md).
 
 ### Will CP-Sync overwrite my existing content?
 CP-Sync is designed to update only the content that comes from your ChMS. It will not affect manually created WordPress content unless it shares a unique identifier with imported content.
@@ -45,7 +47,9 @@ CP-Sync is designed to update only the content that comes from your ChMS. It wil
 ## Integrations
 
 ### Does CP-Sync work with The Events Calendar?
-Yes, CP-Sync integrates with The Events Calendar plugin, allowing you to import events from your ChMS into your WordPress calendar. See the [The Events Calendar Integration Guide](../integrations/the-events-calendar.md) for setup instructions.
+Yes. When The Events Calendar is active, CP Sync imports events into that calendar. See the [The Events Calendar Integration Guide](../integrations/the-events-calendar.md).
+
+You can also show events without that plugin. See [Events on your site](../integrations/events-on-your-site.md).
 
 ### Do I need CP Groups to show groups?
 No. CP Sync can show a groups page at `/groups/` and a `[cp-sync-groups]` shortcode. Leader email addresses are not shown. See [Show Groups on Your Site](../integrations/show-groups.md).

@@ -4,7 +4,7 @@ Tags: church, ccb, planning-center, sync, events
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,7 +67,9 @@ CP Sync currently supports Planning Center Online (PCO) and Church Community Bui
 
 = Do I need The Events Calendar plugin? =
 
-Only if you want to sync events. Groups can show on your site without another plugin. If you sync events, install and activate The Events Calendar — CP Sync creates events in that plugin's format.
+No. Groups can show on your site without another plugin. Events can show on your site without The Events Calendar: each date gets a page, and a real series of dates gets a series page. Turn on Display events with CP Sync (Advanced) and Sync Events (Connect). On an upgrade, Display events stays off unless event sync was already on. Leave it off if you already have a page at /events/.
+
+Install The Events Calendar only if you want events in that calendar. While it is active, CP Sync keeps using it and does not create the separate event pages.
 
 = Why are my CCB venues missing addresses? =
 
@@ -92,7 +94,8 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 == Changelog ==
 
 = 1.2.0 =
-* Groups can be shown on the site without CP Groups: a groups page at /groups/, a page for each group, and the [cp-sync-groups] shortcode. Leader email addresses are not shown. CP Groups adds filters, a map, and a contact form, and it takes over the same groups when you activate it.
+* New: Sites that do not use The Events Calendar can show events from Planning Center or Church Community Builder. Each date is a page under Events. A Planning Center event with more than one date, or a Church Community Builder event with more than one date, also gets a series page under Event Series. A single date does not. Turn on Display events with CP Sync (Advanced) and Sync Events (Connect). On an upgrade, Display events stays off unless event sync was already on, so a page you already have at /events/ is left alone. The list is at /events/. Add `[cp-sync-events]` to a page to show the next few dates. Sites that use The Events Calendar are unchanged.
+* New: Groups can be shown on the site without CP Groups: a groups page at /groups/, a page for each group, and the [cp-sync-groups] shortcode. Leader email addresses are not shown. CP Groups adds filters, a map, and a contact form, and it takes over the same groups when you activate it. On sites updated from an earlier version, turn on Display groups with CP Sync (Advanced).
 * Church Community Builder events: The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
 
 = 1.1.0 =

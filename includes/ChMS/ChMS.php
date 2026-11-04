@@ -252,9 +252,9 @@ abstract class ChMS {
 	 * sermons OFF ); the sermons toggle is emitted only for a ChMS that registered
 	 * sermons support.
 	 *
-	 * When the required companion plugin is NOT active ( CP Groups / The Events
-	 * Calendar / CP Sermons ) the toggle is emitted with `disabled: true` and its help
-	 * text is replaced by the "requires …" explanation. Availability is resolved every
+	 * When a feed has nowhere to go, the toggle is emitted with `disabled: true` and
+	 * its help text names what to turn on. Sync Events is disabled only when The
+	 * Events Calendar is inactive and Display events is off. Availability is resolved every
 	 * time the schema is served ( GET /{chms}/schema ), so the client always sees
 	 * current state.
 	 *
@@ -270,9 +270,12 @@ abstract class ChMS {
 	protected function get_sync_toggle_fields( $availability = null ) {
 		if ( null === $availability ) {
 			$availability = [
-				'groups'  => \CP_Sync\Integrations\_Init::is_integration_available( 'groups' ),
-				'events'  => \CP_Sync\Integrations\_Init::is_integration_available( 'events' ),
-				'sermons' => \CP_Sync\Integrations\_Init::is_integration_available( 'sermons' ),
+				'groups'         => \CP_Sync\Integrations\_Init::is_integration_available( 'groups' ),
+				'events'         => \CP_Sync\Integrations\_Init::is_integration_available( 'events' ),
+				'sermons'        => \CP_Sync\Integrations\_Init::is_integration_available( 'sermons' ),
+				// Display events, not The Events Calendar. Enables Sync Events and
+				// the Events tab so visibility, date range, and registrations apply.
+				'events_display' => \CP_Sync\Events\Display::display_toggle_on(),
 			];
 		}
 
@@ -312,9 +315,12 @@ abstract class ChMS {
 			$fields['sync_groups']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'groups' );
 		}
 
-		if ( empty( $availability['events'] ) ) {
+		if ( empty( $availability['events'] ) && empty( $availability['events_display'] ) ) {
 			$fields['sync_events']['disabled'] = true;
 			$fields['sync_events']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'events' );
+		} elseif ( empty( $availability['events'] ) ) {
+			// Enabled while The Events Calendar is off, which means Display events is on.
+			$fields['sync_events']['help'] = __( 'Events are shown on CP Sync\'s own event pages at /events/.', 'cp-sync' );
 		}
 
 		return $fields;

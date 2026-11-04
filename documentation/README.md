@@ -24,6 +24,7 @@ Welcome to the CP-Sync documentation. This guide will help you set up and use th
 - [CP Groups](integrations/cp-groups.md) - Integration with Church Plugins Groups
 - [Show Groups on Your Site](integrations/show-groups.md) - Groups page and shortcode without CP Groups
 - [The Events Calendar](integrations/the-events-calendar.md) - Integration with The Events Calendar
+- [Events on your site](integrations/events-on-your-site.md) - Event and series pages when The Events Calendar is not installed
 - [CP Sermons](integrations/cp-library.md) - Sermon syncing from PCO Publishing to CP Sermons
 
 ### Advanced Topics

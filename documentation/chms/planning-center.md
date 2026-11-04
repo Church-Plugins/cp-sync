@@ -33,7 +33,7 @@ After you are connected, the same tab shows a **Sync** section. Choose what to s
 - **Sync Events** — When enabled, events are synced from your ChMS to The Events Calendar.
 - **Sync Sermons** — When enabled, sermons are synced from your ChMS to CP Sermons. This toggle is off until you turn it on.
 
-**Sync Events** is disabled until The Events Calendar is active. Its help text is **Requires The Events Calendar plugin, which is not active on this site.** **Sync Sermons** is disabled until CP Sermons is active. Its help text is **Requires the CP Sermons plugin, which is not active on this site.** **Sync Groups** stays available without CP Groups. It is disabled only when **Display groups with CP Sync** is off and CP Groups is not active. The help text then reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
+**Sync Events** stays on when The Events Calendar is active, or when **Display events with CP Sync** is on. With The Events Calendar off and that toggle on, the help text reads **Events are shown on CP Sync's own event pages at /events/.** It is disabled only when both are off. The help text then reads **Turn on Display events with CP Sync, or activate The Events Calendar.** **Sync Sermons** is disabled until CP Sermons is active. Its help text is **Requires the CP Sermons plugin, which is not active on this site.** **Sync Groups** stays available without CP Groups. It is disabled only when **Display groups with CP Sync** is off and CP Groups is not active. The help text then reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
 
 ## Configuring Data Synchronization
 
@@ -73,7 +73,7 @@ On CP Groups 1.2 or newer, leaders are saved as **Group Leaders** rows instead o
 
 ### Events Synchronization
 
-Event sync needs **The Events Calendar** plugin to be active. If it isn't, the **Sync Events** toggle is disabled and the **Events** tab doesn't appear. The tab appears after you connect to Planning Center, while **Sync Events** is on.
+Sending events to The Events Calendar needs that plugin to be active. Without it, turn on **Display events with CP Sync** on the **Advanced** tab. **Sync Events** and the **Events** tab then work the same way: visibility, event source, and filters on that tab are what get imported. See [Events on your site](../integrations/events-on-your-site.md).
 
 1. Go to the **Events** tab in the PCO settings
 2. Choose your **Event source**: **Pull from Calendar**, **Pull from Registrations**, or **Calendar AND Registrations**

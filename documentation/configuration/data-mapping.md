@@ -50,7 +50,9 @@ When CP Locations is active, campus or area is assigned as the group's location 
 
 ## Events
 
-Events are created in The Events Calendar. Turn on **Sync Events** on the **Connect** tab, with The Events Calendar active. See [The Events Calendar](../integrations/the-events-calendar.md).
+When The Events Calendar is active, events are created there. Turn on **Sync Events** on the **Connect** tab. See [The Events Calendar](../integrations/the-events-calendar.md).
+
+When it is not active, CP Sync creates its own event and series pages. See [Events on your site](../integrations/events-on-your-site.md#what-is-copied).
 
 ### Planning Center Calendar
 

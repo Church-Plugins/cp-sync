@@ -4,7 +4,10 @@ import { useState } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 import { useSettings } from '../contexts/settingsContext';
 import { SchemaForm } from '../schema-form';
-import advancedSchema, { advancedUninstallSchema } from '../schema-form/schemas/advanced';
+import advancedSchema, {
+	advancedUninstallSchema,
+	displayEventsField,
+} from '../schema-form/schemas/advanced';
 import DangerZone from './danger-zone';
 
 // Manual hard-pull action button.
@@ -72,11 +75,29 @@ function HardPullButton( { save } ) {
 // Render the advanced tab. `save` is the global save handler.
 function AdvancedTab( { save } ) {
 	const { globalSettings, updateGlobalSettings } = useSettings();
+	const tecActive = window.cpSync && window.cpSync.tecActive;
+	// Groups is the first schema section. The events toggle is its own section
+	// so it is not stored inside the Groups fields.
+	const scheduleSchema = tecActive
+		? advancedSchema
+		: {
+				...advancedSchema,
+				sections: [
+					advancedSchema.sections[ 0 ],
+					{
+						title: __( 'Events', 'cp-sync' ),
+						fields: {
+							displayEvents: displayEventsField,
+						},
+					},
+					...advancedSchema.sections.slice( 1 ),
+				],
+			};
 
 	return (
 		<div className="cps-settings-screen">
 			<SchemaForm
-				schema={ advancedSchema }
+				schema={ scheduleSchema }
 				values={ globalSettings }
 				onChange={ updateGlobalSettings }
 			/>

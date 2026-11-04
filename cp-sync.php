@@ -3,7 +3,7 @@
  * Plugin Name: CP Sync
  * Plugin URL: https://churchplugins.com
  * Description: ChurchPlugins integration plugin for ChMS
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Church Plugins
  * Author URI: https://churchplugins.com
  * Text Domain: cp-sync
@@ -17,13 +17,14 @@
 
 if( !defined( 'CP_SYNC_PLUGIN_VERSION' ) ) {
 	 define ( 'CP_SYNC_PLUGIN_VERSION',
-	 	'1.1.0'
+	 	'1.2.0'
 	);
 }
 
 require_once( dirname( __FILE__ ) . "/includes/Constants.php" );
 require_once( CP_SYNC_PLUGIN_DIR . "/includes/ChurchPlugins/init.php" );
 require_once( CP_SYNC_PLUGIN_DIR . 'vendor/autoload.php' );
+require_once CP_SYNC_PLUGIN_DIR . 'includes/Templates.php';
 
 
 use CP_Sync\_Init as Init;

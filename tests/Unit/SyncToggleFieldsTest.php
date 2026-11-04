@@ -116,7 +116,7 @@ class SyncToggleFieldsTest extends TestCase {
 
 		$this->assertTrue( $fields['sync_events']['disabled'] );
 		$this->assertSame(
-			'Requires The Events Calendar plugin, which is not active on this site.',
+			'Turn on Display events with CP Sync, or activate The Events Calendar.',
 			$fields['sync_events']['help']
 		);
 

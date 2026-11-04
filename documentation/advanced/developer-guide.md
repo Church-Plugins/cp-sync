@@ -43,6 +43,15 @@ apply_filters('cp_sync_pco_group_leader_email', $email, $group, $leader_meta);
 // mu-plugin, not a theme: it is read once when CP Sync loads. Defining the
 // CP_SYNC_DEBUG constant as true also works.
 apply_filters('cp_sync_debug_mode', $debug_mode);
+
+// Public address for CP Sync event pages. Default "events" (/events/).
+// Used only when The Events Calendar is not active.
+apply_filters('cp_sync_event_rewrite_slug', 'events');
+
+// Public address for CP Sync series pages. Default "event-series"
+// so it does not take /series/ from CP Sermons. Filter it to "series"
+// on a site that does not use that address.
+apply_filters('cp_sync_event_series_rewrite_slug', 'event-series');
 ```
 
 ## Preserving Past Events
