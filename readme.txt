@@ -94,7 +94,7 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 == Changelog ==
 
 = 1.2.0 =
-* New: Events synced from Planning Center Registrations show the registration price, or a price range when there are several options.
+* New: Events synced from Planning Center Registrations show the public registration price: one price, a price range when there are several options, or Free. On sites that use The Events Calendar, the price also fills the event's cost.
 * New: Sites that do not use The Events Calendar can show events from Planning Center or Church Community Builder. Each date is a page under Events. A Planning Center event with more than one date, or a Church Community Builder event with more than one date, also gets a series page under Event Series. A single date does not. Turn on Display events with CP Sync (Advanced) and Sync Events (Connect). On an upgrade, Display events stays off unless event sync was already on, so a page you already have at /events/ is left alone. The list is at /events/. Add `[cp-sync-events]` to a page to show the next few dates. Sites that use The Events Calendar are unchanged.
 * New: Groups can be shown on the site without CP Groups: a groups page at /groups/, a page for each group, and the [cp-sync-groups] shortcode. Leader email addresses are not shown. CP Groups adds filters, a map, and a contact form, and it takes over the same groups when you activate it. On sites updated from an earlier version, turn on Display groups with CP Sync (Advanced).
 * Church Community Builder events: The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
