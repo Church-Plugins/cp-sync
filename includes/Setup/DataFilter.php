@@ -336,18 +336,22 @@ class DataFilter {
 		}
 
 		// parse related data
-		if ( $relation ) { 
+		if ( $relation ) {
 			if ( null === $relation_path ) {
 				return new \WP_Error( 'invalid_filter_config', __( 'Invalid filter config: missing a relational data path', 'cp-sync' ) );
 			}
 
-			if ( ! isset( $this->relational_data[ $relation ][ $data ] ) ) {
-				return new \WP_Error( 'invalid_filter_config', __( 'Invalid filter config: missing relational data', 'cp-sync' ) );
+			// A missing related record is a property of this item (a signup with
+			// no signup time, or an id that was not included), not a broken
+			// filter. It does not match, so the item drops out and the rest of
+			// the sync continues. A missing relation_path above is a malformed
+			// filter definition and still fails the run.
+			$relation_data = $this->related_record( $relation, $data );
+			if ( null === $relation_data ) {
+				return false;
 			}
 
-			// the data should be the related item's ID
-			$relation_data = $this->relational_data[ $relation ][ $data ];
-			$data          = $this->get_val( $relation_data, $relation_path );
+			$data = $this->get_val( $relation_data, $relation_path );
 		}
 
 		// if data is an array, just check if one of them passes
@@ -362,6 +366,32 @@ class DataFilter {
 		} else {
 			return (bool) $compare_fn( $data, $expected );
 		}
+	}
+
+	/**
+	 * Related record for a filter, or null when this item has none.
+	 *
+	 * Only a string or integer id is looked up. Anything else (no relation id,
+	 * an empty string) is a missing relation, not a config error.
+	 *
+	 * @param string $relation Relation type key in relational data.
+	 * @param mixed  $id       Related record id taken from the item.
+	 * @return mixed|null The related record, or null when it is not loaded.
+	 */
+	protected function related_record( $relation, $id ) {
+		if ( ( ! is_string( $id ) && ! is_int( $id ) ) || ( is_string( $id ) && '' === $id ) ) {
+			return null;
+		}
+
+		if ( ! isset( $this->relational_data[ $relation ] ) || ! is_array( $this->relational_data[ $relation ] ) ) {
+			return null;
+		}
+
+		if ( ! isset( $this->relational_data[ $relation ][ $id ] ) ) {
+			return null;
+		}
+
+		return $this->relational_data[ $relation ][ $id ];
 	}
 
 	/**
