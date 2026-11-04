@@ -20,6 +20,7 @@ use PHPUnit\Framework\TestCase;
  * @covers \CP_Sync\ChMS\PCO::registration_price
  * @covers \CP_Sync\ChMS\PCO::registration_price_from_signup
  * @covers \CP_Sync\Integrations\TEC::price_meta_writes
+ * @covers \CP_Sync\Integrations\TEC::persist_meta_input
  */
 class RegistrationPriceTest extends TestCase {
 
@@ -329,6 +330,62 @@ class RegistrationPriceTest extends TestCase {
 
 		$this->assertNull( $cleared[ Meta::REGISTRATION_PRICE ] );
 		$this->assertArrayNotHasKey( '_EventCost', $cleared );
+	}
+
+	/**
+	 * The meta loop must not fall through and write a Planning Center cost
+	 * after price_meta_writes() refuses a hand edit.
+	 */
+	public function test_hand_entered_cost_survives_the_tec_meta_write() {
+		$meta = array(
+			'_EventCost'             => '10.00',
+			'_EventCurrencySymbol'   => '€',
+			'_EventCurrencyPosition' => 'suffix',
+			Meta::SYNC_EVENT_COST    => '25.00',
+		);
+
+		Functions\when( 'get_post_meta' )->alias(
+			static function ( $post_id, $key = '', $single = false ) use ( &$meta ) {
+				unset( $post_id, $single );
+
+				return isset( $meta[ $key ] ) ? $meta[ $key ] : '';
+			}
+		);
+		Functions\when( 'update_post_meta' )->alias(
+			static function ( $post_id, $key, $value ) use ( &$meta ) {
+				unset( $post_id );
+				$meta[ $key ] = $value;
+
+				return true;
+			}
+		);
+		Functions\when( 'delete_post_meta' )->alias(
+			static function ( $post_id, $key ) use ( &$meta ) {
+				unset( $post_id );
+				unset( $meta[ $key ] );
+
+				return true;
+			}
+		);
+
+		TEC::persist_meta_input(
+			77,
+			array(
+				'registration_url'          => 'https://example.com/register',
+				Meta::REGISTRATION_PRICE    => '$40.00',
+				'_EventCost'                => '40.00',
+				'_EventCurrencySymbol'      => '$',
+				'_EventCurrencyPosition'    => 'prefix',
+				Meta::SYNC_EVENT_COST       => '40.00',
+			)
+		);
+
+		$this->assertSame( '10.00', $meta['_EventCost'] );
+		$this->assertSame( '€', $meta['_EventCurrencySymbol'] );
+		$this->assertSame( 'suffix', $meta['_EventCurrencyPosition'] );
+		$this->assertSame( '25.00', $meta[ Meta::SYNC_EVENT_COST ] );
+		$this->assertSame( '$40.00', $meta[ Meta::REGISTRATION_PRICE ] );
+		$this->assertSame( 'https://example.com/register', $meta['registration_url'] );
 	}
 
 	public function test_sync_owned_event_cost_is_updated() {

@@ -514,24 +514,9 @@ class TEC extends Integration {
 			// Arbitrary post meta the formatter asked us to persist ( e.g. the
 			// registration_url that drives the Register button ). tribe_update_event()
 			// only handles its own known fields, so meta_input was silently dropped
-			// before — write it here. Price keys that the formatter left out are
-			// left alone. A known-empty price clears _EventCost only when it
-			// still matches the value this sync last wrote.
+			// before — write it here.
 			if ( ! empty( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) {
-				$price_writes = self::price_meta_writes( $item['meta_input'], self::stored_event_cost( $id ) );
-
-				foreach ( $item['meta_input'] as $meta_key => $meta_value ) {
-					if ( array_key_exists( $meta_key, $price_writes ) ) {
-						if ( null === $price_writes[ $meta_key ] ) {
-							delete_post_meta( $id, $meta_key );
-						} else {
-							update_post_meta( $id, $meta_key, $price_writes[ $meta_key ] );
-						}
-						continue;
-					}
-
-					update_post_meta( $id, $meta_key, $meta_value );
-				}
+				self::persist_meta_input( $id, $item['meta_input'] );
 			}
 		}
 
@@ -562,6 +547,45 @@ class TEC extends Integration {
 
 	public function register_taxonomy($taxonomy, $args) {
 		register_taxonomy( $taxonomy, 'tribe_events', $args );
+	}
+
+	/**
+	 * Write formatter meta, applying the registration-price rules.
+	 *
+	 * `_EventCost`, the currency symbol, the currency position, and
+	 * `_cp_sync_event_cost` are written only when price_meta_writes() allows
+	 * them. A hand-edited cost is absent from that map, so the loop must not
+	 * fall through and store the Planning Center values from meta_input.
+	 *
+	 * @param int   $post_id    Event post ID.
+	 * @param array $meta_input Formatted event meta.
+	 * @return void
+	 */
+	public static function persist_meta_input( $post_id, array $meta_input ) {
+		$price_writes = self::price_meta_writes( $meta_input, self::stored_event_cost( $post_id ) );
+		$cost_keys    = array(
+			'_EventCost',
+			'_EventCurrencySymbol',
+			'_EventCurrencyPosition',
+			\CP_Sync\Events\Meta::SYNC_EVENT_COST,
+		);
+
+		foreach ( $meta_input as $meta_key => $meta_value ) {
+			if ( array_key_exists( $meta_key, $price_writes ) ) {
+				if ( null === $price_writes[ $meta_key ] ) {
+					delete_post_meta( $post_id, $meta_key );
+				} else {
+					update_post_meta( $post_id, $meta_key, $price_writes[ $meta_key ] );
+				}
+				continue;
+			}
+
+			if ( in_array( $meta_key, $cost_keys, true ) ) {
+				continue;
+			}
+
+			update_post_meta( $post_id, $meta_key, $meta_value );
+		}
 	}
 
 	/**
