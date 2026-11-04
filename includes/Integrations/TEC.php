@@ -175,19 +175,18 @@ class TEC extends Integration {
 		$start_missing = '' === ( $meta['_EventStartDate'] ?? '' );
 
 		foreach ( $meta as $key => $value ) {
-			// Timed events must not store _EventAllDay as "no". Delete any
-			// previous value. All-day events still get "yes".
-			if ( '_EventAllDay' === $key && 'yes' !== $value ) {
-				delete_post_meta( $post_id, $key );
+			// An empty start means the formatter had no date. Leave the stored
+			// date, all-day flag, and timezone alone. legacy_update_args()
+			// omits those keys for the same reason.
+			if ( $start_missing && ( in_array( $key, $date_keys, true ) || '_EventAllDay' === $key || '_EventTimezone' === $key ) ) {
 				unset( $meta[ $key ] );
 				continue;
 			}
 
-			// compose_datetime() returns '' when the formatter has no start.
-			// legacy_update_args() omits the date keys in that case so TEC
-			// keeps the stored date. Deleting the meta here drops the event
-			// out of TEC's date queries.
-			if ( $start_missing && in_array( $key, $date_keys, true ) ) {
+			// Timed events must not store _EventAllDay as "no". Delete any
+			// previous value. All-day events still get "yes".
+			if ( '_EventAllDay' === $key && 'yes' !== $value ) {
+				delete_post_meta( $post_id, $key );
 				unset( $meta[ $key ] );
 				continue;
 			}

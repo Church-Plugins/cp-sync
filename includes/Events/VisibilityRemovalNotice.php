@@ -176,6 +176,29 @@ class VisibilityRemovalNotice {
 	}
 
 	/**
+	 * Give a stored notice an id when an older build saved it without one.
+	 *
+	 * @param array $summary Stored summary.
+	 * @return array
+	 */
+	public static function ensure_notice_id( array $summary ) {
+		if ( isset( $summary['id'] ) && is_string( $summary['id'] ) && '' !== $summary['id'] ) {
+			return $summary;
+		}
+
+		$summary['id'] = self::notice_id(
+			array( 'legacy' ),
+			array( (string) ( $summary['removed_upcoming'] ?? '' ) )
+		);
+
+		if ( function_exists( 'update_option' ) ) {
+			update_option( self::OPTION, $summary, false );
+		}
+
+		return $summary;
+	}
+
+	/**
 	 * Remember that the current user dismissed this notice id.
 	 *
 	 * The option stays, so other administrators still see it. The id must
@@ -316,6 +339,10 @@ class VisibilityRemovalNotice {
 		if ( ! is_array( $summary ) ) {
 			return;
 		}
+
+		// A pre-release build stored the summary with no id, so neither the
+		// X button nor the Dismiss link could match it.
+		$summary = self::ensure_notice_id( $summary );
 
 		if ( self::is_dismissed_by( $summary ) ) {
 			return;

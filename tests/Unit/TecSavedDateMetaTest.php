@@ -279,12 +279,16 @@ class TecSavedDateMetaTest extends TestCase {
 		$this->meta['_EventEndDate']      = '2026-07-15 12:30:00';
 		$this->meta['_EventStartDateUTC'] = '2026-07-15 18:00:00';
 		$this->meta['_EventEndDateUTC']   = '2026-07-15 19:30:00';
+		$this->meta['_EventAllDay']       = 'yes';
+		$this->meta['_EventTimezone']     = 'America/Chicago';
 
 		$item = array(
 			'post_title'     => 'Kept',
 			'post_content'   => 'Body',
 			'EventStartDate' => '',
 			'EventEndDate'   => '',
+			'EventAllDay'    => false,
+			'EventTimezone'  => 'America/New_York',
 		);
 
 		$args = TEC::legacy_update_args( $item );
@@ -297,6 +301,8 @@ class TecSavedDateMetaTest extends TestCase {
 		$this->assertSame( '2026-07-15 12:30:00', $this->meta['_EventEndDate'] );
 		$this->assertSame( '2026-07-15 18:00:00', $this->meta['_EventStartDateUTC'] );
 		$this->assertSame( '2026-07-15 19:30:00', $this->meta['_EventEndDateUTC'] );
+		$this->assertSame( 'yes', $this->meta['_EventAllDay'] );
+		$this->assertSame( 'America/Chicago', $this->meta['_EventTimezone'] );
 	}
 
 	public function test_timed_event_deletes_all_day_meta() {

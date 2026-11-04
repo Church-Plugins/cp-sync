@@ -16,6 +16,7 @@ use CP_Sync\Events\EventStore;
 use CP_Sync\Events\EventSync;
 use CP_Sync\Events\PostTypes;
 use CP_Sync\Events\TecEventMapper;
+use CP_Sync\Events\VisibilityRemovalNotice;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -285,6 +286,91 @@ class EventSyncTest extends TestCase {
 		$this->assertSame( 'publish', $this->event_by_occurrence( $store, 'd1' )['status'] );
 		$this->assertSame( 'publish', $this->event_by_occurrence( $store, 'd2' )['status'] );
 		$this->assertTrue( $this->series_archive_lists_published_series() );
+	}
+
+	public function test_native_import_publishes_skipped_removals() {
+		VisibilityRemovalNotice::reset();
+		VisibilityRemovalNotice::record_skip( 'future' );
+		$stored = null;
+
+		Functions\when( 'update_option' )->alias(
+			static function ( $key, $value ) use ( &$stored ) {
+				$stored = array( $key, $value );
+
+				return true;
+			}
+		);
+
+		$store = new MemoryEventStore();
+		$now   = '2026-08-01 12:00:00';
+
+		EventSync::sync(
+			array(
+				$this->pco( 'future', 'event-9', '2026-09-01 15:00:00', '2026-09-01 16:00:00' ),
+				$this->pco( 'keep', 'event-2', '2026-09-02 15:00:00', '2026-09-02 16:00:00' ),
+			),
+			$store,
+			$now,
+			'UTC'
+		);
+
+		Display::import_neutral(
+			array( $this->pco( 'keep', 'event-2', '2026-09-02 15:00:00', '2026-09-02 16:00:00' ) ),
+			$store,
+			$now
+		);
+
+		$this->assertSame( VisibilityRemovalNotice::OPTION, $stored[0] );
+		$this->assertSame( 1, $stored[1]['removed_upcoming'] );
+		$this->assertSame( 1, $stored[1]['skipped'] );
+		VisibilityRemovalNotice::reset();
+	}
+
+	public function test_a_new_date_is_not_linked_to_a_trashed_series() {
+		$store = new MemoryEventStore();
+		$now   = '2026-07-01 00:00:00';
+
+		EventSync::sync(
+			array(
+				$this->pco( 'a', 'event-9', '2026-08-01 15:00:00', '2026-08-01 16:00:00' ),
+				$this->pco( 'b', 'event-9', '2026-08-08 15:00:00', '2026-08-08 16:00:00' ),
+			),
+			$store,
+			$now,
+			'UTC'
+		);
+		$series_id = (int) $store->series()[0]['post_id'];
+
+		EventSync::sync(
+			array( $this->pco( 'c', 'event-9', '2026-09-01 15:00:00', '2026-09-01 16:00:00' ) ),
+			$store,
+			$now,
+			'UTC'
+		);
+
+		$this->assertSame( 'trash', $store->series()[0]['status'] );
+		$this->assertSame( 0, (int) $this->event_by_occurrence( $store, 'c' )['series_post_id'] );
+		$this->assertNotSame( $series_id, (int) $this->event_by_occurrence( $store, 'c' )['series_post_id'] );
+
+		$already = new MemoryEventStore();
+		$already->series[5] = array(
+			'post_id'    => 5,
+			'series_key' => 'pco|event-9',
+			'provider'   => 'pco',
+			'status'     => 'trash',
+			'locked'     => false,
+			'title'      => 'Old',
+		);
+
+		EventSync::sync(
+			array( $this->pco( 'c2', 'event-9', '2026-09-01 15:00:00', '2026-09-01 16:00:00' ) ),
+			$already,
+			$now,
+			'UTC'
+		);
+
+		$this->assertSame( 'trash', $already->series()[0]['status'] );
+		$this->assertSame( 0, (int) $this->event_by_occurrence( $already, 'c2' )['series_post_id'] );
 	}
 
 	public function test_a_single_date_creates_no_series() {

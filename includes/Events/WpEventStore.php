@@ -119,14 +119,8 @@ class WpEventStore implements EventStore {
 		);
 		$rows = array();
 
-		if ( is_array( $ids ) && ! empty( $ids ) ) {
-			if ( function_exists( 'update_meta_cache' ) ) {
-				update_meta_cache( 'post', $ids );
-			}
-
-			if ( function_exists( '_prime_post_caches' ) ) {
-				_prime_post_caches( $ids );
-			}
+		if ( is_array( $ids ) && ! empty( $ids ) && function_exists( 'update_meta_cache' ) ) {
+			update_meta_cache( 'post', $ids );
 		}
 
 		foreach ( $ids as $post_id ) {
@@ -142,6 +136,7 @@ class WpEventStore implements EventStore {
 				$row['series_key'] = (string) get_post_meta( $post_id, Meta::SERIES_KEY, true );
 			} else {
 				$row['occurrence_id']  = (string) get_post_meta( $post_id, Meta::OCCURRENCE_ID, true );
+				$row['source_id']      = (string) get_post_meta( $post_id, Meta::SOURCE_ID, true );
 				$row['start_utc']      = (string) get_post_meta( $post_id, Meta::START_UTC, true );
 				$row['end_utc']        = (string) get_post_meta( $post_id, Meta::END_UTC, true );
 				$row['series_post_id'] = (int) get_post_meta( $post_id, Meta::SERIES_ID, true );

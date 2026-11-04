@@ -53,11 +53,12 @@ class EventSync {
 			self::log( 'Skipping event display sync: the feed was empty while events are already stored.' );
 
 			return array(
-				'skipped'         => true,
-				'events'          => 0,
-				'series'          => 0,
-				'trashed_events'  => 0,
-				'trashed_series'  => 0,
+				'skipped'            => true,
+				'events'             => 0,
+				'series'             => 0,
+				'trashed_events'     => 0,
+				'trashed_series'     => 0,
+				'removed_source_ids' => array(),
 			);
 		}
 
@@ -68,8 +69,9 @@ class EventSync {
 		$series_by_key    = array();
 		$events_by_key    = array();
 		$seen             = array();
-		$trashed_events   = 0;
-		$trashed_series   = 0;
+		$trashed_events      = 0;
+		$trashed_series      = 0;
+		$removed_source_ids  = array();
 
 		foreach ( $normalized as $row ) {
 			$providers[ $row['provider'] ] = true;
@@ -127,6 +129,9 @@ class EventSync {
 			}
 
 			$store->trash_series( $row['post_id'] );
+			if ( isset( $series_by_key[ $key ] ) ) {
+				$series_by_key[ $key ]['status'] = 'trash';
+			}
 			$trashed_series++;
 		}
 
@@ -147,7 +152,9 @@ class EventSync {
 
 			if ( '' !== $record['series_key'] && isset( $series_post_ids[ $record['series_key'] ] ) ) {
 				$record['series_post_id'] = (int) $series_post_ids[ $record['series_key'] ];
-			} elseif ( '' !== $record['series_key'] && isset( $series_by_key[ $record['series_key'] ] ) ) {
+			} elseif ( '' !== $record['series_key'] && isset( $series_by_key[ $record['series_key'] ] ) && 'trash' !== ( $series_by_key[ $record['series_key'] ]['status'] ?? '' ) ) {
+				// A trashed series, including one trashed earlier in this run,
+				// must not become _cp_series_id on a new date.
 				$record['series_post_id'] = (int) $series_by_key[ $record['series_key'] ]['post_id'];
 			}
 
@@ -184,15 +191,21 @@ class EventSync {
 			if ( '' === $end || strcmp( $end, (string) $now_utc ) >= 0 ) {
 				$store->trash_event( $row['post_id'] );
 				$trashed_events++;
+				$source = isset( $row['source_id'] ) ? trim( (string) $row['source_id'] ) : '';
+
+				if ( '' !== $source ) {
+					$removed_source_ids[] = $source;
+				}
 			}
 		}
 
 		return array(
-			'skipped'        => false,
-			'events'         => count( $grouped['events'] ),
-			'series'         => count( $grouped['series'] ),
-			'trashed_events' => $trashed_events,
-			'trashed_series' => $trashed_series,
+			'skipped'            => false,
+			'events'             => count( $grouped['events'] ),
+			'series'             => count( $grouped['series'] ),
+			'trashed_events'     => $trashed_events,
+			'trashed_series'     => $trashed_series,
+			'removed_source_ids' => $removed_source_ids,
 		);
 	}
 

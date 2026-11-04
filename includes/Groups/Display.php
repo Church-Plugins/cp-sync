@@ -385,7 +385,9 @@ class Display {
 			return '<div class="cp-sync-groups__placeholder" aria-hidden="true"></div>';
 		}
 
-		return '<img class="cp-sync-groups__image" src="' . $src . '" alt="' . esc_attr( $alt ) . '" />';
+		$alt = self::protect_block_template_html( esc_attr( $alt ), true );
+
+		return '<img class="cp-sync-groups__image" src="' . $src . '" alt="' . $alt . '" />';
 	}
 
 	/**
@@ -497,7 +499,7 @@ class Display {
 			return '';
 		}
 
-		$href = esc_url( $action['url'] );
+		$href = self::protect_block_template_html( esc_url( $action['url'] ), true );
 
 		if ( '' === $href ) {
 			return '';
@@ -616,11 +618,18 @@ class Display {
 	 * get_the_block_template_html() runs autoembed, do_shortcode, and
 	 * do_blocks on this string. Script and style tags are left unchanged.
 	 *
-	 * @param string $html Rendered template HTML.
+	 * @param string $html       Rendered template HTML, or one attribute value.
+	 * @param bool   $attribute True for an attribute value. Autoembed wrapping
+	 *                          would turn a registration URL into a span.
 	 * @return string
 	 */
-	public static function protect_block_template_html( $html ) {
-		$html  = (string) $html;
+	public static function protect_block_template_html( $html, $attribute = false ) {
+		$html = (string) $html;
+
+		if ( $attribute ) {
+			return self::neutralize_shortcodes( $html );
+		}
+
 		$parts = preg_split( '#(<script\b[^>]*>.*?</script>|<style\b[^>]*>.*?</style>)#is', $html, -1, PREG_SPLIT_DELIM_CAPTURE );
 
 		if ( ! is_array( $parts ) ) {

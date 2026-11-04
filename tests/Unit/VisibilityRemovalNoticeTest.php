@@ -23,6 +23,9 @@ class VisibilityRemovalNoticeTest extends TestCase {
 		Functions\when( '__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
 		Functions\when( 'esc_attr' )->returnArg( 1 );
+		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'get_current_user_id' )->justReturn( 0 );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
 		VisibilityRemovalNotice::reset();
 	}
 
@@ -234,6 +237,92 @@ class VisibilityRemovalNoticeTest extends TestCase {
 		$this->assertSame( 3, $stored[1]['skipped'] );
 		$this->assertSame( 2, $stored[1]['removed_upcoming'] );
 		$this->assertNotSame( '', $stored[1]['id'] );
+	}
+
+	public function test_a_notice_without_an_id_can_be_dismissed() {
+		$option       = array(
+			'skipped'          => 2,
+			'removed_upcoming' => 1,
+		);
+		$meta         = array();
+		$current_user = 4;
+
+		Functions\when( 'get_option' )->alias(
+			static function () use ( &$option ) {
+				return $option;
+			}
+		);
+		Functions\when( 'update_option' )->alias(
+			static function ( $key, $value ) use ( &$option ) {
+				if ( VisibilityRemovalNotice::OPTION === $key ) {
+					$option = $value;
+				}
+
+				return true;
+			}
+		);
+		Functions\when( 'get_current_user_id' )->alias(
+			static function () use ( &$current_user ) {
+				return $current_user;
+			}
+		);
+		Functions\when( 'update_user_meta' )->alias(
+			static function ( $user_id, $key, $value ) use ( &$meta ) {
+				$meta[ $user_id ][ $key ] = $value;
+
+				return true;
+			}
+		);
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( $user_id, $key ) use ( &$meta ) {
+				return $meta[ $user_id ][ $key ] ?? '';
+			}
+		);
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'wp_unslash' )->returnArg( 1 );
+		Functions\when( 'sanitize_text_field' )->returnArg( 1 );
+		Functions\when( 'wp_verify_nonce' )->justReturn( true );
+		Functions\when( 'add_query_arg' )->alias(
+			static function ( $key, $value, $url = '' ) {
+				$base = is_string( $url ) && '' !== $url ? $url : 'https://example.test/wp-admin/';
+				$join = false === strpos( $base, '?' ) ? '?' : '&';
+
+				return $base . $join . $key . '=' . $value;
+			}
+		);
+		Functions\when( 'wp_nonce_url' )->returnArg( 1 );
+		Functions\when( 'esc_url' )->returnArg( 1 );
+
+		ob_start();
+		VisibilityRemovalNotice::render();
+		$html = ob_get_clean();
+
+		$this->assertArrayHasKey( 'id', $option );
+		$this->assertNotSame( '', $option['id'] );
+		$this->assertStringContainsString( 'is-dismissible', $html );
+		$this->assertStringContainsString( $option['id'], $html );
+
+		$_GET[ VisibilityRemovalNotice::DISMISS_QUERY ]   = '1';
+		$_GET[ VisibilityRemovalNotice::NOTICE_ID_QUERY ] = $option['id'];
+		$_GET['_wpnonce']                                 = 'good';
+		VisibilityRemovalNotice::maybe_dismiss();
+
+		$this->assertSame( $option['id'], $meta[4][ VisibilityRemovalNotice::USER_META ] );
+
+		ob_start();
+		VisibilityRemovalNotice::render();
+		$this->assertSame( '', ob_get_clean() );
+
+		$current_user = 5;
+		ob_start();
+		VisibilityRemovalNotice::render();
+		$this->assertStringContainsString( 'is-dismissible', ob_get_clean() );
+
+		unset(
+			$_GET[ VisibilityRemovalNotice::DISMISS_QUERY ],
+			$_GET[ VisibilityRemovalNotice::NOTICE_ID_QUERY ],
+			$_GET['_wpnonce']
+		);
 	}
 
 	public function test_render_includes_a_nonce_dismiss_link_for_admins() {

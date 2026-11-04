@@ -160,19 +160,13 @@ class Display {
 	 * @return array
 	 */
 	public static function rest_global_settings() {
-		$settings = function_exists( 'get_option' ) ? get_option( 'cp_sync_settings', array() ) : array();
-
-		if ( ! is_array( $settings ) ) {
-			$settings = array();
-		}
-
 		if ( ! function_exists( 'apply_filters' ) ) {
-			return self::fill_display_default( $settings );
+			$settings = function_exists( 'get_option' ) ? get_option( 'cp_sync_settings', array() ) : array();
+
+			return self::fill_display_default( is_array( $settings ) ? $settings : array() );
 		}
 
-		$filtered = apply_filters( 'cp_sync_global_settings', $settings );
-
-		return is_array( $filtered ) ? $filtered : self::fill_display_default( $settings );
+		return \CP_Sync\Admin\Settings::filtered_global_settings();
 	}
 
 	/**
@@ -205,9 +199,23 @@ class Display {
 	 * @param array $neutral_events Neutral event records.
 	 * @return true
 	 */
-	public static function import_neutral( array $neutral_events ) {
+	public static function import_neutral( array $neutral_events, $store = null, $now_utc = null ) {
+		if ( ! $store instanceof EventStore ) {
+			$store = new WpEventStore();
+		}
+
+		if ( ! is_string( $now_utc ) || '' === $now_utc ) {
+			$now_utc = gmdate( 'Y-m-d H:i:s' );
+		}
+
 		$timezone = EventTime::wordpress_timezone_name();
-		$summary  = EventSync::sync( $neutral_events, new WpEventStore(), gmdate( 'Y-m-d H:i:s' ), $timezone );
+		$summary  = EventSync::sync( $neutral_events, $store, $now_utc, $timezone );
+
+		$removed = ( isset( $summary['removed_source_ids'] ) && is_array( $summary['removed_source_ids'] ) )
+			? $summary['removed_source_ids']
+			: array();
+
+		VisibilityRemovalNotice::publish( VisibilityRemovalNotice::skipped_ids(), $removed );
 
 		if ( function_exists( 'cp_sync' ) ) {
 			$plugin = cp_sync();
@@ -485,7 +493,9 @@ class Display {
 	 * @return void
 	 */
 	protected static function ensure_rewrite_option_autoloads( $version ) {
-		if ( ! function_exists( 'wp_load_alloptions' ) || ! function_exists( 'add_option' ) || ! function_exists( 'delete_option' ) ) {
+		unset( $version );
+
+		if ( ! function_exists( 'wp_load_alloptions' ) ) {
 			return;
 		}
 
@@ -495,7 +505,27 @@ class Display {
 			return;
 		}
 
-		delete_option( self::REWRITE_OPTION );
-		add_option( self::REWRITE_OPTION, $version, '', true );
+		// One update of the autoload flag. Deleting the row first lets another
+		// request treat the marker as missing and flush permalinks.
+		if ( function_exists( 'wp_set_option_autoload' ) ) {
+			wp_set_option_autoload( self::REWRITE_OPTION, true );
+			return;
+		}
+
+		global $wpdb;
+
+		if ( ! isset( $wpdb ) || ! is_object( $wpdb ) || ! method_exists( $wpdb, 'update' ) || empty( $wpdb->options ) ) {
+			return;
+		}
+
+		$wpdb->update(
+			$wpdb->options,
+			array( 'autoload' => 'yes' ),
+			array( 'option_name' => self::REWRITE_OPTION )
+		);
+
+		if ( function_exists( 'wp_cache_delete' ) ) {
+			wp_cache_delete( 'alloptions', 'options' );
+		}
 	}
 }

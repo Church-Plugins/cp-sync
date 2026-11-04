@@ -106,6 +106,7 @@ class GroupsLiteTest extends TestCase {
 		$this->options[ Lite::REWRITE_STATE_OPTION ] = 'lite';
 
 		Lite::get_instance()->on_init( true );
+		Lite::get_instance()->run_rewrite_flush();
 
 		$this->assertNull( $this->registered_post_type );
 		$this->assertSame( [], $this->registered_taxes );
@@ -195,6 +196,7 @@ class GroupsLiteTest extends TestCase {
 		$this->options[ Lite::REWRITE_STATE_OPTION ] = 'lite';
 
 		Lite::get_instance()->on_init( false );
+		Lite::get_instance()->run_rewrite_flush();
 
 		$this->assertNull( $this->registered_post_type );
 		$this->assertSame( 'off', $this->options[ Lite::REWRITE_STATE_OPTION ] );
@@ -213,7 +215,9 @@ class GroupsLiteTest extends TestCase {
 		$lite = Lite::get_instance();
 
 		$lite->on_init( false );
+		$lite->run_rewrite_flush();
 		$lite->on_init( false );
+		$lite->run_rewrite_flush();
 
 		$this->assertSame( 'lite', $this->options[ Lite::REWRITE_STATE_OPTION ] );
 		$this->assertSame( 1, $this->flushes );
@@ -541,8 +545,11 @@ class GroupsLiteTest extends TestCase {
 	public function test_group_description_is_not_run_as_a_shortcode_or_embed() {
 		$html = Display::render_group(
 			[
-				'title'   => 'Youth',
-				'content' => "[gallery ids=\"1\"]\nhttps://youtu.be/abc123\n<p>https://vimeo.com/42</p>",
+				'title'            => '[contact-form-7 id="1"]',
+				'image'            => 'https://church.example/photo.jpg',
+				'registration_url' => 'https://church.example/register?form=[contact-form-7]',
+				'permalink'        => 'https://church.example/groups/youth',
+				'content'          => "[gallery ids=\"1\"]\nhttps://youtu.be/abc123\n<p>https://vimeo.com/42</p>",
 			],
 			[
 				'summary' => false,
@@ -552,6 +559,10 @@ class GroupsLiteTest extends TestCase {
 
 		$this->assertStringContainsString( '&#91;gallery ids="1"]', $html );
 		$this->assertStringNotContainsString( '[gallery', $html );
+		$this->assertStringContainsString( 'alt="&#91;contact-form-7 id=&quot;1&quot;]"', $html );
+		$this->assertStringNotContainsString( 'alt="[contact-form-7', $html );
+		$this->assertStringContainsString( 'href="https://church.example/register?form=&#91;contact-form-7]"', $html );
+		$this->assertStringNotContainsString( 'form=[contact-form-7', $html );
 		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://youtu.be/abc123</span>', $html );
 		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://vimeo.com/42</span>', $html );
 
