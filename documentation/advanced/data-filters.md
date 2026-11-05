@@ -50,7 +50,9 @@ Each filter named above — **Groups**, **Calendar Filters**, **Registration Fil
 
 ## When an item stops matching
 
-If a synced item no longer matches your filter, it is removed from your site. If it matches again on a later sync, it is added back as a new item. The same happens with an item you permanently deleted in WordPress. Items still on your site are updated in place. With The Events Calendar, hidden or unapproved Planning Center events go to the Trash instead, and the same event comes back when it is shown again.
+If a synced item no longer matches your filter, it is permanently deleted from your site. If it matches again on a later sync, it is added back as a new item. The same happens with an item you permanently deleted in WordPress. Items still on your site are updated in place.
+
+This is different from Planning Center events that are hidden or not approved. With The Events Calendar, those go to the Trash instead, and the same event comes back when it is shown again. See the Planning Center page for details.
 
 ## Troubleshooting Filters
 
