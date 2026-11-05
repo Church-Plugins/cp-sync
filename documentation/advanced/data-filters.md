@@ -46,6 +46,11 @@ Each filter named above — **Groups**, **Calendar Filters**, **Registration Fil
 - Only import events that start before a date you pick (**Start Date** **Is Less Than**)
 - Exclude events with "Private" or "Staff Only" in the title
 - Only import events of a certain **Event Type** or **Ministry Area** (CCB)
+- Leave out registrations in a category you pick (Planning Center Registration Filters: **Category** **Is Not**). Registrations with no category are still included.
+
+## When an item stops matching
+
+If a synced item no longer matches your filter, it is removed from your site. If it matches again on a later sync, it is added back as a new item. The same happens with an item you permanently deleted in WordPress. Items still on your site are updated in place. With The Events Calendar, hidden or unapproved Planning Center events go to the Trash instead, and the same event comes back when it is shown again.
 
 ## Troubleshooting Filters
 
