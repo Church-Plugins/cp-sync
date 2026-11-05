@@ -46,7 +46,11 @@ Each filter named above — **Groups**, **Calendar Filters**, **Registration Fil
 - Only import events that start before a date you pick (**Start Date** **Is Less Than**)
 - Exclude events with "Private" or "Staff Only" in the title
 - Only import events of a certain **Event Type** or **Ministry Area** (CCB)
-- Leave out registrations in a category you pick (Planning Center Registration Filters: **Category** **Is Not**). Registrations with no category are still included.
+- Leave out registrations in a category you pick (Planning Center Registration Filters: **Category** **Is Not**). A registration with no category does not match, so it is left out.
+
+## When a filter field has no related record
+
+If an item has no related record for a filter field (for example, a registration with no category or no signup time), it doesn't match that filter for any comparison, including **Is Empty** and **Is Not**. Those items are left out of the sync when that filter is used.
 
 ## When an item stops matching
 
