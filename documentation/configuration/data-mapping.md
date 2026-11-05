@@ -80,7 +80,7 @@ Set **Event source** to **Pull from Registrations** or **Calendar AND Registrati
 |-----------------|---------------------|
 | Name | Event title |
 | Description | Event page body |
-| First signup time (start and end) | Event start and end |
+| Next upcoming signup time (start and end). When every time is in the past, the most recent past time. | Event start and end |
 | Signup location | Venue |
 | Logo | Featured image |
 | Categories | Event categories |

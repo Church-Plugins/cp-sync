@@ -27,6 +27,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public $settings_key = 'cp_sync_pco_settings';
 
 	/**
+	 * Signup key stamped with the SignupTime id that registration date filters
+	 * and the import both use.
+	 */
+	const SELECTED_SIGNUP_TIME_ID = '_cp_sync_selected_signup_time_id';
+
+	/**
 	 * Setup
 	 */
 	public function setup() {
@@ -2082,21 +2088,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$filter_settings = $this->get_setting( 'registration_filter', [], 'ecp' );
 		cp_sync()->logging->log( sprintf( 'Filter settings: type=%s, conditions=%d', $filter_settings['type'] ?? 'all', count( $filter_settings['conditions'] ?? [] ) ) );
 
-		$filter_type = $filter_settings['type'] ?? 'all';
-		$conditions  = $filter_settings['conditions'] ?? [];
+		$items = $this->apply_registration_filter( $items, $relational_data, is_array( $filter_settings ) ? $filter_settings : [] );
 
-		$filter = new \CP_Sync\Setup\DataFilter(
-			$filter_type,
-			$conditions,
-			$this->get_registration_filter_config(),
-			$relational_data
-		);
-
-		$error = $filter->apply( $items ); // Apply the filter to the items
-
-		if ( is_wp_error( $error ) ) {
-			cp_sync()->logging->log( 'Registration filter FAILED: ' . $error->get_error_message() );
-			return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+		if ( is_wp_error( $items ) ) {
+			cp_sync()->logging->log( 'Registration filter FAILED: ' . $items->get_error_message() );
+			return new ChMSError( 'pco_filter_error', $items->get_error_message() );
 		}
 
 		// Log filtering results
@@ -2305,11 +2301,196 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * Filter registration signups on the signup time the import will use.
+	 *
+	 * Each signup is stamped with select_registration_signup_time_id() first.
+	 * Start Date and End Date read that id. A signup with no usable time is
+	 * left unstamped; a date filter then depends on DataFilter's missing-relation
+	 * behavior (issue #72).
+	 *
+	 * @param array    $items            Signup resources.
+	 * @param array    $relational_data  Included records keyed by type, then id.
+	 * @param array    $filter_settings  registration_filter value: type and conditions.
+	 * @param int|null $now              Unix timestamp for "upcoming". Null uses time().
+	 * @return array|\WP_Error Filtered signups, or the filter error.
+	 */
+	public function apply_registration_filter( array $items, array $relational_data, array $filter_settings, $now = null ) {
+		$items = self::annotate_registration_signup_times( $items, $relational_data, $now );
+
+		$filter = new \CP_Sync\Setup\DataFilter(
+			$filter_settings['type'] ?? 'all',
+			$filter_settings['conditions'] ?? [],
+			$this->get_registration_filter_config(),
+			$relational_data
+		);
+
+		$error = $filter->apply( $items );
+
+		if ( is_wp_error( $error ) ) {
+			return $error;
+		}
+
+		return $items;
+	}
+
+	/**
+	 * Stamp each signup with the SignupTime id the date filters and the import share.
+	 *
+	 * Signups with no usable time are returned unchanged.
+	 *
+	 * @param array    $items           Signup resources.
+	 * @param array    $relational_data Included records keyed by type, then id.
+	 * @param int|null $now             Unix timestamp. Null uses time().
+	 * @return array
+	 */
+	public static function annotate_registration_signup_times( array $items, array $relational_data, $now = null ) {
+		$annotated = [];
+
+		foreach ( $items as $item ) {
+			if ( ! is_array( $item ) ) {
+				$annotated[] = $item;
+				continue;
+			}
+
+			$id = self::select_registration_signup_time_id( $item, $relational_data, $now );
+			if ( null !== $id ) {
+				$item[ self::SELECTED_SIGNUP_TIME_ID ] = $id;
+			}
+
+			$annotated[] = $item;
+		}
+
+		return $annotated;
+	}
+
+	/**
+	 * Signup time used for registration date filters and import.
+	 *
+	 * Next upcoming time: the earliest starts_at that is >= $now. API order is
+	 * ignored. When every usable time is in the past, the most recent one
+	 * (latest starts_at before $now). Equal starts_at values keep the earlier
+	 * entry in the signup's signup_times list. A time that starts at exactly
+	 * $now is upcoming.
+	 *
+	 * @param array    $signup          Signup resource.
+	 * @param array    $relational_data Included records keyed by type, then id.
+	 * @param int|null $now             Unix timestamp. Null uses time().
+	 * @return string|int|null SignupTime id, or null when none have a parseable starts_at.
+	 */
+	public static function select_registration_signup_time_id( $signup, $relational_data, $now = null ) {
+		if ( ! is_array( $signup ) || ! is_array( $relational_data ) ) {
+			return null;
+		}
+
+		$now   = null === $now ? time() : (int) $now;
+		$links = $signup['relationships']['signup_times']['data'] ?? [];
+
+		if ( ! is_array( $links ) ) {
+			return null;
+		}
+
+		// A to-one object instead of a list.
+		if ( isset( $links['id'] ) ) {
+			$links = [ $links ];
+		}
+
+		$upcoming = [];
+		$past     = [];
+
+		foreach ( $links as $index => $link ) {
+			if ( ! is_array( $link ) || ! self::is_signup_time_id( $link['id'] ?? null ) ) {
+				continue;
+			}
+
+			$id     = $link['id'];
+			$record = $relational_data['SignupTime'][ $id ] ?? null;
+			if ( ! is_array( $record ) ) {
+				continue;
+			}
+
+			$starts = $record['attributes']['starts_at'] ?? '';
+			$utc    = \CP_Sync\Events\EventTime::to_utc( is_string( $starts ) ? $starts : '' );
+			if ( null === $utc ) {
+				continue;
+			}
+
+			$candidate = [
+				'id'    => $id,
+				'ts'    => $utc->getTimestamp(),
+				'index' => (int) $index,
+			];
+
+			if ( $candidate['ts'] >= $now ) {
+				$upcoming[] = $candidate;
+			} else {
+				$past[] = $candidate;
+			}
+		}
+
+		$chosen = self::pick_signup_time( $upcoming, false );
+		if ( null !== $chosen ) {
+			return $chosen;
+		}
+
+		return self::pick_signup_time( $past, true );
+	}
+
+	/**
+	 * Whether $id can be a SignupTime id.
+	 *
+	 * @param mixed $id Candidate id.
+	 * @return bool
+	 */
+	private static function is_signup_time_id( $id ) {
+		if ( is_int( $id ) ) {
+			return true;
+		}
+
+		return is_string( $id ) && '' !== $id;
+	}
+
+	/**
+	 * Id of the earliest candidate, or the latest when $latest is true.
+	 *
+	 * Ties keep the earlier list index.
+	 *
+	 * @param array $candidates Rows of id, ts, and index.
+	 * @param bool  $latest     True to pick the greatest timestamp.
+	 * @return string|int|null
+	 */
+	private static function pick_signup_time( array $candidates, $latest ) {
+		if ( empty( $candidates ) ) {
+			return null;
+		}
+
+		usort(
+			$candidates,
+			static function ( $a, $b ) use ( $latest ) {
+				if ( $a['ts'] === $b['ts'] ) {
+					return $a['index'] <=> $b['index'];
+				}
+
+				$cmp = $a['ts'] <=> $b['ts'];
+
+				return $latest ? -$cmp : $cmp;
+			}
+		);
+
+		return $candidates[0]['id'];
+	}
+
+	/**
 	 * Build the provider-neutral record for one Planning Center signup.
 	 *
 	 * Registrations are not calendar events: there is no series id, and the
 	 * signup URL stays on registration_url rather than the TEC website field.
 	 * Church Center visibility and approval apply to calendar Events only.
+	 *
+	 * The date is select_registration_signup_time_id(): the next upcoming
+	 * signup time, or the most recent past time when none are upcoming. A stamp
+	 * from apply_registration_filter() wins so the filter and the import use
+	 * the same time. Context key `now` (unix timestamp) overrides the clock
+	 * when nothing was stamped.
 	 *
 	 * @param array $signup  The signup to format.
 	 * @param array $context Relational data.
@@ -2318,19 +2499,33 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public function to_neutral_registration_event( $signup, $context ) {
 		$relational_data = $context['relational_data'];
 
-		// Dates live on the related SignupTime rows; use the first one. Without a
-		// usable start/end there is nothing to import as a dated event.
-		$time_ids = wp_list_pluck( $signup['relationships']['signup_times']['data'] ?? [], 'id' );
-		$time_id  = current( $time_ids );
+		// Dates live on the related SignupTime rows. Without a usable start/end
+		// there is nothing to import as a dated event.
+		$time_id = $signup[ self::SELECTED_SIGNUP_TIME_ID ] ?? null;
+		if ( ! self::is_signup_time_id( $time_id ) ) {
+			$now     = is_array( $context ) ? ( $context['now'] ?? null ) : null;
+			$time_id = self::select_registration_signup_time_id(
+				$signup,
+				is_array( $relational_data ) ? $relational_data : [],
+				$now
+			);
+		}
 
-		if ( empty( $time_id ) ) {
+		if ( ! self::is_signup_time_id( $time_id ) ) {
 			// e.g. an "ongoing" registration — no scheduled dates, so it cannot become
 			// a dated event. Log it so the fetched-vs-processed counts add up.
+			$time_links = $signup['relationships']['signup_times']['data'] ?? [];
+			if ( is_array( $time_links ) && isset( $time_links['id'] ) ) {
+				$time_links = [ $time_links ];
+			}
 			cp_sync()->logging->log(
 				sprintf(
-					'Skipping signup %s (%s): no scheduled dates (signup_times is empty)',
+					'Skipping signup %s (%s): %s',
 					$signup['id'] ?? '?',
-					$signup['attributes']['name'] ?? 'unnamed'
+					$signup['attributes']['name'] ?? 'unnamed',
+					( is_array( $time_links ) && count( $time_links ) > 0 )
+						? 'no signup time with a usable start'
+						: 'no scheduled dates (signup_times is empty)'
 				)
 			);
 			return false;
@@ -2954,14 +3149,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public function get_registration_filter_config() {
 		return [
 			// Signup has no date attributes of its own; the dates live on the related
-			// SignupTime rows. DataFilter's relation lookup resolves a single related
-			// id, so we point at the FIRST signup_time (`...data.0.id`) and read its
-			// starts_at/ends_at. Signups with multiple times are filtered on their
-			// first occurrence — a documented, pragmatic limitation of the single-id
-			// relation mechanism (see review notes / needs live verification).
+			// SignupTime rows. apply_registration_filter() stamps the selected time
+			// (next upcoming starts_at, else the most recent past time) and both
+			// rules read that id, which is the time the import uses too.
 			'start_date' => [
 				'label'         => __( 'Start Date', 'cp-sync' ),
-				'path'          => 'relationships.signup_times.data.0.id',
+				'path'          => self::SELECTED_SIGNUP_TIME_ID,
 				'relation'      => 'SignupTime',
 				'relation_path' => 'attributes.starts_at',
 				'type'          => 'date',
@@ -2969,7 +3162,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			],
 			'end_date' => [
 				'label'         => __( 'End Date', 'cp-sync' ),
-				'path'          => 'relationships.signup_times.data.0.id',
+				'path'          => self::SELECTED_SIGNUP_TIME_ID,
 				'relation'      => 'SignupTime',
 				'relation_path' => 'attributes.ends_at',
 				'type'          => 'date',

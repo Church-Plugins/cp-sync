@@ -22,6 +22,7 @@
 	},
 	"files": [
 		"assets/images/**",
+		"assets/css/**",
 		"includes/**",
 		"templates/**",
 		"vendor/**",
