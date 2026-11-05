@@ -195,10 +195,20 @@ class Reset {
 		$summary = [
 			'queue'   => $this->clear_queue(),
 			'options' => [],
+			'caches'  => 0,
 		];
 
 		foreach ( self::state_option_prefixes() as $prefix ) {
 			$summary['options'][ $prefix . '%' ] = $this->delete_options_like( $prefix );
+		}
+
+		foreach ( $this->get_integrations() as $integration ) {
+			if ( ! is_object( $integration ) || empty( $integration->id ) || ! method_exists( $integration, 'flush_chms_id_cache' ) ) {
+				continue;
+			}
+
+			$integration->flush_chms_id_cache();
+			$summary['caches']++;
 		}
 
 		return $summary;

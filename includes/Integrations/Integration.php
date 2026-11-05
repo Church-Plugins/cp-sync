@@ -18,6 +18,22 @@ abstract class Integration extends \WP_Background_Process {
 	const LOCK_META_KEY = '_cp_sync_lock';
 
 	/**
+	 * Set on a post this plugin moved to the Trash, so a later sync can bring it back.
+	 *
+	 * A post an admin trashed by hand does not have this marker and is left alone.
+	 *
+	 * @var string
+	 */
+	const TRASHED_META_KEY = '_cp_sync_trashed';
+
+	/**
+	 * Status the post had before this plugin trashed it.
+	 *
+	 * @var string
+	 */
+	const TRASHED_STATUS_META_KEY = '_cp_sync_trashed_status';
+
+	/**
 	 * @var | Unique ID for this integration
 	 */
 	public $id;
@@ -73,6 +89,7 @@ abstract class Integration extends \WP_Background_Process {
 	 */
 	public function actions() {
 		add_action( 'init', [ $this, 'load_taxonomies' ] );
+		add_action( 'untrashed_post', [ $this, 'clear_sync_trash_marker' ] );
 	}
 
 	/**
@@ -238,7 +255,14 @@ abstract class Integration extends \WP_Background_Process {
 			$should_remove = apply_filters( "cp_sync_{$this->type}_should_remove_item", true, $chms_id, $this );
 
 			if ( $should_remove ) {
-				$this->remove_item( $chms_id );
+				// Hidden or unapproved events stay in the Trash so showing them
+				// again restores the same post. Anything else ( removed at the
+				// source, or filtered out for another reason ) is deleted.
+				if ( $this->is_visibility_skip( $chms_id ) ) {
+					$this->trash_item( $chms_id );
+				} else {
+					$this->remove_item( $chms_id );
+				}
 				$removed_ids[] = $chms_id;
 			} else {
 				$preserved[ $chms_id ] = $hash;
@@ -411,6 +435,16 @@ abstract class Integration extends \WP_Background_Process {
 		$tax_input = $item['tax_input'] ?? [];
 
 		unset( $item['tax_input'] ); // child classes don't need access to this
+
+		// An admin moved this post to the Trash. The ChMS id still points at it,
+		// so creating another post would duplicate it. Leave the trashed post as it is.
+		if ( $this->is_admin_trashed( $chms_id ) ) {
+			cp_sync()->logging->log( "Skipping {$chms_id}: it is in the Trash and was not moved there by CP Sync, so this sync leaves it there." );
+			return false;
+		}
+
+		// A post this plugin trashed comes back at the status it had before.
+		$this->restore_trashed_item( $chms_id );
 
 		try {
 			$id = $this->update_item( $item );
@@ -800,11 +834,22 @@ abstract class Integration extends \WP_Background_Process {
 
 		$thumb_id = $this->sideload_image( $item, $id );
 
+		// A reused attachment whose file is gone must not be passed to
+		// set_post_thumbnail(). WordPress then deletes _thumbnail_id, so the
+		// new post is left with no image. Download a fresh copy instead.
+		if ( $thumb_id && ! is_wp_error( $thumb_id ) && ! $this->attachment_file_is_usable( $thumb_id ) ) {
+			delete_post_meta( (int) $thumb_id, '_cp_sync_normalized_url' );
+			$thumb_id = $this->sideload_image( $item, $id, true );
+		}
+
 		if ( is_wp_error( $thumb_id ) ) {
 			cp_sync()->logging->log( 'Could not import image: ' . $thumb_id->get_error_message() );
-		} else if ( $thumb_id ) {
-			set_post_thumbnail( $id, $thumb_id );
-			update_post_meta( $id, '_thumbnail_url', $thumbnail_url );
+		} else if ( $thumb_id && $this->attachment_file_is_usable( $thumb_id ) ) {
+			$set = set_post_thumbnail( $id, $thumb_id );
+
+			if ( $set && get_post_thumbnail_id( $id ) ) {
+				update_post_meta( $id, '_thumbnail_url', $thumbnail_url );
+			}
 		}
 	}
 
@@ -828,15 +873,55 @@ abstract class Integration extends \WP_Background_Process {
 			$normalized_url
 		) );
 
-		// Verify the attachment still exists
-		if ( $attachment_id && get_post( $attachment_id ) ) {
+		// Reuse only an attachment WordPress can still render. A missing post,
+		// or one with no image, must not be passed to set_post_thumbnail(),
+		// which clears the featured image in that case.
+		if ( $attachment_id && $this->attachment_file_is_usable( $attachment_id ) ) {
 			return (int) $attachment_id;
+		}
+
+		if ( $attachment_id ) {
+			delete_post_meta( (int) $attachment_id, '_cp_sync_normalized_url' );
 		}
 
 		return false;
 	}
 
-	public function sideload_image( $item, $id ) {
+	/**
+	 * Whether this attachment can still be used as a featured image.
+	 *
+	 * The post must exist and be an attachment, and wp_get_attachment_image_src()
+	 * must be non-empty. That is the same source set_post_thumbnail() uses when
+	 * it decides the image tag is real. A missing local file is not a reason to
+	 * discard the attachment: some hosts store the file elsewhere and filter the
+	 * image source to a URL.
+	 *
+	 * @param int $attachment_id Attachment post id.
+	 * @return bool
+	 */
+	protected function attachment_file_is_usable( $attachment_id ) {
+		$attachment_id = (int) $attachment_id;
+
+		if ( $attachment_id < 1 ) {
+			return false;
+		}
+
+		$post = get_post( $attachment_id );
+
+		if ( ! is_object( $post ) || 'attachment' !== ( $post->post_type ?? '' ) ) {
+			return false;
+		}
+
+		if ( ! function_exists( 'wp_get_attachment_image_src' ) ) {
+			return false;
+		}
+
+		$src = wp_get_attachment_image_src( $attachment_id, 'thumbnail' );
+
+		return ! empty( $src );
+	}
+
+	public function sideload_image( $item, $id, $ignore_existing = false ) {
 		require_once( ABSPATH . 'wp-admin/includes/media.php' );
 		require_once( ABSPATH . 'wp-admin/includes/file.php' );
 		require_once( ABSPATH . 'wp-admin/includes/image.php' );
@@ -844,10 +929,12 @@ abstract class Integration extends \WP_Background_Process {
 		$thumbnail_url = $item['thumbnail_url'];
 		$normalized_url = $this->normalize_thumbnail_url( $thumbnail_url );
 
-		// Check if we already have this image in the media library
-		$existing_attachment = $this->get_existing_attachment( $normalized_url );
-		if ( $existing_attachment ) {
-			return $existing_attachment;
+		// Check if we already have this image in the media library.
+		if ( ! $ignore_existing ) {
+			$existing_attachment = $this->get_existing_attachment( $normalized_url );
+			if ( $existing_attachment ) {
+				return $existing_attachment;
+			}
 		}
 
 		$file_name     = sanitize_title( $item['post_title'] ) . '-' . $id . '-' . md5( $normalized_url );
@@ -1101,6 +1188,10 @@ abstract class Integration extends \WP_Background_Process {
 	public function remove_item( $chms_id ) {
 		$id = $this->get_chms_item_id( $chms_id );
 
+		if ( empty( $id ) ) {
+			return;
+		}
+
 		// Only delete the image if nothing else is using it. Sideloaded attachments are
 		// deduplicated by source URL, so this one may equally be the featured image of
 		// another synced post — deleting it with this post would break that one.
@@ -1112,6 +1203,136 @@ abstract class Integration extends \WP_Background_Process {
 		}
 
 		wp_delete_post( $id, true );
+
+		unset( $this->chms_id_cache[ $chms_id ] );
+		wp_cache_set( 'chms_id_cache_' . $this->id, $this->chms_id_cache, 'cp_sync' );
+	}
+
+	/**
+	 * Move a hidden or unapproved event to the Trash.
+	 *
+	 * The featured image and its files stay attached. The ChMS id cache keeps
+	 * this post id so the next sync that includes the event can publish it again.
+	 *
+	 * @param string $chms_id ChMS id.
+	 * @return void
+	 */
+	public function trash_item( $chms_id ) {
+		$id = $this->get_chms_item_id( $chms_id );
+
+		if ( empty( $id ) || 'trash' === get_post_status( $id ) ) {
+			return;
+		}
+
+		$status = get_post_status( $id );
+		update_post_meta( $id, self::TRASHED_META_KEY, '1' );
+		update_post_meta( $id, self::TRASHED_STATUS_META_KEY, is_string( $status ) ? $status : 'publish' );
+		wp_trash_post( $id );
+	}
+
+	/**
+	 * Bring back a post this plugin trashed, at the status it had before.
+	 *
+	 * Posts an admin trashed by hand have no marker and are not touched.
+	 * Since WordPress 5.6, wp_untrash_post() restores a post to draft unless
+	 * wp_untrash_post_status says otherwise. The filter is added only for this
+	 * call and returns the status saved when CP Sync trashed the post.
+	 *
+	 * @param string $chms_id ChMS id.
+	 * @return void
+	 */
+	public function restore_trashed_item( $chms_id ) {
+		$post_id = $this->get_chms_item_id( $chms_id );
+
+		if ( empty( $post_id ) || 'trash' !== get_post_status( $post_id ) ) {
+			return;
+		}
+
+		if ( ! get_post_meta( $post_id, self::TRASHED_META_KEY, true ) ) {
+			return;
+		}
+
+		$restore_status = get_post_meta( $post_id, self::TRASHED_STATUS_META_KEY, true );
+		$filter         = static function ( $new_status, $untrash_id ) use ( $post_id, $restore_status ) {
+			if ( (int) $untrash_id !== (int) $post_id ) {
+				return $new_status;
+			}
+
+			if ( is_string( $restore_status ) && '' !== $restore_status ) {
+				return $restore_status;
+			}
+
+			return $new_status;
+		};
+
+		add_filter( 'wp_untrash_post_status', $filter, 10, 2 );
+		wp_untrash_post( $post_id );
+		remove_filter( 'wp_untrash_post_status', $filter, 10 );
+	}
+
+	/**
+	 * Drop the sync trash marker when a post leaves the Trash.
+	 *
+	 * An administrator can restore the post from the Trash screen. If the
+	 * marker stayed, trashing it again by hand would look like a sync trash
+	 * and the next sync would bring it back.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return void
+	 */
+	public function clear_sync_trash_marker( $post_id ) {
+		delete_post_meta( $post_id, self::TRASHED_META_KEY );
+		delete_post_meta( $post_id, self::TRASHED_STATUS_META_KEY );
+	}
+
+	/**
+	 * Whether an admin trashed this post, rather than a sync.
+	 *
+	 * @param string $chms_id ChMS id.
+	 * @return bool
+	 */
+	protected function is_admin_trashed( $chms_id ) {
+		$post_id = $this->get_chms_item_id( $chms_id );
+
+		if ( empty( $post_id ) || 'trash' !== get_post_status( $post_id ) ) {
+			return false;
+		}
+
+		return ! get_post_meta( $post_id, self::TRASHED_META_KEY, true );
+	}
+
+	/**
+	 * Whether this leftover was left out because it is hidden or not approved.
+	 *
+	 * Those ids are recorded while the feed is fetched. A post that disappeared
+	 * because it was removed at the source is not in that list.
+	 *
+	 * @param string $chms_id ChMS id.
+	 * @return bool
+	 */
+	protected function is_visibility_skip( $chms_id ) {
+		if ( 'events' !== $this->type ) {
+			return false;
+		}
+
+		$skipped = array_map( 'strval', \CP_Sync\Events\VisibilityRemovalNotice::skipped_ids() );
+
+		return in_array( (string) $chms_id, $skipped, true );
+	}
+
+	/**
+	 * Forget the in-memory and object-cache maps of ChMS id to post id.
+	 *
+	 * @return void
+	 */
+	public function flush_chms_id_cache() {
+		$this->chms_id_cache = null;
+
+		if ( empty( $this->id ) ) {
+			return;
+		}
+
+		wp_cache_delete( 'chms_id_cache_' . $this->id, 'cp_sync' );
 	}
 
 	/**
@@ -1164,7 +1385,52 @@ abstract class Integration extends \WP_Background_Process {
 	 */
 	public function get_chms_item_id( $chms_id ) {
 		$this->prime_cache();
-		return $this->chms_id_cache[ $chms_id ] ?? null;
+
+		if ( ! isset( $this->chms_id_cache[ $chms_id ] ) ) {
+			return null;
+		}
+
+		$post_id = $this->chms_id_cache[ $chms_id ];
+
+		// A trashed post still exists. Drop the id only when the post is gone,
+		// or when it is no longer a post of this integration. The event display
+		// restores a trashed post by this id, and a hidden TEC event does too.
+		if ( $this->cached_post_still_exists( $post_id ) ) {
+			return $post_id;
+		}
+
+		unset( $this->chms_id_cache[ $chms_id ] );
+		wp_cache_set( 'chms_id_cache_' . $this->id, $this->chms_id_cache, 'cp_sync' );
+
+		return null;
+	}
+
+	/**
+	 * Whether a cached post id still refers to a post of this integration.
+	 *
+	 * Trash counts as existing. A missing row does not.
+	 *
+	 * @param int $post_id Post id from the cache.
+	 * @return bool
+	 */
+	protected function cached_post_still_exists( $post_id ) {
+		$post_id = (int) $post_id;
+
+		if ( $post_id < 1 ) {
+			return false;
+		}
+
+		$post = get_post( $post_id );
+
+		if ( ! is_object( $post ) || empty( $post->ID ) ) {
+			return false;
+		}
+
+		if ( ! empty( $this->post_type ) && isset( $post->post_type ) && $this->post_type !== $post->post_type ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
