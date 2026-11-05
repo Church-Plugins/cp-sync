@@ -312,6 +312,68 @@ class ChmsIdCacheTest extends TestCase {
 		$this->assertStringContainsString( 'was not moved there by CP Sync', $logged );
 	}
 
+	public function test_admin_trashed_item_filtered_out_stays_in_the_trash_and_the_store() {
+		$integration = $this->integration();
+		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden' ), $this->item( 'kept', 'Kept' ) ) );
+		$original = $this->only_published( 'tribe_events', 'hidden' );
+
+		$this->world->trash_post( $original );
+		$integration->flush_chms_id_cache();
+		$integration->sync_feed( array( $this->item( 'kept', 'Kept' ) ) );
+
+		$this->assertSame( array( $original ), $this->ids_with_status( 'tribe_events', 'hidden', 'trash' ) );
+		$this->assertSame( array(), $this->ids_with_status( 'tribe_events', 'hidden', 'publish' ) );
+		$this->assertArrayHasKey( 'hidden', $integration->store );
+		$this->assertNotContains( 'wp_delete_post', $this->call_names() );
+	}
+
+	public function test_filtered_back_in_admin_trashed_item_stays_trashed_without_a_new_post() {
+		$integration = $this->integration();
+		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden' ), $this->item( 'kept', 'Kept' ) ) );
+		$original = $this->only_published( 'tribe_events', 'hidden' );
+
+		$this->world->trash_post( $original );
+		$integration->flush_chms_id_cache();
+		$integration->sync_feed( array( $this->item( 'kept', 'Kept' ) ) );
+		$integration->sync_feed( array( $this->item( 'hidden', 'Shown again' ), $this->item( 'kept', 'Kept' ) ) );
+
+		$this->assertSame( array( $original ), $this->ids_with_status( 'tribe_events', 'hidden', 'trash' ) );
+		$this->assertSame( array(), $this->ids_with_status( 'tribe_events', 'hidden', 'publish' ) );
+		$this->assertSame( 'Hidden', $this->world->posts[ $original ]['post_title'] );
+		$this->assertNotContains( 'wp_delete_post', $this->call_names() );
+		$this->assertNotContains( 'wp_untrash_post', $this->call_names() );
+		$this->assertNotContains( 'wp_publish_post', $this->call_names() );
+		$logged = implode( "\n", $this->world->logs );
+		$this->assertStringContainsString( 'was not moved there by CP Sync', $logged );
+	}
+
+	public function test_published_item_filtered_out_is_deleted_and_dropped_from_the_store() {
+		$integration = $this->integration();
+		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden' ), $this->item( 'kept', 'Kept' ) ) );
+		$original = $this->only_published( 'tribe_events', 'hidden' );
+
+		$integration->sync_feed( array( $this->item( 'kept', 'Kept' ) ) );
+
+		$this->assertArrayNotHasKey( $original, $this->world->posts );
+		$this->assertArrayNotHasKey( 'hidden', $integration->store );
+		$this->assertContains( 'wp_delete_post', $this->call_names() );
+	}
+
+	public function test_visibility_skip_filtered_out_is_trashed_not_deleted() {
+		$integration = $this->integration();
+		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden' ), $this->item( 'kept', 'Kept' ) ) );
+		$original = $this->only_published( 'tribe_events', 'hidden' );
+
+		VisibilityRemovalNotice::record_skip( 'hidden' );
+		$integration->sync_feed( array( $this->item( 'kept', 'Kept' ) ) );
+
+		$this->assertSame( 'trash', $this->world->posts[ $original ]['post_status'] );
+		$this->assertSame( '1', (string) $this->world->get_meta( $original, '_cp_sync_trashed' ) );
+		$this->assertArrayNotHasKey( 'hidden', $integration->store );
+		$this->assertNotContains( 'wp_delete_post', $this->call_names() );
+		$this->assertContains( 'wp_trash_post', $this->call_names() );
+	}
+
 	public function test_sync_trashed_draft_comes_back_as_a_draft() {
 		$integration = $this->integration();
 		$integration->sync_feed( array( $this->item( 'hidden', 'Hidden' ) ) );

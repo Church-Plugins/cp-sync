@@ -94,6 +94,7 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 == Changelog ==
 
 = 1.2.0 =
+* Fix: An event you moved to the Trash stays in the Trash when a filter leaves it out of a sync. It is not permanently deleted. When a later sync includes that event again, the same event stays in the Trash instead of a new published event being added.
 * Fix: Registration Category filters now follow the comparison you picked. "Is Not" and "Is Not in" leave a registration out when any of its categories is one you excluded, and they include a registration that has no category. "Is Empty" matches a registration with no category, and "Is Not Empty" matches one that has a category. If you already filter registrations by Category, the next sync can include or leave out different registrations than before.
 * Fix: With The Events Calendar, an event that is hidden or not approved is moved to the Trash instead of being deleted. When it is shown again, the same event comes back, including its image. An event that was removed in Planning Center or Church Community Builder is still deleted.
 * Fix: A synced item that was removed because it no longer matched a filter, or that you permanently deleted in WordPress, is added again as a new item on a later sync once it matches. An item that is still on the site is updated in place.

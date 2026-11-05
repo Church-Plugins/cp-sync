@@ -63,6 +63,17 @@ class RemovalGuardIntegration extends Integration {
 	/** @var array chms_ids that are locked */
 	public $locked = [];
 
+	/**
+	 * ChMS ids whose posts are already in the Trash.
+	 *
+	 * This harness has no posts, so the real status lookup would find nothing
+	 * and every leftover would be deleted. Tests that need a trashed post list
+	 * the id here.
+	 *
+	 * @var string[]
+	 */
+	public $already_trashed = [];
+
 	public function get_store( $group = null ) {
 		return $this->store;
 	}
@@ -87,6 +98,14 @@ class RemovalGuardIntegration extends Integration {
 
 	public function is_locked( $chms_id ) {
 		return in_array( $chms_id, $this->locked, true );
+	}
+
+	/**
+	 * @param string $chms_id ChMS id.
+	 * @return bool
+	 */
+	protected function tracked_post_is_trashed( $chms_id ) {
+		return in_array( (string) $chms_id, $this->already_trashed, true );
 	}
 
 	public function save() {
