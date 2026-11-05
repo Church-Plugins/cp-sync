@@ -443,7 +443,17 @@ class TEC extends Integration {
 	}
 
 	public function update_item( $item ) {
-		$existing = $this->get_chms_item_id( $item['chms_id'] );
+		$chms_id = $item['chms_id'] ?? '';
+
+		// Leave a post an admin trashed. The id is still cached, so updating
+		// it here would change it and a miss would create a second post.
+		if ( $this->is_admin_trashed( $chms_id ) ) {
+			cp_sync()->logging->log( "Skipping {$chms_id}: it is in the Trash and was not moved there by CP Sync, so this sync leaves it there." );
+			return $this->get_chms_item_id( $chms_id );
+		}
+
+		$this->restore_trashed_item( $chms_id );
+		$existing = $this->get_chms_item_id( $chms_id );
 
 		cp_sync()->logging->log( 'Updating event: ' . $item['post_title'] );
 

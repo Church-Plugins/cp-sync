@@ -49,6 +49,21 @@ class TecRegistrationCostUpdateTest extends TestCase {
 				}
 			}
 		);
+		// A cached ChMS id is kept only while get_post() still returns that
+		// post. This event is the one the cache maps to post 77.
+		Functions\when( 'get_post' )->alias(
+			static function ( $post = null ) {
+				if ( 77 !== (int) $post ) {
+					return null;
+				}
+
+				$found     = new \WP_Post();
+				$found->ID = 77;
+
+				return $found;
+			}
+		);
+		Functions\when( 'get_post_status' )->justReturn( 'publish' );
 
 		$meta = &$this->meta;
 		$args = &$this->update_args;
