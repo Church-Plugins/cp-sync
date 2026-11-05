@@ -78,9 +78,14 @@ Sending events to The Events Calendar needs that plugin to be active. Without it
 1. Go to the **Events** tab in the PCO settings
 2. Choose your **Event source**: **Pull from Calendar**, **Pull from Registrations**, or **Calendar AND Registrations**
 3. Set **Tag groups**, **Visibility**, and **Calendar Filters** (**Pull from Calendar** or **Calendar AND Registrations**), or **Registration Filters** (**Pull from Registrations** or **Calendar AND Registrations**)
+
+   **Registration Category filters:** **Is Not** and **Is Not in** leave out a registration when any of its categories is one you excluded, and they include registrations with no category. **Is Empty** matches registrations with no category, and **Is Not Empty** matches registrations that have one. If you already filter registrations by Category, your next sync may include or leave out different registrations than before.
+
 4. Click **Save all Settings**
 
 **Caution:** If you switch **Event Source** to **Pull from Calendar** from **Pull from Registrations** or **Calendar AND Registrations**, the next sync permanently deletes upcoming Registrations-sourced events — including events that are still running today. Past events (already ended) are kept. Events with **Prevent sync from updating this post** checked are kept, so lock any Registrations events you want to keep before you switch. Coming from **Pull from Registrations**, Calendar events then import as new posts. Coming from **Calendar AND Registrations**, the Calendar copies stay and the duplicate Registrations copies are removed, leaving one Calendar copy of events that were in both. Switching to **Calendar AND Registrations** keeps existing Registrations posts; an event present in both apps imports twice.
+
+A registration with several signup dates imports as one event, at its next upcoming date. If every date has passed, it uses the most recent past date. It does not create one event per date. A registration with no signup times is skipped. That does not stop the sync.
 
 In CP Sync 1.0.0 and later, events keep their real times, and past events are kept by default.
 
@@ -96,7 +101,7 @@ A few things to know:
 - **Link Only** events still sync when **Only Visible in Church Center** is selected, as long as they are visible and not explicitly unapproved.
 - If the Calendar Filters builder is left empty, no extra filter rules run. With **Only Visible in Church Center**, the visibility and approval checks still apply.
 - When the Event source is **Registrations** only, there is no Visibility setting, and these calendar checks are not used.
-- With **Only Visible in Church Center**, upcoming events already on the site that become hidden or explicitly unapproved are removed on the next sync. CP Sync shows an admin notice with how many were skipped and how many upcoming events were removed. The notice appears only when events were removed. It stays until each administrator dismisses it, using the X or the Dismiss link. A later sync that removes more events shows the notice again. A sync that removes nothing does not clear it. Events whose end date has passed stay. Locked posts stay. **Show All** does not remove them for this reason.
+- With **Only Visible in Church Center**, upcoming events already on the site that become hidden or explicitly unapproved are removed on the next sync. CP Sync shows an admin notice with how many were skipped and how many upcoming events were removed. The notice appears only when events were removed. It stays until each administrator dismisses it, using the X or the Dismiss link. A later sync that removes more events shows the notice again. A sync that removes nothing does not clear it. Events whose end date has passed stay. Locked posts stay. **Show All** does not remove them for this reason. With The Events Calendar, these events are moved to the Trash instead of being deleted. If an event is shown or approved again, the same event comes back on a later sync, including its image. An event that was removed in Planning Center is still deleted for good. An event you moved to the Trash yourself stays in the Trash, even if a filter later leaves it out, and a later sync does not bring it back as published.
 
 Event times on your site use your WordPress timezone (Settings → General). Make sure it matches the timezone set in your Planning Center account, or event times may look shifted.
 
