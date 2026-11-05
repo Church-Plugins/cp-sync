@@ -44,6 +44,23 @@ class Meta {
 	const REGISTRATION_URL = '_cp_registration_url';
 
 	/**
+	 * Display price from Planning Center Registrations.
+	 *
+	 * The key is omitted when the response did not include selection types,
+	 * so a stored price is left alone. An empty string is written only when
+	 * a good response shows the signup has no public price.
+	 */
+	const REGISTRATION_PRICE = '_cp_registration_price';
+
+	/**
+	 * `_EventCost` value last written by a registration sync.
+	 *
+	 * A later sync clears `_EventCost` only when the stored cost still equals
+	 * this marker. A different value is a hand edit and is left in place.
+	 */
+	const SYNC_EVENT_COST = '_cp_sync_event_cost';
+
+	/**
 	 * WordPress post ID of the series this date belongs to.
 	 */
 	const SERIES_ID = '_cp_series_id';
@@ -99,7 +116,7 @@ class Meta {
 			$series_id = 0;
 		}
 
-		return array(
+		$meta = array(
 			self::PROVIDER         => isset( $record['provider'] ) ? (string) $record['provider'] : '',
 			self::OCCURRENCE_ID    => isset( $record['occurrence_id'] ) ? (string) $record['occurrence_id'] : '',
 			self::SOURCE_ID        => isset( $record['source_id'] ) ? (string) $record['source_id'] : '',
@@ -116,6 +133,14 @@ class Meta {
 			self::SERIES_KEY       => isset( $record['series_key'] ) ? (string) $record['series_key'] : '',
 			self::SERIES_ID        => (string) $series_id,
 		);
+
+		// Absent means leave the stored price alone. Present and empty clears
+		// a price a good response showed is gone.
+		if ( array_key_exists( 'registration_price', $record ) ) {
+			$meta[ self::REGISTRATION_PRICE ] = (string) $record['registration_price'];
+		}
+
+		return $meta;
 	}
 
 	/**

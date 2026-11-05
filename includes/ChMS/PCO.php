@@ -1701,6 +1701,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$relational = [];
 		$taxonomies = [];
 
+		$prices_known = null;
+
 		foreach ( $results as $source => $result ) {
 			$relational[ $source ] = $result['context']['relational_data'] ?? [];
 
@@ -1713,13 +1715,23 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			if ( 'calendar' === $source && ! empty( $result['taxonomies'] ) ) {
 				$taxonomies = $result['taxonomies'];
 			}
+
+			if ( 'registrations' === $source && isset( $result['context'] ) && is_array( $result['context'] ) && array_key_exists( 'registration_prices_known', $result['context'] ) ) {
+				$prices_known = (bool) $result['context']['registration_prices_known'];
+			}
+		}
+
+		$context = array(
+			'relational_data' => $relational,
+		);
+
+		if ( null !== $prices_known ) {
+			$context['registration_prices_known'] = $prices_known;
 		}
 
 		return [
 			'items'      => $items,
-			'context'    => [
-				'relational_data' => $relational,
-			],
+			'context'    => $context,
 			'taxonomies' => $taxonomies,
 		];
 	}
@@ -1786,6 +1798,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				return $this->format_event_from_calendar( $event, $sub_context );
 			}
 			if ( 'registrations' === $source ) {
+				if ( array_key_exists( 'registration_prices_known', $context ) ) {
+					$sub_context['registration_prices_known'] = $context['registration_prices_known'];
+				}
 				return $this->format_event_from_registrations( $event, $sub_context );
 			}
 			return false;
@@ -1958,6 +1973,43 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * GET /registrations/v2/signups, optionally including selection-type prices.
+	 *
+	 * Sparse fieldsets restrict relationships as well as attributes, so each
+	 * included relationship name is listed on fields[Signup]. Selection type
+	 * price fields are returned only when fields[SelectionType] asks for them.
+	 * price_currency is requested with the symbol so a later change can read
+	 * the currency code without another round trip; the display uses the symbol.
+	 *
+	 * @param int  $limit       Max signups to fetch ( 0 = all ).
+	 * @param bool $with_prices Whether to include selection_types and their prices.
+	 * @return array|false Raw JSON:API document, or false when the request failed.
+	 */
+	protected function request_registration_signups( $limit, $with_prices ) {
+		$includes = 'signup_times,signup_location,categories';
+		$fields   = 'name,description,logo_url,new_registration_url,archived,at_maximum_capacity,signup_times,signup_location,categories';
+
+		$query = $this->api()
+			->module( 'registrations' )
+			->table( 'signups' )
+			->order( '-created_at' );
+
+		if ( $with_prices ) {
+			$includes .= ',selection_types';
+			$fields   .= ',selection_types';
+			$query->param(
+				'fields[SelectionType]',
+				'name,price_cents,price_formatted,price_currency,price_currency_symbol,publicly_available'
+			);
+		}
+
+		return $query
+			->includes( $includes )
+			->param( 'fields[Signup]', $fields )
+			->get( $limit > 0 ? $limit : 100000 );
+	}
+
+	/**
 	 * Fetch events from PCO registrations
 	 *
 	 * @param int $limit Optional. Max signups to fetch ( 0 = all ). Applied to the
@@ -1979,23 +2031,27 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		// skip archived signups client-side below. `at_maximum_capacity` is served
 		// only when explicitly requested via a sparse fieldset, so we list every
 		// Signup attribute we consume (adding one to a fields request drops the
-		// rest for that type). If PCO rejects the shape the pull still succeeds and
-		// the sold-out meta is simply omitted (guarded in the formatter).
-		$raw_events = $this->api()
-			->module( 'registrations' )
-			->table( 'signups' )
-			->includes( 'signup_times,signup_location,categories' )
-			->order( '-created_at' )
-			// NOTE: per JSON:API, a sparse fieldset restricts RELATIONSHIPS as well as
-			// attributes — the relationship names must be listed or the payload loses
-			// the signup_times/signup_location/categories linkage entirely.
-			->param( 'fields[Signup]', 'name,description,logo_url,new_registration_url,archived,at_maximum_capacity,signup_times,signup_location,categories' )
-			->get( $limit > 0 ? $limit : 100000 );
+		// rest for that type). If PCO ignores an unknown field name, the pull still
+		// succeeds and the sold-out meta is simply omitted (guarded in the formatter).
+		//
+		// Price lives on SelectionType, included on this same request. A failure
+		// there is retried without selection types so a missing price cannot abort
+		// the signup import. That fallback does not touch prices already stored.
+		$requested_prices = true;
+		$raw_events       = $this->request_registration_signups( $limit, true );
+
+		if ( false === $raw_events || ! empty( $this->api()->errorMessage() ) ) {
+			$price_error = $this->api()->errorMessage() ?: 'signups request failed with no error detail';
+			cp_sync()->logging->log( 'Registrations price request failed; retrying without selection types: ' . var_export( $price_error, true ) );
+			$requested_prices = false;
+			$raw_events       = $this->request_registration_signups( $limit, false );
+		}
 
 		// A failed fetch must ABORT, not proceed with an empty list: an empty list
 		// here reads as "every signup was removed from PCO" downstream. ( The
 		// sparse-fieldset tolerance note above concerns PCO ignoring unknown field
-		// names, which still returns a successful response — not this. )
+		// names, which still returns a successful response — not this. ) The retry
+		// above is only for the price include. If signups themselves fail, stop.
 		if ( false === $raw_events || ! empty( $this->api()->errorMessage() ) ) {
 			$error = $this->api()->errorMessage() ?: 'signups request failed with no error detail';
 			cp_sync()->logging->log( 'Registrations fetch FAILED: ' . var_export( $error, true ) );
@@ -2053,13 +2109,47 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			cp_sync()->logging->log( 'Sample events to import: ' . implode( ', ', $event_names ) . ( $filtered_count > 5 ? '...' : '' ) );
 		}
 
+		// A fallback, or a successful response that never included selection
+		// types, is not evidence that signups have no price. Leave stored prices
+		// alone. An empty selection_types relationship is real data.
+		$prices_known = $requested_prices && self::payload_includes_selection_types( $raw_events['data'] ?? array(), $relational_data );
+
 		return [
 			'items'      => $items,
 			'context'    => [
-				'relational_data' => $relational_data,
+				'relational_data'            => $relational_data,
+				'registration_prices_known'  => $prices_known,
 			],
 			'taxonomies' => [],
 		];
+	}
+
+	/**
+	 * Whether a signups payload actually carried selection type data.
+	 *
+	 * An ignored include omits both the relationship and the included records.
+	 * An empty relationship on a signup is still data: that signup has no types.
+	 *
+	 * @param array $items            Raw signup resources, before the archived filter.
+	 * @param array $relational_data  Included records keyed by type, then id.
+	 * @return bool
+	 */
+	public static function payload_includes_selection_types( array $items, array $relational_data ) {
+		if ( ! empty( $relational_data['SelectionType'] ) && is_array( $relational_data['SelectionType'] ) ) {
+			return true;
+		}
+
+		foreach ( $items as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+
+			if ( array_key_exists( 'selection_types', $item['relationships'] ?? array() ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -2311,7 +2401,34 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			}
 		}
 
-		return [
+		// A missing or unreadable price must not drop the signup. When selection
+		// types were not in the response, the price keys stay off the record so
+		// stored values are left alone. A good response with no public price
+		// writes an empty display price, which clears it.
+		$prices_known = self::registration_prices_known( $signup, is_array( $relational_data ) ? $relational_data : array(), $context );
+		$price        = self::empty_registration_price();
+
+		if ( $prices_known ) {
+			try {
+				$price = self::registration_price_from_signup(
+					$signup,
+					is_array( $relational_data ) ? $relational_data : array()
+				);
+			} catch ( \Throwable $e ) {
+				$prices_known = false;
+				if ( function_exists( 'cp_sync' ) ) {
+					cp_sync()->logging->log(
+						sprintf(
+							'Registration price skipped for signup %s: %s',
+							$signup['id'] ?? '?',
+							$e->getMessage()
+						)
+					);
+				}
+			}
+		}
+
+		$record = [
 			'provider'         => 'pco',
 			'kind'             => 'registration',
 			'chms_id'          => 'reg_' . $signup['id'],
@@ -2329,9 +2446,263 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'registration_url' => $registration_url,
 			'event_url'        => '',
 			'tax_input'        => [],
-			'event_category'    => $categories,
-			'meta_input'        => $meta_input,
+			'event_category'   => $categories,
+			'meta_input'       => $meta_input,
 		];
+
+		if ( ! $prices_known ) {
+			return $record;
+		}
+
+		$meta_input[ \CP_Sync\Events\Meta::REGISTRATION_PRICE ] = $price['display'];
+		$record['registration_price']                           = $price['display'];
+
+		if ( '' !== $price['cost'] ) {
+			// TEC cost fields are written only when Planning Center sent a price.
+			// The marker is the value this sync stored, so a later empty price
+			// can tell a sync-owned cost from a hand edit.
+			$meta_input['_EventCost']                            = $price['cost'];
+			$meta_input['_EventCurrencySymbol']                  = $price['symbol'];
+			$meta_input['_EventCurrencyPosition']                = $price['position'];
+			$meta_input[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] = $price['cost'];
+		} else {
+			$meta_input[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] = '';
+		}
+
+		$record['meta_input'] = $meta_input;
+
+		return $record;
+	}
+
+	/**
+	 * Whether this signup's price can be read from the response.
+	 *
+	 * An explicit context flag wins. It is false after a fallback request and
+	 * when the payload carried no selection_types data. Without a flag, a
+	 * selection_types relationship or included SelectionType means the include
+	 * arrived. Anything else is treated as "not in the response".
+	 *
+	 * @param array $signup          Signup resource.
+	 * @param array $relational_data Included records.
+	 * @param array $context         Formatter context.
+	 * @return bool
+	 */
+	public static function registration_prices_known( $signup, array $relational_data, $context ) {
+		if ( is_array( $context ) && array_key_exists( 'registration_prices_known', $context ) ) {
+			return (bool) $context['registration_prices_known'];
+		}
+
+		if ( is_array( $signup ) && array_key_exists( 'selection_types', $signup['relationships'] ?? array() ) ) {
+			return true;
+		}
+
+		return ! empty( $relational_data['SelectionType'] ) && is_array( $relational_data['SelectionType'] );
+	}
+
+	/**
+	 * Display price for one signup's publicly available selection types.
+	 *
+	 * Selection types that are not linked on the signup are ignored, so prices
+	 * included for a different signup are not applied here. A missing
+	 * relationship yields no price.
+	 *
+	 * @param array $signup          Signup JSON:API resource.
+	 * @param array $relational_data Included records keyed by type, then id.
+	 * @return array{display: string, cost: string, symbol: string, position: string}
+	 */
+	public static function registration_price_from_signup( $signup, $relational_data ) {
+		if ( ! is_array( $signup ) || ! is_array( $relational_data ) ) {
+			return self::empty_registration_price();
+		}
+
+		$rel = $signup['relationships']['selection_types']['data'] ?? null;
+
+		if ( null === $rel ) {
+			return self::empty_registration_price();
+		}
+
+		if ( isset( $rel['id'] ) ) {
+			$rel = array( $rel );
+		}
+
+		if ( ! is_array( $rel ) ) {
+			return self::empty_registration_price();
+		}
+
+		$types = array();
+
+		foreach ( $rel as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+
+			$id = isset( $row['id'] ) ? (string) $row['id'] : '';
+
+			if ( '' === $id ) {
+				continue;
+			}
+
+			$record = $relational_data['SelectionType'][ $id ] ?? null;
+
+			if ( is_array( $record ) ) {
+				$types[] = $record;
+			}
+		}
+
+		return self::registration_price( $types );
+	}
+
+	/**
+	 * Turn selection types into the price stored on the event.
+	 *
+	 * Only publicly available types count. One price is the currency symbol
+	 * plus price_formatted. Several prices are a range from the lowest to the
+	 * highest. Every price at zero is Free. No usable types is no price.
+	 *
+	 * `cost` is the number (or numeric range, or Free) written to The Events
+	 * Calendar's `_EventCost`. `symbol` is `_EventCurrencySymbol`. `position`
+	 * is `_EventCurrencyPosition` (`prefix` when a symbol is present).
+	 * `display` is the string shown on CP Sync's own event pages.
+	 *
+	 * @param array $selection_types SelectionType resources, or attribute arrays.
+	 * @return array{display: string, cost: string, symbol: string, position: string}
+	 */
+	public static function registration_price( array $selection_types ) {
+		$prices = array();
+
+		foreach ( $selection_types as $type ) {
+			if ( ! is_array( $type ) ) {
+				continue;
+			}
+
+			$attrs = ( isset( $type['attributes'] ) && is_array( $type['attributes'] ) ) ? $type['attributes'] : $type;
+
+			if ( ! self::selection_type_is_public( $attrs ) ) {
+				continue;
+			}
+
+			if ( ! array_key_exists( 'price_cents', $attrs ) || ! is_numeric( $attrs['price_cents'] ) ) {
+				continue;
+			}
+
+			$cents     = (int) $attrs['price_cents'];
+			$formatted = self::price_text( $attrs['price_formatted'] ?? '' );
+
+			if ( '' === $formatted ) {
+				$formatted = number_format( $cents / 100, 2, '.', '' );
+			}
+
+			$prices[] = array(
+				'cents'     => $cents,
+				'formatted' => $formatted,
+				'symbol'    => self::price_text( $attrs['price_currency_symbol'] ?? '' ),
+			);
+		}
+
+		if ( empty( $prices ) ) {
+			return self::empty_registration_price();
+		}
+
+		$all_zero = true;
+
+		foreach ( $prices as $price ) {
+			if ( 0 !== $price['cents'] ) {
+				$all_zero = false;
+				break;
+			}
+		}
+
+		if ( $all_zero ) {
+			$free   = __( 'Free', 'cp-sync' );
+			$symbol = $prices[0]['symbol'];
+
+			return array(
+				'display'  => $free,
+				'cost'     => $free,
+				'symbol'   => $symbol,
+				'position' => '' !== $symbol ? 'prefix' : '',
+			);
+		}
+
+		$min = $prices[0];
+		$max = $prices[0];
+
+		foreach ( $prices as $price ) {
+			if ( $price['cents'] < $min['cents'] ) {
+				$min = $price;
+			}
+
+			if ( $price['cents'] > $max['cents'] ) {
+				$max = $price;
+			}
+		}
+
+		if ( $min['cents'] === $max['cents'] ) {
+			return array(
+				'display'  => $min['symbol'] . $min['formatted'],
+				'cost'     => $min['formatted'],
+				'symbol'   => $min['symbol'],
+				'position' => '' !== $min['symbol'] ? 'prefix' : '',
+			);
+		}
+
+		// A spaced en dash separates the ends. The Events Calendar pulls the
+		// numbers back out and applies one currency symbol. The display string
+		// already includes a symbol on each end. A signup is one currency; the
+		// lowest price's symbol is the one stored for The Events Calendar.
+		$separator = ' – ';
+
+		return array(
+			'display'  => $min['symbol'] . $min['formatted'] . $separator . $max['symbol'] . $max['formatted'],
+			'cost'     => $min['formatted'] . $separator . $max['formatted'],
+			'symbol'   => $min['symbol'],
+			'position' => '' !== $min['symbol'] ? 'prefix' : '',
+		);
+	}
+
+	/**
+	 * No public price. Callers write this only when selection types were in the response.
+	 *
+	 * @return array{display: string, cost: string, symbol: string, position: string}
+	 */
+	public static function empty_registration_price() {
+		return array(
+			'display'  => '',
+			'cost'     => '',
+			'symbol'   => '',
+			'position' => '',
+		);
+	}
+
+	/**
+	 * Whether a selection type is offered on the public registration.
+	 *
+	 * Missing and false are hidden. Only an explicit public flag counts.
+	 *
+	 * @param array $attrs SelectionType attributes.
+	 * @return bool
+	 */
+	protected static function selection_type_is_public( array $attrs ) {
+		if ( ! array_key_exists( 'publicly_available', $attrs ) ) {
+			return false;
+		}
+
+		$value = $attrs['publicly_available'];
+
+		return true === $value || 1 === $value || '1' === $value || 'true' === $value;
+	}
+
+	/**
+	 * Plain single-line price text from the API.
+	 *
+	 * @param mixed $value Raw attribute.
+	 * @return string
+	 */
+	protected static function price_text( $value ) {
+		$value = trim( strip_tags( (string) $value ) );
+		$value = preg_replace( '/\s+/', ' ', $value );
+
+		return trim( (string) $value );
 	}
 
 	/**

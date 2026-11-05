@@ -306,7 +306,7 @@ class EventSync {
 
 		$occurrence_id = 'ccb' === $provider ? $chms_id . '|' . $start : $chms_id;
 
-		return array(
+		$normalized = array(
 			'provider'         => $provider,
 			'occurrence_id'    => $occurrence_id,
 			'source_id'        => $chms_id,
@@ -325,6 +325,12 @@ class EventSync {
 			'registration_url' => self::registration_url( $event ),
 			'categories'       => self::category_names( $event ),
 		);
+
+		if ( array_key_exists( 'registration_price', $event ) ) {
+			$normalized['registration_price'] = trim( (string) $event['registration_price'] );
+		}
+
+		return $normalized;
 	}
 
 	/**

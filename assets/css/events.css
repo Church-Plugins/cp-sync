@@ -140,6 +140,19 @@
 	margin-top: auto;
 }
 
+.cp-sync-event-card__action,
+.cp-sync-event__register {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+}
+
+.cp-sync-event-card__price,
+.cp-sync-event__price {
+	font-weight: 600;
+}
+
 .cp-sync-event-card__button,
 .cp-sync-series-card__button,
 .cp-sync-event__register a {

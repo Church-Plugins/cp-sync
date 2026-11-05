@@ -75,4 +75,24 @@ class EventCardTest extends TestCase {
 		$this->assertStringContainsString( '<p class="cp-sync-event-card__summary"></p>', $html );
 		$this->assertStringNotContainsString( '<img', $html );
 	}
+
+	public function test_price_is_escaped_and_shown_next_to_register() {
+		$html = EventCard::render(
+			array(
+				'title'            => 'Camp',
+				'permalink'        => 'https://example.com/events/camp',
+				'registration_url' => 'https://example.com/register',
+				'price'            => '<script>alert(1)</script>',
+			)
+		);
+
+		$price    = strpos( $html, 'cp-sync-event-card__price' );
+		$register = strpos( $html, '>Register</a>' );
+
+		$this->assertNotFalse( $price );
+		$this->assertNotFalse( $register );
+		$this->assertLessThan( $register, $price );
+		$this->assertStringContainsString( '&lt;script&gt;alert(1)&lt;/script&gt;', $html );
+		$this->assertStringNotContainsString( '<script>', $html );
+	}
 }

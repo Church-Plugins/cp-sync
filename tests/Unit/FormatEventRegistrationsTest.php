@@ -297,4 +297,80 @@ class FormatEventRegistrationsTest extends TestCase {
 		$this->assertSame( [], PCO::parse_signup_location( [] ) );
 		$this->assertSame( [], PCO::parse_signup_location( [ 'name' => '', 'formatted_address' => '' ] ) );
 	}
+
+	/**
+	 * A response with no selection_types data leaves every price key off the item.
+	 */
+	public function test_response_without_selection_types_omits_price_keys() {
+		$result = $this->makePco()->format_event_from_registrations( $this->minimalSignup(), $this->minimalContext() );
+
+		$this->assertIsArray( $result );
+		$this->assertArrayNotHasKey( '_cp_registration_price', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_EventCost', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_EventCurrencySymbol', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_EventCurrencyPosition', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_cp_sync_event_cost', $result['meta_input'] );
+
+		$neutral = $this->makePco()->to_neutral_registration_event( $this->minimalSignup(), $this->minimalContext() );
+		$this->assertArrayNotHasKey( 'registration_price', $neutral );
+	}
+
+	/**
+	 * An empty selection_types relationship is a real "no public price".
+	 */
+	public function test_empty_selection_types_relationship_clears_the_display_price() {
+		$signup = $this->minimalSignup();
+		$signup['relationships']['selection_types'] = [ 'data' => [] ];
+
+		$result = $this->makePco()->format_event_from_registrations( $signup, $this->minimalContext() );
+
+		$this->assertSame( '', $result['meta_input']['_cp_registration_price'] );
+		$this->assertSame( '', $result['meta_input']['_cp_sync_event_cost'] );
+		$this->assertArrayNotHasKey( '_EventCost', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_EventCurrencySymbol', $result['meta_input'] );
+		$this->assertArrayNotHasKey( '_EventCurrencyPosition', $result['meta_input'] );
+	}
+
+	/**
+	 * A linked public selection type is stored. A hidden one is not part of the price.
+	 */
+	public function test_formatter_stores_only_the_public_selection_type_price() {
+		$signup  = $this->minimalSignup();
+		$context = $this->minimalContext();
+		$signup['relationships']['selection_types'] = [
+			'data' => [
+				[ 'type' => 'SelectionType', 'id' => 'public' ],
+				[ 'type' => 'SelectionType', 'id' => 'hidden' ],
+				[ 'type' => 'SelectionType', 'id' => 'missing' ],
+			],
+		];
+		$context['relational_data']['SelectionType'] = [
+			'public' => [
+				'attributes' => [
+					'price_cents'            => 2500,
+					'price_formatted'        => '25.00',
+					'price_currency'         => 'USD',
+					'price_currency_symbol'  => '$',
+					'publicly_available'     => true,
+				],
+			],
+			'hidden' => [
+				'attributes' => [
+					'price_cents'            => 10000,
+					'price_formatted'        => '100.00',
+					'price_currency'         => 'USD',
+					'price_currency_symbol'  => '$',
+					'publicly_available'     => false,
+				],
+			],
+		];
+
+		$result = $this->makePco()->format_event_from_registrations( $signup, $context );
+
+		$this->assertSame( '$25.00', $result['meta_input']['_cp_registration_price'] );
+		$this->assertSame( '25.00', $result['meta_input']['_EventCost'] );
+		$this->assertSame( '$', $result['meta_input']['_EventCurrencySymbol'] );
+		$this->assertSame( 'prefix', $result['meta_input']['_EventCurrencyPosition'] );
+		$this->assertSame( '25.00', $result['meta_input']['_cp_sync_event_cost'] );
+	}
 }
