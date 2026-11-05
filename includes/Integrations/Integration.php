@@ -256,14 +256,21 @@ abstract class Integration extends \WP_Background_Process {
 
 			if ( $should_remove ) {
 				// Hidden or unapproved events stay in the Trash so showing them
-				// again restores the same post. Anything else ( removed at the
-				// source, or filtered out for another reason ) is deleted.
+				// again restores the same post. A post that is already in the
+				// Trash (an admin moved it there) is left alone and kept in the
+				// store, so a later sync that includes the item finds that same
+				// post and does not add a new published one. Anything else
+				// (removed at the source, or filtered out for another reason)
+				// is deleted.
 				if ( $this->is_visibility_skip( $chms_id ) ) {
 					$this->trash_item( $chms_id );
+					$removed_ids[] = $chms_id;
+				} elseif ( $this->tracked_post_is_trashed( $chms_id ) ) {
+					$preserved[ $chms_id ] = $hash;
 				} else {
 					$this->remove_item( $chms_id );
+					$removed_ids[] = $chms_id;
 				}
-				$removed_ids[] = $chms_id;
 			} else {
 				$preserved[ $chms_id ] = $hash;
 			}
@@ -1283,6 +1290,26 @@ abstract class Integration extends \WP_Background_Process {
 	public function clear_sync_trash_marker( $post_id ) {
 		delete_post_meta( $post_id, self::TRASHED_META_KEY );
 		delete_post_meta( $post_id, self::TRASHED_STATUS_META_KEY );
+	}
+
+	/**
+	 * Whether the post tracked for this ChMS id is already in the Trash.
+	 *
+	 * A missing post is not treated as trashed. The removal loop uses this so
+	 * a filter that leaves an item out does not permanently delete a post that
+	 * is already in the Trash.
+	 *
+	 * @param string $chms_id ChMS id.
+	 * @return bool
+	 */
+	protected function tracked_post_is_trashed( $chms_id ) {
+		$post_id = $this->get_chms_item_id( $chms_id );
+
+		if ( empty( $post_id ) ) {
+			return false;
+		}
+
+		return 'trash' === get_post_status( $post_id );
 	}
 
 	/**
