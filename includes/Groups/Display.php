@@ -44,10 +44,10 @@ class Display {
 		if ( ! $query->have_posts() ) {
 			wp_reset_postdata();
 
-			return '<p class="cp-sync-groups__empty">' . esc_html__( 'No groups found.', 'cp-sync' ) . '</p>';
+			return '<p class="cp-sync-display cp-sync-groups__empty">' . esc_html__( 'No groups found.', 'cp-sync' ) . '</p>';
 		}
 
-		$html = '<div class="cp-sync-groups"><ul class="cp-sync-groups__list">';
+		$html = '<div class="cp-sync-display cp-sync-groups cp-sync-groups--embed"><ul class="cp-sync-groups__list">';
 
 		while ( $query->have_posts() ) {
 			$query->the_post();
@@ -215,6 +215,7 @@ class Display {
 				'leaders'          => get_post_meta( $post_id, 'leaders', true ),
 				'leader'           => get_post_meta( $post_id, 'leader', true ),
 				'registration_url' => get_post_meta( $post_id, 'registration_url', true ),
+				'terms'            => self::term_names( $post_id ),
 			],
 			$args
 		);
@@ -255,24 +256,92 @@ class Display {
 			isset( $group['leaders'] ) ? $group['leaders'] : null,
 			isset( $group['leader'] ) ? $group['leader'] : ''
 		);
-
-		$html  = '<article class="cp-sync-groups__card">';
-		$html .= self::image_html( isset( $group['image'] ) ? $group['image'] : '', $title, $is_card );
-		$html .= '<' . $heading . ' class="cp-sync-groups__title">';
-		$html .= self::title_html( $title, $permalink, $is_card || ! empty( $args['link_title'] ) );
-		$html .= '</' . $heading . '>';
-		$html .= self::description_html( isset( $group['content'] ) ? $group['content'] : '', ! empty( $args['summary'] ), $is_card );
-		$html .= self::meta_html( __( 'Meets', 'cp-sync' ), isset( $group['time_desc'] ) ? $group['time_desc'] : '' );
-		$html .= self::meta_html( __( 'Location', 'cp-sync' ), isset( $group['location'] ) ? $group['location'] : '' );
-		$html .= self::leaders_html( $names );
-		$html .= self::action_html(
+		$terms   = self::terms_html( isset( $group['terms'] ) ? $group['terms'] : array() );
+		$title_html = '<' . $heading . ' class="' . ( $is_card ? 'cp-sync-groups__title' : 'cp-sync-group__title' ) . '">';
+		$title_html .= self::title_html( $title, $permalink, $is_card || ! empty( $args['link_title'] ) );
+		$title_html .= '</' . $heading . '>';
+		$meets = self::meta_html( __( 'Meets', 'cp-sync' ), isset( $group['time_desc'] ) ? $group['time_desc'] : '' );
+		$where = self::meta_html( __( 'Location', 'cp-sync' ), isset( $group['location'] ) ? $group['location'] : '' );
+		$leaders = self::leaders_html( $names );
+		$description = self::description_html( isset( $group['content'] ) ? $group['content'] : '', ! empty( $args['summary'] ), $is_card );
+		$action = self::action_html(
 			isset( $group['registration_url'] ) ? $group['registration_url'] : '',
 			$permalink,
 			$is_card
 		);
-		$html .= '</article>';
+		$media = self::image_html( isset( $group['image'] ) ? $group['image'] : '', $title, $is_card );
+
+		$html = '<article class="' . ( $is_card ? 'cp-sync-groups__card cp-sync-groups__card--summary' : 'cp-sync-group' ) . '">';
+
+		if ( '' !== $media ) {
+			$html .= '<div class="' . ( $is_card ? 'cp-sync-groups__media' : 'cp-sync-group__media' ) . '">' . $media . '</div>';
+		}
+
+		$html .= '<div class="' . ( $is_card ? 'cp-sync-groups__details' : 'cp-sync-group__details' ) . '">';
+
+		if ( $is_card ) {
+			$html .= $terms;
+			$html .= $title_html;
+			$html .= self::metadata_html( $meets . $where );
+			$html .= $description;
+			$html .= $leaders;
+			$html .= $action;
+		} else {
+			$html .= $title_html;
+			$html .= $terms;
+			$html .= self::metadata_html( $meets . $where . $leaders );
+			$html .= $description;
+
+			if ( '' !== $action ) {
+				$html .= '<div class="cp-sync-group__actions">' . $action . '</div>';
+			}
+		}
+
+		$html .= '</div></article>';
 
 		return $html;
+	}
+
+	/**
+	 * Visible taxonomy labels for one group.
+	 *
+	 * Names only. These are not links, so a label cannot depend on a taxonomy
+	 * archive route or on CP Groups' filter script.
+	 *
+	 * @since 1.2.0
+	 * @param int $post_id Group post ID.
+	 * @return string[]
+	 */
+	public static function term_names( $post_id ) {
+		if ( ! function_exists( 'get_the_terms' ) ) {
+			return array();
+		}
+
+		$names = array();
+
+		foreach ( array( 'cp_group_type', 'cp_group_category', 'cp_group_life_stage' ) as $taxonomy ) {
+			$found = get_the_terms( $post_id, $taxonomy );
+
+			if ( ! is_array( $found ) ) {
+				continue;
+			}
+
+			foreach ( $found as $term ) {
+				$name = '';
+
+				if ( is_object( $term ) && isset( $term->name ) ) {
+					$name = self::plain_text( $term->name );
+				} elseif ( is_string( $term ) ) {
+					$name = self::plain_text( $term );
+				}
+
+				if ( '' !== $name && ! in_array( $name, $names, true ) ) {
+					$names[] = $name;
+				}
+			}
+		}
+
+		return $names;
 	}
 
 	/**
@@ -356,6 +425,50 @@ class Display {
 		}
 
 		return [];
+	}
+
+	/**
+	 * Plain taxonomy labels. Not links.
+	 *
+	 * @param mixed $terms Term names.
+	 * @return string
+	 */
+	protected static function terms_html( $terms ) {
+		if ( ! is_array( $terms ) ) {
+			return '';
+		}
+
+		$labels = array();
+
+		foreach ( $terms as $term ) {
+			$name = self::plain_text( $term );
+
+			if ( '' === $name || isset( $labels[ $name ] ) ) {
+				continue;
+			}
+
+			$labels[ $name ] = '<span class="cp-sync-groups__term">' . self::protect_block_template_html( esc_html( $name ) ) . '</span>';
+		}
+
+		if ( ! $labels ) {
+			return '';
+		}
+
+		return '<p class="cp-sync-groups__terms">' . implode( ' ', $labels ) . '</p>';
+	}
+
+	/**
+	 * Meeting, location, and (on a single group) leader rows.
+	 *
+	 * @param string $rows Already escaped meta markup.
+	 * @return string
+	 */
+	protected static function metadata_html( $rows ) {
+		if ( '' === $rows ) {
+			return '';
+		}
+
+		return '<div class="cp-sync-groups__metadata">' . $rows . '</div>';
 	}
 
 	/**
