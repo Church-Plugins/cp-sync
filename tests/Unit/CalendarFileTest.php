@@ -85,6 +85,36 @@ class CalendarFileTest extends TestCase {
 		$this->assertSame( $body, CalendarFile::contents( $record ) );
 	}
 
+	public function test_timed_dtend_is_omitted_unless_the_end_is_later() {
+		$start = '2026-11-20 02:00:00';
+		$cases = array(
+			'missing'   => '',
+			'invalid'   => 'tomorrow',
+			'backwards' => '2026-11-19 00:00:00',
+			'equal'     => $start,
+		);
+
+		foreach ( $cases as $name => $end ) {
+			$record = $this->record();
+			$record['start_utc'] = $start;
+			$record['end_utc']   = $end;
+			$record['all_day']   = false;
+			$body                = CalendarFile::contents( $record );
+
+			$this->assertStringContainsString( 'DTSTART:20261120T020000Z', $body, $name );
+			$this->assertDoesNotMatchRegularExpression( '/(?:^|\r\n)DTEND/', $body, $name );
+		}
+
+		$later = $this->record();
+		$later['start_utc'] = $start;
+		$later['end_utc']   = '2026-11-20 04:00:00';
+		$later['all_day']   = false;
+		$valid              = CalendarFile::contents( $later );
+
+		$this->assertStringContainsString( 'DTSTART:20261120T020000Z', $valid );
+		$this->assertStringContainsString( 'DTEND:20261120T040000Z', $valid );
+	}
+
 	public function test_all_day_uses_an_exclusive_date_and_dst_keeps_utc() {
 		$record            = $this->record();
 		$record['all_day'] = true;
@@ -96,6 +126,16 @@ class CalendarFileTest extends TestCase {
 		$this->assertStringContainsString( 'DTSTART;VALUE=DATE:20261120', $body );
 		$this->assertStringContainsString( 'DTEND;VALUE=DATE:20261123', $body );
 		$this->assertStringNotContainsString( 'T080000', $body );
+
+		$one_day              = $this->record();
+		$one_day['all_day']   = true;
+		$one_day['start_utc'] = '2026-11-20 08:00:00';
+		$one_day['end_utc']   = '';
+		$one_day['timezone']  = 'America/Los_Angeles';
+		$single               = CalendarFile::contents( $one_day );
+
+		$this->assertStringContainsString( 'DTSTART;VALUE=DATE:20261120', $single );
+		$this->assertStringContainsString( 'DTEND;VALUE=DATE:20261121', $single );
 
 		$summer = EventTime::to_utc( '2026-07-15 13:00:00', 'America/New_York' );
 		$winter = EventTime::to_utc( '2026-01-15 13:00:00', 'America/New_York' );

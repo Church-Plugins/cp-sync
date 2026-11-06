@@ -57,6 +57,10 @@ class CalendarFile {
 	/**
 	 * iCalendar text for an available record, or an empty string.
 	 *
+	 * A timed event includes DTEND only when the end is a real instant after
+	 * the start. A missing, invalid, equal, or earlier end omits DTEND.
+	 * An all-day event keeps an exclusive DATE end.
+	 *
 	 * @param array $record See is_available(). Extra keys are ignored.
 	 * @return string
 	 */
@@ -70,10 +74,6 @@ class CalendarFile {
 
 		if ( null === $start ) {
 			return '';
-		}
-
-		if ( null === $end || $end < $start ) {
-			$end = $start;
 		}
 
 		$all_day = ! empty( $record['all_day'] );
@@ -90,12 +90,20 @@ class CalendarFile {
 		);
 
 		if ( $all_day ) {
-			$span    = self::all_day_span( $start, $end, $zone );
-			$lines[] = 'DTSTART;VALUE=DATE:' . $span['start'];
-			$lines[] = 'DTEND;VALUE=DATE:' . $span['end'];
+			// A missing, invalid, equal, or backwards end is one local day.
+			// The exclusive DATE end is the next local date, not a clock duration.
+			$span_end = ( null !== $end && $end > $start ) ? $end : $start;
+			$span     = self::all_day_span( $start, $span_end, $zone );
+			$lines[]  = 'DTSTART;VALUE=DATE:' . $span['start'];
+			$lines[]  = 'DTEND;VALUE=DATE:' . $span['end'];
 		} else {
 			$lines[] = 'DTSTART:' . $start->format( 'Ymd\THis\Z' );
-			$lines[] = 'DTEND:' . $end->format( 'Ymd\THis\Z' );
+
+			// Omit DTEND when the end is missing, invalid, equal, or earlier.
+			// A DTEND equal to DTSTART would invent a zero-length duration.
+			if ( null !== $end && $end > $start ) {
+				$lines[] = 'DTEND:' . $end->format( 'Ymd\THis\Z' );
+			}
 		}
 
 		$lines[] = 'SUMMARY:' . self::escape_text( isset( $record['title'] ) ? $record['title'] : '' );

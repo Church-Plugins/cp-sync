@@ -433,7 +433,14 @@
 }
 
 .cp-sync-series__date-title a {
+	align-items: center;
+	box-sizing: border-box;
+	display: inline-flex;
+	flex-wrap: wrap;
+	max-width: 100%;
 	min-height: 44px;
+	min-width: 44px;
+	overflow-wrap: anywhere;
 }
 
 .cp-sync-series__when,
