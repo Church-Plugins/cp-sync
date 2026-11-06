@@ -96,8 +96,8 @@ class EventTemplateBootstrapTest extends TestCase {
 
 		$GLOBALS['cp_sync_template_meta'] = array(
 			41 => array(
-				'_cp_start_utc'        => '2026-08-01 15:30:00',
-				'_cp_end_utc'          => '2026-08-01 17:00:00',
+				'_cp_start_utc'        => '2026-12-01 15:30:00',
+				'_cp_end_utc'          => '2026-12-01 17:00:00',
 				'_cp_timezone'         => 'UTC',
 				'_cp_all_day'          => '0',
 				'_cp_location'         => 'Sanctuary',
@@ -131,16 +131,25 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringContainsString( 'navigation pagination', $archive );
 
 		$single = $this->render_main_template( 'events/single', array( $this->event ), 'Events' );
-		$this->assertStringContainsString( '<h1>Sunday Service</h1>', $single );
+		$this->assertMatchesRegularExpression( '/<h1 class="cp-sync-event__title">Sunday Service<\/h1>/', $single );
 		$this->assertStringContainsString( 'src="https://example.com/service.jpg"', $single );
 		$this->assertStringContainsString( '>Register</a>', $single );
 		$this->assertStringContainsString( 'All events', $single );
+		$this->assertStringContainsString( 'Date &amp; time', $single );
+		$this->assertStringContainsString( 'Download calendar file (.ics)', $single );
+		$this->assertStringContainsString( 'cp-sync-ics=1', $single );
+		$this->assertStringContainsString( 'https://www.google.com/maps/search/?api=1&query=Sanctuary', $single );
+		$this->assertStringNotContainsString( 'This event has ended.', $single );
 
 		$series = $this->render_main_template( 'events/series', array( $this->series ), 'Event Series' );
-		$this->assertStringContainsString( '<h1>Sunday Services</h1>', $series );
+		$this->assertMatchesRegularExpression( '/<h1 class="cp-sync-event__title">Sunday Services<\/h1>/', $series );
 		$this->assertStringContainsString( 'src="https://example.com/series.jpg"', $series );
 		$this->assertStringContainsString( 'Sunday Service', $series );
 		$this->assertStringContainsString( '>Register</a>', $series );
+		$this->assertStringContainsString( 'Upcoming dates', $series );
+		$this->assertStringNotContainsString( 'Download calendar file', $series );
+		$this->assertStringNotContainsString( 'cp-sync-event__calendar', $series );
+		$this->assertStringNotContainsString( 'No upcoming dates listed.', $series );
 
 		$series_archive = $this->render_main_template( 'events/series-archive', array( $this->series ), 'Event Series' );
 		$this->assertStringContainsString( 'Sunday Services', $series_archive );
@@ -279,6 +288,61 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringContainsString( 'href="https://example.com/events/sunday-service"', $html );
 		$this->assertStringContainsString( 'href="https://example.com/events/wednesday-prayer"', $html );
 		$this->assertStringNotContainsString( 'Not On The List', $html );
+	}
+
+	public function test_a_past_event_keeps_its_record_and_drops_register() {
+		$saved = $GLOBALS['cp_sync_template_meta'][41];
+		$GLOBALS['cp_sync_template_meta'][41]['_cp_end_utc']            = '2020-01-01 00:00:00';
+		$GLOBALS['cp_sync_template_meta'][41]['_cp_registration_price'] = '$10';
+
+		$html = $this->render_main_template( 'events/single', array( $this->event ), 'Events' );
+
+		$GLOBALS['cp_sync_template_meta'][41] = $saved;
+
+		$this->assertStringContainsString( 'This event has ended.', $html );
+		$this->assertStringContainsString( 'Worship together.', $html );
+		$this->assertStringContainsString( 'cp-sync-event__price', $html );
+		$this->assertStringContainsString( '$10', $html );
+		$this->assertStringContainsString( 'Download calendar file (.ics)', $html );
+		$this->assertStringNotContainsString( '>Register</a>', $html );
+	}
+
+	public function test_missing_image_and_invalid_date_do_not_invent_a_hero_or_a_file() {
+		$saved = $GLOBALS['cp_sync_template_meta'][41];
+		$GLOBALS['cp_sync_template_meta'][41]['_cp_image_url'] = '';
+
+		$no_image = $this->render_main_template( 'events/single', array( $this->event ), 'Events' );
+
+		$this->assertStringContainsString( 'cp-sync-event__hero--no-image', $no_image );
+		$this->assertStringNotContainsString( 'cp-sync-event__media', $no_image );
+		$this->assertStringNotContainsString( '<img', $no_image );
+
+		$GLOBALS['cp_sync_template_meta'][41]['_cp_start_utc'] = '';
+		$GLOBALS['cp_sync_template_meta'][41]['_cp_end_utc']   = 'not-a-date';
+
+		$undated = $this->render_main_template( 'events/single', array( $this->event ), 'Events' );
+
+		$GLOBALS['cp_sync_template_meta'][41] = $saved;
+
+		$this->assertStringContainsString( 'Date to be confirmed', $undated );
+		$this->assertStringNotContainsString( 'cp-sync-event__badge', $undated );
+		$this->assertStringNotContainsString( 'Download calendar file', $undated );
+		$this->assertStringNotContainsString( '1970', $undated );
+	}
+
+	public function test_series_dates_partial_says_when_nothing_upcoming_is_listed() {
+		$html = \CP_Sync\get_template_part(
+			'events/series-dates',
+			array(
+				'events' => array(),
+			),
+			true
+		);
+
+		$this->assertIsString( $html );
+		$this->assertStringContainsString( 'No upcoming dates listed.', $html );
+		$this->assertStringNotContainsString( 'cp-sync-event__calendar', $html );
+		$this->assertStringNotContainsString( '.ics', $html );
 	}
 
 	/**

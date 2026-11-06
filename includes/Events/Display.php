@@ -32,6 +32,7 @@ class Display {
 		add_action( 'wp_loaded', array( __CLASS__, 'flush_rewrites_after_init' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_styles' ) );
 		add_filter( 'template_include', array( __CLASS__, 'template_include' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'maybe_download_calendar' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'upcoming_archive' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'series_archive' ), 11 );
 		add_action( 'cp_sync_reset_content', array( __CLASS__, 'delete_imported_content' ) );
@@ -423,12 +424,46 @@ class Display {
 			return;
 		}
 
+		$version = defined( 'CP_SYNC_PLUGIN_VERSION' ) ? CP_SYNC_PLUGIN_VERSION : '1.2.0';
+
 		wp_enqueue_style(
 			'cp-sync-events',
 			CP_SYNC_PLUGIN_URL . 'assets/css/events.css',
 			array(),
-			defined( 'CP_SYNC_PLUGIN_VERSION' ) ? CP_SYNC_PLUGIN_VERSION : '1.2.0'
+			$version
 		);
+
+		$script = CP_SYNC_PLUGIN_DIR . 'assets/js/events-display.js';
+
+		if ( defined( 'CP_SYNC_PLUGIN_DIR' ) && file_exists( $script ) ) {
+			wp_enqueue_script(
+				'cp-sync-events-display',
+				CP_SYNC_PLUGIN_URL . 'assets/js/events-display.js',
+				array(),
+				(string) filemtime( $script ),
+				true
+			);
+		}
+	}
+
+	/**
+	 * Download a calendar file for the public event being viewed.
+	 *
+	 * Any other request, including a series or a bad id, is a 404. The file
+	 * is built from the local post. No remote calendar is fetched.
+	 *
+	 * @return void
+	 */
+	public static function maybe_download_calendar() {
+		$flag = CalendarFile::request_flag();
+
+		if ( null === $flag ) {
+			return;
+		}
+
+		$post = function_exists( 'get_queried_object' ) ? get_queried_object() : null;
+
+		CalendarFile::emit( CalendarFile::response_for( $post, $flag ) );
 	}
 
 	/**

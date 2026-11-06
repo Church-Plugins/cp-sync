@@ -115,4 +115,95 @@ class EventFormatter {
 
 		return $local->format( $format );
 	}
+
+	/**
+	 * Month and day for the hero badge, from the start instant.
+	 *
+	 * The parts are formatted from the timestamp. They are not parsed out of
+	 * the translated date sentence.
+	 *
+	 * @param string $start_utc UTC `Y-m-d H:i:s`.
+	 * @param string $timezone  IANA zone stored on the event.
+	 * @return array{valid: bool, month: string, day: string, year: string}
+	 */
+	public static function badge( $start_utc, $timezone ) {
+		$empty = array(
+			'valid' => false,
+			'month' => '',
+			'day'   => '',
+			'year'  => '',
+		);
+		$start = self::utc_instant( $start_utc );
+
+		if ( null === $start ) {
+			return $empty;
+		}
+
+		$zone = EventTime::is_valid_timezone( $timezone ) ? $timezone : 'UTC';
+
+		try {
+			$local = $start->setTimezone( new \DateTimeZone( $zone ) );
+		} catch ( \Exception $e ) {
+			return $empty;
+		}
+
+		return array(
+			'valid' => true,
+			'month' => self::format_piece( $local, 'M' ),
+			'day'   => self::format_piece( $local, 'j' ),
+			'year'  => self::format_piece( $local, 'Y' ),
+		);
+	}
+
+	/**
+	 * Whether the event's own end is before $now_utc.
+	 *
+	 * An empty or unreadable end is not treated as past. An end equal to now
+	 * is still current, matching the upcoming-list comparison.
+	 *
+	 * @param string $end_utc UTC `Y-m-d H:i:s`.
+	 * @param string $now_utc UTC `Y-m-d H:i:s`.
+	 * @return bool
+	 */
+	public static function has_ended( $end_utc, $now_utc ) {
+		$end = self::utc_instant( $end_utc );
+		$now = self::utc_instant( $now_utc );
+
+		if ( null === $end || null === $now ) {
+			return false;
+		}
+
+		return $end < $now;
+	}
+
+	/**
+	 * Parse a UTC `Y-m-d H:i:s` instant, or null when it is not a real moment.
+	 *
+	 * @param mixed $value Candidate timestamp.
+	 * @return \DateTimeImmutable|null
+	 */
+	public static function utc_instant( $value ) {
+		$value = trim( (string) $value );
+
+		if ( ! preg_match( '/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/', $value, $match ) ) {
+			return null;
+		}
+
+		$year   = (int) $match[1];
+		$month  = (int) $match[2];
+		$day    = (int) $match[3];
+		$hour   = (int) $match[4];
+		$minute = (int) $match[5];
+		$second = (int) $match[6];
+
+		if ( ! checkdate( $month, $day, $year ) || $hour > 23 || $minute > 59 || $second > 59 ) {
+			return null;
+		}
+
+		try {
+			return new \DateTimeImmutable( sprintf( '%04d-%02d-%02d %02d:%02d:%02d', $year, $month, $day, $hour, $minute, $second ), new \DateTimeZone( 'UTC' ) );
+		} catch ( \Exception $e ) {
+			return null;
+		}
+	}
 }

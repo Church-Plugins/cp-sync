@@ -58,4 +58,42 @@ class EventTimezoneDisplayTest extends TestCase {
 		$this->assertSame( 'August 1, 2026', $when['text'] );
 		$this->assertTrue( $when['all_day'] );
 	}
+
+	public function test_badge_comes_from_the_timestamp_not_the_sentence() {
+		$badge = EventFormatter::badge( '2026-11-20 02:00:00', 'America/Los_Angeles' );
+
+		$this->assertTrue( $badge['valid'] );
+		$this->assertSame( 'Nov', $badge['month'] );
+		$this->assertSame( '19', $badge['day'] );
+		$this->assertSame( '2026', $badge['year'] );
+		$this->assertFalse( EventFormatter::badge( 'tomorrow', 'America/Los_Angeles' )['valid'] );
+		$this->assertFalse( EventFormatter::badge( '', 'UTC' )['valid'] );
+	}
+
+	public function test_cross_year_range_keeps_both_years() {
+		$when = EventFormatter::format_when(
+			'2026-12-31 20:00:00',
+			'2027-01-01 10:00:00',
+			'America/Los_Angeles',
+			false
+		);
+
+		$this->assertStringContainsString( '2026', $when['text'] );
+		$this->assertStringContainsString( '2027', $when['text'] );
+
+		$badge = EventFormatter::badge( '2026-12-31 20:00:00', 'America/Los_Angeles' );
+
+		$this->assertSame( 'Dec', $badge['month'] );
+		$this->assertSame( '31', $badge['day'] );
+		$this->assertSame( '2026', $badge['year'] );
+	}
+
+	public function test_has_ended_uses_the_end_instant() {
+		$this->assertTrue( EventFormatter::has_ended( '2026-11-01 00:00:00', '2026-11-06 12:00:00' ) );
+		$this->assertFalse( EventFormatter::has_ended( '2026-11-06 12:00:00', '2026-11-06 12:00:00' ) );
+		$this->assertFalse( EventFormatter::has_ended( '2026-11-20 00:00:00', '2026-11-06 12:00:00' ) );
+		$this->assertFalse( EventFormatter::has_ended( '', '2026-11-06 12:00:00' ) );
+		$this->assertFalse( EventFormatter::has_ended( 'not-a-date', '2026-11-06 12:00:00' ) );
+		$this->assertFalse( EventFormatter::has_ended( '2026-11-22 20:00:00', '2026-11-21 12:00:00' ) );
+	}
 }

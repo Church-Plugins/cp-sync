@@ -54,6 +54,8 @@ apply_filters('cp_sync_event_rewrite_slug', 'events');
 apply_filters('cp_sync_event_series_rewrite_slug', 'event-series');
 ```
 
+A published event page can download a calendar file for that one date by adding `?cp-sync-ics=1` to its permalink. The file is built on the site from the stored start and end. Series pages do not offer a file, and a date without a real start does not either.
+
 ## Preserving Past Events
 
 Every ChMS query is windowed — Planning Center's calendar crawl only asks for future
