@@ -679,12 +679,26 @@ class Lite {
 
 		$path = CP_SYNC_PLUGIN_DIR . 'assets/css/groups.css';
 
+		$version = file_exists( $path ) ? (string) filemtime( $path ) : '1.2.0';
+
 		wp_enqueue_style(
 			'cp-sync-groups',
 			CP_SYNC_PLUGIN_URL . 'assets/css/groups.css',
 			[],
-			file_exists( $path ) ? (string) filemtime( $path ) : '1.2.0'
+			$version
 		);
+
+		$script = CP_SYNC_PLUGIN_DIR . 'assets/js/groups-display.js';
+
+		if ( file_exists( $script ) ) {
+			wp_enqueue_script(
+				'cp-sync-groups-display',
+				CP_SYNC_PLUGIN_URL . 'assets/js/groups-display.js',
+				[],
+				(string) filemtime( $script ),
+				true
+			);
+		}
 	}
 
 	/**

@@ -2,7 +2,7 @@
 
 CP Sync can show your groups on your website. You do not need the CP Groups plugin for this.
 
-Each group shows its name, photo, description, meeting time, location, and leader names. When your church management system has a signup link, the group has a **Register** button. When it does not, the button says **Learn more**. Leader email addresses are not shown.
+Each group shows its name, photo, description, meeting time, location, group type or category when one is stored, and leader names. On a wide screen the groups page shows one horizontal card per row. On a phone the photo stacks above the details. When your church management system has a signup link, the card has a **Register** button. When it does not, the button says **Learn more** and opens that group's page. A group's own page does not show a button when there is no signup link. Leader email addresses are not shown. CP Sync Lite does not add search or filters; those stay in CP Groups.
 
 CP Groups adds filters, a map, and a contact form. If you activate CP Groups later, it uses the same groups. You do not import them again.
 
@@ -19,7 +19,7 @@ When Groups sync is on, the groups list uses `/groups/`. If a page on your site 
 
 With **Show All**, every group syncs and appears on your site, including groups unlisted in your ChMS.
 
-Each group also has its own page. The title on the groups page links to that page. On the groups list, the description is shortened to about 40 words. The group's own page shows the full description. The web address of each group stays the same if you install CP Groups later, because CP Groups uses these same groups.
+Each group also has its own page. The title on the groups page links to that page. **All groups** at the top of that page returns to the list. On the groups list, the description is shortened to about two lines. The group's own page shows the full description, with the photo above the title when a photo exists. The web address of each group stays the same if you install CP Groups later, because CP Groups uses these same groups.
 
 To stop showing groups, turn off **Display groups with CP Sync** on the **Advanced** tab.
 

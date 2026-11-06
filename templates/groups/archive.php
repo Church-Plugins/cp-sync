@@ -22,8 +22,16 @@ if ( ! is_string( $title ) || '' === $title ) {
 	$title = __( 'Groups', 'cp-sync' );
 }
 ?>
-<main id="cp-sync-groups" class="cp-sync-groups">
+<main id="cp-sync-groups" class="cp-sync-display cp-sync-groups">
 	<h1 class="cp-sync-groups__heading"><?php echo esc_html( $title ); ?></h1>
+	<?php
+	$cp_sync_intro = function_exists( 'get_the_archive_description' ) ? get_the_archive_description() : '';
+	$cp_sync_intro = is_string( $cp_sync_intro ) ? trim( $cp_sync_intro ) : '';
+
+	if ( '' !== $cp_sync_intro && '' !== trim( wp_strip_all_tags( $cp_sync_intro ) ) ) {
+		echo '<div class="cp-sync-groups__intro">' . wp_kses_post( $cp_sync_intro ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_kses_post() above.
+	}
+	?>
 	<?php if ( have_posts() ) : ?>
 		<ul class="cp-sync-groups__list">
 			<?php

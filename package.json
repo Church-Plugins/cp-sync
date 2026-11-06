@@ -23,6 +23,7 @@
 	"files": [
 		"assets/images/**",
 		"assets/css/**",
+		"assets/js/**",
 		"includes/**",
 		"templates/**",
 		"vendor/**",
