@@ -18,7 +18,12 @@ if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
 
 $archive = get_post_type_archive_link( 'cp_group' );
 ?>
-<main id="cp-sync-group" class="cp-sync-groups">
+<main id="cp-sync-group" class="cp-sync-display cp-sync-groups cp-sync-group-page">
+	<?php if ( is_string( $archive ) && '' !== $archive ) : ?>
+		<p class="cp-sync-groups__back">
+			<a href="<?php echo esc_url( $archive ); ?>"><?php esc_html_e( 'All groups', 'cp-sync' ); ?></a>
+		</p>
+	<?php endif; ?>
 	<?php
 	while ( have_posts() ) :
 		the_post();
@@ -33,11 +38,6 @@ $archive = get_post_type_archive_link( 'cp_group' );
 	endwhile;
 	wp_reset_postdata();
 	?>
-	<?php if ( is_string( $archive ) && '' !== $archive ) : ?>
-		<p class="cp-sync-groups__back">
-			<a href="<?php echo esc_url( $archive ); ?>"><?php esc_html_e( 'All groups', 'cp-sync' ); ?></a>
-		</p>
-	<?php endif; ?>
 </main>
 <?php
 if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {

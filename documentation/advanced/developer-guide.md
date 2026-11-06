@@ -107,6 +107,8 @@ Theme overrides live in `cp-sync/` inside the theme:
 
 The lookup is `CP_Sync\get_template_hierarchy()`. The shortcode is `[cp-sync-groups count="12" type="small-groups"]`. Leader output reads the `leaders` meta rows first (name only), then the legacy `leader` value. Emails are not printed.
 
+List cards use `cp-sync-groups__card--summary`, `cp-sync-groups__media`, and `cp-sync-groups__details`. A single group uses `cp-sync-group` instead of the card. These are CP Sync classes. They are not the CP Groups classes (`cp-group-item` and the filter classes), so CP Groups scripts do not bind to Lite cards. Lite does not render a filter form. Copy `archive.php` or `single.php` into the theme to change the page. Card text is still escaped in `CP_Sync\Groups\Display::render_group()`.
+
 ## REST API Endpoints
 
 CP-Sync provides REST API endpoints for programmatic access:
