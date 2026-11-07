@@ -19,7 +19,7 @@ class GroupsImageFallbackTest extends TestCase {
 
 		$this->assertIsString( $js );
 		$this->assertStringContainsString( "addEventListener(\n\t\t'error'", $js );
-		$this->assertStringContainsString( '.cp-sync-groups', $js );
+		$this->assertStringContainsString( '.cp-group-item--thumb--canvas', $js );
 		$this->assertStringContainsString( 'querySelectorAll', $js );
 		$this->assertStringContainsString( 'image.complete', $js );
 		$this->assertStringContainsString( 'naturalWidth === 0', $js );

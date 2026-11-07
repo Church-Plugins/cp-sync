@@ -66,16 +66,18 @@ class GroupTaxonomy extends Taxonomy {
 	}
 
 	/**
-	 * Hierarchical and visible, like CP Groups, with a fixed rewrite slug.
+	 * Hierarchical, like CP Groups, with a fixed rewrite slug and no admin screens.
 	 *
 	 * @return array
 	 */
 	public function get_args() {
-		$args                  = parent::get_args();
-		$args['show_ui']       = true;
-		$args['hierarchical']  = true;
-		$args['show_in_rest']  = true;
-		$args['rewrite']       = [
+		$args                       = parent::get_args();
+		$args['show_ui']            = false;
+		$args['show_admin_column']  = false;
+		$args['show_in_quick_edit'] = false;
+		$args['hierarchical']       = true;
+		$args['show_in_rest']       = false;
+		$args['rewrite']            = [
 			'slug' => $this->rewrite_slug,
 		];
 

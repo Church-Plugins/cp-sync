@@ -79,11 +79,10 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 		}
 
 		$data = [
-			'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
-			'nonce'     => wp_create_nonce( 'cpSync' ),
-			'oauthURL'  => CP_SYNC_OAUTH_URL,
-			'adminUrl'  => admin_url(),
-			'tecActive' => defined( 'TRIBE_EVENTS_FILE' ),
+			'ajaxUrl'  => admin_url( 'admin-ajax.php' ),
+			'nonce'    => wp_create_nonce( 'cpSync' ),
+			'oauthURL' => CP_SYNC_OAUTH_URL,
+			'adminUrl' => admin_url(),
 		];
 
 		wp_add_inline_script(

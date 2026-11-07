@@ -1,5 +1,5 @@
 /**
- * Replace a hero or card image that fails to load.
+ * Replace a hero or series image that fails to load, or remove a list card's.
  *
  * Images in a description are left alone. Only the media slots have a space
  * sized for the placeholder.
@@ -38,6 +38,12 @@
 			image.remove();
 		}
 
+		// A list card with no image has no image slot, so a failed one leaves none.
+		if (media && media.classList && media.classList.contains('cp-sync-event-card__media')) {
+			media.remove();
+			return;
+		}
+
 		if (!media || !media.appendChild || media.querySelector('.' + placeholderClass)) {
 			return;
 		}
@@ -69,4 +75,25 @@
 			replaceFailedImage(images[index]);
 		}
 	}
+}());
+
+/**
+ * Apply the category filter as soon as one is chosen. Without JavaScript, the
+ * form has a Filter button instead.
+ */
+(function () {
+	var select = document.getElementById('cp-sync-event-category');
+
+	if (!select || !select.form) {
+		return;
+	}
+
+	select.addEventListener('change', function () {
+		// All categories is the archive itself, not an empty filter.
+		if ('' === select.value) {
+			select.disabled = true;
+		}
+
+		select.form.submit();
+	});
 }());

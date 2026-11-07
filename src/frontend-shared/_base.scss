@@ -1,0 +1,78 @@
+// Theme-proofing shared by the group and event pages.
+//
+// Rules sit under .cp-sync-display, so they are two classes deep: enough to beat
+// common theme rules such as `.entry-content a`, and one more class still
+// overrides them. Values come from --cp-* variables. IDs and important flags stay out.
+.cp-sync-display {
+	color: var(--cp-color-text-primary);
+	min-width: 0;
+	overflow-wrap: break-word;
+
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+	}
+
+	.page-title {
+		margin: 0 0 var(--cp-gap--md);
+	}
+
+	a:not(.cp-button) {
+		color: var(--cp-color-text-link);
+		text-decoration: underline;
+		text-underline-offset: .15em;
+	}
+
+	a.cp-button,
+	a.cp-button:visited {
+		background: var(--cp-button--bg);
+		border-color: var(--cp-button--border-color);
+		color: var(--cp-button--color);
+		text-decoration: none;
+
+		&:hover,
+		&:focus {
+			background: var(--cp-button--bg--hover);
+			border-color: var(--cp-button--border-color--hover);
+			color: var(--cp-button--color--hover);
+		}
+	}
+
+	a:focus-visible,
+	button:focus-visible,
+	select:focus-visible {
+		outline: 2px solid var(--cp-color-ui-primary);
+		outline-offset: 2px;
+	}
+
+	.material-icons-outlined {
+		line-height: 1;
+	}
+
+	.nav-links a,
+	.nav-links span {
+		align-items: center;
+		display: inline-flex;
+		justify-content: center;
+		min-height: 44px;
+		min-width: 44px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			scroll-behavior: auto;
+			transition-duration: 0.01ms;
+		}
+	}
+}
+
+// A shortcode sits inside the page's own column.
+.cp-sync-display.cp-sync-display--embed {
+	margin: 0;
+	max-width: none;
+	padding: 0;
+	width: auto;
+}

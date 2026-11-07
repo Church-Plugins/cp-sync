@@ -31,6 +31,7 @@ class EventTemplateBootstrapTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
+		Functions\when( 'get_option' )->justReturn( '' );
 		Functions\when( '__' )->returnArg( 1 );
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html_e' )->alias(
@@ -56,6 +57,20 @@ class EventTemplateBootstrapTest extends TestCase {
 			}
 		);
 		Functions\when( 'wp_kses_post' )->returnArg( 1 );
+		Functions\when( 'esc_attr_e' )->alias(
+			static function ( $text ) {
+				echo htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );
+			}
+		);
+		Functions\when( 'get_the_terms' )->justReturn( false );
+		Functions\when( 'get_terms' )->justReturn( array() );
+		Functions\when( 'get_queried_object' )->justReturn( null );
+		Functions\when( 'remove_query_arg' )->justReturn( 'https://example.com/events/' );
+		Functions\when( 'add_query_arg' )->alias(
+			static function ( $key, $value, $url ) {
+				return $url . '?' . $key . '=' . $value;
+			}
+		);
 		Functions\when( 'wp_strip_all_tags' )->alias(
 			static function ( $text ) {
 				return trim( strip_tags( (string) $text ) );
@@ -131,6 +146,17 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringContainsString( '>Register</a>', $archive );
 		$this->assertStringContainsString( 'cp-sync-event-card__button', $archive );
 		$this->assertStringContainsString( 'navigation pagination', $archive );
+		$this->assertStringContainsString( 'data-cp-sync-calendar', $archive );
+		$this->assertLessThan( strpos( $archive, 'Sunday Service' ), strpos( $archive, '<noscript>' ) );
+		$this->assertStringContainsString( 'aria-current="page"', $archive );
+		$this->assertStringNotContainsString( 'cp-sync-events__filter', $archive );
+
+		$_GET['view'] = 'list';
+		$list         = $this->render_main_template( 'events/archive', array( $this->event ), 'Events' );
+		unset( $_GET['view'] );
+		$this->assertStringNotContainsString( 'data-cp-sync-calendar', $list );
+		$this->assertStringNotContainsString( '<noscript>', $list );
+		$this->assertStringContainsString( 'cp-sync-event-card__button', $list );
 
 		$single = $this->render_main_template( 'events/single', array( $this->event ), 'Events' );
 		$this->assertMatchesRegularExpression( '/<h1 class="cp-sync-event__title">Sunday Service<\/h1>/', $single );
@@ -138,7 +164,7 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringContainsString( '>Register</a>', $single );
 		$this->assertStringContainsString( 'All events', $single );
 		$this->assertStringContainsString( 'Date &amp; time', $single );
-		$this->assertStringContainsString( 'Download calendar file (.ics)', $single );
+		$this->assertStringContainsString( 'Add to calendar', $single );
 		$this->assertStringContainsString( 'cp-sync-ics=1', $single );
 		$this->assertStringContainsString( 'https://www.google.com/maps/search/?api=1&query=Sanctuary', $single );
 		$this->assertStringNotContainsString( 'This event has ended.', $single );
@@ -149,7 +175,7 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringContainsString( 'Sunday Service', $series );
 		$this->assertStringContainsString( '>Register</a>', $series );
 		$this->assertStringContainsString( 'Upcoming dates', $series );
-		$this->assertStringNotContainsString( 'Download calendar file', $series );
+		$this->assertStringNotContainsString( 'Add to calendar', $series );
 		$this->assertStringNotContainsString( 'cp-sync-event__calendar', $series );
 		$this->assertStringNotContainsString( 'No upcoming dates listed.', $series );
 
@@ -182,7 +208,7 @@ class EventTemplateBootstrapTest extends TestCase {
 
 		$html = $this->render_main_template( 'events/archive', array( $this->event ), '' );
 
-		$this->assertMatchesRegularExpression( '/<h1>\s*Youth &lt;group&gt;\s*<\/h1>/', $html );
+		$this->assertMatchesRegularExpression( '/<h1 class="page-title">\s*Youth &lt;group&gt;\s*<\/h1>/', $html );
 
 		$GLOBALS['cp_sync_template_is_tax']      = false;
 		$GLOBALS['cp_sync_template_is_category'] = true;
@@ -190,7 +216,7 @@ class EventTemplateBootstrapTest extends TestCase {
 
 		$category = $this->render_main_template( 'events/archive', array( $this->event ), 'Events' );
 
-		$this->assertMatchesRegularExpression( '/<h1>\s*Small Groups\s*<\/h1>/', $category );
+		$this->assertMatchesRegularExpression( '/<h1 class="page-title">\s*Small Groups\s*<\/h1>/', $category );
 
 		$GLOBALS['cp_sync_template_is_category'] = false;
 		$GLOBALS['cp_sync_template_is_tag']      = true;
@@ -198,14 +224,14 @@ class EventTemplateBootstrapTest extends TestCase {
 
 		$tag = $this->render_main_template( 'events/archive', array( $this->event ), 'Events' );
 
-		$this->assertMatchesRegularExpression( '/<h1>\s*Outreach\s*<\/h1>/', $tag );
+		$this->assertMatchesRegularExpression( '/<h1 class="page-title">\s*Outreach\s*<\/h1>/', $tag );
 
 		$GLOBALS['cp_sync_template_is_tag']     = false;
 		$GLOBALS['cp_sync_template_term_title'] = 'Youth';
 
 		$archive = $this->render_main_template( 'events/archive', array( $this->event ), 'Events' );
 
-		$this->assertMatchesRegularExpression( '/<h1>\s*Events\s*<\/h1>/', $archive );
+		$this->assertMatchesRegularExpression( '/<h1 class="page-title">\s*Events\s*<\/h1>/', $archive );
 	}
 
 	public function test_series_archive_lists_each_published_series_without_an_event_date() {
@@ -259,7 +285,8 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringNotContainsString( '<time', $html );
 	}
 
-	public function test_single_and_list_card_escape_the_price_next_to_register() {
+	public function test_only_the_single_page_shows_a_price_and_never_for_a_free_event() {
+		$saved = $GLOBALS['cp_sync_template_meta'][41];
 		$GLOBALS['cp_sync_template_meta'][41]['_cp_registration_price'] = '<script>alert(1)</script>';
 
 		$single = $this->render_main_template( 'events/single', array( $this->event ), 'Events' );
@@ -268,11 +295,22 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringNotContainsString( '<script>', $single );
 		$this->assertLessThan( strpos( $single, '>Register</a>' ), strpos( $single, 'cp-sync-event__price' ) );
 
-		$archive = $this->render_main_template( 'events/archive', array( $this->event ), 'Events' );
-		$this->assertStringContainsString( 'cp-sync-event-card__price', $archive );
-		$this->assertStringContainsString( '&lt;script&gt;alert(1)&lt;/script&gt;', $archive );
-		$this->assertStringNotContainsString( '<script>', $archive );
-		$this->assertLessThan( strpos( $archive, '>Register</a>' ), strpos( $archive, 'cp-sync-event-card__price' ) );
+		$_GET['view'] = 'list';
+		$list         = $this->render_main_template( 'events/archive', array( $this->event ), 'Events' );
+		unset( $_GET['view'] );
+		$this->assertStringContainsString( '>Register</a>', $list );
+		$this->assertStringNotContainsString( 'alert(1)', $list );
+		$this->assertStringNotContainsString( 'price', $list );
+
+		$GLOBALS['cp_sync_template_meta'][41]['_cp_registration_price'] = 'Free';
+
+		$free = $this->render_main_template( 'events/single', array( $this->event ), 'Events' );
+
+		$GLOBALS['cp_sync_template_meta'][41] = $saved;
+
+		$this->assertStringContainsString( '>Register</a>', $free );
+		$this->assertStringNotContainsString( 'cp-sync-event__price', $free );
+		$this->assertStringNotContainsString( '>Free<', $free );
 	}
 
 	public function test_list_renders_a_different_title_and_link_for_each_event() {
@@ -320,7 +358,7 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringContainsString( 'Worship together.', $html );
 		$this->assertStringContainsString( 'cp-sync-event__price', $html );
 		$this->assertStringContainsString( '$10', $html );
-		$this->assertStringContainsString( 'Download calendar file (.ics)', $html );
+		$this->assertStringContainsString( 'Add to calendar', $html );
 		$this->assertStringNotContainsString( '>Register</a>', $html );
 	}
 
@@ -343,7 +381,7 @@ class EventTemplateBootstrapTest extends TestCase {
 
 		$this->assertStringContainsString( 'Date to be confirmed', $undated );
 		$this->assertStringNotContainsString( 'cp-sync-event__badge', $undated );
-		$this->assertStringNotContainsString( 'Download calendar file', $undated );
+		$this->assertStringNotContainsString( 'Add to calendar', $undated );
 		$this->assertStringNotContainsString( '1970', $undated );
 	}
 

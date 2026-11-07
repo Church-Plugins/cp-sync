@@ -4,14 +4,10 @@ import { __ } from '@wordpress/i18n';
  * Advanced screen schemas (plain JSON-serializable data).
  *
  * Split into TWO schema slices so the tab can interleave its action widgets in
- * the intended visual order: groups display toggle → interval select → Pull
- * Now button → uninstall toggle → Danger Zone (see `components/advanced-tab.js`).
- * Both slices render through the same `<SchemaForm values={globalSettings}>`, so
- * they share one values object and save path.
- *
- * `displayGroupsWithSync` maps 1:1 to the stored global settings key read by
- * Groups Lite. Do not rename it. The schema default is on for a new site. PHP
- * fills in off when an existing install had Groups sync turned off.
+ * the intended visual order: interval select → Pull Now button → uninstall
+ * toggle → Danger Zone (see `components/advanced-tab.js`). Both slices render
+ * through the same `<SchemaForm values={globalSettings}>`, so they share one
+ * values object and save path.
  *
  * The `updateInterval` key maps 1:1 to the stored global settings key — do not
  * rename. Values (`hourly`/`daily`/`weekly`) match the previous MUI menu items.
@@ -24,22 +20,6 @@ import { __ } from '@wordpress/i18n';
 const advancedSchema = {
 	label: __( 'Advanced', 'cp-sync' ),
 	sections: [
-		{
-			title: __( 'Groups', 'cp-sync' ),
-			fields: {
-				displayGroupsWithSync: {
-					type: 'toggle',
-					label: __( 'Display groups with CP Sync', 'cp-sync' ),
-					// New-site default. An events-only upgrade is sent `false` from PHP when
-					// the key has never been saved. The key must match Groups\Lite::DISPLAY_SETTING.
-					default: true,
-					help: __(
-						'CP Groups adds filters, a map, and a contact form.',
-						'cp-sync'
-					),
-				},
-			},
-		},
 		{
 			fields: {
 				updateInterval: {
@@ -55,21 +35,6 @@ const advancedSchema = {
 			},
 		},
 	],
-};
-
-/**
- * Shown on the Advanced tab when The Events Calendar is not active.
- * Off until saved on, unless event sync was already on (the settings
- * payload fills that in). Turn it off to leave an existing /events/ page alone.
- */
-export const displayEventsField = {
-	type: 'toggle',
-	label: __( 'Display events with CP Sync', 'cp-sync' ),
-	default: false,
-	help: __(
-		'Show synced events on this site. Also turn on Sync Events. Off until you turn it on, unless event sync was already on. Turn this off if a page already uses /events/.',
-		'cp-sync'
-	),
 };
 
 export const advancedUninstallSchema = {

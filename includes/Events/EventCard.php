@@ -24,8 +24,8 @@ class EventCard {
 	 * HTML for one card.
 	 *
 	 * @param array $event Event fields: title, permalink, registration_url,
-	 *                     price, image, description, when, all_day, iso,
-	 *                     location, series_title, series_url.
+	 *                     image, badge, categories, description, when, all_day,
+	 *                     iso, location, series_title, series_url.
 	 * @param array $args  show_series_link.
 	 * @return string
 	 */
@@ -39,7 +39,11 @@ class EventCard {
 		);
 
 		$html  = '<article class="cp-sync-event-card">';
-		$html .= self::image_html( isset( $event['image'] ) ? $event['image'] : '', $title );
+		$html .= self::badge_html( isset( $event['badge'] ) ? $event['badge'] : array() );
+		$html .= '<div class="cp-sync-event-card__wrapper">';
+		$html .= self::image_html( isset( $event['image'] ) ? $event['image'] : '' );
+		$html .= '<div class="cp-sync-event-card__body">';
+		$html .= self::terms_html( isset( $event['categories'] ) ? $event['categories'] : array() );
 		$html .= '<h2 class="cp-sync-event-card__title">';
 		$html .= self::title_link( $title, $permalink );
 		$html .= '</h2>';
@@ -58,14 +62,77 @@ class EventCard {
 			);
 		}
 
-		$html .= self::button_html(
-			$button['url'],
-			$button['label'],
-			isset( $event['price'] ) ? $event['price'] : ''
-		);
+		$html .= self::button_html( $button['url'], $button['label'] );
+		$html .= '</div></div>';
 		$html .= '</article>';
 
 		return $html;
+	}
+
+	/**
+	 * Weekday, day, and month beside the card. Left out when the date is unknown.
+	 *
+	 * The date is also in the when line, so this is hidden from screen readers.
+	 *
+	 * @param mixed $badge Result of EventFormatter::badge().
+	 * @return string
+	 */
+	public static function badge_html( $badge ) {
+		if ( ! is_array( $badge ) || empty( $badge['valid'] ) ) {
+			return '';
+		}
+
+		$part = static function ( $key ) use ( $badge ) {
+			return isset( $badge[ $key ] ) ? self::esc_html_text( self::plain_text( $badge[ $key ] ) ) : '';
+		};
+
+		return '<div class="cp-sync-event-card__date" aria-hidden="true">'
+			. '<span class="cp-sync-event-card__weekday">' . $part( 'weekday' ) . '</span>'
+			. '<strong class="cp-sync-event-card__day">' . $part( 'day' ) . '</strong>'
+			. '<span class="cp-sync-event-card__month">' . $part( 'month' ) . '</span>'
+			. '</div>';
+	}
+
+	/**
+	 * Category names above the title.
+	 *
+	 * @param mixed $categories Category names.
+	 * @return string
+	 */
+	protected static function terms_html( $categories ) {
+		if ( ! is_array( $categories ) ) {
+			return '';
+		}
+
+		$names = array();
+
+		foreach ( $categories as $name ) {
+			$name = self::plain_text( $name );
+
+			if ( '' !== $name ) {
+				$names[] = self::esc_html_text( $name );
+			}
+		}
+
+		return $names ? '<p class="cp-sync-event-card__terms">' . implode( ', ', $names ) . '</p>' : '';
+	}
+
+	/**
+	 * Image for a card, like The Events Calendar's list. Nothing when there is none.
+	 *
+	 * The title is right beside the image, so the alternative text is empty.
+	 *
+	 * @param mixed $url Image URL.
+	 * @return string
+	 */
+	protected static function image_html( $url ) {
+		$url = self::http_url( $url );
+
+		if ( '' === $url ) {
+			return '';
+		}
+
+		return '<div class="cp-sync-event-card__media"><img src="' . self::esc_url_attr( $url ) . '" alt="" loading="lazy"></div>';
 	}
 
 	/**
@@ -94,26 +161,6 @@ class EventCard {
 	}
 
 	/**
-	 * Image slot. Always rendered so cards stay the same height.
-	 *
-	 * @param mixed  $url Image URL.
-	 * @param string $alt Alt text.
-	 * @return string
-	 */
-	protected static function image_html( $url, $alt ) {
-		$url = self::http_url( $url );
-		$html = '<div class="cp-sync-event-card__media">';
-
-		if ( '' !== $url ) {
-			$html .= '<img src="' . self::esc_url_attr( $url ) . '" alt="' . self::esc_attr_text( $alt ) . '">';
-		}
-
-		$html .= '</div>';
-
-		return $html;
-	}
-
-	/**
 	 * Linked title. The link is the tap target.
 	 *
 	 * @param string $title     Event title.
@@ -132,7 +179,7 @@ class EventCard {
 	}
 
 	/**
-	 * Description slot. Always rendered, empty when the event has none.
+	 * Short description. The stylesheet limits it to two lines.
 	 *
 	 * @param mixed $description Excerpt or content.
 	 * @return string
@@ -140,11 +187,11 @@ class EventCard {
 	protected static function description_html( $description ) {
 		$text = self::plain_text( $description );
 
-		return '<p class="cp-sync-event-card__summary">' . self::esc_html_text( $text ) . '</p>';
+		return '' !== $text ? '<p class="cp-sync-event-card__summary">' . self::esc_html_text( $text ) . '</p>' : '';
 	}
 
 	/**
-	 * Date line. Omitted when there is no label. The summary slot holds the height.
+	 * Date line. Omitted when there is no label.
 	 *
 	 * @param mixed  $when    Formatted date.
 	 * @param bool   $all_day Whether to add the all-day words.
@@ -210,21 +257,15 @@ class EventCard {
 	 *
 	 * @param string $url   Destination.
 	 * @param string $label Register or Learn more.
-	 * @param mixed  $price Registration price shown beside the button.
 	 * @return string
 	 */
-	protected static function button_html( $url, $label, $price = '' ) {
-		$html  = '<p class="cp-sync-event-card__action">';
-		$price = EventDetail::price_label( $price );
-
-		if ( '' !== $price ) {
-			$html .= '<span class="cp-sync-event-card__price">' . self::esc_html_text( $price ) . '</span>';
-		}
+	protected static function button_html( $url, $label ) {
+		$html = '<p class="cp-sync-event-card__action">';
 
 		if ( '' === $url ) {
-			$html .= '<span class="cp-sync-event-card__button">' . self::esc_html_text( $label ) . '</span>';
+			$html .= '<span class="cp-sync-event-card__button cp-button is-light">' . self::esc_html_text( $label ) . '</span>';
 		} else {
-			$html .= '<a class="cp-sync-event-card__button" href="' . self::esc_url_attr( $url ) . '">' . self::esc_html_text( $label ) . '</a>';
+			$html .= '<a class="cp-sync-event-card__button cp-button" href="' . self::esc_url_attr( $url ) . '">' . self::esc_html_text( $label ) . '</a>';
 		}
 
 		$html .= '</p>';

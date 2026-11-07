@@ -1,5 +1,5 @@
 /**
- * Replace a group image that fails to load.
+ * Clear a group image that fails to load.
  *
  * The script is enqueued in the footer, so an image can already have failed
  * before this file runs. Those images do not fire another error event.
@@ -9,38 +9,28 @@
  * part of the markup a block theme later filters.
  */
 (function () {
-	var rootSelector = '.cp-sync-groups';
-	var placeholderClass = 'cp-sync-groups__placeholder';
+	var rootSelector = '.cp-group-item--thumb--canvas, .cp-group-single--thumb';
 
 	function replaceFailedImage(image) {
 		if (!image || image.tagName !== 'IMG' || !image.closest) {
 			return;
 		}
 
-		if (!image.closest(rootSelector)) {
+		var slot = image.closest(rootSelector);
+
+		if (!slot) {
 			return;
 		}
 
-		if (image.getAttribute('data-cp-sync-fallback') === 'done') {
-			return;
+		image.remove();
+
+		if (slot.classList.contains('cp-group-item--thumb--canvas')) {
+			// The list card shows the image as a background of this link.
+			slot.style.background = '';
+			slot.classList.add('is-empty');
+		} else {
+			slot.remove();
 		}
-
-		image.setAttribute('data-cp-sync-fallback', 'done');
-
-		var media = image.parentNode;
-
-		if (image.parentNode) {
-			image.remove();
-		}
-
-		if (!media || !media.appendChild || media.querySelector('.' + placeholderClass)) {
-			return;
-		}
-
-		var placeholder = document.createElement('div');
-		placeholder.className = placeholderClass;
-		placeholder.setAttribute('aria-hidden', 'true');
-		media.appendChild(placeholder);
 	}
 
 	function alreadyFailed(image) {
@@ -55,7 +45,7 @@
 		true
 	);
 
-	var images = document.querySelectorAll(rootSelector + ' img');
+	var images = document.querySelectorAll('.cp-group-item--thumb--canvas img, .cp-group-single--thumb img');
 	var index;
 
 	for (index = 0; index < images.length; index++) {

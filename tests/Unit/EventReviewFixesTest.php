@@ -28,6 +28,7 @@ class EventReviewFixesTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
+		Functions\when( 'get_option' )->justReturn( '' );
 		Functions\when( '__' )->returnArg( 1 );
 		Functions\when( 'wp_unslash' )->returnArg( 1 );
 		Functions\when( 'sanitize_text_field' )->returnArg( 1 );
@@ -171,11 +172,11 @@ class EventReviewFixesTest extends TestCase {
 		$this->addToAssertionCount( 1 );
 	}
 
-	public function test_download_flag_is_ignored_while_display_is_off() {
+	public function test_download_flag_is_ignored_while_event_sync_is_off() {
 		$_GET['cp-sync-ics'] = '0';
 		Functions\when( 'is_singular' )->justReturn( true );
 		Functions\when( 'apply_filters' )->returnArg( 2 );
-		Functions\when( 'get_option' )->justReturn( array( Display::SETTING => false ) );
+		Functions\when( 'get_option' )->justReturn( array( 'connect' => array( 'sync_events' => false ) ) );
 		Functions\expect( 'status_header' )->never();
 
 		Display::maybe_download_calendar();
@@ -226,18 +227,10 @@ class EventReviewFixesTest extends TestCase {
 		);
 	}
 
-	public function test_card_uses_the_same_price_label_as_the_detail_page() {
-		$args = array(
-			'title'            => 'Dinner',
-			'permalink'        => 'https://example.com/events/dinner',
-			'registration_url' => 'https://example.com/register',
-		);
-
-		$free    = EventCard::render( $args + array( 'price' => '$0.00' ) );
-		$deposit = EventCard::render( $args + array( 'price' => '$0 deposit' ) );
-
-		$this->assertStringContainsString( '<span class="cp-sync-event-card__price">Free</span>', $free );
-		$this->assertStringContainsString( '<span class="cp-sync-event-card__price">$0 deposit</span>', $deposit );
+	public function test_detail_page_keeps_a_cost_that_only_starts_at_zero() {
+		$this->assertSame( '', EventDetail::price_label( '$0.00' ) );
+		$this->assertSame( '$0 deposit', EventDetail::price_label( '$0 deposit' ) );
+		$this->assertSame( '$0 – $25', EventDetail::price_label( '$0 – $25' ) );
 	}
 
 	/**

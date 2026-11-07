@@ -1,6 +1,6 @@
 <?php
 /**
- * Date, location, cost, and description under the hero.
+ * Date, location, and description under the hero. The price is in the hero.
  *
  * Expects $view from EventDetail::present(). A series skips the fact strip.
  * Override from the theme at cp-sync/events/details.php.
@@ -22,7 +22,7 @@ $cp_sync_event = ! isset( $view['context'] ) || 'series' !== $view['context'];
 ?>
 <?php if ( $cp_sync_event ) : ?>
 	<section class="cp-sync-event__facts">
-		<div class="cp-sync-event__fact">
+		<div class="cp-sync-event__fact cp-sync-event__fact--date">
 			<h2><?php esc_html_e( 'Date & time', 'cp-sync' ); ?></h2>
 			<?php if ( ! empty( $view['date_confirmed'] ) ) : ?>
 				<p>
@@ -41,18 +41,12 @@ $cp_sync_event = ! isset( $view['context'] ) || 'series' !== $view['context'];
 			<?php endif; ?>
 		</div>
 		<?php if ( ! empty( $view['location'] ) ) : ?>
-			<div class="cp-sync-event__fact">
+			<div class="cp-sync-event__fact cp-sync-event__fact--location">
 				<h2><?php esc_html_e( 'Location', 'cp-sync' ); ?></h2>
 				<p><?php echo wp_kses_post( nl2br( EventDetail::esc( $view['location'] ), false ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped before nl2br, then limited to post HTML. ?></p>
 				<?php if ( ! empty( $view['map_url'] ) ) : ?>
 					<p><a href="<?php echo esc_url( $view['map_url'] ); ?>"><?php esc_html_e( 'View on map', 'cp-sync' ); ?></a></p>
 				<?php endif; ?>
-			</div>
-		<?php endif; ?>
-		<?php if ( ! empty( $view['price'] ) ) : ?>
-			<div class="cp-sync-event__fact">
-				<h2><?php esc_html_e( 'Cost', 'cp-sync' ); ?></h2>
-				<p class="cp-sync-event__cost"><?php echo EventDetail::esc( $view['price'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- EventDetail::esc() escapes. ?></p>
 			</div>
 		<?php endif; ?>
 	</section>

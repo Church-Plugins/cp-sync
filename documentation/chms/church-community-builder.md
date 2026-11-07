@@ -23,7 +23,7 @@ CP Sync provides integration with Church Community Builder (CCB), allowing you t
 
 ### Groups Synchronization
 
-Group sync does not need CP Groups. Without it, CP Sync shows the groups. See [Show Groups on Your Site](../integrations/show-groups.md). If **Display groups with CP Sync** is off and CP Groups is not active, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
+Group sync does not need CP Groups. Without it, CP Sync shows the groups. See [Show Groups on Your Site](../integrations/show-groups.md). Without CP Groups, turn on **Sync Groups** to see the **Groups** tab.
 
 Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Church Community Builder, while **Sync Groups** is on.
 
@@ -61,7 +61,7 @@ Only groups that are not marked Inactive and have **Public Search** checked in C
 
 ### Events Synchronization
 
-Sending events to The Events Calendar needs that plugin to be active. Without it, turn on **Display events with CP Sync** on the **Advanced** tab. **Sync Events** and the **Events** tab then work the same way: the date range and filters on that tab are what get imported. See [Events on your site](../integrations/events-on-your-site.md).
+Sending events to The Events Calendar needs that plugin to be active. Without it, turn on **Sync Events** and CP Sync shows the events on your site. The **Events** tab works the same way: the date range and filters on that tab are what get imported. See [Events on your site](../integrations/events-on-your-site.md).
 
 1. Go to the **Events** tab in the CCB settings
 2. Choose how far ahead events sync with **Date Range** (see below)

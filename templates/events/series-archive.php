@@ -24,7 +24,7 @@ if ( ! is_string( $cp_sync_title ) || '' === $cp_sync_title ) {
 }
 ?>
 <header class="cp-sync-events__header">
-	<h1><?php echo esc_html( $cp_sync_title ); ?></h1>
+	<h1 class="page-title"><?php echo esc_html( $cp_sync_title ); ?></h1>
 </header>
 <?php
 $cp_sync_series = array();

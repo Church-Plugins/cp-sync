@@ -7,6 +7,8 @@
 
 namespace CP_Sync\Tests\Unit;
 
+use Brain\Monkey;
+use Brain\Monkey\Functions;
 use CP_Sync\Events\EventFormatter;
 use PHPUnit\Framework\TestCase;
 
@@ -14,6 +16,17 @@ use PHPUnit\Framework\TestCase;
  * @covers \CP_Sync\Events\EventFormatter
  */
 class EventTimezoneDisplayTest extends TestCase {
+
+	protected function setUp(): void {
+		parent::setUp();
+		Monkey\setUp();
+		Functions\when( 'get_option' )->justReturn( '' );
+	}
+
+	protected function tearDown(): void {
+		Monkey\tearDown();
+		parent::tearDown();
+	}
 
 	public function test_a_utc_instant_displays_in_the_site_timezone() {
 		$when = EventFormatter::format_when(

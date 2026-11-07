@@ -56,7 +56,10 @@ if ( ! $cp_sync_dates ) {
 					'title'            => get_the_title( $cp_sync_event ),
 					'permalink'        => (string) get_permalink( $cp_sync_event ),
 					'registration_url' => (string) get_post_meta( $cp_sync_id, Meta::REGISTRATION_URL, true ),
-					'price'            => (string) get_post_meta( $cp_sync_id, Meta::REGISTRATION_PRICE, true ),
+					'badge'            => EventFormatter::badge(
+						(string) get_post_meta( $cp_sync_id, Meta::START_UTC, true ),
+						(string) get_post_meta( $cp_sync_id, Meta::TIMEZONE, true )
+					),
 					'when'             => $cp_sync_when['text'],
 					'all_day'          => $cp_sync_when['all_day'],
 					'iso'              => $cp_sync_when['iso'],

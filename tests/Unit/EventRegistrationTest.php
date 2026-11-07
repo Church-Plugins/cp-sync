@@ -1,7 +1,7 @@
 <?php
 /**
- * Event post types register only when sync and display are both on,
- * and The Events Calendar is absent.
+ * Event post types register only when Sync Events is on and The Events
+ * Calendar is absent.
  *
  * @package CP_Sync
  */
@@ -19,7 +19,9 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \CP_Sync\Events\PostTypes::should_register
- * @covers \CP_Sync\Events\PostTypes::display_is_on
+ * @covers \CP_Sync\Events\PostTypes::event_args
+ * @covers \CP_Sync\Events\PostTypes::series_args
+ * @covers \CP_Sync\Events\PostTypes::category_args
  * @covers \CP_Sync\Events\PostTypes::public_slug
  * @covers \CP_Sync\Events\Display::is_enabled
  * @covers \CP_Sync\Events\Display::template_for
@@ -42,64 +44,37 @@ class EventRegistrationTest extends TestCase {
 	}
 
 	public function test_registration_stays_off_while_the_events_calendar_is_active() {
-		$this->assertFalse( PostTypes::should_register( true, true, true ) );
-		$this->assertFalse( PostTypes::should_register( true, null, true ) );
-		$this->assertFalse( PostTypes::should_register( true, true, null ) );
+		$this->assertFalse( PostTypes::should_register( true, true ) );
+		$this->assertFalse( PostTypes::should_register( true, null ) );
 	}
 
 	public function test_nothing_from_cp_event_shows_while_the_events_calendar_is_active() {
-		$this->assertFalse( PostTypes::should_register( true, true, true ) );
-		$this->assertSame( '', Display::template_for( true, true, true, 'archive' ) );
-		$this->assertSame( '', Display::template_for( true, true, true, 'event' ) );
-		$this->assertSame( '', Display::template_for( true, true, true, 'series' ) );
-		$this->assertSame( '', Display::template_for( true, true, true, 'series-archive' ) );
-		$this->assertSame( '', Display::template_for( true, true, true, 'category' ) );
+		$this->assertFalse( PostTypes::should_register( true, true ) );
+		$this->assertSame( '', Display::template_for( true, true, 'archive' ) );
+		$this->assertSame( '', Display::template_for( true, true, 'event' ) );
+		$this->assertSame( '', Display::template_for( true, true, 'series' ) );
+		$this->assertSame( '', Display::template_for( true, true, 'series-archive' ) );
+		$this->assertSame( '', Display::template_for( true, true, 'category' ) );
 	}
 
-	public function test_upgrade_leaves_display_off_unless_event_sync_was_already_on() {
-		$this->assertFalse( PostTypes::display_is_on( null, null ) );
-		$this->assertFalse( PostTypes::should_register( false, null, null ) );
-		$this->assertFalse( PostTypes::should_register( false, null, false ) );
+	public function test_archives_register_only_when_sync_events_is_on() {
+		$this->assertTrue( PostTypes::should_register( false, true ) );
+		$this->assertTrue( PostTypes::should_register( false, '1' ) );
 
-		$this->assertTrue( PostTypes::display_is_on( null, true ) );
-		$this->assertTrue( PostTypes::should_register( false, null, true ) );
+		$this->assertFalse( PostTypes::should_register( false, null ) );
+		$this->assertFalse( PostTypes::should_register( false, false ) );
+		$this->assertFalse( PostTypes::should_register( false, '0' ) );
+		$this->assertFalse( PostTypes::should_register( false, 'off' ) );
 	}
 
-	public function test_archives_register_only_when_sync_and_display_are_both_on() {
-		$this->assertTrue( PostTypes::should_register( false, true, null ) );
-		$this->assertTrue( PostTypes::should_register( false, true, true ) );
-		$this->assertTrue( PostTypes::should_register( false, 'on', '1' ) );
-
-		$this->assertFalse( PostTypes::should_register( false, true, false ) );
-		$this->assertFalse( PostTypes::should_register( false, true, '0' ) );
-		$this->assertFalse( PostTypes::should_register( false, true, 'off' ) );
-		$this->assertFalse( PostTypes::should_register( false, false, true ) );
-		$this->assertFalse( PostTypes::should_register( false, 'false', null ) );
-	}
-
-	public function test_display_setting_reads_the_stored_value_when_the_events_calendar_is_absent() {
-		Functions\when( 'get_option' )->alias(
-			static function ( $key, $default = array() ) {
-				if ( 'cp_sync_settings' === $key ) {
-					return array( 'displayEvents' => false );
-				}
-				return $default;
-			}
-		);
-
-		$this->assertFalse( Display::is_enabled() );
-	}
-
-	public function test_display_setting_defaults_off_when_nothing_is_stored() {
+	public function test_events_stay_off_when_nothing_is_stored() {
 		Functions\when( 'get_option' )->justReturn( array() );
 
 		$this->assertFalse( Display::is_enabled() );
-		$this->assertFalse( Display::display_toggle_on() );
-		$this->assertNull( Display::stored_setting() );
 		$this->assertNull( Display::stored_sync_events() );
 	}
 
-	public function test_display_defaults_on_when_event_sync_is_already_stored_on() {
+	public function test_saved_sync_events_turns_the_event_pages_on() {
 		Functions\when( 'get_option' )->alias(
 			static function ( $key, $default = array() ) {
 				if ( 'cp_sync_pco_settings' === $key ) {
@@ -112,27 +87,28 @@ class EventRegistrationTest extends TestCase {
 		);
 
 		$this->assertTrue( Display::stored_sync_events() );
-		$this->assertTrue( Display::display_toggle_on() );
 		$this->assertTrue( Display::is_enabled() );
 	}
 
-	public function test_sync_events_stays_off_does_not_register_even_if_display_is_saved_on() {
-		Functions\when( 'get_option' )->alias(
-			static function ( $key, $default = array() ) {
-				if ( 'cp_sync_settings' === $key ) {
-					return array( 'displayEvents' => true );
-				}
-				if ( 'cp_sync_pco_settings' === $key ) {
-					return array(
-						'connect' => array( 'sync_events' => false ),
-					);
-				}
-				return $default;
-			}
-		);
+	public function test_event_types_have_no_admin_screens_and_stay_public() {
+		Functions\when( 'apply_filters' )->returnArg( 2 );
 
-		$this->assertTrue( Display::display_toggle_on() );
-		$this->assertFalse( Display::is_enabled() );
+		foreach ( array( PostTypes::event_args(), PostTypes::series_args() ) as $args ) {
+			$this->assertFalse( $args['show_ui'] );
+			$this->assertFalse( $args['show_in_menu'] );
+			$this->assertFalse( $args['show_in_admin_bar'] );
+			$this->assertFalse( $args['show_in_rest'] );
+			$this->assertTrue( $args['public'] );
+			$this->assertTrue( $args['publicly_queryable'] );
+			$this->assertNotEmpty( $args['has_archive'] );
+		}
+
+		$category = PostTypes::category_args();
+
+		$this->assertFalse( $category['show_ui'] );
+		$this->assertFalse( $category['show_admin_column'] );
+		$this->assertFalse( $category['show_in_rest'] );
+		$this->assertTrue( $category['public'] );
 	}
 
 	/**
@@ -148,7 +124,7 @@ class EventRegistrationTest extends TestCase {
 		);
 		$this->assertSame(
 			ChMS::sync_setting_is_enabled( 'events', $stored ),
-			PostTypes::should_register( false, true, $stored )
+			PostTypes::should_register( false, $stored )
 		);
 	}
 
@@ -191,7 +167,7 @@ class EventRegistrationTest extends TestCase {
 		$this->assertFalse( Display::stored_sync_events() );
 	}
 
-	public function test_display_on_enables_the_sync_events_toggle_without_the_events_calendar() {
+	public function test_sync_events_toggle_is_available_without_the_events_calendar() {
 		$chms = new class() extends ChMS {
 			public function __construct() {}
 
@@ -200,19 +176,10 @@ class EventRegistrationTest extends TestCase {
 			}
 		};
 
-		$fields = $chms->expose(
-			array(
-				'groups'         => true,
-				'events'         => false,
-				'events_display' => true,
-			)
-		);
+		$fields = $chms->expose( array( 'sermons' => false ) );
 
 		$this->assertArrayNotHasKey( 'disabled', $fields['sync_events'] );
-		$this->assertSame(
-			'Events are shown on CP Sync\'s own event pages at /events/.',
-			$fields['sync_events']['help']
-		);
+		$this->assertStringContainsString( '/events/', $fields['sync_events']['help'] );
 	}
 
 	public function test_archive_query_meta_always_has_a_default() {
@@ -440,7 +407,7 @@ class EventRegistrationTest extends TestCase {
 		$this->assertSame( 'ASC', $query->vars['order'] );
 		$this->assertSame( Meta::END_UTC, $query->vars['meta_query'][0]['key'] );
 		$this->assertSame( '>=', $query->vars['meta_query'][0]['compare'] );
-		$this->assertSame( 'events/archive', Display::template_for( false, true, true, 'category' ) );
+		$this->assertSame( 'events/archive', Display::template_for( false, true, 'category' ) );
 	}
 
 	public function test_rest_settings_include_filtered_defaults() {
@@ -448,17 +415,17 @@ class EventRegistrationTest extends TestCase {
 		Functions\when( 'apply_filters' )->alias(
 			static function ( $tag, $value ) {
 				if ( 'cp_sync_global_settings' === $tag && is_array( $value ) ) {
-					$value['displayGroupsWithSync'] = false;
+					$value['addedByFilter'] = true;
 				}
 
 				return $value;
 			}
 		);
 
-		$settings = Display::rest_global_settings();
+		$settings = \CP_Sync\Admin\Settings::filtered_global_settings();
 
 		$this->assertSame( 'pco', $settings['chms'] );
-		$this->assertFalse( $settings['displayGroupsWithSync'] );
+		$this->assertTrue( $settings['addedByFilter'] );
 	}
 
 	public function test_a_blank_title_still_gets_a_permalink_slug() {

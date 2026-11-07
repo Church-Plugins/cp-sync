@@ -19,7 +19,7 @@ const rootSelector = process.argv[3] || '.cp-sync-events';
 const placeholderClass = process.argv[4] || 'cp-sync-event__placeholder';
 const imagesOnly = process.argv[5] === 'images-only';
 const scriptPath = path.resolve(root, scriptArg);
-const cssPath = path.resolve(root, 'assets/css/events.css');
+const cssPath = path.resolve(root, 'build/src/events-display.css');
 const port = 8765 + Math.floor(Math.random() * 1000);
 const debugPort = 9400 + Math.floor(Math.random() * 200);
 const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');

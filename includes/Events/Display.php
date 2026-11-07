@@ -16,8 +16,6 @@ require_once dirname( __DIR__ ) . '/Templates.php';
  */
 class Display {
 
-	const SETTING = 'displayEvents';
-
 	const REWRITE_OPTION = 'cp_sync_events_rewrite';
 
 	/**
@@ -36,7 +34,7 @@ class Display {
 		add_action( 'pre_get_posts', array( __CLASS__, 'upcoming_archive' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'series_archive' ), 11 );
 		add_action( 'cp_sync_reset_content', array( __CLASS__, 'delete_imported_content' ) );
-		add_filter( 'cp_sync_global_settings', array( __CLASS__, 'fill_display_default' ) );
+		add_action( 'rest_api_init', array( CalendarFeed::class, 'register_routes' ) );
 	}
 
 	/**
@@ -46,25 +44,6 @@ class Display {
 	 */
 	public static function tec_is_active() {
 		return defined( 'TRIBE_EVENTS_FILE' );
-	}
-
-	/**
-	 * Stored display value, or null when the site has never saved it.
-	 *
-	 * @return mixed
-	 */
-	public static function stored_setting() {
-		if ( ! function_exists( 'get_option' ) ) {
-			return null;
-		}
-
-		$settings = get_option( 'cp_sync_settings', array() );
-
-		if ( ! is_array( $settings ) || ! array_key_exists( self::SETTING, $settings ) ) {
-			return null;
-		}
-
-		return $settings[ self::SETTING ];
 	}
 
 	/**
@@ -98,29 +77,25 @@ class Display {
 	}
 
 	/**
-	 * Whether the display toggle is on, ignoring The Events Calendar.
-	 *
-	 * The settings screen uses this to enable Sync Events and the Events tab
-	 * while The Events Calendar is inactive. Registration still requires both
-	 * toggles, via is_enabled().
-	 *
-	 * @return bool
-	 */
-	public static function display_toggle_on() {
-		if ( self::tec_is_active() ) {
-			return false;
-		}
-
-		return PostTypes::display_is_on( self::stored_setting(), self::stored_sync_events() );
-	}
-
-	/**
 	 * Whether CP Sync should register its event post types and archives.
 	 *
 	 * @return bool
 	 */
 	public static function is_enabled() {
-		return PostTypes::should_register( self::tec_is_active(), self::stored_setting(), self::stored_sync_events() );
+		return PostTypes::should_register( self::tec_is_active(), self::stored_sync_events() );
+	}
+
+	/**
+	 * Help text for the Connect tab's Sync Events toggle.
+	 *
+	 * @return string
+	 */
+	public static function sync_events_help() {
+		if ( self::tec_is_active() ) {
+			return __( 'When enabled, events are synced from your ChMS to The Events Calendar.', 'cp-sync' );
+		}
+
+		return __( 'When enabled, events are synced from your ChMS and shown on your site at /events/ and /event-series/. These lists replace any page already using those addresses.', 'cp-sync' );
 	}
 
 	/**
@@ -131,43 +106,6 @@ class Display {
 	 */
 	public static function should_import( $integration_type ) {
 		return 'events' === $integration_type && self::is_enabled();
-	}
-
-	/**
-	 * Put the upgrade default on the settings payload when nothing is stored.
-	 *
-	 * @param mixed $settings Global settings.
-	 * @return array
-	 */
-	public static function fill_display_default( $settings ) {
-		if ( ! is_array( $settings ) ) {
-			$settings = array();
-		}
-
-		if ( ! array_key_exists( self::SETTING, $settings ) ) {
-			$settings[ self::SETTING ] = PostTypes::display_is_on( null, self::stored_sync_events() );
-		}
-
-		return $settings;
-	}
-
-	/**
-	 * Global settings for GET /cp-sync/v1/settings.
-	 *
-	 * The filter is what adds defaults the settings screen did not store,
-	 * including Display groups. Calling only fill_display_default() drops
-	 * those on a refetch.
-	 *
-	 * @return array
-	 */
-	public static function rest_global_settings() {
-		if ( ! function_exists( 'apply_filters' ) ) {
-			$settings = function_exists( 'get_option' ) ? get_option( 'cp_sync_settings', array() ) : array();
-
-			return self::fill_display_default( is_array( $settings ) ? $settings : array() );
-		}
-
-		return \CP_Sync\Admin\Settings::filtered_global_settings();
 	}
 
 	/**
@@ -336,14 +274,13 @@ class Display {
 	 * While The Events Calendar is active this is always '', so neither the
 	 * archive nor a single event or series is rendered.
 	 *
-	 * @param bool   $tec_active      Whether The Events Calendar is active.
-	 * @param mixed  $display_setting Stored display value, or null when unset.
-	 * @param mixed  $sync_events     Stored sync_events value, or null when unset.
-	 * @param string $screen          archive, event, or series.
+	 * @param bool   $tec_active  Whether The Events Calendar is active.
+	 * @param mixed  $sync_events Stored sync_events value, or null when unset.
+	 * @param string $screen      archive, event, or series.
 	 * @return string Template path relative to templates/, without .php.
 	 */
-	public static function template_for( $tec_active, $display_setting, $sync_events, $screen ) {
-		if ( ! PostTypes::should_register( $tec_active, $display_setting, $sync_events ) ) {
+	public static function template_for( $tec_active, $sync_events, $screen ) {
+		if ( ! PostTypes::should_register( $tec_active, $sync_events ) ) {
 			return '';
 		}
 
@@ -387,7 +324,7 @@ class Display {
 			$screen = 'series';
 		}
 
-		$relative = self::template_for( self::tec_is_active(), self::stored_setting(), self::stored_sync_events(), $screen );
+		$relative = self::template_for( self::tec_is_active(), self::stored_sync_events(), $screen );
 
 		if ( '' === $relative ) {
 			return $template;
@@ -396,6 +333,122 @@ class Display {
 		$found = \CP_Sync\get_template_hierarchy( $relative );
 
 		return ( is_string( $found ) && '' !== $found && file_exists( $found ) ) ? $found : $template;
+	}
+
+	/**
+	 * Which view the event list is showing. The calendar is the default.
+	 *
+	 * @return string calendar or list.
+	 */
+	public static function current_view() {
+		// A read-only display choice. It is compared to a fixed value and never stored.
+		$view = isset( $_GET['view'] ) && is_string( $_GET['view'] ) ? $_GET['view'] : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput
+
+		return 'list' === $view ? 'list' : 'calendar';
+	}
+
+	/**
+	 * Address of this page in one view.
+	 *
+	 * @param string $view calendar or list.
+	 * @return string
+	 */
+	public static function view_url( $view ) {
+		$url = remove_query_arg( array( 'view', 'paged' ) );
+
+		// The list's page number lives in the path, and the calendar has no pages.
+		$url = preg_replace( '#/page/\d+/?(?=\?|$)#', '/', (string) $url );
+
+		return 'list' === $view ? add_query_arg( 'view', 'list', $url ) : $url;
+	}
+
+	/**
+	 * Whether this request shows the calendar.
+	 *
+	 * @return bool
+	 */
+	public static function is_calendar_screen() {
+		$screen = is_post_type_archive( PostTypes::EVENT ) || ( function_exists( 'is_tax' ) && is_tax( PostTypes::CATEGORY ) );
+
+		return $screen && 'calendar' === self::current_view();
+	}
+
+	/**
+	 * Slug of the category this archive is showing, or an empty string.
+	 *
+	 * @return string
+	 */
+	public static function current_category() {
+		if ( ! function_exists( 'is_tax' ) || ! is_tax( PostTypes::CATEGORY ) ) {
+			return '';
+		}
+
+		$term = get_queried_object();
+
+		return ( is_object( $term ) && isset( $term->slug ) ) ? (string) $term->slug : '';
+	}
+
+	/**
+	 * Categories for the filter. Empty when a site has none, which hides the filter.
+	 *
+	 * @return array<string,string> Slug to name.
+	 */
+	public static function category_options() {
+		if ( ! function_exists( 'get_terms' ) ) {
+			return array();
+		}
+
+		$terms = get_terms(
+			array(
+				'taxonomy'   => PostTypes::CATEGORY,
+				'hide_empty' => true,
+			)
+		);
+
+		if ( ! is_array( $terms ) ) {
+			return array();
+		}
+
+		$options = array();
+
+		foreach ( $terms as $term ) {
+			if ( is_object( $term ) && isset( $term->slug, $term->name ) ) {
+				$options[ (string) $term->slug ] = html_entity_decode( (string) $term->name, ENT_QUOTES, 'UTF-8' );
+			}
+		}
+
+		return $options;
+	}
+
+	/**
+	 * Settings for the calendar script.
+	 *
+	 * `now` is the site's clock, so "today" does not depend on the visitor's
+	 * timezone. Dates and times come from the server in the event's own timezone.
+	 *
+	 * @return array
+	 */
+	public static function calendar_config() {
+		return array(
+			'restUrl'  => esc_url_raw( rest_url( CalendarFeed::REST_NAMESPACE . CalendarFeed::ROUTE ) ),
+			'now'      => wp_date( 'Y-m-d\TH:i:s' ),
+			'firstDay' => (int) get_option( 'start_of_week', 0 ),
+			'locale'   => str_replace( '_', '-', (string) get_locale() ),
+			'category' => self::current_category(),
+			'i18n'     => array(
+				'today'     => __( 'Today', 'cp-sync' ),
+				'prevMonth' => __( 'Previous month', 'cp-sync' ),
+				'nextMonth' => __( 'Next month', 'cp-sync' ),
+				/* translators: %d: how many more events are on this day. */
+				'more'      => __( '+%d more', 'cp-sync' ),
+				'loading'   => __( 'Loading events…', 'cp-sync' ),
+				'error'     => __( 'Events could not be loaded. Please try again.', 'cp-sync' ),
+				'noMonth'   => __( 'No events scheduled this month.', 'cp-sync' ),
+				'noDay'     => __( 'No events on this day.', 'cp-sync' ),
+				/* translators: %d: number of events on this day. */
+				'dayEvents' => __( '%d events', 'cp-sync' ),
+			),
+		);
 	}
 
 	/**
@@ -426,14 +479,17 @@ class Display {
 			return;
 		}
 
-		$version = defined( 'CP_SYNC_PLUGIN_VERSION' ) ? CP_SYNC_PLUGIN_VERSION : '1.2.0';
+		cp_sync()->enqueue_asset( 'events-display', array(), null, true );
+		wp_enqueue_style( 'material-icons' );
 
-		wp_enqueue_style(
-			'cp-sync-events',
-			CP_SYNC_PLUGIN_URL . 'assets/css/events.css',
-			array(),
-			$version
-		);
+		if ( self::is_calendar_screen() ) {
+			cp_sync()->enqueue_asset( 'events-calendar', array(), null, true );
+			$calendar = cp_sync()->enqueue_asset( 'events-calendar', array(), null, false, true );
+
+			if ( is_array( $calendar ) ) {
+				wp_add_inline_script( $calendar['handle'], 'window.cpSyncCalendar = ' . wp_json_encode( self::calendar_config() ) . ';', 'before' );
+			}
+		}
 
 		$script = CP_SYNC_PLUGIN_DIR . 'assets/js/events-display.js';
 

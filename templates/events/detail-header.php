@@ -45,6 +45,7 @@ $cp_sync_image   = ! empty( $view['image'] );
 		<?php if ( ! empty( $view['date_confirmed'] ) && ! empty( $view['badge']['valid'] ) ) : ?>
 			<div class="cp-sync-event__heading">
 				<p class="cp-sync-event__badge" aria-hidden="true">
+					<span class="cp-sync-event__badge-weekday"><?php echo EventDetail::esc( isset( $view['badge']['weekday'] ) ? $view['badge']['weekday'] : '' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- EventDetail::esc() escapes. ?></span>
 					<span class="cp-sync-event__badge-month"><?php echo EventDetail::esc( $view['badge']['month'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- EventDetail::esc() escapes. ?></span>
 					<strong class="cp-sync-event__badge-day"><?php echo EventDetail::esc( $view['badge']['day'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- EventDetail::esc() escapes. ?></strong>
 				</p>
@@ -65,7 +66,7 @@ $cp_sync_image   = ! empty( $view['image'] );
 					<strong class="cp-sync-event__price"><?php echo EventDetail::esc( $view['price'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- EventDetail::esc() escapes. ?></strong>
 				<?php endif; ?>
 				<?php if ( ! empty( $view['show_register'] ) ) : ?>
-					<a class="cp-sync-event__button" href="<?php echo esc_url( $view['registration_url'] ); ?>"><?php esc_html_e( 'Register', 'cp-sync' ); ?></a>
+					<a class="cp-sync-event__button cp-button is-large" href="<?php echo esc_url( $view['registration_url'] ); ?>"><?php esc_html_e( 'Register', 'cp-sync' ); ?></a>
 				<?php endif; ?>
 				<?php
 				if ( ! empty( $view['calendar'] ) ) {

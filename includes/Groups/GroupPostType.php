@@ -12,8 +12,9 @@ use ChurchPlugins\Setup\PostTypes\PostType;
 /**
  * Registers `cp_group` with the same public slug CP Groups uses.
  *
- * Metaboxes are intentionally empty. Lite displays synced groups; it does not
- * edit leader rows, and it does not load CMB2 fields.
+ * Lite displays synced groups and has no admin screens. The sync owns every
+ * value, so there is nothing to edit here. CP Groups registers its own screens
+ * for these same posts when it is active.
  *
  * @since 1.2.0
  */
@@ -45,14 +46,17 @@ class GroupPostType extends PostType {
 	 * @return array
 	 */
 	public function get_args() {
-		$args                 = parent::get_args();
-		$args['menu_icon']    = 'dashicons-groups';
-		$args['has_archive']  = 'groups';
-		$args['rewrite']      = [
+		$args                      = parent::get_args();
+		$args['show_ui']           = false;
+		$args['show_in_menu']      = false;
+		$args['show_in_admin_bar'] = false;
+		$args['show_in_rest']      = false;
+		$args['has_archive']       = 'groups';
+		$args['rewrite']           = [
 			'slug'       => 'groups',
 			'with_front' => false,
 		];
-		$args['supports'][]   = 'page-attributes';
+		$args['supports'][]        = 'page-attributes';
 
 		return $args;
 	}

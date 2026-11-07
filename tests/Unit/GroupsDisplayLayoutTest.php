@@ -57,7 +57,7 @@ class GroupsDisplayLayoutTest extends TestCase {
 		parent::tearDown();
 	}
 
-	public function test_archive_card_is_a_horizontal_summary_without_filter_hooks() {
+	public function test_list_card_uses_the_cp_groups_markup_without_filter_hooks() {
 		$html = Display::render_group(
 			array(
 				'title'            => 'Neighborhood Table',
@@ -66,41 +66,66 @@ class GroupsDisplayLayoutTest extends TestCase {
 				'content'          => 'A welcoming space for conversation.',
 				'time_desc'        => 'Thursdays at 6:30 PM',
 				'location'         => 'Example Community Hall',
-				'terms'            => array( 'Community groups', 'Community groups', 'Adults' ),
-				'registration_url' => '',
+				'terms'            => array(
+					'category'   => array(
+						array(
+							'name' => 'Community groups',
+							'url'  => 'https://church.example/categories/community/',
+						),
+						array(
+							'name' => 'Community groups',
+							'url'  => 'https://church.example/categories/community/',
+						),
+					),
+					'life-stage' => array(
+						array(
+							'name' => 'Adults',
+							'url'  => '',
+						),
+					),
+				),
 			)
 		);
 
-		$this->assertStringContainsString( 'cp-sync-groups__card cp-sync-groups__card--summary', $html );
-		$this->assertStringContainsString( 'cp-sync-groups__media', $html );
-		$this->assertStringContainsString( 'cp-sync-groups__details', $html );
-		$this->assertStringContainsString( 'cp-sync-groups__terms', $html );
-		$this->assertStringContainsString( 'Community groups', $html );
-		$this->assertStringContainsString( 'Adults', $html );
-		$this->assertSame( 1, substr_count( $html, 'Community groups' ) );
-		$this->assertStringContainsString( 'cp-sync-groups__metadata', $html );
-		$this->assertStringContainsString( 'cp-sync-groups__title"><a href="https://church.example/groups/neighborhood-table"', $html );
-		$this->assertStringContainsString( '>Learn more<', $html );
-		$this->assertStringNotContainsString( 'href="https://church.example/groups/neighborhood-table">Community groups', $html );
-		$this->assertStringNotContainsString( 'cp-group-item', $html );
-		$this->assertStringNotContainsString( 'cp-groups-filter', $html );
-		$this->assertStringNotContainsString( 'Filter by', $html );
-		$this->assertStringNotContainsString( 'Apply filters', $html );
-		$this->assertStringNotContainsString( 'cp-sync-groups__filters', $html );
+		foreach ( array( 'cp-group-item cp-group-item--disable-modal', 'cp-group-item--thumb--canvas', 'cp-group-item--details', 'cp-group-item--categories', 'cp-group-item--meta', 'cp-group-item--content' ) as $class ) {
+			$this->assertStringContainsString( $class, $html );
+		}
 
-		$terms = strpos( $html, 'cp-sync-groups__terms' );
-		$title = strpos( $html, 'cp-sync-groups__title' );
-		$meta  = strpos( $html, 'cp-sync-groups__metadata' );
-		$copy  = strpos( $html, 'cp-sync-groups__description' );
-		$action = strpos( $html, 'Learn more' );
+		$this->assertSame( 1, substr_count( $html, 'Community groups' ) );
+		$this->assertStringContainsString( '<a class="cp-button is-xsmall" href="https://church.example/categories/community/">Community groups</a>', $html );
+		// A term with no usable link is a label, not a dead link.
+		$this->assertStringContainsString( '<span class="cp-button is-xsmall is-transparent">Adults</span>', $html );
+		$this->assertStringContainsString( 'cp-group-item--title"><a href="https://church.example/groups/neighborhood-table"', $html );
+		$this->assertStringNotContainsString( 'cp-groups-filter', $html );
+		$this->assertStringNotContainsString( 'cp-group-modal', $html );
+		$this->assertStringNotContainsString( 'Filter by', $html );
+
+		$terms = strpos( $html, 'cp-group-item--categories' );
+		$title = strpos( $html, 'cp-group-item--title' );
+		$meta  = strpos( $html, 'cp-group-item--meta' );
+		$copy  = strpos( $html, 'cp-group-item--content' );
 
 		$this->assertLessThan( $title, $terms );
 		$this->assertLessThan( $meta, $title );
 		$this->assertLessThan( $copy, $meta );
-		$this->assertLessThan( $action, $copy );
 	}
 
-	public function test_single_group_omits_media_and_register_when_they_are_absent() {
+	public function test_attributes_show_only_when_turned_on() {
+		$html = Display::render_group(
+			array(
+				'title'        => 'Prayer',
+				'is_full'      => 'on',
+				'kid_friendly' => '0',
+				'accessible'   => '',
+			)
+		);
+
+		$this->assertStringContainsString( 'cp-group-item--attributes--is-full', $html );
+		$this->assertStringNotContainsString( 'kid-friendly', $html );
+		$this->assertStringNotContainsString( 'cp-group-item--attributes--accessible', $html );
+	}
+
+	public function test_single_group_omits_media_and_actions_when_they_are_absent() {
 		$html = Display::render_group(
 			array(
 				'title'     => 'Prayer',
@@ -115,17 +140,14 @@ class GroupsDisplayLayoutTest extends TestCase {
 			)
 		);
 
-		$this->assertStringContainsString( 'class="cp-sync-group"', $html );
-		$this->assertStringContainsString( '<h1 class="cp-sync-group__title">Prayer</h1>', $html );
-		$this->assertStringContainsString( 'Grace Hopper', $html );
+		$this->assertStringContainsString( 'class="cp-group-single"', $html );
+		$this->assertStringContainsString( '<h1 class="cp-group-single--title">Prayer</h1>', $html );
+		$this->assertStringContainsString( '<h6 class="cp-group-single--leader">Grace Hopper</h6>', $html );
 		$this->assertStringNotContainsString( '<img', $html );
-		$this->assertStringNotContainsString( 'cp-sync-groups__placeholder', $html );
-		$this->assertStringNotContainsString( 'cp-sync-group__media', $html );
-		$this->assertStringNotContainsString( 'cp-sync-groups__description', $html );
-		$this->assertStringNotContainsString( 'cp-sync-groups__button', $html );
-		$this->assertStringNotContainsString( 'Register', $html );
-		$this->assertStringNotContainsString( 'Learn more', $html );
-		$this->assertStringNotContainsString( 'cp-sync-groups__card', $html );
+		$this->assertStringNotContainsString( 'cp-group-single--thumb', $html );
+		$this->assertStringNotContainsString( 'cp-group-single--content', $html );
+		$this->assertStringNotContainsString( 'cp-group-single--actions', $html );
+		$this->assertStringNotContainsString( 'cp-group-item ', $html );
 	}
 
 	public function test_single_group_keeps_the_signup_link_and_full_description() {
@@ -136,6 +158,7 @@ class GroupsDisplayLayoutTest extends TestCase {
 				'image'            => 'https://church.example/photo.jpg',
 				'content'          => '<p>Full description.</p>',
 				'registration_url' => 'https://church.example/register',
+				'public_url'       => 'https://church.example/details',
 			),
 			array(
 				'summary'    => false,
@@ -144,70 +167,45 @@ class GroupsDisplayLayoutTest extends TestCase {
 			)
 		);
 
-		$this->assertStringContainsString( 'cp-sync-group__media', $html );
 		$this->assertStringContainsString( 'src="https://church.example/photo.jpg"', $html );
 		$this->assertStringContainsString( 'alt="Neighborhood Table"', $html );
-		$this->assertStringContainsString( 'cp-sync-group__actions', $html );
-		$this->assertStringContainsString( 'href="https://church.example/register"', $html );
-		$this->assertStringContainsString( '>Register<', $html );
+		$this->assertStringContainsString( 'class="cp-button" href="https://church.example/register"', $html );
+		$this->assertStringContainsString( '>Register Now<', $html );
+		$this->assertStringContainsString( 'class="cp-button is-large" href="https://church.example/details"', $html );
 		$this->assertStringContainsString( 'Full description.', $html );
-		$this->assertStringNotContainsString( 'Learn more', $html );
 
-		$image = strpos( $html, 'cp-sync-group__media' );
-		$title = strpos( $html, 'cp-sync-group__title' );
-		$copy  = strpos( $html, 'cp-sync-groups__description' );
-		$action = strpos( $html, 'cp-sync-group__actions' );
+		$image  = strpos( $html, 'cp-group-single--thumb' );
+		$title  = strpos( $html, 'cp-group-single--title' );
+		$copy   = strpos( $html, 'cp-group-single--content' );
+		$action = strpos( $html, 'cp-group-single--actions' );
 
 		$this->assertLessThan( $title, $image );
 		$this->assertLessThan( $copy, $title );
 		$this->assertLessThan( $action, $copy );
 	}
 
-	public function test_a_long_title_is_not_truncated() {
-		$title = str_repeat( 'Neighborhood ', 20 ) . 'Table';
-		$html  = Display::render_group(
-			array(
-				'title'     => $title,
-				'permalink' => 'https://church.example/groups/long',
-			)
-		);
+	public function test_templates_use_the_cp_groups_wrappers_and_no_filter_controls() {
+		$archive = (string) file_get_contents( dirname( __DIR__, 2 ) . '/templates/groups/archive.php' );
+		$single  = (string) file_get_contents( dirname( __DIR__, 2 ) . '/templates/groups/single.php' );
 
-		$this->assertStringContainsString( $title, $html );
-		$this->assertStringNotContainsString( '…', $html );
-	}
-
-	public function test_templates_do_not_add_filter_controls() {
-		$archive = file_get_contents( dirname( __DIR__, 2 ) . '/templates/groups/archive.php' );
-		$single  = file_get_contents( dirname( __DIR__, 2 ) . '/templates/groups/single.php' );
-		$display = file_get_contents( dirname( __DIR__, 2 ) . '/includes/Groups/Display.php' );
-
-		foreach ( array( $archive, $single, $display ) as $source ) {
-			$this->assertIsString( $source );
-			$this->assertStringNotContainsString( 'Apply filters', $source );
+		foreach ( array( $archive, $single ) as $source ) {
+			$this->assertStringContainsString( 'cp-pg-template cp-sync-display', $source );
+			$this->assertStringNotContainsString( 'cp-groups-filter', $source );
 			$this->assertStringNotContainsString( 'Filter by', $source );
-			$this->assertStringNotContainsString( 'cp-sync-groups__filters', $source );
-			$this->assertStringNotContainsString( 'cp-group-item', $source );
 		}
 
-		$this->assertStringContainsString( 'cp-sync-groups--embed', $display );
+		$this->assertStringContainsString( 'cp-groups-archive--list--item', $archive );
 		$this->assertLessThan( strpos( $single, 'Display::render_post' ), strpos( $single, 'All groups' ) );
 	}
 
-	public function test_stylesheet_keeps_type_size_targets_and_reduced_motion() {
-		$css = file_get_contents( dirname( __DIR__, 2 ) . '/assets/css/groups.css' );
+	public function test_stylesheet_is_scoped_and_built_from_the_cp_groups_sources() {
+		$index = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/groups-display/index.scss' );
+		$root  = dirname( __DIR__, 2 );
 
-		$this->assertIsString( $css );
-		$this->assertStringContainsString( 'font-size: max(16px, 1rem)', $css );
-		$this->assertStringContainsString( 'font-family: inherit', $css );
-		$this->assertStringContainsString( 'minmax(0, 35%)', $css );
-		$this->assertStringContainsString( 'min-height: 48px', $css );
-		$this->assertStringContainsString( 'min-height: 44px', $css );
-		$this->assertStringContainsString( 'outline: 3px solid', $css );
-		$this->assertStringContainsString( 'prefers-reduced-motion', $css );
-		$this->assertStringContainsString( '--cp-gap--md', $css );
-		$this->assertStringContainsString( '--cp-border-radius', $css );
-		$this->assertStringNotContainsString( 'text-overflow', $css );
-		$this->assertStringNotContainsString( 'h1,', $css );
-		$this->assertStringNotContainsString( '.cp-button', $css );
+		$this->assertMatchesRegularExpression( '/\.cp-sync-display \{\s+@import "group\/list";\s+@import "group\/single";/', $index );
+		$this->assertStringContainsString( '../frontend-shared/framework', $index );
+		$this->assertFileExists( $root . '/src/groups-display/group/_list.scss' );
+		$this->assertFileExists( $root . '/src/groups-display/group/_single.scss' );
+		$this->assertStringContainsString( '.cp-group-item', (string) file_get_contents( $root . '/src/groups-display/group/_list.scss' ) );
 	}
 }

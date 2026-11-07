@@ -18,9 +18,9 @@ Before using the CP Groups integration:
 3. Under **Sync**, turn on **Sync Groups**.
 4. Click **Save all Settings**.
 
-If CP Groups is not active, groups still sync while **Display groups with CP Sync** is on. That toggle is on the **Advanced** tab and is on until you turn it off. If you turn it off, **Sync Groups** is disabled and the help text reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
+If CP Groups is not active, groups still sync while **Sync Groups** is on, and CP Sync shows them on your site. See [Show Groups on Your Site](show-groups.md).
 
-**Sync Groups** is on until you turn it off. The **Groups** tab appears after you are connected and the toggle is on.
+**Sync Groups** starts on when CP Groups is active. If you activated CP Groups after the toggle was saved off, turn it on. The **Groups** tab appears after you are connected and the toggle is on.
 
 ## Planning Center
 
@@ -51,7 +51,7 @@ Set **Update Interval** on the **Advanced** tab (**Hourly**, **Daily**, or **Wee
 
 ## Troubleshooting
 
-- **Groups not importing**: Confirm **Sync Groups** is on. Without CP Groups, also leave **Display groups with CP Sync** on. On Planning Center, check **Visibility** and clear the **Groups** filter. On Church Community Builder, the group must be active and listed in public search.
+- **Groups not importing**: Confirm **Sync Groups** is on. On Planning Center, check **Visibility** and clear the **Groups** filter. On Church Community Builder, the group must be active and listed in public search.
 - **A field is missing on the group**: Compare the group with [Data Mapping](../configuration/data-mapping.md#groups).
 
 To keep hand edits on one imported group, see [Preventing Sync Updates](../configuration/preventing-sync-updates.md).

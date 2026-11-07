@@ -3,7 +3,7 @@
  * One date in a list.
  *
  * Expects the global post to be a cp_event. Set $show_series_link to false
- * on a series page. Every card has a linked title and one button.
+ * on a series page. Every card has a date, a linked title, and one button.
  *
  * Override from the theme at cp-sync/events/card.php.
  *
@@ -33,6 +33,15 @@ if ( '' === $cp_sync_image ) {
 }
 
 $cp_sync_description = has_excerpt() ? get_the_excerpt() : get_post_field( 'post_content', $cp_sync_post_id );
+$cp_sync_categories  = array();
+$cp_sync_terms       = get_the_terms( $cp_sync_post_id, \CP_Sync\Events\PostTypes::CATEGORY );
+
+if ( is_array( $cp_sync_terms ) ) {
+	foreach ( $cp_sync_terms as $cp_sync_term ) {
+		$cp_sync_categories[] = $cp_sync_term->name;
+	}
+}
+
 $cp_sync_series      = (int) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::SERIES_ID, true );
 $cp_sync_series_url  = '';
 $cp_sync_series_name = '';
@@ -47,8 +56,12 @@ echo \CP_Sync\Events\EventCard::render( // phpcs:ignore WordPress.Security.Escap
 		'title'            => get_the_title(),
 		'permalink'        => (string) get_permalink(),
 		'registration_url' => (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::REGISTRATION_URL, true ),
-		'price'            => (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::REGISTRATION_PRICE, true ),
 		'image'            => $cp_sync_image,
+		'badge'            => \CP_Sync\Events\EventFormatter::badge(
+			(string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::START_UTC, true ),
+			(string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::TIMEZONE, true )
+		),
+		'categories'       => $cp_sync_categories,
 		'description'      => $cp_sync_description,
 		'when'             => $cp_sync_when['text'],
 		'all_day'          => $cp_sync_when['all_day'],

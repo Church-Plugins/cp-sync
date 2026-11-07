@@ -98,7 +98,44 @@ class EventFormatter {
 	 * @return string
 	 */
 	protected static function format_time( \DateTimeImmutable $local ) {
-		return self::format_piece( $local, 'g:i a' );
+		return self::time_label( $local );
+	}
+
+	/**
+	 * Localized time in the site's time format.
+	 *
+	 * @param \DateTimeImmutable $local Local instant.
+	 * @return string
+	 */
+	public static function time_label( \DateTimeImmutable $local ) {
+		$format = function_exists( 'get_option' ) ? get_option( 'time_format' ) : '';
+
+		return self::format_piece( $local, ( is_string( $format ) && '' !== $format ) ? $format : 'g:i a' );
+	}
+
+	/**
+	 * Time for one date on a calendar day. All day, a clock range, or a range with
+	 * dates when it runs past one day.
+	 *
+	 * @param \DateTimeImmutable      $start   Local start.
+	 * @param \DateTimeImmutable|null $end     Local end, or null when there is no real end.
+	 * @param bool                    $all_day Whether the source marked the date all day.
+	 * @return string
+	 */
+	public static function time_range( \DateTimeImmutable $start, $end, $all_day = false ) {
+		if ( $all_day ) {
+			return __( 'All day', 'cp-sync' );
+		}
+
+		if ( null === $end ) {
+			return self::time_label( $start );
+		}
+
+		if ( $start->format( 'Y-m-d' ) === $end->format( 'Y-m-d' ) ) {
+			return self::time_label( $start ) . ' – ' . self::time_label( $end );
+		}
+
+		return self::format_piece( $start, 'M j' ) . ', ' . self::time_label( $start ) . ' – ' . self::format_piece( $end, 'M j' ) . ', ' . self::time_label( $end );
 	}
 
 	/**
@@ -124,14 +161,15 @@ class EventFormatter {
 	 *
 	 * @param string $start_utc UTC `Y-m-d H:i:s`.
 	 * @param string $timezone  IANA zone stored on the event.
-	 * @return array{valid: bool, month: string, day: string, year: string}
+	 * @return array{valid: bool, weekday: string, month: string, day: string, year: string}
 	 */
 	public static function badge( $start_utc, $timezone ) {
 		$empty = array(
-			'valid' => false,
-			'month' => '',
-			'day'   => '',
-			'year'  => '',
+			'valid'   => false,
+			'weekday' => '',
+			'month'   => '',
+			'day'     => '',
+			'year'    => '',
 		);
 		$start = self::utc_instant( $start_utc );
 
@@ -148,10 +186,11 @@ class EventFormatter {
 		}
 
 		return array(
-			'valid' => true,
-			'month' => self::format_piece( $local, 'M' ),
-			'day'   => self::format_piece( $local, 'j' ),
-			'year'  => self::format_piece( $local, 'Y' ),
+			'valid'   => true,
+			'weekday' => self::format_piece( $local, 'D' ),
+			'month'   => self::format_piece( $local, 'M' ),
+			'day'     => self::format_piece( $local, 'j' ),
+			'year'    => self::format_piece( $local, 'Y' ),
 		);
 	}
 

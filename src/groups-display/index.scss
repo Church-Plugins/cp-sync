@@ -1,0 +1,13 @@
+// Groups Lite. Matches CP Groups so a design change there transfers here.
+//
+// group/_list.scss and group/_single.scss are unmodified copies from
+// cp-groups/assets/scss/group/. To update them, copy the files over. Anything
+// specific to Lite belongs in _lite.scss.
+@import "../frontend-shared/framework";
+@import "../frontend-shared/base";
+
+.cp-sync-display {
+	@import "group/list";
+	@import "group/single";
+	@import "lite";
+}

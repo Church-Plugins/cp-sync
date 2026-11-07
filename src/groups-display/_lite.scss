@@ -1,0 +1,44 @@
+// Where Lite differs from CP Groups: no filter column, modal, or contact form.
+
+.cp-groups-archive--list--item {
+	display: flex;
+	text-align: left;
+	width: 100%;
+}
+
+// CP Groups paints the card background on a z-index: -1 layer. Keep that layer
+// inside the card so a theme's page background cannot cover it.
+.cp-group-item {
+	isolation: isolate;
+}
+
+.cp-group-item--title a,
+.cp-group-single--title a {
+	text-decoration: none;
+
+	&:hover,
+	&:focus {
+		text-decoration: underline;
+	}
+}
+
+.cp-group-single--content {
+	margin-top: var(--cp-gap--sm);
+}
+
+.cp-group-item--thumb--canvas.is-empty {
+	background: var(--cp-color-ui-inverted);
+}
+
+.cp-groups-archive--back {
+	margin: 0 0 var(--cp-gap--sm);
+}
+
+.cp-group-single--thumb img {
+	border-radius: var(--cp-border-radius-sm);
+	display: block;
+	height: auto;
+	margin: 0 auto;
+	max-height: 32rem;
+	width: auto;
+}

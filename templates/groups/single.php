@@ -1,6 +1,6 @@
 <?php
 /**
- * Single group.
+ * Single group. Matches CP Groups' templates/parts/group-single.php.
  *
  * Copy this file to your-theme/cp-sync/groups/single.php to override it.
  * Works in a classic theme (header and footer) and a block theme (template parts).
@@ -18,9 +18,9 @@ if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
 
 $archive = get_post_type_archive_link( 'cp_group' );
 ?>
-<main id="cp-sync-group" class="cp-sync-display cp-sync-groups cp-sync-group-page">
+<main id="cp-pg-template" class="cp-pg-template cp-sync-display">
 	<?php if ( is_string( $archive ) && '' !== $archive ) : ?>
-		<p class="cp-sync-groups__back">
+		<p class="cp-groups-archive--back">
 			<a href="<?php echo esc_url( $archive ); ?>"><?php esc_html_e( 'All groups', 'cp-sync' ); ?></a>
 		</p>
 	<?php endif; ?>

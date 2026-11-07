@@ -20,9 +20,9 @@ Before using The Events Calendar integration:
 3. Under **Sync**, turn on **Sync Events**.
 4. Click **Save all Settings**.
 
-If The Events Calendar is not active and **Display events with CP Sync** is off, **Sync Events** is disabled and the help text reads **Turn on Display events with CP Sync, or activate The Events Calendar.** If Display events is on, the toggle stays available and the help text reads **Events are shown on CP Sync's own event pages at /events/.**
+If The Events Calendar is not active, **Sync Events** shows events on CP Sync's own pages instead. See [Events on your site](events-on-your-site.md).
 
-**Sync Events** is on until you turn it off. The **Events** tab appears after you are connected and the toggle is on.
+**Sync Events** starts on when The Events Calendar is active. If you activated The Events Calendar after the toggle was saved off, turn it on. The **Events** tab appears after you are connected and the toggle is on.
 
 ## Planning Center
 

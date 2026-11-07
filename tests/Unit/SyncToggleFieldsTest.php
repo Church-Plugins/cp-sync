@@ -1,13 +1,11 @@
 <?php
 /**
- * Tests for the shared Groups/Events sync-enable toggle FieldDefs and their
- * availability-driven disabled/help injection, plus the serializer carrying the
- * per-field `disabled` flag through to the client projection.
+ * Tests for the shared sync-enable toggle FieldDefs, their defaults and help text,
+ * and the serializer carrying a per-field `disabled` flag to the client projection.
  *
- * The toggle builder ( ChMS::get_sync_toggle_fields() ) accepts an injectable
- * availability map so both the "companion plugin present" and "absent" states can
- * be exercised without defining cp_groups() / TRIBE_EVENTS_FILE. It is protected,
- * so a lightweight anonymous subclass exposes it — mirroring SettingsSchemaTest.
+ * The toggle builder ( ChMS::get_sync_toggle_fields() ) is protected, so a lightweight
+ * anonymous subclass exposes it — mirroring SettingsSchemaTest. Tests that need a
+ * companion plugin run in a separate process so its function or constant does not leak.
  *
  * @package CP_Sync
  */
@@ -68,70 +66,57 @@ class SyncToggleFieldsTest extends TestCase {
 		return $chms;
 	}
 
-	/* ----------------------------------------------------- both available */
+	/* ------------------------------------------------- no companion plugin */
 
-	public function test_both_available_emit_enabled_toggles() {
-		$fields = $this->makeChms()->expose_sync_toggle_fields(
-			[ 'groups' => true, 'events' => true ]
-		);
+	public function test_groups_and_events_are_available_and_off_without_their_plugins() {
+		$fields = $this->makeChms()->expose_sync_toggle_fields( [ 'sermons' => false ] );
 
 		$this->assertSame( 'toggle', $fields['sync_groups']['type'] );
-		$this->assertTrue( $fields['sync_groups']['default'] );
+		$this->assertFalse( $fields['sync_groups']['default'] );
 		$this->assertArrayNotHasKey( 'disabled', $fields['sync_groups'] );
+		$this->assertStringContainsString( '/groups/', $fields['sync_groups']['help'] );
 
 		$this->assertSame( 'toggle', $fields['sync_events']['type'] );
-		$this->assertTrue( $fields['sync_events']['default'] );
+		$this->assertFalse( $fields['sync_events']['default'] );
 		$this->assertArrayNotHasKey( 'disabled', $fields['sync_events'] );
-
-		// The normal ( available ) help text is NOT the "requires …" explanation.
-		$this->assertStringNotContainsString( 'Requires', $fields['sync_groups']['help'] );
-		$this->assertStringNotContainsString( 'Requires', $fields['sync_events']['help'] );
+		$this->assertStringContainsString( '/events/', $fields['sync_events']['help'] );
 	}
 
-	/* --------------------------------------------------- groups missing */
+	public function test_unsaved_toggles_follow_the_same_default_as_the_pull() {
+		$this->assertFalse( ChMS::sync_setting_is_enabled( 'groups', null ) );
+		$this->assertFalse( ChMS::sync_setting_is_enabled( 'events', null ) );
+		$this->assertTrue( ChMS::sync_setting_is_enabled( 'groups', true ) );
+		$this->assertTrue( ChMS::sync_setting_is_enabled( 'events', true ) );
+	}
 
-	public function test_groups_unavailable_disables_only_groups_toggle() {
-		$fields = $this->makeChms()->expose_sync_toggle_fields(
-			[ 'groups' => false, 'events' => true ]
-		);
+	/* ---------------------------------------------------- companion plugins */
 
-		$this->assertTrue( $fields['sync_groups']['disabled'] );
-		$this->assertSame(
-			'Turn on Display groups with CP Sync, or activate the CP Groups plugin.',
-			$fields['sync_groups']['help']
-		);
-		// default stays true even while disabled ( it is the stored fallback ).
+	/**
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_groups_default_on_and_name_cp_groups_when_it_is_active() {
+		eval( 'namespace { function cp_groups() { return true; } }' );
+
+		$fields = $this->makeChms()->expose_sync_toggle_fields( [ 'sermons' => false ] );
+
 		$this->assertTrue( $fields['sync_groups']['default'] );
-
-		// Events toggle untouched.
-		$this->assertArrayNotHasKey( 'disabled', $fields['sync_events'] );
+		$this->assertStringContainsString( 'CP Groups', $fields['sync_groups']['help'] );
+		$this->assertFalse( $fields['sync_events']['default'] );
 	}
 
-	/* --------------------------------------------------- events missing */
+	/**
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_events_default_on_and_name_the_events_calendar_when_it_is_active() {
+		define( 'TRIBE_EVENTS_FILE', '/tmp/the-events-calendar.php' );
 
-	public function test_events_unavailable_disables_only_events_toggle() {
-		$fields = $this->makeChms()->expose_sync_toggle_fields(
-			[ 'groups' => true, 'events' => false ]
-		);
+		$fields = $this->makeChms()->expose_sync_toggle_fields( [ 'sermons' => false ] );
 
-		$this->assertTrue( $fields['sync_events']['disabled'] );
-		$this->assertSame(
-			'Turn on Display events with CP Sync, or activate The Events Calendar.',
-			$fields['sync_events']['help']
-		);
-
-		$this->assertArrayNotHasKey( 'disabled', $fields['sync_groups'] );
-	}
-
-	/* ---------------------------------------------------- both missing */
-
-	public function test_both_unavailable_disables_both_toggles() {
-		$fields = $this->makeChms()->expose_sync_toggle_fields(
-			[ 'groups' => false, 'events' => false ]
-		);
-
-		$this->assertTrue( $fields['sync_groups']['disabled'] );
-		$this->assertTrue( $fields['sync_events']['disabled'] );
+		$this->assertTrue( $fields['sync_events']['default'] );
+		$this->assertStringContainsString( 'The Events Calendar', $fields['sync_events']['help'] );
+		$this->assertFalse( $fields['sync_groups']['default'] );
 	}
 
 	/* ------------------------------------- serializer passes disabled through */
@@ -145,9 +130,15 @@ class SyncToggleFieldsTest extends TestCase {
 				'sections' => [
 					[
 						'title'  => 'Sync',
-						'fields' => $chms->expose_sync_toggle_fields(
-							[ 'groups' => false, 'events' => true ]
-						),
+						'fields' => [
+							'sync_sermons' => [
+								'type'     => 'toggle',
+								'label'    => 'Sync Sermons',
+								'disabled' => true,
+								'help'     => 'Requires the CP Sermons plugin, which is not active on this site.',
+							],
+							'sync_groups'  => $chms->expose_sync_toggle_fields( [ 'sermons' => false ] )['sync_groups'],
+						],
 					],
 				],
 			],
@@ -156,16 +147,16 @@ class SyncToggleFieldsTest extends TestCase {
 		$output = $chms->get_formatted_settings_schema();
 		$fields = $output['connect']['sections'][0]['fields'];
 
-		// The availability signal ( `disabled` ) and the swapped help text survive
-		// into the client-safe projection.
-		$this->assertTrue( $fields['sync_groups']['disabled'] );
+		// The availability signal ( `disabled` ) and its help text survive into the
+		// client-safe projection.
+		$this->assertTrue( $fields['sync_sermons']['disabled'] );
 		$this->assertSame(
-			'Turn on Display groups with CP Sync, or activate the CP Groups plugin.',
-			$fields['sync_groups']['help']
+			'Requires the CP Sermons plugin, which is not active on this site.',
+			$fields['sync_sermons']['help']
 		);
 
 		// Available toggle carries no `disabled` key.
-		$this->assertArrayNotHasKey( 'disabled', $fields['sync_events'] );
+		$this->assertArrayNotHasKey( 'disabled', $fields['sync_groups'] );
 
 		// Output remains JSON-serializable ( no closures leaked ).
 		json_encode( $output );
@@ -174,42 +165,18 @@ class SyncToggleFieldsTest extends TestCase {
 
 	/* ------------------------------------------- _Init availability helpers */
 
-	public function test_is_integration_available_uses_groups_lite_when_cp_groups_is_absent() {
-		// No saved options: a new install defaults the display toggle on.
-		Functions\when( 'get_option' )->alias(
-			static function ( $option, $default = false ) {
-				unset( $option );
-				return $default;
-			}
-		);
+	public function test_groups_and_events_always_have_a_destination() {
 		$this->assertTrue( Integrations_Init::is_integration_available( 'groups' ) );
-		$this->assertFalse( Integrations_Init::is_integration_available( 'events' ) );
+		$this->assertTrue( Integrations_Init::is_integration_available( 'events' ) );
 		// Unknown types are not gated by this helper.
 		$this->assertTrue( Integrations_Init::is_integration_available( 'unknown' ) );
 	}
 
-	public function test_groups_are_unavailable_when_display_is_turned_off() {
-		Functions\when( 'get_option' )->alias(
-			static function ( $option, $default = false ) {
-				if ( 'cp_sync_settings' === $option ) {
-					return [ 'displayGroupsWithSync' => false ];
-				}
-
-				return $default;
-			}
-		);
-
-		$this->assertFalse( Integrations_Init::is_integration_available( 'groups' ) );
-	}
-
-	public function test_unavailable_message_maps_type_to_plugin_name() {
+	public function test_sermons_still_need_cp_sermons() {
+		$this->assertFalse( Integrations_Init::is_integration_available( 'sermons' ) );
 		$this->assertStringContainsString(
-			'CP Groups',
-			Integrations_Init::integration_unavailable_message( 'groups' )
-		);
-		$this->assertStringContainsString(
-			'The Events Calendar',
-			Integrations_Init::integration_unavailable_message( 'events' )
+			'CP Sermons',
+			Integrations_Init::integration_unavailable_message( 'sermons' )
 		);
 	}
 }

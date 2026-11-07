@@ -2,28 +2,26 @@
 
 CP Sync can show your groups on your website. You do not need the CP Groups plugin for this.
 
-Each group shows its name, photo, description, meeting time, location, group type or category when one is stored, and leader names. On a wide screen the groups page shows one horizontal card per row. On a phone the photo stacks above the details. When your church management system has a signup link, the card has a **Register** button. When it does not, the button says **Learn more** and opens that group's page. A group's own page does not show a button when there is no signup link. Leader email addresses are not shown. CP Sync Lite does not add search or filters; those stay in CP Groups.
+The groups page uses the same layout as CP Groups, without its filters. Each group shows its photo, category and type buttons, name, meeting time, location, and a short description. The buttons open a page of groups with that category or type. Labels such as **Full** or **Kid Friendly** appear when your church management system sets them. A group's own page adds its leader names, the full description, **View Details** when your church management system has a page for the group, and **Register Now** when it has a signup link. Leader email addresses are not shown. CP Sync does not add search or filters; those stay in CP Groups.
 
 CP Groups adds filters, a map, and a contact form. If you activate CP Groups later, it uses the same groups. You do not import them again.
 
 ## Turn It On
 
 1. Go to **Church Plugins → CP Sync**.
-2. Open the **Advanced** tab.
-3. Turn on **Display groups with CP Sync**. A new site has this on. On a site that was using CP Sync before 1.2.0, this is off until you turn it on.
-4. On the **Connect** tab, turn on **Sync Groups**. Both this and the display toggle need to be on. If **Sync Groups** is off, the groups page is not created.
-5. Click **Save all Settings**.
-6. After a sync, open `yoursite.org/groups/`.
+2. On the **Connect** tab, turn on **Sync Groups**. Without CP Groups, it is off until you turn it on. On a site updated from before 1.2.0, it starts off too, even if it was on before.
+3. Click **Save all Settings**.
+4. After a sync, open `yoursite.org/groups/`.
 
 When Groups sync is on, the groups list uses `/groups/`. If a page on your site already uses that address, rename that page's slug. In **Pages**, open the page, change the slug (the last part of its web address) to something else, such as `groups-info`, and update the page. The groups list stays at `/groups/`. If the old address still opens the page, go to **Settings → Permalinks** and click **Save Changes**.
 
 With **Show All**, every group syncs and appears on your site, including groups unlisted in your ChMS.
 
-Each group also has its own page. The title on the groups page links to that page. **All groups** at the top of that page returns to the list. On the groups list, the description is shortened to about two lines. The group's own page shows the full description, with the photo above the title when a photo exists. The web address of each group stays the same if you install CP Groups later, because CP Groups uses these same groups.
+Each group also has its own page. The photo and title on the groups page link to it. **All groups** at the top of that page returns to the list. On the groups list, the description is shortened to about two lines, and a long group name stays on one line. The web address of each group stays the same if you install CP Groups later, because CP Groups uses these same groups.
 
-To stop showing groups, turn off **Display groups with CP Sync** on the **Advanced** tab.
+To stop showing groups, turn off **Sync Groups** on the **Connect** tab and click **Save all Settings**. Groups also stop syncing. Groups already imported stay in the database.
 
-If you turn **Display groups with CP Sync** off and CP Groups is not active, **Sync Groups** is disabled. Its help text reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
+Groups do not appear in the WordPress admin menu. The sync owns their names, descriptions, and photos, so change a group in your church management system. To change how groups look, see [Change How Groups Look](#change-how-groups-look).
 
 ## Put Groups on Another Page
 
@@ -58,8 +56,10 @@ Copy a template from the plugin into your theme and edit the copy:
 
 The groups page is the archive file. A single group is the single file. This works with classic themes and block themes.
 
+Colors, spacing, and buttons use the same ChurchPlugins CSS variables and `.cp-button` as CP Groups, such as `--cp-color-brand-primary`. To change the look across CP products, set those variables in your theme's CSS.
+
 ## If You Use CP Groups
 
-Install and activate CP Groups when you want filters, a map, or a contact form. CP Groups takes over the groups CP Sync already created. **Display groups with CP Sync** no longer draws the groups page while CP Groups is active.
+Install and activate CP Groups when you want filters, a map, or a contact form. CP Groups takes over the groups CP Sync already created, and they appear in the WordPress admin menu. If **Sync Groups** is off, turn it on to keep syncing.
 
 See [CP Groups](cp-groups.md) for the sync settings.

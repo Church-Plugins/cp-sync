@@ -30,16 +30,16 @@ Changing **Church Management System** while you are connected leaves the Plannin
 After you are connected, the same tab shows a **Sync** section. Choose what to sync, then click **Save all Settings**:
 
 - **Sync Groups** — When enabled, groups are synced from your ChMS. With CP Groups active, they go to CP Groups. Without it, CP Sync shows them on your site.
-- **Sync Events** — When enabled, events are synced from your ChMS to The Events Calendar.
+- **Sync Events** — When enabled, events are synced from your ChMS. With The Events Calendar active, they go there. Without it, CP Sync shows them on your site.
 - **Sync Sermons** — When enabled, sermons are synced from your ChMS to CP Sermons. This toggle is off until you turn it on.
 
-**Sync Events** stays on when The Events Calendar is active, or when **Display events with CP Sync** is on. With The Events Calendar off and that toggle on, the help text reads **Events are shown on CP Sync's own event pages at /events/.** It is disabled only when both are off. The help text then reads **Turn on Display events with CP Sync, or activate The Events Calendar.** **Sync Sermons** is disabled until CP Sermons is active. Its help text is **Requires the CP Sermons plugin, which is not active on this site.** **Sync Groups** stays available without CP Groups. It is disabled only when **Display groups with CP Sync** is off and CP Groups is not active. The help text then reads **Turn on Display groups with CP Sync, or activate the CP Groups plugin.**
+**Sync Groups** and **Sync Events** start on when CP Groups or The Events Calendar is active, and off when it is not. Without those plugins, the help text names the addresses that turning the toggle on creates. **Sync Sermons** is disabled until CP Sermons is active. Its help text is **Requires the CP Sermons plugin, which is not active on this site.**
 
 ## Configuring Data Synchronization
 
 ### Groups Synchronization
 
-Group sync does not need CP Groups. Without it, CP Sync shows the groups. See [Show Groups on Your Site](../integrations/show-groups.md). If **Display groups with CP Sync** is off and CP Groups is not active, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
+Group sync does not need CP Groups. Without it, CP Sync shows the groups. See [Show Groups on Your Site](../integrations/show-groups.md). Without CP Groups, turn on **Sync Groups** to see the **Groups** tab.
 
 Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Planning Center, while **Sync Groups** is on.
 
@@ -73,7 +73,7 @@ On CP Groups 1.2 or newer, leaders are saved as **Group Leaders** rows instead o
 
 ### Events Synchronization
 
-Sending events to The Events Calendar needs that plugin to be active. Without it, turn on **Display events with CP Sync** on the **Advanced** tab. **Sync Events** and the **Events** tab then work the same way: visibility, event source, and filters on that tab are what get imported. See [Events on your site](../integrations/events-on-your-site.md).
+Sending events to The Events Calendar needs that plugin to be active. Without it, turn on **Sync Events** and CP Sync shows the events on your site. The **Events** tab works the same way: visibility, event source, and filters on that tab are what get imported. See [Events on your site](../integrations/events-on-your-site.md).
 
 1. Go to the **Events** tab in the PCO settings
 2. Choose your **Event source**: **Pull from Calendar**, **Pull from Registrations**, or **Calendar AND Registrations**

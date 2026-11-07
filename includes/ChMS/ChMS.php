@@ -182,24 +182,33 @@ abstract class ChMS {
 	 *
 	 * SINGLE SOURCE OF TRUTH — consumed by the schema FieldDef ( which the client's
 	 * tab-visibility logic reads via the served `default` ) AND by the pull-path
-	 * enforcement in Integrations\_Init::pull_integration(). Groups/Events default ON
-	 * ( long-standing behavior ); sermons default OFF so a site updating to a version
-	 * that adds sermon support does not silently start syncing sermons — the admin
-	 * must opt in on the Connect tab.
+	 * enforcement in Integrations\_Init::pull_integration(). Groups and events default
+	 * ON only while CP Groups or The Events Calendar is active. Without that plugin,
+	 * turning the toggle on creates /groups/ or /events/, so it waits for the admin.
+	 * Sermons default OFF so a site updating to a version that adds sermon support does
+	 * not silently start syncing sermons.
 	 *
 	 * @since 0.4.0
 	 * @param string $type The integration type ( groups | events | sermons ).
 	 * @return bool
 	 */
 	public static function sync_toggle_default( $type ) {
+		if ( 'groups' === $type ) {
+			return function_exists( 'cp_groups' );
+		}
+
+		if ( 'events' === $type ) {
+			return defined( 'TRIBE_EVENTS_FILE' );
+		}
+
 		return 'sermons' !== $type;
 	}
 
 	/**
 	 * Whether a feed's sync toggle is on.
 	 *
-	 * A missing stored value uses sync_toggle_default(). Groups and events
-	 * default on. This is the same decision pull_integration() enforces.
+	 * A missing stored value uses sync_toggle_default(). This is the same decision
+	 * pull_integration() enforces.
 	 *
 	 * @since 1.2.0
 	 * @param string $type   groups|events|sermons.
@@ -254,34 +263,27 @@ abstract class ChMS {
 	 * Build the shared feed sync-enable toggle FieldDefs for the connect screen.
 	 *
 	 * Stored as `connect.sync_{type}` booleans so an admin can turn a feed's sync on
-	 * or off. Unstored defaults come from sync_toggle_default() ( groups/events ON,
-	 * sermons OFF ); the sermons toggle is emitted only for a ChMS that registered
-	 * sermons support.
+	 * or off. Unstored defaults come from sync_toggle_default(). The sermons toggle is
+	 * emitted only for a ChMS that registered sermons support.
 	 *
-	 * When a feed has nowhere to go, the toggle is emitted with `disabled: true` and
-	 * its help text names what to turn on. Sync Events is disabled only when The
-	 * Events Calendar is inactive and Display events is off. Availability is resolved every
-	 * time the schema is served ( GET /{chms}/schema ), so the client always sees
-	 * current state.
+	 * Groups and events always have a destination, so those toggles are never disabled.
+	 * Sermons need CP Sermons: without it the toggle is emitted with `disabled: true` and
+	 * its help text says so. Availability is resolved every time the schema is served
+	 * ( GET /{chms}/schema ), so the client always sees current state.
 	 *
 	 * Availability is injectable so the shape can be unit-tested under both states
-	 * without defining the companion plugins' globals. When `$availability` is null the
-	 * pinned conditions are evaluated via Integrations\_Init::is_integration_available().
+	 * without defining the companion plugin's globals. When `$availability` is null it
+	 * is evaluated via Integrations\_Init::is_integration_available().
 	 *
 	 * @since 0.4.0
-	 * @param array|null $availability Optional map `[ 'groups' => bool, 'events' => bool, 'sermons' => bool ]`.
-	 *                                 Null resolves live availability.
+	 * @param array|null $availability Optional map `[ 'sermons' => bool ]`. Null resolves
+	 *                                 live availability.
 	 * @return array `[ 'sync_groups' => FieldDef, 'sync_events' => FieldDef, 'sync_sermons'? => FieldDef ]`.
 	 */
 	protected function get_sync_toggle_fields( $availability = null ) {
 		if ( null === $availability ) {
 			$availability = [
-				'groups'         => \CP_Sync\Integrations\_Init::is_integration_available( 'groups' ),
-				'events'         => \CP_Sync\Integrations\_Init::is_integration_available( 'events' ),
-				'sermons'        => \CP_Sync\Integrations\_Init::is_integration_available( 'sermons' ),
-				// Display events, not The Events Calendar. Enables Sync Events and
-				// the Events tab so visibility, date range, and registrations apply.
-				'events_display' => \CP_Sync\Events\Display::display_toggle_on(),
+				'sermons' => \CP_Sync\Integrations\_Init::is_integration_available( 'sermons' ),
 			];
 		}
 
@@ -289,14 +291,14 @@ abstract class ChMS {
 			'sync_groups' => [
 				'type'    => 'toggle',
 				'label'   => __( 'Sync Groups', 'cp-sync' ),
-				'default' => true,
+				'default' => self::sync_toggle_default( 'groups' ),
 				'help'    => \CP_Sync\Groups\Lite::sync_groups_help(),
 			],
 			'sync_events' => [
 				'type'    => 'toggle',
 				'label'   => __( 'Sync Events', 'cp-sync' ),
-				'default' => true,
-				'help'    => __( 'When enabled, events are synced from your ChMS to The Events Calendar.', 'cp-sync' ),
+				'default' => self::sync_toggle_default( 'events' ),
+				'help'    => \CP_Sync\Events\Display::sync_events_help(),
 			],
 		];
 
@@ -314,19 +316,6 @@ abstract class ChMS {
 				$fields['sync_sermons']['disabled'] = true;
 				$fields['sync_sermons']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'sermons' );
 			}
-		}
-
-		if ( empty( $availability['groups'] ) ) {
-			$fields['sync_groups']['disabled'] = true;
-			$fields['sync_groups']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'groups' );
-		}
-
-		if ( empty( $availability['events'] ) && empty( $availability['events_display'] ) ) {
-			$fields['sync_events']['disabled'] = true;
-			$fields['sync_events']['help']     = \CP_Sync\Integrations\_Init::integration_unavailable_message( 'events' );
-		} elseif ( empty( $availability['events'] ) ) {
-			// Enabled while The Events Calendar is off, which means Display events is on.
-			$fields['sync_events']['help'] = __( 'Events are shown on CP Sync\'s own event pages at /events/.', 'cp-sync' );
 		}
 
 		return $fields;

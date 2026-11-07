@@ -6,56 +6,51 @@ If The Events Calendar is active, CP Sync keeps sending events there and does no
 
 ## Turn it on
 
-Both of these have to be on. If either is off, CP Sync does not create the `/events/` or `/event-series/` addresses, and a page you already have at `/events/` stays in place.
-
 1. Go to **Church Plugins → CP Sync**.
-2. Open the **Advanced** tab.
-3. Turn on **Display events with CP Sync**. On an upgrade this is off until you turn it on, unless event sync was already on.
-4. On the **Connect** tab, **Sync Events** is on until you turn it off. With the display toggle on, that switch is available even when The Events Calendar is not installed.
-5. Click **Save all Settings**.
-6. Open the **Events** tab. Visibility, date range, event source, and registration settings on that tab are what the sync uses.
-7. Click **Pull now** on the **Advanced** tab, or wait for the next scheduled sync.
+2. On the **Connect** tab, turn on **Sync Events**. Without The Events Calendar, it is off until you turn it on. On a site updated from before 1.2.0, it starts off too, even if it was on before.
+3. Click **Save all Settings**.
+4. Open the **Events** tab. Visibility, date range, event source, and registration settings on that tab are what the sync uses.
+5. Click **Pull now** on the **Advanced** tab, or wait for the next scheduled sync.
 
 The first visit after you turn this on refreshes the event links. If `/events/` shows a "page not found" message, go to **Settings → Permalinks** and click **Save Changes**.
 
+Events do not appear in the WordPress admin menu. The sync owns their titles, descriptions, dates, and images, so change an event in your church management system. To change how events look, see [Theme templates](#theme-templates).
+
 ## If you already have a page at /events/
 
-Leave **Display events with CP Sync** off. CP Sync will not take that address, and your page stays.
+Leave **Sync Events** off. CP Sync will not take that address, and your page stays.
 
-If you turn display on while **Sync Events** is also on, CP Sync's event list uses `/events/`. Your old page is still in Pages, but the address shows the event list instead.
+If you turn on **Sync Events**, CP Sync's event list uses `/events/`. Your old page is still in Pages, but the address shows the event list instead.
 
 To put your page back:
 
-1. Open the **Advanced** tab.
-2. Turn off **Display events with CP Sync**.
+1. Open the **Connect** tab.
+2. Turn off **Sync Events**.
 3. Click **Save all Settings**.
 4. If the page is still missing, go to **Settings → Permalinks** and click **Save Changes**.
 
-Turning off **Sync Events** on the **Connect** tab does the same thing to the addresses: the event list and series pages are not registered. Either switch being off is enough.
-
 ## Turn it off
 
-Open the **Advanced** tab, turn off **Display events with CP Sync**, and click **Save all Settings**. The event list and series pages stop being part of the site. Posts that were already imported stay in the database. Turn the switch back on later and they are available again, as long as **Sync Events** is also on.
+Open the **Connect** tab, turn off **Sync Events**, and click **Save all Settings**. The event list and series pages stop being part of the site, and events stop syncing. Posts that were already imported stay in the database. Turn the switch back on later and they are available again.
 
 ## If you turn The Events Calendar off later
 
 While The Events Calendar is active, these pages are not shown. CP Sync sends events to The Events Calendar instead.
 
-If you deactivate The Events Calendar later, and **Display events with CP Sync** and **Sync Events** are both on, events imported earlier can show again at `/events/`.
+If you deactivate The Events Calendar later and **Sync Events** is on, events imported earlier can show again at `/events/`. To keep that address, turn off **Sync Events**.
 
-To clear them out:
+To clear out old events, use the **Content** level of the [Reset Tool](../advanced/reset-tool.md), then click **Pull now** on the **Advanced** tab. A content reset removes all imported content, including groups and sermons, and the pull brings back only what the turned-on feeds return. Take a database backup first.
 
-1. In the WordPress admin, open **Events** and move the old events to Trash. Open **Event Series** in that menu and trash old series too.
-2. Go to **Church Plugins → CP Sync**, open the **Advanced** tab, and click **Pull now**.
-
-Dates that are still in the feed are published again. Future dates that are no longer in the feed stay in the trash. A date that has already ended stays as you left it. If that sync comes back with no events, nothing is removed and nothing is restored.
+If you activate The Events Calendar later and **Sync Events** is off, turn it on to start sending events there.
 
 ## What you get
 
 Each date from your church management system becomes its own event.
 
-- The list of upcoming dates is at `/events/`. Dates are in order, soonest first. Each date has a linked title and one button. The button says **Register** when your church management system sent a link, and **Learn more** when it did not. **Learn more** opens that date's page. A Planning Center registration shows its price next to **Register**. One option shows that price. Several options show a range from the lowest to the highest, such as $75 – $200. A free registration says **Free**. A date that is part of a series also links to that series.
-- An event page shows the date and time in the timezone stored for that event. For Planning Center that is your WordPress timezone (**Settings → General → Timezone**) at the time of the sync. The page does not switch the clock to the visitor's browser. It shows the location, a map search link for that public location text, the image, the description, and a **Register** button when the church management system sent a link. The price, when there is one, is next to **Register**. A stored free or zero price says **Free**. A blank price is left blank. The button goes to that link. It does not use a form on your site. **Add to calendar** downloads a calendar file for that one date. A date that has already ended keeps its description, time, and price, says that it has ended, and does not show **Register**. A date with no end after its start counts as ended once its start date is over.
+- `/events/` opens on a month calendar. Each date shows its time and title and links to that date's page. On a phone, or in a column under 768 pixels wide, days with events show a dot. Tap a day to list its events below the calendar. You can also move between days with the arrow keys. The calendar opens on today, or on the next day with events if today has none.
+- **List**, next to **Calendar**, shows upcoming dates in order, soonest first. The address for this view is `/events/?view=list`. Each date has a date badge, a linked title, the time, location, categories, a short description, and its image when it has one. The image is on the right, and above the details on a phone. One button says **Register** when your church management system sent a link, and **Learn more** when it did not. **Learn more** opens that date's page. A date that is part of a series also links to that series. Without JavaScript, `/events/` shows this list.
+- **Category** above the calendar or list shows one event category. It is hidden when your site has no event categories.
+- An event page shows the date and time in the timezone stored for that event. For Planning Center that is your WordPress timezone (**Settings → General → Timezone**) at the time of the sync. The page does not switch the clock to the visitor's browser. It shows the location, a map search link for that public location text, the image, the description, and a **Register** button when the church management system sent a link. A Planning Center registration that costs money shows its price near the top of the page, next to **Register**. One option shows that price. Several options show a range from the lowest to the highest, such as $75 – $200. A free event, or one with no price, shows no price. Lists and the calendar do not show prices. The button goes to that link. It does not use a form on your site. **Add to calendar** downloads a calendar file for that one date. A date that has already ended keeps its description, time, and price, says that it has ended, and does not show **Register**. A date with no end after its start counts as ended once its start date is over.
 - A password-protected event or series asks for the password before showing its page, and it is left out of the lists at `/events/`, `/event-series/`, series pages, and the `[cp-sync-events]` shortcode. A password-protected event does not offer a calendar file.
 - A series page shows the description, the image, the next upcoming dates in order, and a **Register** button when that series has a signup link. It does not download one calendar file for the whole series, and it does not guess dates that are not already published.
 
@@ -79,7 +74,7 @@ Series pages use `/event-series/` so they do not take the `/series/` address CP 
 | Location | Location line |
 | Image | Featured image. If the download fails, the page uses the image address from your ChMS. |
 | Registration link, or the Church Community Builder event page | **Register** button |
-| Planning Center registration price | Price next to **Register**. One option shows that price. Several options show a range, such as $75 – $200. A free registration says **Free**. |
+| Planning Center registration price | Price next to **Register** on the event page, when the event is not free. One option shows that price. Several options show a range, such as $75 – $200. |
 | Planning Center tags, registration categories, or a Church Community Builder event type | Event category, when the feed already includes one |
 
 Events that the sync imports are published pages. CP Sync does not save a separate private copy of an event the visibility setting left out.
@@ -138,4 +133,4 @@ Examples:
 
 ## Theme templates
 
-A theme can replace a template by copying it into `cp-sync/events/` in the theme. The files are `archive.php`, `single.php`, `series.php`, `card.php`, `list.php`, `detail-header.php`, `details.php`, `calendar-links.php`, and `series-dates.php`. The list at `/events/` is unchanged: it is not a month calendar, and it does not add search or a category filter on the page.
+A theme can replace a template by copying it into `cp-sync/events/` in the theme. The files are `archive.php`, `toolbar.php`, `calendar.php`, `single.php`, `series.php`, `card.php`, `list.php`, `detail-header.php`, `details.php`, `calendar-links.php`, and `series-dates.php`. Colors, spacing, and buttons use the same ChurchPlugins CSS variables and `.cp-button` as other CP products, such as `--cp-color-brand-primary`. Set those variables in your theme's CSS to change the look. The calendar's colors follow them too.

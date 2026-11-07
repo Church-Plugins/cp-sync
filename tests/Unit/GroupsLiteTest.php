@@ -84,7 +84,23 @@ class GroupsLiteTest extends TestCase {
 		parent::tearDown();
 	}
 
+	/**
+	 * Save Sync Groups on, as an admin does on the Connect tab.
+	 *
+	 * @return void
+	 */
+	private function turn_on_sync_groups() {
+		$this->options['cp_sync_settings']     = [ 'chms' => 'pco' ];
+		$this->options['cp_sync_pco_settings'] = [
+			'connect' => [
+				'sync_groups' => true,
+			],
+		];
+	}
+
 	public function test_registers_group_post_type_and_taxonomies_when_cp_groups_is_absent() {
+		$this->turn_on_sync_groups();
+
 		Lite::get_instance()->on_init( false );
 
 		$this->assertSame( 'cp_group', $this->registered_post_type['type'] );
@@ -126,10 +142,9 @@ class GroupsLiteTest extends TestCase {
 	}
 
 	public function test_does_not_register_when_groups_sync_is_off() {
-		// Events-only site: Sync Groups is off, even if the display toggle is on.
+		// Events-only site.
 		$this->options['cp_sync_settings']     = [
-			'chms'                   => 'pco',
-			'displayGroupsWithSync'  => true,
+			'chms' => 'pco',
 		];
 		$this->options['cp_sync_pco_settings'] = [
 			'connect' => [
@@ -145,24 +160,24 @@ class GroupsLiteTest extends TestCase {
 		$this->assertSame( 'off', $this->options[ Lite::REWRITE_STATE_OPTION ] );
 	}
 
-	public function test_upgrade_with_groups_sync_off_defaults_display_off() {
-		// Existing install, display key never saved, Groups sync explicitly off.
+	public function test_upgrade_without_companion_plugins_saves_both_feeds_off() {
+		// Saved on did nothing on 1.1.0 without the plugin. It must not publish pages now.
 		$this->options['cp_sync_settings']     = [
 			'chms'           => 'pco',
 			'updateInterval' => 'daily',
 		];
 		$this->options['cp_sync_pco_settings'] = [
 			'connect' => [
-				'sync_groups' => false,
+				'sync_groups' => true,
+				'sync_events' => true,
 			],
 		];
 
-		Lite::maybe_upgrade( false );
+		Lite::maybe_upgrade( false, false );
 
-		$this->assertTrue( Lite::upgraded_before_groups_display() );
+		$this->assertFalse( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
+		$this->assertFalse( $this->options['cp_sync_pco_settings']['connect']['sync_events'] );
 		$this->assertFalse( Lite::groups_sync_is_on() );
-		$this->assertFalse( Lite::display_default() );
-		$this->assertFalse( Lite::is_display_enabled() );
 
 		Lite::get_instance()->on_init( false );
 
@@ -170,10 +185,89 @@ class GroupsLiteTest extends TestCase {
 		$this->assertFalse( Lite::is_registered() );
 	}
 
-	public function test_existing_install_registers_when_sync_and_display_are_on() {
+	public function test_upgrade_with_companion_plugins_keeps_saved_values() {
+		$this->options['cp_sync_pco_settings'] = [
+			'connect' => [
+				'sync_groups' => false,
+				'sync_events' => false,
+			],
+		];
+
+		Lite::maybe_upgrade( true, true );
+
+		$this->assertFalse( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
+		$this->assertFalse( $this->options['cp_sync_pco_settings']['connect']['sync_events'] );
+	}
+
+	public function test_upgrade_with_companion_plugins_saves_unsaved_toggles_on() {
+		$this->options['cp_sync_ccb_settings'] = [
+			'connect' => [
+				'subdomain' => 'demo',
+			],
+		];
+
+		Lite::maybe_upgrade( true, true );
+
+		$this->assertTrue( $this->options['cp_sync_ccb_settings']['connect']['sync_groups'] );
+		$this->assertTrue( $this->options['cp_sync_ccb_settings']['connect']['sync_events'] );
+		$this->assertSame( 'demo', $this->options['cp_sync_ccb_settings']['connect']['subdomain'] );
+	}
+
+	public function test_upgrade_treats_each_companion_plugin_separately() {
+		$this->options['cp_sync_pco_settings'] = [
+			'connect' => [
+				'sync_events' => true,
+			],
+		];
+
+		Lite::maybe_upgrade( false, true );
+
+		$this->assertFalse( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
+		$this->assertTrue( $this->options['cp_sync_pco_settings']['connect']['sync_events'] );
+	}
+
+	public function test_upgrade_runs_once() {
+		$this->options['cp_sync_pco_settings'] = [
+			'connect' => [
+				'sync_groups' => true,
+				'sync_events' => true,
+			],
+		];
+
+		Lite::maybe_upgrade( false, false );
+
+		$this->options['cp_sync_pco_settings']['connect']['sync_groups'] = true;
+		$this->options['cp_sync_pco_settings']['connect']['sync_events'] = true;
+
+		Lite::maybe_upgrade( false, false );
+
+		$this->assertTrue( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
+		$this->assertTrue( $this->options['cp_sync_pco_settings']['connect']['sync_events'] );
+	}
+
+	public function test_upgrade_runs_after_settings_filters_and_before_event_types_register() {
+		$priority = null;
+
+		Functions\when( 'add_action' )->alias(
+			static function ( $hook, $callback, $hook_priority = 10 ) use ( &$priority ) {
+				if ( 'init' === $hook && [ Lite::class, 'maybe_upgrade' ] === $callback ) {
+					$priority = $hook_priority;
+				}
+			}
+		);
+
+		// The constructor is protected, and the singleton may already exist.
+		$class       = new \ReflectionClass( Lite::class );
+		$constructor = $class->getConstructor();
+		$constructor->setAccessible( true );
+		$constructor->invoke( $class->newInstanceWithoutConstructor() );
+
+		$this->assertSame( 6, $priority );
+	}
+
+	public function test_existing_install_registers_when_sync_is_saved_on() {
 		$this->options['cp_sync_settings']     = [
-			'chms'                  => 'ccb',
-			'displayGroupsWithSync' => true,
+			'chms' => 'ccb',
 		];
 		$this->options['cp_sync_ccb_settings'] = [
 			'connect' => [
@@ -181,7 +275,6 @@ class GroupsLiteTest extends TestCase {
 			],
 		];
 
-		$this->assertTrue( Lite::display_default() );
 		$this->assertTrue( Lite::should_register() );
 
 		Lite::get_instance()->on_init( false );
@@ -191,8 +284,13 @@ class GroupsLiteTest extends TestCase {
 		$this->assertTrue( Lite::is_registered() );
 	}
 
-	public function test_does_not_register_when_display_is_off() {
-		$this->options['cp_sync_settings']           = [ 'displayGroupsWithSync' => false ];
+	public function test_turning_sync_off_gives_the_address_back() {
+		$this->options['cp_sync_settings']           = [ 'chms' => 'pco' ];
+		$this->options['cp_sync_pco_settings']       = [
+			'connect' => [
+				'sync_groups' => false,
+			],
+		];
 		$this->options[ Lite::REWRITE_STATE_OPTION ] = 'lite';
 
 		Lite::get_instance()->on_init( false );
@@ -201,6 +299,27 @@ class GroupsLiteTest extends TestCase {
 		$this->assertNull( $this->registered_post_type );
 		$this->assertSame( 'off', $this->options[ Lite::REWRITE_STATE_OPTION ] );
 		$this->assertSame( 1, $this->flushes );
+	}
+
+	public function test_lite_types_have_no_admin_screens_and_stay_public() {
+		$this->turn_on_sync_groups();
+
+		Lite::get_instance()->on_init( false );
+
+		$args = $this->registered_post_type['args'];
+
+		$this->assertFalse( $args['show_ui'] );
+		$this->assertFalse( $args['show_in_menu'] );
+		$this->assertFalse( $args['show_in_admin_bar'] );
+		$this->assertFalse( $args['show_in_rest'] );
+		$this->assertTrue( $args['public'] );
+
+		foreach ( $this->registered_taxes as $taxonomy ) {
+			$this->assertFalse( $taxonomy['args']['show_ui'] );
+			$this->assertFalse( $taxonomy['args']['show_admin_column'] );
+			$this->assertFalse( $taxonomy['args']['show_in_quick_edit'] );
+			$this->assertFalse( $taxonomy['args']['show_in_rest'] );
+		}
 	}
 
 	public function test_recording_an_existing_cp_groups_site_does_not_flush() {
@@ -212,6 +331,8 @@ class GroupsLiteTest extends TestCase {
 	}
 
 	public function test_flushes_rewrite_rules_once_when_lite_turns_on() {
+		$this->turn_on_sync_groups();
+
 		$lite = Lite::get_instance();
 
 		$lite->on_init( false );
@@ -266,40 +387,50 @@ class GroupsLiteTest extends TestCase {
 	}
 
 	public function test_rendered_group_never_outputs_leader_emails() {
-		$html = Display::render_group(
-			[
-				'title'            => 'Young Adults <script>',
-				'permalink'        => 'https://church.example/groups/young-adults',
-				'image'            => 'https://church.example/photo.jpg',
-				'content'          => 'Meet in the hall.',
-				'time_desc'        => 'Thursdays at 6pm',
-				'location'         => 'Room 4',
-				'leaders'          => [
-					[
-						'id'    => '',
-						'name'  => 'Ada Lovelace',
-						'email' => 'ada@example.com',
-					],
+		$group = [
+			'title'            => 'Young Adults <script>',
+			'permalink'        => 'https://church.example/groups/young-adults',
+			'image'            => 'https://church.example/photo.jpg',
+			'content'          => 'Meet in the hall.',
+			'time_desc'        => 'Thursdays at 6pm',
+			'location'         => 'Room 4',
+			'leaders'          => [
+				[
+					'id'    => '',
+					'name'  => 'Ada Lovelace',
+					'email' => 'ada@example.com',
 				],
-				'leader'           => 'Should Not Show',
-				'leader_email'     => 'secret@example.com',
-				'registration_url' => 'https://church.example/register',
-				'public_url'       => 'https://church.example/public',
-			]
-		);
+			],
+			'leader'           => 'Should Not Show',
+			'leader_email'     => 'secret@example.com',
+			'registration_url' => 'https://church.example/register',
+			'public_url'       => 'https://church.example/public',
+		];
+		$single_args = [
+			'summary'    => false,
+			'heading'    => 'h1',
+			'link_title' => false,
+		];
+
+		$html = Display::render_group( $group, $single_args );
 
 		$this->assertStringContainsString( 'Ada Lovelace', $html );
 		$this->assertStringNotContainsString( 'Should Not Show', $html );
 		$this->assertStringNotContainsString( 'ada@example.com', $html );
 		$this->assertStringNotContainsString( 'secret@example.com', $html );
-		$this->assertStringNotContainsString( 'only-email@example.com', $html );
 		$this->assertStringContainsString( '&lt;script&gt;', $html );
 		$this->assertStringNotContainsString( '<script>', $html );
 		$this->assertStringContainsString( 'Thursdays at 6pm', $html );
 		$this->assertStringContainsString( 'Room 4', $html );
 		$this->assertStringContainsString( 'href="https://church.example/register"', $html );
-		$this->assertStringContainsString( '>Register<', $html );
-		$this->assertStringNotContainsString( 'Learn more', $html );
+		$this->assertStringContainsString( '>Register Now<', $html );
+		$this->assertStringContainsString( '>View Details<', $html );
+
+		$card = Display::render_group( $group );
+
+		$this->assertStringNotContainsString( 'ada@example.com', $card );
+		$this->assertStringNotContainsString( 'secret@example.com', $card );
+		$this->assertStringNotContainsString( '<script>', $card );
 
 		$fallback = Display::render_group(
 			[
@@ -310,19 +441,17 @@ class GroupsLiteTest extends TestCase {
 				'leader'           => 'Grace Hopper',
 				'leader_email'     => 'grace@example.com',
 				'registration_url' => 'mailto:grace@example.com',
-				'public_url'       => 'https://church.example/prayer',
-			]
+			],
+			$single_args
 		);
 
 		$this->assertStringContainsString( 'Grace Hopper', $fallback );
 		$this->assertStringNotContainsString( 'grace@example.com', $fallback );
-		$this->assertStringContainsString( 'href="https://church.example/groups/prayer"', $fallback );
-		$this->assertStringNotContainsString( 'https://church.example/prayer"', $fallback );
-		$this->assertStringContainsString( '>Learn more<', $fallback );
-		$this->assertStringNotContainsString( '>Register<', $fallback );
+		$this->assertStringNotContainsString( 'mailto:', $fallback );
+		$this->assertStringNotContainsString( '>Register Now<', $fallback );
 	}
 
-	public function test_every_card_has_a_title_link_and_a_button() {
+	public function test_every_card_links_to_its_group() {
 		$permalink = 'https://church.example/groups/young-adults';
 		$with_signup = Display::render_group(
 			[
@@ -341,19 +470,16 @@ class GroupsLiteTest extends TestCase {
 		);
 
 		foreach ( [ $with_signup, $bare ] as $html ) {
-			$this->assertStringContainsString( 'cp-sync-groups__title"><a href="', $html );
-			$this->assertStringContainsString( 'cp-sync-groups__button', $html );
+			$this->assertStringContainsString( 'cp-group-item--title"><a href="', $html );
+			$this->assertStringContainsString( 'cp-group-item--disable-modal', $html );
+			// Like CP Groups, the card links to the group. The buttons are on its page.
+			$this->assertStringNotContainsString( 'Register', $html );
 		}
 
 		$this->assertStringContainsString( 'href="' . $permalink . '"', $with_signup );
-		$this->assertStringContainsString( 'href="https://church.example/register"', $with_signup );
-		$this->assertStringContainsString( '>Register<', $with_signup );
-		$this->assertStringContainsString( '<img class="cp-sync-groups__image"', $with_signup );
-
+		$this->assertStringContainsString( "url('https://church.example/photo.jpg')", $with_signup );
 		$this->assertStringContainsString( 'href="https://church.example/groups/prayer"', $bare );
-		$this->assertStringContainsString( '>Learn more<', $bare );
-		$this->assertStringContainsString( 'cp-sync-groups__placeholder', $bare );
-		$this->assertStringContainsString( 'cp-sync-groups__description', $bare );
+		$this->assertStringContainsString( 'cp-group-item--thumb--canvas is-empty', $bare );
 		$this->assertStringNotContainsString( '<img', $bare );
 	}
 
@@ -368,11 +494,10 @@ class GroupsLiteTest extends TestCase {
 			],
 		];
 
+		Lite::maybe_upgrade( '' );
 		Lite::get_instance()->on_init( '' );
 
 		$this->assertFalse( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
-		$this->assertFalse( Lite::display_default() );
-		$this->assertFalse( Lite::is_display_enabled() );
 		$this->assertFalse( Lite::groups_sync_is_on() );
 		$this->assertFalse( Lite::should_register() );
 		$this->assertFalse(
@@ -401,31 +526,11 @@ class GroupsLiteTest extends TestCase {
 			],
 		];
 
-		Lite::get_instance()->on_init( '' );
+		Lite::maybe_upgrade( '' );
 
 		$this->assertTrue( function_exists( 'cp_groups' ) );
 		$this->assertTrue( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
-	}
-
-	public function test_upgrade_with_cp_groups_keeps_the_1_1_sync_default() {
-		$this->options['cp_sync_settings']     = [
-			'chms' => 'pco',
-		];
-		$this->options['cp_sync_pco_settings'] = [
-			'connect' => [
-				'subdomain' => 'demo',
-			],
-		];
-
-		Lite::maybe_upgrade( true );
-
-		$this->assertTrue( $this->options['cp_sync_pco_settings']['connect']['sync_groups'] );
-		$this->assertSame(
-			(bool) \CP_Sync\ChMS\ChMS::sync_toggle_default( 'groups' ),
-			Lite::groups_sync_is_on()
-		);
-		$this->assertFalse( Lite::display_default() );
-		$this->assertFalse( Lite::should_register() );
+		$this->assertFalse( $this->options['cp_sync_pco_settings']['connect']['sync_events'] );
 	}
 
 	public function test_reentrant_chms_settings_read_is_not_unsaved() {
@@ -460,29 +565,27 @@ class GroupsLiteTest extends TestCase {
 		$this->assertFalse( Lite::groups_sync_is_on() );
 	}
 
-	public function test_fresh_install_follows_the_sync_default_even_after_global_settings_are_saved() {
+	public function test_fresh_install_stays_off_until_sync_groups_is_turned_on() {
 		$this->assertFalse( Lite::is_existing_install() );
-		$this->assertSame(
-			(bool) \CP_Sync\ChMS\ChMS::sync_toggle_default( 'groups' ),
-			Lite::groups_sync_is_on()
-		);
-		$this->assertTrue( Lite::should_register() );
+		$this->assertFalse( Lite::should_register() );
 
 		$this->options['cp_sync_settings'] = [
 			'chms'           => 'pco',
 			'updateInterval' => 'hourly',
 		];
 
-		Lite::maybe_upgrade( false );
+		Lite::maybe_upgrade( false, false );
 
-		$this->assertFalse( Lite::upgraded_before_groups_display() );
 		$this->assertNull( Lite::stored_sync_groups() );
-		$this->assertTrue( Lite::display_default() );
 		$this->assertSame(
 			\CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'groups', null ),
 			Lite::groups_sync_is_on()
 		);
-		$this->assertTrue( Lite::should_register() );
+		$this->assertFalse( Lite::should_register() );
+
+		Lite::get_instance()->on_init( false );
+
+		$this->assertNull( $this->registered_post_type );
 	}
 
 	public function test_shortcode_count_and_group_type_build_the_query() {
@@ -563,8 +666,8 @@ class GroupsLiteTest extends TestCase {
 		$this->assertStringNotContainsString( 'alt="[contact-form-7', $html );
 		$this->assertStringContainsString( 'href="https://church.example/register?form=&#91;contact-form-7]"', $html );
 		$this->assertStringNotContainsString( 'form=[contact-form-7', $html );
-		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://youtu.be/abc123</span>', $html );
-		$this->assertStringContainsString( '<span class="cp-sync-groups__url">https://vimeo.com/42</span>', $html );
+		$this->assertStringContainsString( '<span class="cp-group-url">https://youtu.be/abc123</span>', $html );
+		$this->assertStringContainsString( '<span class="cp-group-url">https://vimeo.com/42</span>', $html );
 
 		$theme = "<header class=\"theme\">[keep-shortcode]\nhttps://example.com/theme-only\n</header>";
 		$page  = $theme . $html;

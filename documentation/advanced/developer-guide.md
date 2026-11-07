@@ -98,7 +98,7 @@ option on the event itself rather than this filter.
 
 ## Groups Lite templates
 
-When CP Groups is not active, **Display groups with CP Sync** is on, and **Sync Groups** is on for the active church management system, CP Sync registers `cp_group` (archive slug `groups`) plus `cp_group_type`, `cp_group_category`, and `cp_group_life_stage`. An events-only site does not get that archive. On a site that was using CP Sync before 1.2.0, the display toggle defaults off until an admin turns it on. The 1.2.0 upgrade also saves the 1.1.0 Sync Groups state: unsaved, with CP Groups inactive, is stored off. Activating CP Groups registers those same names and takes over the posts. The life-stage rewrite slug stays `life stages` (with the space) until a follow-up in both plugins.
+When CP Groups is not active and **Sync Groups** is on for the active church management system, CP Sync registers `cp_group` (archive slug `groups`) plus `cp_group_type`, `cp_group_category`, and `cp_group_life_stage`. These types are public but have no admin screens or REST routes. An events-only site does not get that archive. An unsaved **Sync Groups** or **Sync Events** toggle is on only while CP Groups or The Events Calendar is active. The 1.2.0 upgrade saves both toggles once: without the plugin, off, even if saved on; with the plugin, a saved value stays and an unsaved toggle is stored on. Activating CP Groups registers those same names and takes over the posts. The life-stage rewrite slug stays `life stages` (with the space) until a follow-up in both plugins.
 
 Theme overrides live in `cp-sync/` inside the theme:
 
@@ -107,7 +107,11 @@ Theme overrides live in `cp-sync/` inside the theme:
 
 The lookup is `CP_Sync\get_template_hierarchy()`. The shortcode is `[cp-sync-groups count="12" type="small-groups"]`. Leader output reads the `leaders` meta rows first (name only), then the legacy `leader` value. Emails are not printed.
 
-List cards use `cp-sync-groups__card--summary`, `cp-sync-groups__media`, and `cp-sync-groups__details`. A single group uses `cp-sync-group` instead of the card. These are CP Sync classes. They are not the CP Groups classes (`cp-group-item` and the filter classes), so CP Groups scripts do not bind to Lite cards. Lite does not render a filter form. Copy `archive.php` or `single.php` into the theme to change the page. Card text is still escaped in `CP_Sync\Groups\Display::render_group()`.
+Groups Lite uses CP Groups' class names: `cp-pg-template`, `cp-groups-archive`, `cp-group-item` with `cp-group-item--disable-modal`, and `cp-group-single`. `src/groups-display/group/_list.scss` and `_single.scss` are copies of the CP Groups files, so a design change there can be copied over. Lite-only rules are in `_lite.scss`. Rules are scoped under `.cp-sync-display` so they outrank common theme rules, and one more class overrides them. Values come from the ChurchPlugins `--cp-*` variables.
+
+## Events calendar
+
+`GET /wp-json/cp-sync/v1/events?start=YYYY-MM-DD&end=YYYY-MM-DD&category=slug` is a public, read-only route that returns published dates without a password. It is registered only while CP Sync's event pages are on. The range can be at most 100 days, and a response has at most 500 dates. `start` and `end` are the event's stored local clock time with no offset, so the calendar does not shift them to the visitor's timezone. `url` is the date's own page. Text fields are plain text. Write them as text, not HTML.
 
 ## REST API Endpoints
 

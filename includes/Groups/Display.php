@@ -10,6 +10,10 @@ namespace CP_Sync\Groups;
 /**
  * Renders group cards and the [cp-sync-groups] shortcode.
  *
+ * The markup and class names match CP Groups' parts/group-list.php and
+ * parts/group-single.php, so its styles and design changes apply here too.
+ * There is no modal, filter, or contact form.
+ *
  * Leader emails are never read into the markup. Names come from the CP Groups
  * 1.2 `leaders` rows first, then from the legacy `leader` value.
  *
@@ -23,6 +27,17 @@ class Display {
 	 * @var int
 	 */
 	const DEFAULT_COUNT = 12;
+
+	/**
+	 * Term groups in CP Groups' display order, keyed by their class suffix.
+	 *
+	 * @var array<string,string>
+	 */
+	const TERM_GROUPS = [
+		'category'   => 'cp_group_category',
+		'type'       => 'cp_group_type',
+		'life-stage' => 'cp_group_life_stage',
+	];
 
 	/**
 	 * [cp-sync-groups count="12" type="small-groups"]
@@ -44,14 +59,14 @@ class Display {
 		if ( ! $query->have_posts() ) {
 			wp_reset_postdata();
 
-			return '<p class="cp-sync-display cp-sync-groups__empty">' . esc_html__( 'No groups found.', 'cp-sync' ) . '</p>';
+			return '<p class="cp-sync-display cp-sync-display--embed">' . esc_html__( 'No groups found.', 'cp-sync' ) . '</p>';
 		}
 
-		$html = '<div class="cp-sync-display cp-sync-groups cp-sync-groups--embed"><ul class="cp-sync-groups__list">';
+		$html = '<div class="cp-sync-display cp-sync-display--embed cp-groups-archive"><div class="cp-groups-archive--list">';
 
 		while ( $query->have_posts() ) {
 			$query->the_post();
-			$html .= '<li class="cp-sync-groups__item">';
+			$html .= '<div class="cp-groups-archive--list--item">';
 			$html .= self::render_post(
 				get_the_ID(),
 				[
@@ -60,10 +75,10 @@ class Display {
 					'link_title' => true,
 				]
 			);
-			$html .= '</li>';
+			$html .= '</div>';
 		}
 
-		$html .= '</ul></div>';
+		$html .= '</div></div>';
 
 		wp_reset_postdata();
 
@@ -215,7 +230,12 @@ class Display {
 				'leaders'          => get_post_meta( $post_id, 'leaders', true ),
 				'leader'           => get_post_meta( $post_id, 'leader', true ),
 				'registration_url' => get_post_meta( $post_id, 'registration_url', true ),
-				'terms'            => self::term_names( $post_id ),
+				'public_url'       => get_post_meta( $post_id, 'public_url', true ),
+				'accessible'       => get_post_meta( $post_id, 'handicap_accessible', true ),
+				'kid_friendly'     => get_post_meta( $post_id, 'kid_friendly', true ),
+				'meets_online'     => get_post_meta( $post_id, 'meets_online', true ),
+				'is_full'          => get_post_meta( $post_id, GroupMeta::FULL_KEY, true ),
+				'terms'            => self::group_terms( $post_id ),
 			],
 			$args
 		);
@@ -236,90 +256,97 @@ class Display {
 			return '';
 		}
 
-		$defaults = [
-			'summary'    => true,
-			'heading'    => 'h2',
-			'link_title' => true,
-		];
+		$args = array_merge(
+			[
+				'summary'    => true,
+				'heading'    => 'h2',
+				'link_title' => true,
+			],
+			is_array( $args ) ? $args : []
+		);
 
-		if ( ! is_array( $args ) ) {
-			$args = [];
-		}
+		return empty( $args['summary'] ) ? self::single_html( $group, $args ) : self::item_html( $group, $args );
+	}
 
-		$args = array_merge( $defaults, $args );
-
-		$heading = ( 'h1' === $args['heading'] ) ? 'h1' : 'h2';
-		$is_card = array_key_exists( 'card', $args ) ? ! empty( $args['card'] ) : ! empty( $args['summary'] );
-		$title   = self::plain_text( isset( $group['title'] ) ? $group['title'] : '' );
+	/**
+	 * One group in a list. Matches CP Groups' parts/group-list.php.
+	 *
+	 * @param array $group Group fields.
+	 * @param array $args  heading, link_title.
+	 * @return string
+	 */
+	protected static function item_html( $group, $args ) {
+		$title     = self::plain_text( isset( $group['title'] ) ? $group['title'] : '' );
 		$permalink = isset( $group['permalink'] ) ? $group['permalink'] : '';
-		$names   = self::leader_names(
-			isset( $group['leaders'] ) ? $group['leaders'] : null,
-			isset( $group['leader'] ) ? $group['leader'] : ''
-		);
-		$terms   = self::terms_html( isset( $group['terms'] ) ? $group['terms'] : array() );
-		$title_html = '<' . $heading . ' class="' . ( $is_card ? 'cp-sync-groups__title' : 'cp-sync-group__title' ) . '">';
-		$title_html .= self::title_html( $title, $permalink, $is_card || ! empty( $args['link_title'] ) );
-		$title_html .= '</' . $heading . '>';
-		$meets = self::meta_html( __( 'Meets', 'cp-sync' ), isset( $group['time_desc'] ) ? $group['time_desc'] : '' );
-		$where = self::meta_html( __( 'Location', 'cp-sync' ), isset( $group['location'] ) ? $group['location'] : '' );
-		$leaders = self::leaders_html( $names );
-		$description = self::description_html( isset( $group['content'] ) ? $group['content'] : '', ! empty( $args['summary'] ), $is_card );
-		$action = self::action_html(
-			isset( $group['registration_url'] ) ? $group['registration_url'] : '',
-			$permalink,
-			$is_card
-		);
-		$media = self::image_html( isset( $group['image'] ) ? $group['image'] : '', $title, $is_card );
+		$heading   = ( 'h1' === $args['heading'] ) ? 'h1' : 'h2';
 
-		$html = '<article class="' . ( $is_card ? 'cp-sync-groups__card cp-sync-groups__card--summary' : 'cp-sync-group' ) . '">';
-
-		if ( '' !== $media ) {
-			$html .= '<div class="' . ( $is_card ? 'cp-sync-groups__media' : 'cp-sync-group__media' ) . '">' . $media . '</div>';
-		}
-
-		$html .= '<div class="' . ( $is_card ? 'cp-sync-groups__details' : 'cp-sync-group__details' ) . '">';
-
-		if ( $is_card ) {
-			$html .= $terms;
-			$html .= $title_html;
-			$html .= self::metadata_html( $meets . $where );
-			$html .= $description;
-			$html .= $leaders;
-			$html .= $action;
-		} else {
-			$html .= $title_html;
-			$html .= $terms;
-			$html .= self::metadata_html( $meets . $where . $leaders );
-			$html .= $description;
-
-			if ( '' !== $action ) {
-				$html .= '<div class="cp-sync-group__actions">' . $action . '</div>';
-			}
-		}
-
-		$html .= '</div></article>';
+		$html  = '<div class="cp-group-item cp-group-item--disable-modal">';
+		$html .= '<div class="cp-group-item--thumb">' . self::thumb_html( isset( $group['image'] ) ? $group['image'] : '', $title, $permalink ) . '</div>';
+		$html .= '<div class="cp-group-item--details">';
+		$html .= self::terms_html( isset( $group['terms'] ) ? $group['terms'] : [], 'cp-group-item' );
+		$html .= '<' . $heading . ' class="cp-group-item--title">' . self::title_html( $title, $permalink, true ) . '</' . $heading . '>';
+		$html .= self::meta_html( $group, 'cp-group-item--meta' );
+		$html .= self::description_html( isset( $group['content'] ) ? $group['content'] : '', true, 'cp-group-item--content' );
+		$html .= self::attributes_html( $group );
+		$html .= '</div></div>';
 
 		return $html;
 	}
 
 	/**
-	 * Visible taxonomy labels for one group.
+	 * One group's page. Matches CP Groups' parts/group-single.php.
 	 *
-	 * Names only. These are not links, so a label cannot depend on a taxonomy
-	 * archive route or on CP Groups' filter script.
+	 * @param array $group Group fields.
+	 * @param array $args  heading, link_title.
+	 * @return string
+	 */
+	protected static function single_html( $group, $args ) {
+		$title     = self::plain_text( isset( $group['title'] ) ? $group['title'] : '' );
+		$permalink = isset( $group['permalink'] ) ? $group['permalink'] : '';
+		$heading   = ( 'h2' === $args['heading'] ) ? 'h2' : 'h1';
+		$names     = self::leader_names(
+			isset( $group['leaders'] ) ? $group['leaders'] : null,
+			isset( $group['leader'] ) ? $group['leader'] : ''
+		);
+		$image     = self::image_html( isset( $group['image'] ) ? $group['image'] : '', $title );
+
+		$html = '<div class="cp-group-single">';
+
+		if ( '' !== $image ) {
+			$html .= '<div class="cp-group-single--thumb">' . $image . '</div>';
+		}
+
+		$html .= '<div class="cp-group-single--details">';
+		$html .= self::terms_html( isset( $group['terms'] ) ? $group['terms'] : [], 'cp-group-single' );
+		$html .= '<' . $heading . ' class="cp-group-single--title">' . self::title_html( $title, $permalink, ! empty( $args['link_title'] ) ) . '</' . $heading . '>';
+		$html .= self::leaders_html( $names );
+		$html .= self::meta_html( $group, 'cp-group-single--meta' );
+		$html .= self::description_html( isset( $group['content'] ) ? $group['content'] : '', false, 'cp-group-single--content' );
+		$html .= self::attributes_html( $group );
+		$html .= self::actions_html( $group );
+		$html .= '</div></div>';
+
+		return $html;
+	}
+
+	/**
+	 * Category, type, and life stage terms for one group, with their archive links.
+	 *
+	 * Groups in the order CP Groups shows them. A term without a usable link
+	 * keeps an empty URL and prints as a label.
 	 *
 	 * @since 1.2.0
 	 * @param int $post_id Group post ID.
-	 * @return string[]
+	 * @return array<string,array<int,array{name:string,url:string}>>
 	 */
-	public static function term_names( $post_id ) {
+	public static function group_terms( $post_id ) {
+		$groups = [];
+
 		if ( ! function_exists( 'get_the_terms' ) ) {
-			return array();
+			return $groups;
 		}
 
-		$names = array();
-
-		foreach ( array( 'cp_group_type', 'cp_group_category', 'cp_group_life_stage' ) as $taxonomy ) {
+		foreach ( self::TERM_GROUPS as $key => $taxonomy ) {
 			$found = get_the_terms( $post_id, $taxonomy );
 
 			if ( ! is_array( $found ) ) {
@@ -327,21 +354,20 @@ class Display {
 			}
 
 			foreach ( $found as $term ) {
-				$name = '';
-
-				if ( is_object( $term ) && isset( $term->name ) ) {
-					$name = self::plain_text( $term->name );
-				} elseif ( is_string( $term ) ) {
-					$name = self::plain_text( $term );
+				if ( ! is_object( $term ) || ! isset( $term->name ) ) {
+					continue;
 				}
 
-				if ( '' !== $name && ! in_array( $name, $names, true ) ) {
-					$names[] = $name;
-				}
+				$url = function_exists( 'get_term_link' ) ? get_term_link( $term ) : '';
+
+				$groups[ $key ][] = [
+					'name' => self::plain_text( $term->name ),
+					'url'  => is_string( $url ) ? $url : '',
+				];
 			}
 		}
 
-		return $names;
+		return $groups;
 	}
 
 	/**
@@ -389,118 +415,164 @@ class Display {
 	}
 
 	/**
-	 * Register link, or Learn more to the single group page.
+	 * Term buttons, like CP Groups. The first group is solid and the rest are outlined.
 	 *
-	 * Cards always get one of those. Learn more is the group page on this site,
-	 * not the ChMS public URL. Mailto links and any non-http(s) value are dropped
-	 * so an email cannot leak through the button.
-	 *
-	 * @since 1.2.0
-	 * @param mixed $registration_url Signup URL from the ChMS.
-	 * @param mixed $permalink        Single group URL.
-	 * @param bool  $card             True for archive and shortcode cards.
-	 * @return array{url:string,label:string}|array
-	 */
-	public static function action_link( $registration_url, $permalink, $card = true ) {
-		$registration_url = self::http_url( $registration_url );
-
-		if ( '' !== $registration_url ) {
-			return [
-				'url'   => $registration_url,
-				'label' => __( 'Register', 'cp-sync' ),
-			];
-		}
-
-		if ( ! $card ) {
-			return [];
-		}
-
-		$permalink = self::http_url( $permalink );
-
-		if ( '' !== $permalink ) {
-			return [
-				'url'   => $permalink,
-				'label' => __( 'Learn more', 'cp-sync' ),
-			];
-		}
-
-		return [];
-	}
-
-	/**
-	 * Plain taxonomy labels. Not links.
-	 *
-	 * @param mixed $terms Term names.
+	 * @param mixed  $terms  Result of group_terms().
+	 * @param string $prefix cp-group-item or cp-group-single.
 	 * @return string
 	 */
-	protected static function terms_html( $terms ) {
+	protected static function terms_html( $terms, $prefix ) {
 		if ( ! is_array( $terms ) ) {
 			return '';
 		}
 
-		$labels = array();
+		$html = '';
 
-		foreach ( $terms as $term ) {
-			$name = self::plain_text( $term );
-
-			if ( '' === $name || isset( $labels[ $name ] ) ) {
+		foreach ( array_keys( self::TERM_GROUPS ) as $key ) {
+			if ( empty( $terms[ $key ] ) || ! is_array( $terms[ $key ] ) ) {
 				continue;
 			}
 
-			$labels[ $name ] = '<span class="cp-sync-groups__term">' . self::protect_block_template_html( esc_html( $name ) ) . '</span>';
-		}
+			$class   = 'cp-button is-xsmall' . ( 'category' === $key ? '' : ' is-transparent' );
+			$buttons = '';
+			$seen    = [];
 
-		if ( ! $labels ) {
-			return '';
-		}
+			foreach ( $terms[ $key ] as $term ) {
+				$name = self::plain_text( isset( $term['name'] ) ? $term['name'] : '' );
 
-		return '<p class="cp-sync-groups__terms">' . implode( ' ', $labels ) . '</p>';
-	}
+				if ( '' === $name || isset( $seen[ $name ] ) ) {
+					continue;
+				}
 
-	/**
-	 * Meeting, location, and (on a single group) leader rows.
-	 *
-	 * @param string $rows Already escaped meta markup.
-	 * @return string
-	 */
-	protected static function metadata_html( $rows ) {
-		if ( '' === $rows ) {
-			return '';
-		}
+				$seen[ $name ] = true;
+				$label         = self::protect_block_template_html( esc_html( $name ) );
+				$url           = self::http_url( isset( $term['url'] ) ? $term['url'] : '' );
+				$href          = '' !== $url ? esc_url( $url ) : '';
 
-		return '<div class="cp-sync-groups__metadata">' . $rows . '</div>';
-	}
-
-	/**
-	 * @param string $url  Image URL.
-	 * @param string $alt  Alt text.
-	 * @param bool   $card True reserves a placeholder when the image is missing.
-	 * @return string
-	 */
-	protected static function image_html( $url, $alt, $card = false ) {
-		$url = self::http_url( $url );
-
-		if ( '' === $url ) {
-			if ( ! $card ) {
-				return '';
+				$buttons .= '' !== $href
+					? '<a class="' . $class . '" href="' . self::protect_block_template_html( $href, true ) . '">' . $label . '</a>'
+					: '<span class="' . $class . '">' . $label . '</span>';
 			}
 
-			return '<div class="cp-sync-groups__placeholder" aria-hidden="true"></div>';
+			if ( '' !== $buttons ) {
+				$html .= '<div class="' . $prefix . '--' . $key . '">' . $buttons . '</div>';
+			}
 		}
 
-		$src = esc_url( $url );
+		return '' !== $html ? '<div class="' . $prefix . '--categories">' . $html . '</div>' : '';
+	}
+
+	/**
+	 * Icon from the same font CP products use.
+	 *
+	 * @param string $name Material icon name.
+	 * @return string
+	 */
+	protected static function icon( $name ) {
+		return '<span class="material-icons-outlined" aria-hidden="true">' . esc_html( $name ) . '</span>';
+	}
+
+	/**
+	 * Meeting time and location.
+	 *
+	 * @param array  $group Group fields.
+	 * @param string $class Wrapper class.
+	 * @return string
+	 */
+	protected static function meta_html( $group, $class ) {
+		$rows = '';
+
+		foreach ( [
+			'time_desc' => [ 'cp-group--item--meta--start-time', 'calendar_today' ],
+			'location'  => [ 'cp-group--item--meta--location', 'location_on' ],
+		] as $key => $row ) {
+			$value = self::plain_text( isset( $group[ $key ] ) ? $group[ $key ] : '' );
+
+			if ( '' !== $value ) {
+				$rows .= '<div class="' . $row[0] . '">' . self::icon( $row[1] ) . ' ' . self::protect_block_template_html( esc_html( $value ) ) . '</div>';
+			}
+		}
+
+		return '' !== $rows ? '<div class="' . $class . '">' . $rows . '</div>' : '';
+	}
+
+	/**
+	 * Accessible, kid friendly, online, and full labels.
+	 *
+	 * @param array $group Group fields.
+	 * @return string
+	 */
+	protected static function attributes_html( $group ) {
+		$html = '';
+
+		foreach ( [
+			'accessible'   => [ 'accessible', 'accessible', __( 'Wheelchair Accessible', 'cp-sync' ) ],
+			'kid_friendly' => [ 'kid-friendly', 'child_care', __( 'Kid Friendly', 'cp-sync' ) ],
+			'meets_online' => [ 'meets-online', 'videocam', __( 'Meets Online', 'cp-sync' ) ],
+			'is_full'      => [ 'is-full', 'report', __( 'Full', 'cp-sync' ) ],
+		] as $key => $attribute ) {
+			if ( self::is_on( isset( $group[ $key ] ) ? $group[ $key ] : '' ) ) {
+				$html .= '<span class="cp-group-item--attributes--' . $attribute[0] . '">' . self::icon( $attribute[1] ) . ' ' . esc_html( $attribute[2] ) . '</span>';
+			}
+		}
+
+		return '' !== $html ? '<div class="cp-group-item--attributes">' . $html . '</div>' : '';
+	}
+
+	/**
+	 * Whether a stored checkbox value is on.
+	 *
+	 * @param mixed $value Meta value.
+	 * @return bool
+	 */
+	protected static function is_on( $value ) {
+		if ( is_bool( $value ) ) {
+			return $value;
+		}
+
+		$value = strtolower( self::plain_text( $value ) );
+
+		return '' !== $value && ! in_array( $value, [ '0', 'off', 'false', 'no' ], true );
+	}
+
+	/**
+	 * Image for a list card, set as a background like CP Groups.
+	 *
+	 * @param mixed  $url       Image URL.
+	 * @param string $alt       Alt text.
+	 * @param mixed  $permalink Single group URL.
+	 * @return string
+	 */
+	protected static function thumb_html( $url, $alt, $permalink ) {
+		$src   = esc_url( self::http_url( $url ) );
+		$link  = self::http_url( $permalink );
+		$href  = '' !== $link ? ' href="' . self::protect_block_template_html( esc_url( $link ), true ) . '" aria-hidden="true" tabindex="-1"' : '';
 
 		if ( '' === $src ) {
-			if ( ! $card ) {
-				return '';
-			}
-
-			return '<div class="cp-sync-groups__placeholder" aria-hidden="true"></div>';
+			return '<a class="cp-group-item--thumb--canvas is-empty"' . $href . '></a>';
 		}
 
-		$alt = self::protect_block_template_html( esc_attr( $alt ), true );
+		$safe_src = self::protect_block_template_html( $src, true );
 
-		return '<img class="cp-sync-groups__image" src="' . $src . '" alt="' . $alt . '" />';
+		return '<a class="cp-group-item--thumb--canvas"' . $href . ' style="background: url(\'' . $safe_src . '\') 0% 0% / cover;">'
+			. '<img alt="' . self::protect_block_template_html( esc_attr( $alt ), true ) . '" src="' . $safe_src . '"></a>';
+	}
+
+	/**
+	 * Image for a group's page.
+	 *
+	 * @param mixed  $url Image URL.
+	 * @param string $alt Alt text.
+	 * @return string
+	 */
+	protected static function image_html( $url, $alt ) {
+		$src = esc_url( self::http_url( $url ) );
+
+		if ( '' === $src ) {
+			return '';
+		}
+
+		return '<img src="' . self::protect_block_template_html( $src, true ) . '" alt="' . self::protect_block_template_html( esc_attr( $alt ), true ) . '" />';
 	}
 
 	/**
@@ -527,54 +599,23 @@ class Display {
 	}
 
 	/**
-	 * @param mixed $content Description.
-	 * @param bool  $summary True trims to plain text for a card.
-	 * @param bool  $card    True keeps an empty description row so cards line up.
+	 * @param mixed  $content Description.
+	 * @param bool   $summary True trims to plain text for a card.
+	 * @param string $class   Wrapper class.
 	 * @return string
 	 */
-	protected static function description_html( $content, $summary, $card = false ) {
+	protected static function description_html( $content, $summary, $class ) {
 		$content = is_string( $content ) ? $content : '';
 
 		if ( '' === trim( wp_strip_all_tags( $content ) ) ) {
-			if ( ! $card ) {
-				return '';
-			}
-
-			return '<p class="cp-sync-groups__description"></p>';
-		}
-
-		if ( $summary ) {
-			$text = self::protect_block_template_html( esc_html( wp_trim_words( wp_strip_all_tags( $content ), 40, '…' ) ) );
-
-			if ( '' === $text ) {
-				return $card ? '<p class="cp-sync-groups__description"></p>' : '';
-			}
-
-			return '<p class="cp-sync-groups__description">' . $text . '</p>';
-		}
-
-		$html = self::protect_block_template_html( wp_kses_post( $content ) );
-
-		if ( '' === trim( $html ) ) {
 			return '';
 		}
 
-		return '<div class="cp-sync-groups__description">' . $html . '</div>';
-	}
+		$html = $summary
+			? self::protect_block_template_html( esc_html( wp_trim_words( wp_strip_all_tags( $content ), 40, '…' ) ) )
+			: self::protect_block_template_html( wp_kses_post( $content ) );
 
-	/**
-	 * @param string $label Visible label.
-	 * @param mixed  $value Meta value.
-	 * @return string
-	 */
-	protected static function meta_html( $label, $value ) {
-		$value = self::plain_text( $value );
-
-		if ( '' === $value ) {
-			return '';
-		}
-
-		return '<p class="cp-sync-groups__meta"><span class="cp-sync-groups__label">' . esc_html( $label ) . '</span> ' . self::protect_block_template_html( esc_html( $value ) ) . '</p>';
+		return '' !== trim( $html ) ? '<div class="' . $class . '">' . $html . '</div>' : '';
 	}
 
 	/**
@@ -592,33 +633,39 @@ class Display {
 			$safe[] = self::protect_block_template_html( esc_html( $name ) );
 		}
 
-		$label = ( 1 === count( $names ) )
-			? __( 'Leader', 'cp-sync' )
-			: __( 'Leaders', 'cp-sync' );
-
-		return '<p class="cp-sync-groups__leaders"><span class="cp-sync-groups__label">' . esc_html( $label ) . '</span> ' . implode( ', ', $safe ) . '</p>';
+		return '<h6 class="cp-group-single--leader">' . implode( ', ', $safe ) . '</h6>';
 	}
 
 	/**
-	 * @param mixed $registration_url Signup URL.
-	 * @param mixed $permalink        Single group URL.
-	 * @param bool  $card             True for archive and shortcode cards.
+	 * View Details and Register Now, like CP Groups.
+	 *
+	 * Mailto links and any non-http(s) value are dropped so an email cannot leak
+	 * through a button.
+	 *
+	 * @param array $group Group fields.
 	 * @return string
 	 */
-	protected static function action_html( $registration_url, $permalink, $card = true ) {
-		$action = self::action_link( $registration_url, $permalink, $card );
+	protected static function actions_html( $group ) {
+		$html = '';
 
-		if ( ! $action ) {
-			return '';
+		foreach ( [
+			'public_url'       => [ 'cp-button is-large', __( 'View Details', 'cp-sync' ) ],
+			'registration_url' => [ 'cp-button', __( 'Register Now', 'cp-sync' ) ],
+		] as $key => $action ) {
+			$url = self::http_url( isset( $group[ $key ] ) ? $group[ $key ] : '' );
+
+			if ( '' === $url ) {
+				continue;
+			}
+
+			$href = self::protect_block_template_html( esc_url( $url ), true );
+
+			if ( '' !== $href ) {
+				$html .= '<div class="cp-group-single--registration-url"><a class="' . $action[0] . '" href="' . $href . '" target="_blank" rel="noopener">' . esc_html( $action[1] ) . '</a></div>';
+			}
 		}
 
-		$href = self::protect_block_template_html( esc_url( $action['url'] ), true );
-
-		if ( '' === $href ) {
-			return '';
-		}
-
-		return '<p class="cp-sync-groups__action"><a class="cp-sync-groups__button" href="' . $href . '">' . esc_html( $action['label'] ) . '</a></p>';
+		return '' !== $html ? '<div class="cp-group-single--actions">' . $html . '</div>' : '';
 	}
 
 	/**
@@ -708,7 +755,7 @@ class Display {
 		$html    = (string) $html;
 		$guarded = preg_replace(
 			'#(<p(?:\s[^>]*)?>\s*)(https?://[^\s<>"]+)(\s*</p>)#i',
-			'$1<span class="cp-sync-groups__url">$2</span>$3',
+			'$1<span class="cp-group-url">$2</span>$3',
 			$html
 		);
 
@@ -718,7 +765,7 @@ class Display {
 
 		$guarded = preg_replace(
 			'#(^|\n)([ \t]*)(https?://[^\s<>"]+)([ \t]*)(?=\r?\n|$)#',
-			'$1$2<span class="cp-sync-groups__url">$3</span>$4',
+			'$1$2<span class="cp-group-url">$3</span>$4',
 			$html
 		);
 

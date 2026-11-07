@@ -33,4 +33,4 @@ if ( $cp_sync_block_theme ) {
 	get_header();
 }
 ?>
-<main id="cp-sync-events" class="cp-sync-events cp-sync-display">
+<main id="cp-pg-template" class="cp-pg-template cp-sync-events cp-sync-display">

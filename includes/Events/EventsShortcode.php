@@ -138,7 +138,7 @@ class EventsShortcode {
 		);
 		wp_reset_postdata();
 
-		return is_string( $html ) ? $html : '';
+		return is_string( $html ) ? '<div class="cp-sync-display cp-sync-display--embed cp-sync-events">' . $html . '</div>' : '';
 	}
 
 	/**

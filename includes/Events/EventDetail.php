@@ -10,9 +10,9 @@ namespace CP_Sync\Events;
 /**
  * Prepare the public fields a detail template is allowed to print.
  *
- * Price, dates, and the register link come from stored values. A blank price
- * stays blank. "Free" is used only when the stored price is the word Free or
- * a zero amount. Register uses the same http(s) registration URL as the card
+ * Price, dates, and the register link come from stored values. A blank or free
+ * price shows nothing. Free means the stored price is the word Free or a zero
+ * amount. Register uses the same http(s) registration URL as the card
  * button and is omitted after the event's own end.
  *
  * @since 1.2.0
@@ -122,7 +122,9 @@ class EventDetail {
 	}
 
 	/**
-	 * Display price. Blank stays blank. Free only for a verified zero.
+	 * Price to show on an event page. Blank when there is none or the event is free.
+	 *
+	 * Most church events cost nothing, so only a real cost is worth a label.
 	 *
 	 * @param mixed $price Stored registration price.
 	 * @return string
@@ -131,12 +133,8 @@ class EventDetail {
 		$price = trim( (string) $price );
 		$check = self::plain_value( $price );
 
-		if ( '' === $check ) {
+		if ( '' === $check || self::is_verified_free( $check ) ) {
 			return '';
-		}
-
-		if ( self::is_verified_free( $check ) ) {
-			return __( 'Free', 'cp-sync' );
 		}
 
 		return $price;
@@ -250,8 +248,8 @@ class EventDetail {
 	 * The button uses EventCard::button(), the same Register or Learn more
 	 * choice as a card. The title links to that date.
 	 *
-	 * @param array $event title, permalink, registration_url, price, when,
-	 *                     all_day, iso, location.
+	 * @param array $event title, permalink, registration_url, badge, when, all_day,
+	 *                     iso, location.
 	 * @return string
 	 */
 	public static function occurrence_html( array $event ) {
@@ -263,9 +261,10 @@ class EventDetail {
 		);
 		$when      = self::plain_value( isset( $event['when'] ) ? $event['when'] : '' );
 		$location  = self::plain_value( isset( $event['location'] ) ? $event['location'] : '' );
-		$price     = self::price_label( isset( $event['price'] ) ? $event['price'] : '' );
-		$html      = '<article class="cp-sync-series__date-item">';
-		$html     .= '<h3 class="cp-sync-series__date-title">';
+		$html      = '<article class="cp-sync-event-card cp-sync-series__date-item">';
+		$html     .= EventCard::badge_html( isset( $event['badge'] ) ? $event['badge'] : array() );
+		$html     .= '<div class="cp-sync-event-card__body">';
+		$html     .= '<h3 class="cp-sync-event-card__title cp-sync-series__date-title">';
 
 		if ( '' !== $permalink ) {
 			$html .= '<a href="' . self::esc_url( $permalink ) . '">' . self::esc( $title ) . '</a>';
@@ -276,7 +275,7 @@ class EventDetail {
 		$html .= '</h3>';
 
 		if ( '' !== $when ) {
-			$html .= '<p class="cp-sync-series__when"><time datetime="' . self::esc( isset( $event['iso'] ) ? $event['iso'] : '' ) . '">' . self::esc( $when ) . '</time>';
+			$html .= '<p class="cp-sync-event-card__when cp-sync-series__when"><time datetime="' . self::esc( isset( $event['iso'] ) ? $event['iso'] : '' ) . '">' . self::esc( $when ) . '</time>';
 
 			if ( ! empty( $event['all_day'] ) ) {
 				$html .= ' <span class="cp-sync-series__all-day">' . self::esc( __( 'All day', 'cp-sync' ) ) . '</span>';
@@ -286,22 +285,18 @@ class EventDetail {
 		}
 
 		if ( '' !== $location ) {
-			$html .= '<p class="cp-sync-series__location">' . self::esc( $location ) . '</p>';
+			$html .= '<p class="cp-sync-event-card__location cp-sync-series__location">' . self::esc( $location ) . '</p>';
 		}
 
-		$html .= '<p class="cp-sync-series__action">';
-
-		if ( '' !== $price ) {
-			$html .= '<strong class="cp-sync-event__price">' . self::esc( $price ) . '</strong> ';
-		}
+		$html .= '<p class="cp-sync-event-card__action cp-sync-series__action">';
 
 		$button_url = EventCard::http_url( $button['url'] );
 
 		if ( '' !== $button_url ) {
-			$html .= '<a class="cp-sync-event__button" href="' . self::esc_url( $button_url ) . '">' . self::esc( $button['label'] ) . '</a>';
+			$html .= '<a class="cp-sync-event__button cp-button" href="' . self::esc_url( $button_url ) . '">' . self::esc( $button['label'] ) . '</a>';
 		}
 
-		$html .= '</p></article>';
+		$html .= '</p></div></article>';
 
 		return $html;
 	}

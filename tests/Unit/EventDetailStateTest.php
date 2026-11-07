@@ -20,6 +20,7 @@ class EventDetailStateTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
+		Functions\when( 'get_option' )->justReturn( '' );
 		Functions\when( '__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->alias(
 			static function ( $text ) {
@@ -45,14 +46,14 @@ class EventDetailStateTest extends TestCase {
 		parent::tearDown();
 	}
 
-	public function test_price_keeps_supplied_free_and_blank_distinct() {
+	public function test_only_a_real_cost_gets_a_price_label() {
 		$this->assertSame( '', EventDetail::price_label( '' ) );
 		$this->assertSame( '', EventDetail::price_label( '   ' ) );
 		$this->assertSame( '', EventDetail::price_label( '<p></p>' ) );
-		$this->assertSame( 'Free', EventDetail::price_label( 'Free' ) );
-		$this->assertSame( 'Free', EventDetail::price_label( 'free' ) );
-		$this->assertSame( 'Free', EventDetail::price_label( '$0.00' ) );
-		$this->assertSame( 'Free', EventDetail::price_label( '0' ) );
+		$this->assertSame( '', EventDetail::price_label( 'Free' ) );
+		$this->assertSame( '', EventDetail::price_label( 'free' ) );
+		$this->assertSame( '', EventDetail::price_label( '$0.00' ) );
+		$this->assertSame( '', EventDetail::price_label( '0' ) );
 		$this->assertSame( '$75 – $200', EventDetail::price_label( '$75 – $200' ) );
 		$this->assertSame( '$0 – $25', EventDetail::price_label( '$0 – $25' ) );
 		$this->assertSame( 'Pay what you can', EventDetail::price_label( 'Pay what you can' ) );
@@ -105,7 +106,6 @@ class EventDetailStateTest extends TestCase {
 		$this->assertFalse( $view['has_content'] );
 		$this->assertSame( '', $view['excerpt'] );
 		$this->assertFalse( $view['show_register'] );
-		$this->assertNotSame( 'Free', $view['price'] );
 	}
 
 	public function test_invalid_date_omits_the_badge_and_the_calendar_file() {
@@ -166,7 +166,8 @@ class EventDetailStateTest extends TestCase {
 
 		$this->assertStringContainsString( 'href="https://example.com/register"', $registered );
 		$this->assertStringContainsString( '>Register</a>', $registered );
-		$this->assertStringContainsString( '>Free</strong>', $registered );
+		$this->assertStringNotContainsString( 'Free', $registered );
+		$this->assertStringNotContainsString( 'price', $registered );
 		$this->assertStringContainsString( 'href="https://example.com/events/prayer"', $plain );
 		$this->assertStringContainsString( '>Learn more</a>', $plain );
 		$this->assertStringNotContainsString( '>Register</a>', $plain );

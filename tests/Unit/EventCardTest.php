@@ -49,8 +49,6 @@ class EventCardTest extends TestCase {
 			$this->assertStringContainsString( 'cp-sync-event-card__title', $html );
 			$this->assertMatchesRegularExpression( '/<h2 class="cp-sync-event-card__title"><a href="https:\/\/example\.com\/events\/[^"]+">/', $html );
 			$this->assertStringContainsString( 'cp-sync-event-card__button', $html );
-			$this->assertStringContainsString( 'cp-sync-event-card__media', $html );
-			$this->assertStringContainsString( 'cp-sync-event-card__summary', $html );
 		}
 
 		$this->assertStringContainsString( '>Sunday Service</a>', $with_registration );
@@ -63,7 +61,7 @@ class EventCardTest extends TestCase {
 		$this->assertStringNotContainsString( '>Register</a>', $without_registration );
 	}
 
-	public function test_a_missing_image_or_description_still_reserves_its_slot() {
+	public function test_a_missing_date_or_description_leaves_nothing_behind() {
 		$html = EventCard::render(
 			array(
 				'title'     => 'No extras',
@@ -71,28 +69,78 @@ class EventCardTest extends TestCase {
 			)
 		);
 
-		$this->assertStringContainsString( '<div class="cp-sync-event-card__media"></div>', $html );
-		$this->assertStringContainsString( '<p class="cp-sync-event-card__summary"></p>', $html );
+		$this->assertStringNotContainsString( 'cp-sync-event-card__date', $html );
+		$this->assertStringNotContainsString( 'cp-sync-event-card__summary', $html );
+		$this->assertStringNotContainsString( 'cp-sync-event-card__terms', $html );
 		$this->assertStringNotContainsString( '<img', $html );
 	}
 
-	public function test_price_is_escaped_and_shown_next_to_register() {
+	public function test_badge_and_categories_are_escaped() {
+		$html = EventCard::render(
+			array(
+				'title'      => 'Retreat',
+				'permalink'  => 'https://example.com/events/retreat',
+				'categories' => array( 'Family & <b>Kids</b>', '' ),
+				'badge'      => array(
+					'valid'   => true,
+					'weekday' => 'Fri',
+					'day'     => '20',
+					'month'   => 'Nov',
+				),
+			)
+		);
+
+		$this->assertStringContainsString( '<strong class="cp-sync-event-card__day">20</strong>', $html );
+		$this->assertStringContainsString( 'aria-hidden="true"', $html );
+		$this->assertStringNotContainsString( '<b>Kids', $html );
+		$this->assertLessThan( strpos( $html, 'cp-sync-event-card__title' ), strpos( $html, 'cp-sync-event-card__date' ) );
+	}
+
+	public function test_image_shows_only_when_there_is_one() {
+		$with = EventCard::render(
+			array(
+				'title'     => 'Camp',
+				'permalink' => 'https://example.com/events/camp',
+				'image'     => 'https://example.com/camp.jpg',
+			)
+		);
+		$bad  = EventCard::render(
+			array(
+				'title'     => 'Camp',
+				'permalink' => 'https://example.com/events/camp',
+				'image'     => 'javascript:alert(1)',
+			)
+		);
+
+		$this->assertStringContainsString( '<img src="https://example.com/camp.jpg" alt=""', $with );
+		$this->assertLessThan( strpos( $with, 'cp-sync-event-card__body' ), strpos( $with, 'cp-sync-event-card__media' ) );
+		$this->assertStringNotContainsString( 'cp-sync-event-card__media', $bad );
+		$this->assertStringNotContainsString( 'alert(1)', $bad );
+	}
+
+	public function test_button_uses_the_shared_cp_button() {
+		$html = EventCard::render(
+			array(
+				'title'     => 'Camp',
+				'permalink' => 'https://example.com/events/camp',
+			)
+		);
+
+		$this->assertStringContainsString( 'cp-sync-event-card__button cp-button', $html );
+	}
+
+	public function test_cards_never_show_a_price() {
 		$html = EventCard::render(
 			array(
 				'title'            => 'Camp',
 				'permalink'        => 'https://example.com/events/camp',
 				'registration_url' => 'https://example.com/register',
-				'price'            => '<script>alert(1)</script>',
+				'price'            => '$75',
 			)
 		);
 
-		$price    = strpos( $html, 'cp-sync-event-card__price' );
-		$register = strpos( $html, '>Register</a>' );
-
-		$this->assertNotFalse( $price );
-		$this->assertNotFalse( $register );
-		$this->assertLessThan( $register, $price );
-		$this->assertStringContainsString( '&lt;script&gt;alert(1)&lt;/script&gt;', $html );
-		$this->assertStringNotContainsString( '<script>', $html );
+		$this->assertStringContainsString( '>Register</a>', $html );
+		$this->assertStringNotContainsString( '$75', $html );
+		$this->assertStringNotContainsString( 'price', $html );
 	}
 }

@@ -126,7 +126,7 @@ class _Init {
 			[
 				'methods'  => 'GET',
 				'callback' => function () {
-					return \CP_Sync\Events\Display::rest_global_settings();
+					return \CP_Sync\Admin\Settings::filtered_global_settings();
 				},
 				'permission_callback' => function () {
 					return current_user_can( 'manage_options' );

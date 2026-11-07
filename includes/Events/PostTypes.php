@@ -11,10 +11,8 @@ namespace CP_Sync\Events;
  * Registration rules and post-type arguments.
  *
  * The Events Calendar keeps its own event posts. These types are registered
- * only when that plugin is absent, event sync is on, and the display setting
- * is on. An upgrade that has never saved the display setting leaves it off
- * unless event sync was already turned on, so an existing /events/ page is
- * left alone.
+ * only when that plugin is absent and Sync Events is on. They have no admin
+ * screens, because the sync owns every value on them.
  *
  * @since 1.2.0
  */
@@ -29,48 +27,24 @@ class PostTypes {
 	/**
 	 * Whether the CP Sync event types and their public archives should be registered.
 	 *
-	 * Requires The Events Calendar to be absent, event sync to be on, and the
-	 * display setting to be on. A missing display setting is on only when event
-	 * sync was already stored as on.
+	 * Requires The Events Calendar to be absent and event sync to be on.
 	 *
-	 * @param bool  $tec_active      Whether The Events Calendar is active.
-	 * @param mixed $display_setting Stored display value, or null when unset.
-	 * @param mixed $sync_events     Stored sync_events value, or null when unset.
-	 *                               Null means the toggle default (on) for the
-	 *                               sync check, and "not already on" for the
-	 *                               display default.
+	 * @param bool  $tec_active  Whether The Events Calendar is active.
+	 * @param mixed $sync_events Stored sync_events value, or null when unset.
 	 * @return bool
 	 */
-	public static function should_register( $tec_active, $display_setting, $sync_events = null ) {
+	public static function should_register( $tec_active, $sync_events = null ) {
 		if ( $tec_active ) {
 			return false;
 		}
 
-		return self::display_is_on( $display_setting, $sync_events ) && self::sync_is_on( $sync_events );
-	}
-
-	/**
-	 * Whether the display toggle is on.
-	 *
-	 * A missing value is off unless $sync_events is an explicit on. That keeps
-	 * an upgrade from claiming /events/ when events were not already syncing.
-	 *
-	 * @param mixed $display_setting Stored display value, or null when unset.
-	 * @param mixed $sync_events     Stored sync_events value, or null when unset.
-	 * @return bool
-	 */
-	public static function display_is_on( $display_setting, $sync_events = null ) {
-		if ( null === $display_setting ) {
-			return null !== $sync_events && self::sync_is_on( $sync_events );
-		}
-
-		return self::setting_is_on( $display_setting );
+		return self::sync_is_on( $sync_events );
 	}
 
 	/**
 	 * Whether event sync is on.
 	 *
-	 * A missing value uses the Connect toggle default, which is on. Uses
+	 * A missing value uses the Connect toggle default. Uses
 	 * ChMS::sync_setting_is_enabled(), the same check as the pull, so the
 	 * post types are registered exactly when events are imported into them.
 	 *
@@ -79,26 +53,6 @@ class PostTypes {
 	 */
 	public static function sync_is_on( $sync_events ) {
 		return \CP_Sync\ChMS\ChMS::sync_setting_is_enabled( 'events', $sync_events );
-	}
-
-	/**
-	 * Whether a stored value is an explicit on.
-	 *
-	 * Null, false, and 0 are off. Only real on values count.
-	 *
-	 * @param mixed $value Stored setting.
-	 * @return bool
-	 */
-	public static function setting_is_on( $value ) {
-		if ( true === $value || 1 === $value || 1.0 === $value ) {
-			return true;
-		}
-
-		if ( ! is_string( $value ) ) {
-			return false;
-		}
-
-		return in_array( strtolower( trim( $value ) ), array( '1', 'true', 'yes', 'on' ), true );
 	}
 
 	/**
@@ -182,15 +136,15 @@ class PostTypes {
 			'labels'             => $labels,
 			'public'             => true,
 			'publicly_queryable' => true,
-			'show_ui'            => true,
-			'show_in_menu'       => true,
-			'show_in_rest'       => true,
+			'show_ui'            => false,
+			'show_in_menu'       => false,
+			'show_in_admin_bar'  => false,
+			'show_in_rest'       => false,
 			'has_archive'        => true,
 			'rewrite'            => array(
 				'slug'       => self::event_slug(),
 				'with_front' => false,
 			),
-			'menu_icon'          => 'dashicons-calendar-alt',
 			'capability_type'    => 'post',
 			'map_meta_cap'       => true,
 			'supports'           => array( 'title', 'editor', 'thumbnail', 'excerpt', 'custom-fields' ),
@@ -222,9 +176,10 @@ class PostTypes {
 			'labels'             => $labels,
 			'public'             => true,
 			'publicly_queryable' => true,
-			'show_ui'            => true,
-			'show_in_menu'       => 'edit.php?post_type=' . self::EVENT,
-			'show_in_rest'       => true,
+			'show_ui'            => false,
+			'show_in_menu'       => false,
+			'show_in_admin_bar'  => false,
+			'show_in_rest'       => false,
 			'has_archive'        => self::series_slug(),
 			'rewrite'            => array(
 				'slug'       => self::series_slug(),
@@ -258,9 +213,9 @@ class PostTypes {
 			'labels'            => $labels,
 			'public'            => true,
 			'hierarchical'      => true,
-			'show_ui'           => true,
-			'show_in_rest'      => true,
-			'show_admin_column' => true,
+			'show_ui'           => false,
+			'show_in_rest'      => false,
+			'show_admin_column' => false,
 			'rewrite'           => array(
 				'slug'       => 'event-category',
 				'with_front' => false,

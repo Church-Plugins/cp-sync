@@ -14,21 +14,14 @@ require_once dirname( __DIR__ ) . '/Templates.php';
  *
  * CP Groups uses the same slugs, so activating it takes over these posts with no migration.
  * Registration runs at a late `init` and only when `cp_groups()` is absent, the post
- * type is not already registered, Groups sync is turned on for the active ChMS, and
- * "Display groups with CP Sync" is on. An events-only site does not gain /groups/.
+ * type is not already registered, and Groups sync is turned on for the active ChMS.
+ * An events-only site does not gain /groups/.
  * Rewrite rules are flushed once when Lite turns on, turns off, or hands the posts
  * back to CP Groups.
  *
  * @since 1.2.0
  */
 class Lite {
-
-	/**
-	 * Global settings key for the display toggle. Must match the Advanced screen schema.
-	 *
-	 * @var string
-	 */
-	const DISPLAY_SETTING = 'displayGroupsWithSync';
 
 	/**
 	 * Option that remembers which rewrite owner last flushed.
@@ -47,15 +40,6 @@ class Lite {
 	const DB_VERSION_OPTION = 'cp_sync_db_version';
 
 	/**
-	 * Set when the 1.2.0 upgrade ran on a site that was already using CP Sync.
-	 *
-	 * Display groups stays off until an admin saves the toggle.
-	 *
-	 * @var string
-	 */
-	const UPGRADED_BEFORE_DISPLAY_OPTION = 'cp_sync_upgraded_before_1_2';
-
-	/**
 	 * Returned by a ChMS settings read that happens inside another ChMS settings read.
 	 *
 	 * This is not "unsaved". Callers must not pass it to sync_setting_is_enabled().
@@ -65,7 +49,7 @@ class Lite {
 	const SETTINGS_READ_IN_PROGRESS = '__cp_sync_settings_read_in_progress__';
 
 	/**
-	 * Release that introduces the groups display opt-in.
+	 * Release that first shows groups and events without their companion plugins.
 	 *
 	 * @var string
 	 */
@@ -86,9 +70,8 @@ class Lite {
 	/**
 	 * True while reading a ChMS settings option.
 	 *
-	 * Those options decrypt through a filter that rebuilds the settings schema,
-	 * which asks whether Groups sync is on. Without this guard the read calls
-	 * itself.
+	 * Those options decrypt through a filter that builds the settings schema.
+	 * This guard stops a read made from inside that filter from calling itself.
 	 *
 	 * @var bool
 	 */
@@ -116,10 +99,11 @@ class Lite {
 	 * Class constructor.
 	 */
 	protected function __construct() {
+		// After ChMS settings filters load ( init 5 ), before event types register ( init 10 ).
+		add_action( 'init', [ __CLASS__, 'maybe_upgrade' ], 6 );
 		add_action( 'init', [ $this, 'on_init' ], 99 );
 		add_filter( 'template_include', [ $this, 'template_include' ] );
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_styles' ] );
-		add_filter( 'cp_sync_global_settings', [ $this, 'expose_display_default' ] );
 		// After CP Groups' pre_get_posts ( priority 10 ), which replaces posts_per_page.
 		add_action( 'pre_get_posts', [ Display::class, 'protect_shortcode_count' ], 20 );
 	}
@@ -134,84 +118,23 @@ class Lite {
 	}
 
 	/**
-	 * Whether group sync has somewhere to write.
-	 *
-	 * CP Groups wins when it is active. Otherwise the display toggle decides.
-	 * The archive is registered only when Groups sync is also on; see should_register().
-	 *
-	 * @since 1.2.0
-	 * @return bool
-	 */
-	public static function target_available() {
-		if ( function_exists( 'cp_groups' ) ) {
-			return true;
-		}
-
-		return self::is_display_enabled();
-	}
-
-	/**
 	 * Whether Lite should register cp_group and the /groups/ archive.
 	 *
-	 * Both the display toggle and the active ChMS's Sync Groups setting must be on.
-	 * A site that syncs events only does not get the post type.
+	 * The active ChMS's Sync Groups setting decides. A site that syncs events only
+	 * does not get the post type.
 	 *
 	 * @since 1.2.0
 	 * @return bool
 	 */
 	public static function should_register() {
-		return self::is_display_enabled() && self::groups_sync_is_on();
-	}
-
-	/**
-	 * Whether "Display groups with CP Sync" is on.
-	 *
-	 * A saved value wins. When the key has never been saved, a new install defaults
-	 * on. An existing install whose Groups sync is off defaults off, so an upgrade
-	 * does not start showing groups.
-	 *
-	 * @since 1.2.0
-	 * @return bool
-	 */
-	public static function is_display_enabled() {
-		$settings = get_option( 'cp_sync_settings', [] );
-
-		if ( is_array( $settings ) && array_key_exists( self::DISPLAY_SETTING, $settings ) ) {
-			return self::is_truthy( $settings[ self::DISPLAY_SETTING ] );
-		}
-
-		return self::display_default();
-	}
-
-	/**
-	 * Default for a missing display toggle.
-	 *
-	 * Fresh installs are on. A site upgraded from before 1.2.0 is off until an
-	 * admin turns it on. The upgrade does not start showing groups.
-	 *
-	 * @since 1.2.0
-	 * @return bool
-	 */
-	public static function display_default() {
-		return ! self::upgraded_before_groups_display();
-	}
-
-	/**
-	 * Whether this site was already using CP Sync when 1.2.0 first ran.
-	 *
-	 * @since 1.2.0
-	 * @return bool
-	 */
-	public static function upgraded_before_groups_display() {
-		return (bool) get_option( self::UPGRADED_BEFORE_DISPLAY_OPTION, false );
+		return self::groups_sync_is_on();
 	}
 
 	/**
 	 * Whether Groups sync is turned on for the active ChMS.
 	 *
-	 * Uses ChMS::sync_setting_is_enabled(), the same check as the pull. An
-	 * unsaved toggle is on for groups. After the 1.2.0 upgrade, events-only
-	 * sites have sync_groups saved false, so the pull and registration agree.
+	 * Uses ChMS::sync_setting_is_enabled(), the same check as the pull, so the pull
+	 * and registration agree. An unsaved toggle follows sync_toggle_default().
 	 *
 	 * A read that lands inside another ChMS settings read is not "unsaved".
 	 *
@@ -254,7 +177,7 @@ class Lite {
 	}
 
 	/**
-	 * Whether this site already stored ChMS settings before the display toggle.
+	 * Whether this site already stored ChMS settings before 1.2.0 first ran.
 	 *
 	 * Saving global settings (the ChMS picker or the update interval) happens
 	 * on a brand-new install and does not count. Only a saved PCO or CCB
@@ -305,19 +228,19 @@ class Lite {
 	/**
 	 * One-time upgrade from before 1.2.0.
 	 *
-	 * Saves the 1.1.0 Sync Groups state. Groups only synced when CP Groups was
-	 * active, so an unsaved toggle with CP Groups absent is stored false. An
-	 * unsaved toggle with CP Groups active is stored as that version's default
-	 * (on). A value the admin already saved is left alone. Fresh installs are
-	 * only marked current; their toggles stay unsaved and default on.
+	 * An update must not start publishing /groups/ or /events/. See
+	 * save_sync_state_from_1_1(). Fresh installs are only marked current, and their
+	 * toggles follow ChMS::sync_toggle_default().
 	 *
 	 * @since 1.2.0
 	 * @param bool|null $cp_groups_active True when cp_groups() exists. Anything
 	 *                                    other than a bool ( WordPress passes ''
 	 *                                    to init callbacks ) detects it.
+	 * @param bool|null $tec_active       True when The Events Calendar is active.
+	 *                                    Anything other than a bool detects it.
 	 * @return void
 	 */
-	public static function maybe_upgrade( $cp_groups_active = null ) {
+	public static function maybe_upgrade( $cp_groups_active = null, $tec_active = null ) {
 		$stored = get_option( self::DB_VERSION_OPTION, '' );
 
 		if ( is_string( $stored ) && '' !== $stored && version_compare( $stored, self::GROUPS_OPT_IN_VERSION, '>=' ) ) {
@@ -328,16 +251,19 @@ class Lite {
 			$cp_groups_active = function_exists( 'cp_groups' );
 		}
 
+		if ( ! is_bool( $tec_active ) ) {
+			$tec_active = defined( 'TRIBE_EVENTS_FILE' );
+		}
+
 		if ( self::has_pre_1_2_data() ) {
-			self::freeze_sync_groups_from_1_1( $cp_groups_active );
-			update_option( self::UPGRADED_BEFORE_DISPLAY_OPTION, 1, false );
+			self::save_sync_state_from_1_1( $cp_groups_active, $tec_active );
 		}
 
 		update_option( self::DB_VERSION_OPTION, self::GROUPS_OPT_IN_VERSION, false );
 	}
 
 	/**
-	 * ChMS settings saved by a copy of CP Sync from before the display toggle.
+	 * ChMS settings saved by a copy of CP Sync from before 1.2.0.
 	 *
 	 * Global settings alone do not count. A new site saves those as soon as an
 	 * admin picks a church management system.
@@ -350,16 +276,23 @@ class Lite {
 	}
 
 	/**
-	 * Persist the 1.1.0 effective Sync Groups value when it was never saved.
+	 * Save what Sync Groups and Sync Events did on 1.1.0.
+	 *
+	 * Those feeds only ran with CP Groups or The Events Calendar active. Without the
+	 * plugin the toggle is saved off, even when it was saved on, because a saved on
+	 * did nothing on 1.1.0 and now creates public pages. With the plugin, a saved
+	 * value is kept and an unsaved toggle is saved on, which was the 1.1.0 default.
 	 *
 	 * @since 1.2.0
 	 * @param bool $cp_groups_active Whether cp_groups() exists during the upgrade.
+	 * @param bool $tec_active       Whether The Events Calendar is active during the upgrade.
 	 * @return void
 	 */
-	public static function freeze_sync_groups_from_1_1( $cp_groups_active ) {
-		$effective = $cp_groups_active
-			? (bool) \CP_Sync\ChMS\ChMS::sync_toggle_default( 'groups' )
-			: false;
+	public static function save_sync_state_from_1_1( $cp_groups_active, $tec_active ) {
+		$companions = [
+			'sync_groups' => $cp_groups_active,
+			'sync_events' => $tec_active,
+		];
 
 		foreach ( [ 'pco', 'ccb' ] as $chms_id ) {
 			$option   = 'cp_sync_' . $chms_id . '_settings';
@@ -373,13 +306,25 @@ class Lite {
 				$settings['connect'] = [];
 			}
 
-			if ( array_key_exists( 'sync_groups', $settings['connect'] ) ) {
-				continue;
+			$changed = false;
+
+			foreach ( $companions as $key => $companion_active ) {
+				if ( $companion_active && array_key_exists( $key, $settings['connect'] ) ) {
+					continue;
+				}
+
+				if ( array_key_exists( $key, $settings['connect'] ) && $settings['connect'][ $key ] === $companion_active ) {
+					continue;
+				}
+
+				$settings['connect'][ $key ] = $companion_active;
+				$changed                     = true;
 			}
 
-			$settings['connect']['sync_groups'] = $effective;
-			update_option( $option, $settings );
-			self::$chms_settings_cache[ $option ] = $settings;
+			if ( $changed ) {
+				update_option( $option, $settings );
+				self::$chms_settings_cache[ $option ] = $settings;
+			}
 		}
 	}
 
@@ -419,7 +364,7 @@ class Lite {
 			return __( 'When enabled, groups are synced from your ChMS to CP Groups.', 'cp-sync' );
 		}
 
-		return __( 'When enabled, groups are synced from your ChMS and shown on your site.', 'cp-sync' );
+		return __( 'When enabled, groups are synced from your ChMS and shown on your site at /groups/. This list replaces any page already using that address.', 'cp-sync' );
 	}
 
 	/**
@@ -435,8 +380,6 @@ class Lite {
 		if ( ! is_bool( $cp_groups_active ) ) {
 			$cp_groups_active = function_exists( 'cp_groups' );
 		}
-
-		self::maybe_upgrade( $cp_groups_active );
 
 		add_shortcode( 'cp-sync-groups', [ Display::class, 'shortcode' ] );
 
@@ -612,7 +555,7 @@ class Lite {
 
 		if ( is_singular( 'cp_group' ) ) {
 			$slug = 'groups/single';
-		} elseif ( is_post_type_archive( 'cp_group' ) ) {
+		} elseif ( is_post_type_archive( 'cp_group' ) || self::is_group_term_archive() ) {
 			$slug = 'groups/archive';
 		} else {
 			return $template;
@@ -649,6 +592,16 @@ class Lite {
 	}
 
 	/**
+	 * Whether this is the archive for one group type, category, or life stage.
+	 *
+	 * @since 1.2.0
+	 * @return bool
+	 */
+	public static function is_group_term_archive() {
+		return function_exists( 'is_tax' ) && is_tax( array_column( self::taxonomies(), 'taxonomy' ) );
+	}
+
+	/**
 	 * Front-end stylesheet for the archive, the single group, and the shortcode.
 	 *
 	 * @since 1.2.0
@@ -661,7 +614,7 @@ class Lite {
 
 		$load = false;
 
-		if ( self::is_registered() && ( is_post_type_archive( 'cp_group' ) || is_singular( 'cp_group' ) ) ) {
+		if ( self::is_registered() && ( is_post_type_archive( 'cp_group' ) || is_singular( 'cp_group' ) || self::is_group_term_archive() ) ) {
 			$load = true;
 		}
 
@@ -677,16 +630,8 @@ class Lite {
 			return;
 		}
 
-		$path = CP_SYNC_PLUGIN_DIR . 'assets/css/groups.css';
-
-		$version = file_exists( $path ) ? (string) filemtime( $path ) : '1.2.0';
-
-		wp_enqueue_style(
-			'cp-sync-groups',
-			CP_SYNC_PLUGIN_URL . 'assets/css/groups.css',
-			[],
-			$version
-		);
+		cp_sync()->enqueue_asset( 'groups-display', [], null, true );
+		wp_enqueue_style( 'material-icons' );
 
 		$script = CP_SYNC_PLUGIN_DIR . 'assets/js/groups-display.js';
 
@@ -699,47 +644,5 @@ class Lite {
 				true
 			);
 		}
-	}
-
-	/**
-	 * Put the computed display default into the settings screen when nothing is stored.
-	 *
-	 * The Advanced toggle then shows off on an events-only upgrade instead of the
-	 * schema's new-install default.
-	 *
-	 * @since 1.2.0
-	 * @param mixed $settings Global settings passed to the settings app.
-	 * @return mixed
-	 */
-	public function expose_display_default( $settings ) {
-		if ( ! is_array( $settings ) || array_key_exists( self::DISPLAY_SETTING, $settings ) ) {
-			return $settings;
-		}
-
-		$settings[ self::DISPLAY_SETTING ] = self::display_default();
-
-		return $settings;
-	}
-
-	/**
-	 * Interpret a saved toggle value.
-	 *
-	 * @param mixed $value Stored value.
-	 * @return bool
-	 */
-	protected static function is_truthy( $value ) {
-		if ( is_bool( $value ) ) {
-			return $value;
-		}
-
-		if ( is_numeric( $value ) ) {
-			return 0 !== (int) $value;
-		}
-
-		if ( is_string( $value ) ) {
-			return in_array( strtolower( $value ), [ '1', 'true', 'yes', 'on' ], true );
-		}
-
-		return false;
 	}
 }

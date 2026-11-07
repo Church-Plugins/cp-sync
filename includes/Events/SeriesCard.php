@@ -35,12 +35,13 @@ class SeriesCard {
 
 		$html  = '<article class="cp-sync-series-card">';
 		$html .= self::image_html( isset( $series['image'] ) ? $series['image'] : '', $title );
+		$html .= '<div class="cp-sync-series-card__body">';
 		$html .= '<h2 class="cp-sync-series-card__title">';
 		$html .= self::title_link( $title, $permalink );
 		$html .= '</h2>';
 		$html .= self::description_html( isset( $series['description'] ) ? $series['description'] : '' );
 		$html .= self::button_html( $button['url'], $button['label'] );
-		$html .= '</article>';
+		$html .= '</div></article>';
 
 		return $html;
 	}
@@ -84,7 +85,7 @@ class SeriesCard {
 	}
 
 	/**
-	 * Description slot.
+	 * Short description. The stylesheet limits it to two lines.
 	 *
 	 * @param mixed $description Excerpt or content.
 	 * @return string
@@ -92,7 +93,7 @@ class SeriesCard {
 	protected static function description_html( $description ) {
 		$text = self::plain_text( $description );
 
-		return '<p class="cp-sync-series-card__summary">' . self::esc_html_text( $text ) . '</p>';
+		return '' !== $text ? '<p class="cp-sync-series-card__summary">' . self::esc_html_text( $text ) . '</p>' : '';
 	}
 
 	/**
@@ -106,9 +107,9 @@ class SeriesCard {
 		$html = '<p class="cp-sync-series-card__action">';
 
 		if ( '' === $url ) {
-			$html .= '<span class="cp-sync-series-card__button">' . self::esc_html_text( $label ) . '</span>';
+			$html .= '<span class="cp-sync-series-card__button cp-button is-light">' . self::esc_html_text( $label ) . '</span>';
 		} else {
-			$html .= '<a class="cp-sync-series-card__button" href="' . self::esc_url_attr( $url ) . '">' . self::esc_html_text( $label ) . '</a>';
+			$html .= '<a class="cp-sync-series-card__button cp-button" href="' . self::esc_url_attr( $url ) . '">' . self::esc_html_text( $label ) . '</a>';
 		}
 
 		$html .= '</p>';
