@@ -75,6 +75,7 @@ class EventsShortcode {
 		$args = array(
 			'post_type'           => PostTypes::EVENT,
 			'post_status'         => 'publish',
+			'has_password'        => false,
 			'posts_per_page'      => (int) $parsed['limit'],
 			'meta_key'            => Meta::START_UTC,
 			'orderby'             => 'meta_value',

@@ -55,8 +55,9 @@ Dates that are still in the feed are published again. Future dates that are no l
 Each date from your church management system becomes its own event.
 
 - The list of upcoming dates is at `/events/`. Dates are in order, soonest first. Each date has a linked title and one button. The button says **Register** when your church management system sent a link, and **Learn more** when it did not. **Learn more** opens that date's page. A Planning Center registration shows its price next to **Register**. One option shows that price. Several options show a range from the lowest to the highest, such as $75 – $200. A free registration says **Free**. A date that is part of a series also links to that series.
-- An event page shows the date and time in your WordPress timezone (**Settings → General → Timezone**), the location, the image, the description, and a **Register** button when the church management system sent a link. The price, when there is one, is next to **Register**. The button goes to that link. It does not use a form on your site.
-- A series page shows the description, the image, the next upcoming dates, and the same **Register** button.
+- An event page shows the date and time in the timezone stored for that event. For Planning Center that is your WordPress timezone (**Settings → General → Timezone**) at the time of the sync. The page does not switch the clock to the visitor's browser. It shows the location, a map search link for that public location text, the image, the description, and a **Register** button when the church management system sent a link. The price, when there is one, is next to **Register**. A stored free or zero price says **Free**. A blank price is left blank. The button goes to that link. It does not use a form on your site. **Add to calendar** downloads a calendar file for that one date. A date that has already ended keeps its description, time, and price, says that it has ended, and does not show **Register**. A date with no end after its start counts as ended once its start date is over.
+- A password-protected event or series asks for the password before showing its page, and it is left out of the lists at `/events/`, `/event-series/`, series pages, and the `[cp-sync-events]` shortcode. A password-protected event does not offer a calendar file.
+- A series page shows the description, the image, the next upcoming dates in order, and a **Register** button when that series has a signup link. It does not download one calendar file for the whole series, and it does not guess dates that are not already published.
 
 A series is created only when the church management system already groups the dates:
 
@@ -73,7 +74,7 @@ Series pages use `/event-series/` so they do not take the `/series/` address CP 
 | --- | --- |
 | Name | Event title. A series uses the same name. |
 | Description | Event page, and the series page |
-| Start and end | Stored in UTC and in the WordPress timezone. The page shows the WordPress timezone. |
+| Start and end | Stored in UTC and in the event timezone. The page shows that stored timezone. |
 | All-day | The page says **All day** and does not show a clock time. |
 | Location | Location line |
 | Image | Featured image. If the download fails, the page uses the image address from your ChMS. |
@@ -137,4 +138,4 @@ Examples:
 
 ## Theme templates
 
-A theme can replace a template by copying it into `cp-sync/events/` in the theme. The files are `archive.php`, `single.php`, `series.php`, `card.php`, and `list.php`.
+A theme can replace a template by copying it into `cp-sync/events/` in the theme. The files are `archive.php`, `single.php`, `series.php`, `card.php`, `list.php`, `detail-header.php`, `details.php`, `calendar-links.php`, and `series-dates.php`. The list at `/events/` is unchanged: it is not a month calendar, and it does not add search or a category filter on the page.

@@ -3,6 +3,8 @@
  * One event series: description, image, upcoming dates, and Register.
  *
  * Override from the theme at cp-sync/events/series.php.
+ * Dates come from the existing upcoming query. This page does not invent a
+ * recurrence, and it does not offer a series calendar file.
  *
  * @package CP_Sync
  */
@@ -11,16 +13,51 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use CP_Sync\Events\EventDetail;
+use CP_Sync\Events\EventsShortcode;
+use CP_Sync\Events\Meta;
+
 \CP_Sync\get_template_part( 'events/shell-open' );
 
 while ( have_posts() ) {
 	the_post();
 
+	if ( post_password_required() ) {
+		echo get_the_password_form(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core builds and escapes the form.
+		continue;
+	}
+
 	$cp_sync_post_id = get_the_ID();
-	$cp_sync_url     = (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::REGISTRATION_URL, true );
-	$cp_sync_image   = (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::IMAGE_URL, true );
-	$cp_sync_query   = new WP_Query(
-		\CP_Sync\Events\EventsShortcode::query_args(
+	$cp_sync_post    = get_post();
+	$cp_sync_image   = '';
+
+	if ( has_post_thumbnail() ) {
+		$cp_sync_thumb = get_the_post_thumbnail_url( $cp_sync_post_id, 'large' );
+		$cp_sync_image = is_string( $cp_sync_thumb ) ? $cp_sync_thumb : '';
+	}
+
+	if ( '' === $cp_sync_image ) {
+		$cp_sync_image = (string) get_post_meta( $cp_sync_post_id, Meta::IMAGE_URL, true );
+	}
+
+	$cp_sync_view = EventDetail::present(
+		array(
+			'post_id'          => $cp_sync_post_id,
+			'post_type'        => \CP_Sync\Events\PostTypes::SERIES,
+			'post_status'      => is_object( $cp_sync_post ) && isset( $cp_sync_post->post_status ) ? (string) $cp_sync_post->post_status : (string) get_post_status( $cp_sync_post_id ),
+			'post_password'    => is_object( $cp_sync_post ) && isset( $cp_sync_post->post_password ) ? (string) $cp_sync_post->post_password : '',
+			'title'            => get_the_title(),
+			'permalink'        => (string) get_permalink(),
+			'excerpt'          => has_excerpt() ? (string) get_the_excerpt() : '',
+			'content'          => (string) get_post_field( 'post_content', $cp_sync_post_id ),
+			'image'            => $cp_sync_image,
+			'registration_url' => (string) get_post_meta( $cp_sync_post_id, Meta::REGISTRATION_URL, true ),
+			'now_utc'          => gmdate( 'Y-m-d H:i:s' ),
+		),
+		'series'
+	);
+	$cp_sync_query = new WP_Query(
+		EventsShortcode::query_args(
 			array(
 				'limit'    => -1,
 				'category' => '',
@@ -32,56 +69,31 @@ while ( have_posts() ) {
 	);
 	?>
 	<article <?php post_class( 'cp-sync-series' ); ?>>
-		<?php if ( has_post_thumbnail() ) : ?>
-			<figure class="cp-sync-series__image">
-				<?php
-				the_post_thumbnail(
-					'large',
-					array(
-						'alt' => the_title_attribute( array( 'echo' => false ) ),
-					)
-				);
-				?>
-			</figure>
-		<?php elseif ( '' !== $cp_sync_image ) : ?>
-			<figure class="cp-sync-series__image">
-				<img src="<?php echo esc_url( $cp_sync_image ); ?>" alt="<?php echo esc_attr( get_the_title() ); ?>">
-			</figure>
-		<?php endif; ?>
-
-		<header class="cp-sync-series__header">
-			<h1><?php echo esc_html( get_the_title() ); ?></h1>
-		</header>
-
-		<div class="cp-sync-series__content">
-			<?php echo wp_kses_post( apply_filters( 'the_content', get_post_field( 'post_content', $cp_sync_post_id ) ) ); ?>
-		</div>
-
-		<?php if ( '' !== $cp_sync_url ) : ?>
-			<p class="cp-sync-event__register">
-				<a href="<?php echo esc_url( $cp_sync_url ); ?>"><?php esc_html_e( 'Register', 'cp-sync' ); ?></a>
-			</p>
-		<?php endif; ?>
-
-		<section class="cp-sync-series__dates" aria-labelledby="cp-sync-series-dates">
-			<h2 id="cp-sync-series-dates"><?php esc_html_e( 'Upcoming dates', 'cp-sync' ); ?></h2>
+		<?php
+		\CP_Sync\get_template_part(
+			'events/detail-header',
+			array(
+				'view' => $cp_sync_view,
+			)
+		);
+		\CP_Sync\get_template_part(
+			'events/details',
+			array(
+				'view' => $cp_sync_view,
+			)
+		);
+		?>
+		<section class="cp-sync-series__dates" aria-labelledby="cp-sync-series-dates-<?php echo esc_attr( (string) $cp_sync_post_id ); ?>">
+			<h2 id="cp-sync-series-dates-<?php echo esc_attr( (string) $cp_sync_post_id ); ?>"><?php esc_html_e( 'Upcoming dates', 'cp-sync' ); ?></h2>
 			<?php
 			\CP_Sync\get_template_part(
-				'events/list',
+				'events/series-dates',
 				array(
-					'events'           => $cp_sync_query->posts,
-					'show_series_link' => false,
+					'events' => $cp_sync_query->posts,
 				)
 			);
 			?>
 		</section>
-
-		<?php $cp_sync_archive = get_post_type_archive_link( \CP_Sync\Events\PostTypes::EVENT ); ?>
-		<?php if ( is_string( $cp_sync_archive ) && '' !== $cp_sync_archive ) : ?>
-			<p class="cp-sync-events__back">
-				<a href="<?php echo esc_url( $cp_sync_archive ); ?>"><?php esc_html_e( 'All events', 'cp-sync' ); ?></a>
-			</p>
-		<?php endif; ?>
 	</article>
 	<?php
 	wp_reset_postdata();

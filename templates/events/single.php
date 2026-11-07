@@ -11,85 +11,97 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use CP_Sync\Events\EventDetail;
+use CP_Sync\Events\Meta;
+use CP_Sync\Events\PostTypes;
+
 \CP_Sync\get_template_part( 'events/shell-open' );
 
 while ( have_posts() ) {
 	the_post();
 
-	$cp_sync_post_id  = get_the_ID();
-	$cp_sync_when     = \CP_Sync\Events\EventFormatter::format_when(
-		(string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::START_UTC, true ),
-		(string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::END_UTC, true ),
-		(string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::TIMEZONE, true ),
-		'1' === (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::ALL_DAY, true )
+	if ( post_password_required() ) {
+		echo get_the_password_form(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core builds and escapes the form.
+		continue;
+	}
+
+	$cp_sync_post_id = get_the_ID();
+	$cp_sync_post    = get_post();
+	$cp_sync_image   = '';
+
+	if ( has_post_thumbnail() ) {
+		$cp_sync_thumb = get_the_post_thumbnail_url( $cp_sync_post_id, 'large' );
+		$cp_sync_image = is_string( $cp_sync_thumb ) ? $cp_sync_thumb : '';
+	}
+
+	if ( '' === $cp_sync_image ) {
+		$cp_sync_image = (string) get_post_meta( $cp_sync_post_id, Meta::IMAGE_URL, true );
+	}
+
+	$cp_sync_series      = (int) get_post_meta( $cp_sync_post_id, Meta::SERIES_ID, true );
+	$cp_sync_series_name = '';
+	$cp_sync_series_url  = '';
+
+	if ( $cp_sync_series && 'publish' === get_post_status( $cp_sync_series ) ) {
+		$cp_sync_series_name = (string) get_the_title( $cp_sync_series );
+		$cp_sync_series_url  = (string) get_permalink( $cp_sync_series );
+	}
+
+	$cp_sync_terms = array();
+
+	if ( function_exists( 'get_the_terms' ) ) {
+		$cp_sync_found = get_the_terms( $cp_sync_post_id, PostTypes::CATEGORY );
+
+		if ( is_array( $cp_sync_found ) ) {
+			foreach ( $cp_sync_found as $cp_sync_term ) {
+				if ( is_object( $cp_sync_term ) && isset( $cp_sync_term->name ) ) {
+					$cp_sync_terms[] = (string) $cp_sync_term->name;
+				}
+			}
+		}
+	}
+
+	$cp_sync_view = EventDetail::present(
+		array(
+			'post_id'          => $cp_sync_post_id,
+			'post_type'        => PostTypes::EVENT,
+			'post_status'      => is_object( $cp_sync_post ) && isset( $cp_sync_post->post_status ) ? (string) $cp_sync_post->post_status : (string) get_post_status( $cp_sync_post_id ),
+			'post_password'    => is_object( $cp_sync_post ) && isset( $cp_sync_post->post_password ) ? (string) $cp_sync_post->post_password : '',
+			'title'            => get_the_title(),
+			'permalink'        => (string) get_permalink(),
+			'excerpt'          => has_excerpt() ? (string) get_the_excerpt() : '',
+			'content'          => (string) get_post_field( 'post_content', $cp_sync_post_id ),
+			'image'            => $cp_sync_image,
+			'start_utc'        => (string) get_post_meta( $cp_sync_post_id, Meta::START_UTC, true ),
+			'end_utc'          => (string) get_post_meta( $cp_sync_post_id, Meta::END_UTC, true ),
+			'timezone'         => (string) get_post_meta( $cp_sync_post_id, Meta::TIMEZONE, true ),
+			'all_day'          => '1' === (string) get_post_meta( $cp_sync_post_id, Meta::ALL_DAY, true ),
+			'location'         => (string) get_post_meta( $cp_sync_post_id, Meta::LOCATION, true ),
+			'registration_url' => (string) get_post_meta( $cp_sync_post_id, Meta::REGISTRATION_URL, true ),
+			'price'            => (string) get_post_meta( $cp_sync_post_id, Meta::REGISTRATION_PRICE, true ),
+			'categories'       => $cp_sync_terms,
+			'series_title'     => $cp_sync_series_name,
+			'series_url'       => $cp_sync_series_url,
+			'now_utc'          => gmdate( 'Y-m-d H:i:s' ),
+		),
+		'event'
 	);
-	$cp_sync_location = (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::LOCATION, true );
-	$cp_sync_url      = (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::REGISTRATION_URL, true );
-	$cp_sync_price    = (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::REGISTRATION_PRICE, true );
-	$cp_sync_image    = (string) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::IMAGE_URL, true );
-	$cp_sync_series   = (int) get_post_meta( $cp_sync_post_id, \CP_Sync\Events\Meta::SERIES_ID, true );
 	?>
 	<article <?php post_class( 'cp-sync-event' ); ?>>
-		<?php if ( has_post_thumbnail() ) : ?>
-			<figure class="cp-sync-event__image">
-				<?php
-				the_post_thumbnail(
-					'large',
-					array(
-						'alt' => the_title_attribute( array( 'echo' => false ) ),
-					)
-				);
-				?>
-			</figure>
-		<?php elseif ( '' !== $cp_sync_image ) : ?>
-			<figure class="cp-sync-event__image">
-				<img src="<?php echo esc_url( $cp_sync_image ); ?>" alt="<?php echo esc_attr( get_the_title() ); ?>">
-			</figure>
-		<?php endif; ?>
-
-		<header class="cp-sync-event__header">
-			<h1><?php echo esc_html( get_the_title() ); ?></h1>
-			<?php if ( '' !== $cp_sync_when['text'] ) : ?>
-				<p class="cp-sync-event__when">
-					<time datetime="<?php echo esc_attr( $cp_sync_when['iso'] ); ?>"><?php echo esc_html( $cp_sync_when['text'] ); ?></time>
-					<?php if ( $cp_sync_when['all_day'] ) : ?>
-						<span class="cp-sync-event__all-day"><?php esc_html_e( '(All day)', 'cp-sync' ); ?></span>
-					<?php endif; ?>
-				</p>
-			<?php endif; ?>
-			<?php if ( '' !== $cp_sync_location ) : ?>
-				<p class="cp-sync-event__location"><?php echo esc_html( $cp_sync_location ); ?></p>
-			<?php endif; ?>
-		</header>
-
-		<div class="cp-sync-event__content">
-			<?php echo wp_kses_post( apply_filters( 'the_content', get_post_field( 'post_content', $cp_sync_post_id ) ) ); ?>
-		</div>
-
-		<?php if ( '' !== $cp_sync_price || '' !== $cp_sync_url ) : ?>
-			<p class="cp-sync-event__register">
-				<?php if ( '' !== $cp_sync_price ) : ?>
-					<span class="cp-sync-event__price"><?php echo esc_html( $cp_sync_price ); ?></span>
-				<?php endif; ?>
-				<?php if ( '' !== $cp_sync_url ) : ?>
-					<a href="<?php echo esc_url( $cp_sync_url ); ?>"><?php esc_html_e( 'Register', 'cp-sync' ); ?></a>
-				<?php endif; ?>
-			</p>
-		<?php endif; ?>
-
-		<?php if ( $cp_sync_series && 'publish' === get_post_status( $cp_sync_series ) ) : ?>
-			<p class="cp-sync-event__series">
-				<?php esc_html_e( 'Part of', 'cp-sync' ); ?>
-				<a href="<?php echo esc_url( get_permalink( $cp_sync_series ) ); ?>"><?php echo esc_html( get_the_title( $cp_sync_series ) ); ?></a>
-			</p>
-		<?php endif; ?>
-
-		<?php $cp_sync_archive = get_post_type_archive_link( \CP_Sync\Events\PostTypes::EVENT ); ?>
-		<?php if ( is_string( $cp_sync_archive ) && '' !== $cp_sync_archive ) : ?>
-			<p class="cp-sync-events__back">
-				<a href="<?php echo esc_url( $cp_sync_archive ); ?>"><?php esc_html_e( 'All events', 'cp-sync' ); ?></a>
-			</p>
-		<?php endif; ?>
+		<?php
+		\CP_Sync\get_template_part(
+			'events/detail-header',
+			array(
+				'view' => $cp_sync_view,
+			)
+		);
+		\CP_Sync\get_template_part(
+			'events/details',
+			array(
+				'view' => $cp_sync_view,
+			)
+		);
+		?>
 	</article>
 	<?php
 }
