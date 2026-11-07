@@ -41,14 +41,14 @@ Connection uses the **Connect** button. The **Connect** tab has no Client ID, Cl
 1. **Check the connection**:
    - Planning Center: the **Connect** tab shows **Connected**, or **Connected to {organization} as {person}** after you reload.
    - Church Community Builder: the button reads **Disconnect** and **Subdomain**, **API Username**, and **API Password** are locked.
-   - Under **Sync**, the feed you want is on. **Sync Groups** needs CP Groups. **Sync Events** needs The Events Calendar. **Sync Sermons** (Planning Center) needs CP Sermons and is off until you turn it on.
+   - Under **Sync**, the feed you want is on. **Sync Groups** and **Sync Events** work without CP Groups or The Events Calendar, and CP Sync shows those items on your site. Without those plugins they are off until you turn them on. **Sync Sermons** (Planning Center) needs CP Sermons and is off until you turn it on.
 
 2. **Review filters**:
    - Planning Center groups: **Visibility** and the **Groups** filter on the **Groups** tab.
-   - Planning Center events: **Event source**, **Visibility**, **Calendar Filters**, and **Registration Filters** on the **Events** tab.
+   - Planning Center events: **Event source**, **Visibility**, **Calendar Filters**, and **Registration Filters** on the **Events** tab. With **Only Visible in Church Center**, calendar events also have to be visible in Church Center and not explicitly unapproved. **Show All** does not apply that filter. An admin notice reports when that filter removes upcoming events already on the site.
    - Planning Center sermons: the **Sermons** filter. Only episodes published to the Church Center library are imported.
    - Church Community Builder groups: the **Groups** filter. Groups that are inactive or not listed in public search are skipped.
-   - Church Community Builder events: **Date Range** and the **Events** filter.
+   - Church Community Builder events: **Date Range** and the **Events** filter. If CCB marks an event as not approved, it is skipped.
    - Remove a condition with the trash icon on that row, then click **Generate Preview**.
 
 3. **API permissions**:
@@ -93,18 +93,24 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
 ### CP Groups Integration Problems
 
 1. **Plugin and toggle**:
-   - CP Groups is installed and activated.
-   - On the **Connect** tab, **Sync Groups** is on. If CP Groups is inactive, the toggle is disabled and the help text reads **Requires the CP Groups plugin, which is not active on this site.**
+   - On the **Connect** tab, **Sync Groups** is on.
 
 2. **Filters**:
    - On the **Groups** tab, check **Visibility** (Planning Center) and the **Groups** filter.
    - Church Community Builder skips groups that are inactive or not listed in public search.
 
+### Events are missing and The Events Calendar is not installed
+
+1. On the **Connect** tab, turn on **Sync Events**. Click **Save all Settings**, then **Pull now** on the **Advanced** tab. If a page already uses `/events/`, turning on **Sync Events** replaces that address. Turn it off to give the page back. See [Events on your site](../integrations/events-on-your-site.md#if-you-already-have-a-page-at-events).
+2. If `/events/` says the page was not found, open **Settings → Permalinks** and click **Save Changes**.
+3. On the **Log** tab, set **Enable Debug Mode** to **Enable** and run the sync again. Look for `Event display sync`.
+4. The **Events** tab settings apply without The Events Calendar. For Planning Center, **Event source** chooses the feed. **Pull from Calendar** (the usual setting) imports calendar events. **Pull from Registrations** imports signups that are not archived, and does not use **Visibility**. **Calendar AND Registrations** imports both, and an event in both is imported twice. **Visibility** applies to the calendar only. **Only Visible in Church Center** (the usual setting) skips calendar events that are hidden in Church Center or explicitly not approved. **Show All** publishes the calendar events the feed returns, including ones hidden in Church Center. For Church Community Builder, **Date Range** is the window that is fetched. **Current and upcoming events** (the usual setting) is today through one year ahead. An event CCB marks as not approved is skipped. See [Events on your site](../integrations/events-on-your-site.md#planning-center-visibility).
+
 ### The Events Calendar Integration Issues
 
 1. **Plugin and toggle**:
    - The Events Calendar is installed and activated.
-   - On the **Connect** tab, **Sync Events** is on. If The Events Calendar is inactive, the toggle is disabled and the help text reads **Requires The Events Calendar plugin, which is not active on this site.**
+   - On the **Connect** tab, **Sync Events** is on. If you activated The Events Calendar after the toggle was saved off, turn it on.
 
 2. **Church Community Builder venues**:
    - Venue name, street, city, state, zip, and the event image are filled in after import, for events that have a numeric CCB id.

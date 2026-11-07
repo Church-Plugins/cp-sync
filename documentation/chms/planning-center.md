@@ -29,23 +29,23 @@ Changing **Church Management System** while you are connected leaves the Plannin
 
 After you are connected, the same tab shows a **Sync** section. Choose what to sync, then click **Save all Settings**:
 
-- **Sync Groups** — When enabled, groups are synced from your ChMS to CP Groups.
-- **Sync Events** — When enabled, events are synced from your ChMS to The Events Calendar.
+- **Sync Groups** — When enabled, groups are synced from your ChMS. With CP Groups active, they go to CP Groups. Without it, CP Sync shows them on your site.
+- **Sync Events** — When enabled, events are synced from your ChMS. With The Events Calendar active, they go there. Without it, CP Sync shows them on your site.
 - **Sync Sermons** — When enabled, sermons are synced from your ChMS to CP Sermons. This toggle is off until you turn it on.
 
-If the companion plugin is not active, that toggle is disabled. Its help text is **Requires the CP Groups plugin, which is not active on this site.**, **Requires The Events Calendar plugin, which is not active on this site.**, or **Requires the CP Sermons plugin, which is not active on this site.**
+**Sync Groups** and **Sync Events** start on when CP Groups or The Events Calendar is active, and off when it is not. Without those plugins, the help text names the addresses that turning the toggle on creates. **Sync Sermons** is disabled until CP Sermons is active. Its help text is **Requires the CP Sermons plugin, which is not active on this site.**
 
 ## Configuring Data Synchronization
 
 ### Groups Synchronization
 
-Group sync needs the **CP Groups** plugin to be active. If it isn't, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
+Group sync does not need CP Groups. Without it, CP Sync shows the groups. See [Show Groups on Your Site](../integrations/show-groups.md). Without CP Groups, turn on **Sync Groups** to see the **Groups** tab.
 
 Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Planning Center, while **Sync Groups** is on.
 
 1. Open the **Groups** tab.
 2. Under **Group Tags to Sync**, choose the Planning Center tag groups you want on your site. Each selected tag group is added to your groups as its own filter, named after the tag group, with its tags as the options. For example, a "Life Stage" tag group becomes a Life Stage filter. Tag groups you don't select are not added.
-3. Choose **Visibility**: **Only Visible in Church Center** (default) syncs only groups published on Church Center; **Show All** does not filter on Church Center visibility.
+3. Choose **Visibility**: **Only Visible in Church Center** (default) syncs only groups published on Church Center. A group Planning Center marks as not listed, or whose visibility is not public, is skipped on that setting. Groups that do not send those fields are unchanged. **Show All** does not apply this check.
 4. Optionally, limit which groups sync. On screen the filter reads **Pull Groups where** **All** or **Any** **of the following match**. There is no separate Groups heading. Click **Add Condition** to add a condition on **Name**, **Description**, **Group Type**, **Location**, **Enrollment Status**, **Enrollment Strategy**, or **Visibility**. For **Group Type**, the comparisons are **Is**, **Is Not**, **Is Empty**, **Is Not Empty**, **Is in**, and **Is Not in**. With no conditions, every group allowed by Visibility syncs.
 5. Click **Save all Settings**. The button stays disabled until you change a setting.
 
@@ -73,14 +73,19 @@ On CP Groups 1.2 or newer, leaders are saved as **Group Leaders** rows instead o
 
 ### Events Synchronization
 
-Event sync needs **The Events Calendar** plugin to be active. If it isn't, the **Sync Events** toggle is disabled and the **Events** tab doesn't appear. The tab appears after you connect to Planning Center, while **Sync Events** is on.
+Sending events to The Events Calendar needs that plugin to be active. Without it, turn on **Sync Events** and CP Sync shows the events on your site. The **Events** tab works the same way: visibility, event source, and filters on that tab are what get imported. See [Events on your site](../integrations/events-on-your-site.md).
 
 1. Go to the **Events** tab in the PCO settings
 2. Choose your **Event source**: **Pull from Calendar**, **Pull from Registrations**, or **Calendar AND Registrations**
 3. Set **Tag groups**, **Visibility**, and **Calendar Filters** (**Pull from Calendar** or **Calendar AND Registrations**), or **Registration Filters** (**Pull from Registrations** or **Calendar AND Registrations**)
+
+   **Registration Category filters:** **Is Not** and **Is Not in** leave out a registration when any of its categories is one you excluded, and they include registrations with no category. **Is Empty** matches registrations with no category, and **Is Not Empty** matches registrations that have one. If you already filter registrations by Category, your next sync may include or leave out different registrations than before.
+
 4. Click **Save all Settings**
 
 **Caution:** If you switch **Event Source** to **Pull from Calendar** from **Pull from Registrations** or **Calendar AND Registrations**, the next sync permanently deletes upcoming Registrations-sourced events — including events that are still running today. Past events (already ended) are kept. Events with **Prevent sync from updating this post** checked are kept, so lock any Registrations events you want to keep before you switch. Coming from **Pull from Registrations**, Calendar events then import as new posts. Coming from **Calendar AND Registrations**, the Calendar copies stay and the duplicate Registrations copies are removed, leaving one Calendar copy of events that were in both. Switching to **Calendar AND Registrations** keeps existing Registrations posts; an event present in both apps imports twice.
+
+A registration with several signup dates imports as one event, at its next upcoming date. If every date has passed, it uses the most recent past date. It does not create one event per date. A registration with no signup times is skipped. That does not stop the sync.
 
 In CP Sync 1.0.0 and later, events keep their real times, and past events are kept by default.
 
@@ -88,16 +93,19 @@ In CP Sync 1.0.0 and later, events keep their real times, and past events are ke
 
 When your Planning Center **Event source** is **Calendar** or **Both**, the **Calendar Settings** section includes a **Visibility** option:
 
-- **Only Visible in Church Center** (default) — Keeps events that Planning Center marks as visible in Church Center. Events that are hidden from Church Center are not synced.
-- **Show All** — Does not filter on Church Center visibility.
+- **Only Visible in Church Center** (default) — Keeps events that Planning Center marks as visible in Church Center and approved. Hidden events, and events whose approval status is an explicit non-approved value such as pending or rejected, are not synced. An empty or missing approval status is treated as approved.
+- **Show All** — Does not filter on Church Center visibility or approval.
 
 A few things to know:
 
-- Events set to **Link Only** in Church Center still sync when **Only Visible in Church Center** is selected.
-- If the Calendar Filters builder is left empty, no extra filter rules run (Church Center Visibility still applies).
-- When the Event source is **Registrations** only, there is no Visibility setting.
+- **Link Only** events still sync when **Only Visible in Church Center** is selected, as long as they are visible and not explicitly unapproved.
+- If the Calendar Filters builder is left empty, no extra filter rules run. With **Only Visible in Church Center**, the visibility and approval checks still apply.
+- When the Event source is **Registrations** only, there is no Visibility setting, and these calendar checks are not used.
+- With **Only Visible in Church Center**, upcoming events already on the site that become hidden or explicitly unapproved are removed on the next sync. CP Sync shows an admin notice with how many were skipped and how many upcoming events were removed. The notice appears only when events were removed. It stays until each administrator dismisses it, using the X or the Dismiss link. A later sync that removes more events shows the notice again. A sync that removes nothing does not clear it. Events whose end date has passed stay. Locked posts stay. **Show All** does not remove them for this reason. With The Events Calendar, these events are moved to the Trash instead of being deleted. If an event is shown or approved again, the same event comes back on a later sync, including its image. An event that was removed in Planning Center is still deleted for good. An event you moved to the Trash yourself stays in the Trash, even if a filter later leaves it out, and a later sync does not bring it back as published.
 
-For a short release summary, see [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-calendar-event-visibility).
+Event times on your site use your WordPress timezone (Settings → General). Make sure it matches the timezone set in your Planning Center account, or event times may look shifted.
+
+For how this used to work in 1.0.0, see [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-calendar-event-visibility).
 
 ### How Event Text Maps from Planning Center
 

@@ -1,0 +1,7 @@
+// ChurchPlugins design tokens and shared UI. The same files CP Groups imports,
+// so every --cp-* variable and .cp-button behaves the same across CP products.
+@import "../../includes/ChurchPlugins/assets/scss/vars";
+@import "../../includes/ChurchPlugins/assets/scss/utilities";
+@import "../../includes/ChurchPlugins/assets/scss/mixins/breakpoints";
+@import "../../includes/ChurchPlugins/assets/scss/elements/button";
+@import "../../includes/ChurchPlugins/assets/scss/main";

@@ -6,8 +6,8 @@ CP Sync is a WordPress plugin that connects your church website to your church m
 
 CP Sync creates a bridge between your WordPress website and your church management system, enabling:
 
-- **Groups Synchronization**: Import small groups, classes, and ministries from your ChMS into CP Groups. Requires the CP Groups plugin.
-- **Events Synchronization**: Import your ChMS events into The Events Calendar. Requires The Events Calendar plugin.
+- **Groups Synchronization**: Import small groups, classes, and ministries from your ChMS. CP Sync can show them on your site. CP Groups is optional and adds filters, a map, and a contact form. See [Show Groups on Your Site](../integrations/show-groups.md).
+- **Events Synchronization**: Import your ChMS events into The Events Calendar when that plugin is active. Without it, CP Sync can show the events on your site. See [Events on your site](../integrations/events-on-your-site.md).
 - **Sermons Synchronization**: Import sermons from Planning Center Publishing into CP Sermons. Planning Center only; off by default; requires CP Sermons 1.7.0 or later. Only sermons published to your Church Center library are synced.
 - **Automated Updates**: Schedule regular data synchronization to keep your website up to date
 - **Data Filters**: Choose which groups, events, and sermons are imported. There is no custom field mapping: CP Sync decides which ChMS field fills each WordPress field. With Planning Center, you can also choose which tag groups are imported as categories.
@@ -23,7 +23,7 @@ CP Sync currently supports the following church management systems:
 
 CP Sync is designed to work seamlessly with other Church Plugins products:
 
-- **CP Groups**: Display and manage groups on your WordPress site
+- **CP Groups**: Optional. Adds filters, a map, and a contact form on top of the same groups CP Sync can already show
 - **CP Sermons**: Display sermons synced from Planning Center
 
 CP Sync also integrates with The Events Calendar, a third-party plugin.

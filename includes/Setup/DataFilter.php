@@ -135,10 +135,11 @@ class DataFilter {
 				'default' => 'select',
  			],
 			'is_not' => [
-				'label'  	=> __( 'Is Not', 'cp-sync' ),
-				'compare' => fn( $data, $expected ) => $data !== $expected,
-				'type'    => 'inherit',
-				'default' => 'select',
+				'label'    => __( 'Is Not', 'cp-sync' ),
+				'compare'  => fn( $data, $expected ) => $data !== $expected,
+				'type'     => 'inherit',
+				'default'  => 'select',
+				'negative' => true,
 			],
 			'contains' => [
 				'label'  	=> __( 'Contains', 'cp-sync' ),
@@ -146,9 +147,10 @@ class DataFilter {
 				'type'    => 'text',
 			],
 			'does_not_contain' => [
-				'label'  	=> __( 'Does Not Contain', 'cp-sync' ),
-				'compare' => fn( $data, $expected ) => strpos( $data, $expected ) === false,
-				'type'    => 'text',
+				'label'    => __( 'Does Not Contain', 'cp-sync' ),
+				'compare'  => fn( $data, $expected ) => strpos( $data, $expected ) === false,
+				'type'     => 'text',
+				'negative' => true,
 			],
 			'is_greater_than' => [
 				'label'  	=> __( 'Is Greater Than', 'cp-sync' ),
@@ -178,9 +180,10 @@ class DataFilter {
 				'type'    => 'multi',
 			],
 			'is_not_in'       => [
-				'label'  	=> __( 'Is Not in', 'cp-sync' ),
-				'compare' => fn( $data, $expected ) => ! in_array( $data, wp_list_pluck( $expected, 'value' ), true ),
-				'type'    => 'multi',
+				'label'    => __( 'Is Not in', 'cp-sync' ),
+				'compare'  => fn( $data, $expected ) => ! in_array( $data, wp_list_pluck( $expected, 'value' ), true ),
+				'type'     => 'multi',
+				'negative' => true,
 			],
 		];
 	}
@@ -330,38 +333,119 @@ class DataFilter {
 		$compare_fn = $compare_options[ $compare ]['compare']; // get the comparison callback
 		$data       = $this->get_val( $item, $path );
 
+		// A format callback ( registration categories pluck ids from the
+		// relationship ) expects a list. An omitted relationship is null.
+		if ( is_callable( $format ) && null === $data ) {
+			$data = array();
+		}
+
 		// optionally format the data
 		if ( is_callable( $format ) ) {
 			$data = $format( $data );
 		}
 
 		// parse related data
-		if ( $relation ) { 
+		if ( $relation ) {
 			if ( null === $relation_path ) {
 				return new \WP_Error( 'invalid_filter_config', __( 'Invalid filter config: missing a relational data path', 'cp-sync' ) );
 			}
 
-			if ( ! isset( $this->relational_data[ $relation ][ $data ] ) ) {
-				return new \WP_Error( 'invalid_filter_config', __( 'Invalid filter config: missing relational data', 'cp-sync' ) );
+			// A missing related record is a property of this item (a signup with
+			// no signup time, or an id that was not included), not a broken
+			// filter. It does not match, so the item drops out and the rest of
+			// the sync continues. A missing relation_path above is a malformed
+			// filter definition and still fails the run.
+			$relation_data = $this->related_record( $relation, $data );
+			if ( null === $relation_data ) {
+				return false;
 			}
 
-			// the data should be the related item's ID
-			$relation_data = $this->relational_data[ $relation ][ $data ];
-			$data          = $this->get_val( $relation_data, $relation_path );
+			$data = $this->get_val( $relation_data, $relation_path );
 		}
 
-		// if data is an array, just check if one of them passes
+		// No value at all — the field was omitted, or a relationship such as
+		// Category was not sent — is an empty list. A real scalar ( name, date,
+		// number, true/false ) is left alone and compared below.
+		if ( null === $data ) {
+			$data = array();
+		}
+
 		if ( is_array( $data ) ) {
+			return $this->array_passes_compare(
+				$compare,
+				$compare_fn,
+				$data,
+				$expected,
+				! empty( $compare_options[ $compare ]['negative'] )
+			);
+		}
+
+		return (bool) $compare_fn( $data, $expected );
+	}
+
+	/**
+	 * Decide whether a list of values passes one compare.
+	 *
+	 * Is Empty and Is Not Empty look at the whole list. A negative compare
+	 * ( Is Not, Is Not in, Does Not Contain ) passes only when no value matches,
+	 * which means an empty list passes. A positive compare passes when any value
+	 * matches, which means an empty list fails.
+	 *
+	 * @param string   $compare    Compare key.
+	 * @param callable $compare_fn Comparison callback.
+	 * @param array    $data       Values to test.
+	 * @param mixed    $expected   Expected value.
+	 * @param bool     $negative   Whether the compare is negative.
+	 * @return bool
+	 */
+	protected function array_passes_compare( $compare, $compare_fn, array $data, $expected, $negative ) {
+		if ( in_array( $compare, array( 'is_empty', 'is_not_empty' ), true ) ) {
+			return (bool) $compare_fn( $data, $expected );
+		}
+
+		if ( $negative ) {
 			foreach ( $data as $val ) {
-				if ( $compare_fn( $val, $expected ) ) {
-					return true;
+				if ( ! $compare_fn( $val, $expected ) ) {
+					return false;
 				}
 			}
 
-			return false;
-		} else {
-			return (bool) $compare_fn( $data, $expected );
+			return true;
 		}
+
+		foreach ( $data as $val ) {
+			if ( $compare_fn( $val, $expected ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Related record for a filter, or null when this item has none.
+	 *
+	 * Only a string or integer id is looked up. Anything else (no relation id,
+	 * an empty string) is a missing relation, not a config error.
+	 *
+	 * @param string $relation Relation type key in relational data.
+	 * @param mixed  $id       Related record id taken from the item.
+	 * @return mixed|null The related record, or null when it is not loaded.
+	 */
+	protected function related_record( $relation, $id ) {
+		if ( ( ! is_string( $id ) && ! is_int( $id ) ) || ( is_string( $id ) && '' === $id ) ) {
+			return null;
+		}
+
+		if ( ! isset( $this->relational_data[ $relation ] ) || ! is_array( $this->relational_data[ $relation ] ) ) {
+			return null;
+		}
+
+		if ( ! isset( $this->relational_data[ $relation ][ $id ] ) ) {
+			return null;
+		}
+
+		return $this->relational_data[ $relation ][ $id ];
 	}
 
 	/**

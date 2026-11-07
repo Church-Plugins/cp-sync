@@ -4,7 +4,9 @@ import { useState } from '@wordpress/element';
 import apiFetch from '@wordpress/api-fetch';
 import { useSettings } from '../contexts/settingsContext';
 import { SchemaForm } from '../schema-form';
-import advancedSchema, { advancedUninstallSchema } from '../schema-form/schemas/advanced';
+import advancedSchema, {
+	advancedUninstallSchema,
+} from '../schema-form/schemas/advanced';
 import DangerZone from './danger-zone';
 
 // Manual hard-pull action button.

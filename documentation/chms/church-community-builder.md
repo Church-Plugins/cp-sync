@@ -23,7 +23,7 @@ CP Sync provides integration with Church Community Builder (CCB), allowing you t
 
 ### Groups Synchronization
 
-Group sync needs the **CP Groups** plugin to be active. If it isn't, the **Sync Groups** toggle is disabled and the **Groups** tab doesn't appear.
+Group sync does not need CP Groups. Without it, CP Sync shows the groups. See [Show Groups on Your Site](../integrations/show-groups.md). Without CP Groups, turn on **Sync Groups** to see the **Groups** tab.
 
 Group sync settings are on the **Groups** tab of **Church Plugins → CP Sync**. The tab appears after you connect to Church Community Builder, while **Sync Groups** is on.
 
@@ -61,7 +61,7 @@ Only groups that are not marked Inactive and have **Public Search** checked in C
 
 ### Events Synchronization
 
-Event sync needs **The Events Calendar** plugin to be active. If it isn't, the **Sync Events** toggle is disabled and the **Events** tab doesn't appear. The tab appears after you connect to Church Community Builder, while **Sync Events** is on.
+Sending events to The Events Calendar needs that plugin to be active. Without it, turn on **Sync Events** and CP Sync shows the events on your site. The **Events** tab works the same way: the date range and filters on that tab are what get imported. See [Events on your site](../integrations/events-on-your-site.md).
 
 1. Go to the **Events** tab in the CCB settings
 2. Choose how far ahead events sync with **Date Range** (see below)
@@ -79,6 +79,8 @@ Use the **Date Range** setting on the CCB **Events** tab:
 | Custom date range | The Start and End Dates you choose. |
 
 If you use **Custom date range**, the Start and End Dates do not move on their own. Check that the End Date is far enough out, or events after it won't sync.
+
+The public calendar listing is already limited to approved public events. If CCB marks an event as not approved, it is skipped. The clock time on the event stays the time CCB sent. When CCB sends a valid timezone, that zone is stored. When it does not, the WordPress site timezone is stored. The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
 
 ### Event Enrichment
 

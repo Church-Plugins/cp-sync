@@ -66,10 +66,14 @@ class TEC extends Integration {
 	 * So updates must be fed the formatter's own CamelCase keys or date/time
 	 * changes ( and the midnight-time fix ) never reach existing events.
 	 *
-	 * @param array $item The formatted item from the ChMS.
+	 * @param array $item   The formatted item from the ChMS.
+	 * @param array $stored Current `_EventCost`, symbol, position, and marker.
+	 *                      Used so an update that is not replacing the cost
+	 *                      re-sends it. The Events Calendar deletes `_EventCost`
+	 *                      when `EventCost` is absent.
 	 * @return array Args for tribe_update_event().
 	 */
-	public static function legacy_update_args( array $item ) {
+	public static function legacy_update_args( array $item, array $stored = array() ) {
 		$args = [
 			'post_title'   => $item['post_title'] ?? '',
 			'post_content' => $item['post_content'] ?? '',
@@ -96,9 +100,202 @@ class TEC extends Integration {
 			// all-day to timed at the source has its stale all-day flag cleared
 			// ( Tribe__Date_Utils::is_all_day( false ) → 'no' → flag deleted ).
 			$args['EventAllDay']      = ! empty( $item['EventAllDay'] );
+
+			// Church Community Builder carries its event or campus zone. Planning
+			// Center items have no EventTimezone; their clock is already the site zone.
+			if ( ! empty( $item['EventTimezone'] ) ) {
+				$args['EventTimezone'] = $item['EventTimezone'];
+			}
+		}
+
+		return array_merge( $args, self::event_cost_update_args( $item, $stored ) );
+	}
+
+	/**
+	 * Cost fields for tribe_update_event().
+	 *
+	 * The Events Calendar turns a missing EventCost into an empty list and
+	 * then deletes `_EventCost`. When this sync is keeping the cost — a price
+	 * fallback, a hand-entered cost, or a 1.1.0-style update that does not
+	 * mention cost — the stored cost, symbol, and position are sent again.
+	 * When this sync is clearing a cost it wrote, EventCost is omitted so
+	 * The Events Calendar removes it.
+	 *
+	 * @param array $item   Formatted event.
+	 * @param array $stored Current cost meta.
+	 * @return array
+	 */
+	public static function event_cost_update_args( array $item, array $stored = array() ) {
+		$meta = ( isset( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) ? $item['meta_input'] : array();
+
+		$incoming = array_key_exists( '_EventCost', $meta ) ? $meta['_EventCost'] : null;
+		$has_cost = null !== $incoming && '' !== $incoming;
+		$clear    = ! $has_cost && self::meta_requests_cost_clear( $meta );
+
+		if ( $has_cost && ! self::event_cost_is_hand_edit( $stored ) ) {
+			return self::cost_args_from_values(
+				(string) $incoming,
+				isset( $meta['_EventCurrencySymbol'] ) ? (string) $meta['_EventCurrencySymbol'] : '',
+				isset( $meta['_EventCurrencyPosition'] ) ? (string) $meta['_EventCurrencyPosition'] : ''
+			);
+		}
+
+		if ( $clear && self::sync_owns_event_cost( $stored ) ) {
+			return array();
+		}
+
+		$current = isset( $stored['_EventCost'] ) ? (string) $stored['_EventCost'] : '';
+
+		if ( '' === $current ) {
+			return array();
+		}
+
+		return self::cost_args_from_values(
+			$current,
+			isset( $stored['_EventCurrencySymbol'] ) ? (string) $stored['_EventCurrencySymbol'] : '',
+			isset( $stored['_EventCurrencyPosition'] ) ? (string) $stored['_EventCurrencyPosition'] : ''
+		);
+	}
+
+	/**
+	 * CamelCase cost args. Empty symbol or position is left off.
+	 *
+	 * @param string $cost     Cost or Free.
+	 * @param string $symbol   Currency symbol.
+	 * @param string $position prefix or suffix.
+	 * @return array
+	 */
+	protected static function cost_args_from_values( $cost, $symbol, $position ) {
+		$args = array(
+			'EventCost' => $cost,
+		);
+
+		if ( '' !== $symbol ) {
+			$args['EventCurrencySymbol'] = $symbol;
+		}
+
+		if ( '' !== $position ) {
+			$args['EventCurrencyPosition'] = $position;
 		}
 
 		return $args;
+	}
+
+	/**
+	 * Post meta The Events Calendar stores for the event's start and end.
+	 *
+	 * This is our model of the post meta TEC stores, not a call into TEC.
+	 * The local strings are whatever the formatter produced. UTC meta is that
+	 * clock converted from $timezone (the site zone for Planning Center, the
+	 * event or campus zone for Church Community Builder). An all-day event is
+	 * stored from 00:00:00 through 23:59:59 on those dates.
+	 *
+	 * @param array  $item     Formatted event, or the legacy update args.
+	 * @param string $timezone Zone the local clock is expressed in.
+	 * @return array
+	 */
+	public static function saved_date_meta( array $item, $timezone ) {
+		$start = self::compose_datetime( $item['EventStartDate'] ?? '', $item['EventStartHour'] ?? null, $item['EventStartMinute'] ?? null );
+		$end   = self::compose_datetime( $item['EventEndDate'] ?? '', $item['EventEndHour'] ?? null, $item['EventEndMinute'] ?? null );
+
+		if ( '' === $end ) {
+			$end = $start;
+		}
+
+		if ( ! empty( $item['EventAllDay'] ) && '' !== $start ) {
+			$start = substr( $start, 0, 10 ) . ' 00:00:00';
+			$end   = substr( $end, 0, 10 ) . ' 23:59:59';
+		}
+
+		$zone = \CP_Sync\Events\EventTime::is_valid_timezone( $timezone ) ? $timezone : 'UTC';
+
+		return array(
+			'_EventStartDate'    => $start,
+			'_EventEndDate'      => $end,
+			'_EventStartDateUTC' => self::local_mysql_to_utc( $start, $zone ),
+			'_EventEndDateUTC'   => self::local_mysql_to_utc( $end, $zone ),
+			// "no" is only this model's label for a timed event. persist_event_date_meta()
+			// deletes the key instead of storing it. All-day events still store "yes".
+			'_EventAllDay'       => ! empty( $item['EventAllDay'] ) ? 'yes' : 'no',
+		);
+	}
+
+	/**
+	 * Write the date meta for a new or updated event.
+	 *
+	 * Create and update both call this with the same formatted item, so the
+	 * stored start and end ( local and UTC ) match. Planning Center does not
+	 * set `_EventTimezone`. Church Community Builder writes its event or
+	 * campus zone.
+	 *
+	 * @param int   $post_id Event post ID.
+	 * @param array $item    Formatted event.
+	 * @return array The meta written.
+	 */
+	public static function persist_event_date_meta( $post_id, array $item ) {
+		$zone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
+
+		if ( ! empty( $item['EventTimezone'] ) && \CP_Sync\Events\EventTime::is_valid_timezone( $item['EventTimezone'] ) ) {
+			$zone = $item['EventTimezone'];
+		}
+
+		$meta = self::saved_date_meta( $item, $zone );
+
+		if ( ! empty( $item['EventTimezone'] ) ) {
+			$meta['_EventTimezone'] = $item['EventTimezone'];
+		}
+
+		$date_keys     = array( '_EventStartDate', '_EventEndDate', '_EventStartDateUTC', '_EventEndDateUTC' );
+		$start_missing = '' === ( $meta['_EventStartDate'] ?? '' );
+
+		foreach ( $meta as $key => $value ) {
+			// An empty start means the formatter had no date. Leave the stored
+			// date, all-day flag, and timezone alone. legacy_update_args()
+			// omits those keys for the same reason.
+			if ( $start_missing && ( in_array( $key, $date_keys, true ) || '_EventAllDay' === $key || '_EventTimezone' === $key ) ) {
+				unset( $meta[ $key ] );
+				continue;
+			}
+
+			// Timed events must not store _EventAllDay as "no". Delete any
+			// previous value. All-day events still get "yes".
+			if ( '_EventAllDay' === $key && 'yes' !== $value ) {
+				delete_post_meta( $post_id, $key );
+				unset( $meta[ $key ] );
+				continue;
+			}
+
+			if ( '' === $value ) {
+				delete_post_meta( $post_id, $key );
+				unset( $meta[ $key ] );
+				continue;
+			}
+
+			update_post_meta( $post_id, $key, $value );
+		}
+
+		return $meta;
+	}
+
+	/**
+	 * Convert a site-local `Y-m-d H:i:s` string to UTC.
+	 *
+	 * @param string $local         Local datetime.
+	 * @param string $site_timezone Site timezone.
+	 * @return string
+	 */
+	protected static function local_mysql_to_utc( $local, $site_timezone ) {
+		if ( '' === $local ) {
+			return '';
+		}
+
+		try {
+			$instant = new \DateTimeImmutable( $local, new \DateTimeZone( $site_timezone ) );
+		} catch ( \Exception $e ) {
+			return '';
+		}
+
+		return $instant->setTimezone( new \DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' );
 	}
 
 	/**
@@ -246,7 +443,17 @@ class TEC extends Integration {
 	}
 
 	public function update_item( $item ) {
-		$existing = $this->get_chms_item_id( $item['chms_id'] );
+		$chms_id = $item['chms_id'] ?? '';
+
+		// Leave a post an admin trashed. The id is still cached, so updating
+		// it here would change it and a miss would create a second post.
+		if ( $this->is_admin_trashed( $chms_id ) ) {
+			cp_sync()->logging->log( "Skipping {$chms_id}: it is in the Trash and was not moved there by CP Sync, so this sync leaves it there." );
+			return $this->get_chms_item_id( $chms_id );
+		}
+
+		$this->restore_trashed_item( $chms_id );
+		$existing = $this->get_chms_item_id( $chms_id );
 
 		cp_sync()->logging->log( 'Updating event: ' . $item['post_title'] );
 
@@ -330,16 +537,25 @@ class TEC extends Integration {
 		$event['image'] = $item['thumbnail_url'] ?? '';
 		$event['start_date'] = self::compose_datetime( $item['EventStartDate'] ?? '', $item['EventStartHour'] ?? null, $item['EventStartMinute'] ?? null );
 		$event['end_date'] = self::compose_datetime( $item['EventEndDate'] ?? '', $item['EventEndHour'] ?? null, $item['EventEndMinute'] ?? null );
-		$event['timezone'] = $item['EventTimezone'] ?? '';
+		// Planning Center omits this, so TEC keeps the site zone. Church
+		// Community Builder sets its event or campus zone on create and update.
+		if ( ! empty( $item['EventTimezone'] ) ) {
+			$event['timezone'] = $item['EventTimezone'];
+		}
 		$event['all_day'] = ! empty( $item['EventAllDay'] );
 		$event['url'] = $item['EventURL'] ?? '';
 		$event['recurrence'] = $item['EventRecurrence'] ?? '';
 		$event = array_filter( $event );
 
+		$stored_cost = array();
+
 		if ( $existing ) {
+			// Read the cost before tribe_update_event(). That call deletes
+			// _EventCost unless EventCost is in the args.
+			$stored_cost = self::stored_event_cost( $existing );
 			cp_sync()->logging->log( 'Updating existing event ID: ' . $existing );
 			try {
-				tribe_update_event( $existing, self::legacy_update_args( $item ) );
+				tribe_update_event( $existing, self::legacy_update_args( $item, $stored_cost ) );
 				$id = $existing;
 				cp_sync()->logging->log( 'Successfully updated event ID: ' . $id );
 			} catch ( \Exception $e ) {
@@ -391,14 +607,16 @@ class TEC extends Integration {
 				delete_post_meta( $id, '_EventURL' );
 			}
 
+			// Same date meta on create and on update. Does not change
+			// `_EventTimezone`, so an event keeps the zone it already has.
+			self::persist_event_date_meta( $id, $item );
+
 			// Arbitrary post meta the formatter asked us to persist ( e.g. the
 			// registration_url that drives the Register button ). tribe_update_event()
 			// only handles its own known fields, so meta_input was silently dropped
 			// before — write it here.
 			if ( ! empty( $item['meta_input'] ) && is_array( $item['meta_input'] ) ) {
-				foreach ( $item['meta_input'] as $meta_key => $meta_value ) {
-					update_post_meta( $id, $meta_key, $meta_value );
-				}
+				self::persist_meta_input( $id, $item['meta_input'], $stored_cost );
 			}
 		}
 
@@ -429,6 +647,189 @@ class TEC extends Integration {
 
 	public function register_taxonomy($taxonomy, $args) {
 		register_taxonomy( $taxonomy, 'tribe_events', $args );
+	}
+
+	/**
+	 * Write formatter meta, applying the registration-price rules.
+	 *
+	 * `_EventCost`, the currency symbol, the currency position, and
+	 * `_cp_sync_event_cost` are written only when price_meta_writes() allows
+	 * them. A hand-edited cost is absent from that map, so the loop must not
+	 * fall through and store the Planning Center values from meta_input.
+	 *
+	 * @param int        $post_id    Event post ID.
+	 * @param array      $meta_input Formatted event meta.
+	 * @param array|null $stored     Cost meta from before tribe_update_event().
+	 *                               Null reads the current post meta.
+	 * @return void
+	 */
+	public static function persist_meta_input( $post_id, array $meta_input, $stored = null ) {
+		if ( ! is_array( $stored ) ) {
+			$stored = self::stored_event_cost( $post_id );
+		}
+
+		$price_writes = self::price_meta_writes( $meta_input, $stored );
+		$cost_keys    = array(
+			'_EventCost',
+			'_EventCurrencySymbol',
+			'_EventCurrencyPosition',
+			\CP_Sync\Events\Meta::SYNC_EVENT_COST,
+		);
+
+		foreach ( $price_writes as $meta_key => $meta_value ) {
+			// Null and '' both delete. A cleared marker must not be stored
+			// as an empty string.
+			if ( null === $meta_value || '' === $meta_value ) {
+				delete_post_meta( $post_id, $meta_key );
+			} else {
+				update_post_meta( $post_id, $meta_key, $meta_value );
+			}
+		}
+
+		foreach ( $meta_input as $meta_key => $meta_value ) {
+			if ( array_key_exists( $meta_key, $price_writes ) || in_array( $meta_key, $cost_keys, true ) ) {
+				continue;
+			}
+
+			update_post_meta( $post_id, $meta_key, $meta_value );
+		}
+	}
+
+	/**
+	 * Cost meta already stored on the event.
+	 *
+	 * @param int $post_id Event post ID.
+	 * @return array
+	 */
+	public static function stored_event_cost( $post_id ) {
+		$marker = \CP_Sync\Events\Meta::SYNC_EVENT_COST;
+
+		return array(
+			'_EventCost'             => (string) get_post_meta( $post_id, '_EventCost', true ),
+			'_EventCurrencySymbol'   => (string) get_post_meta( $post_id, '_EventCurrencySymbol', true ),
+			'_EventCurrencyPosition' => (string) get_post_meta( $post_id, '_EventCurrencyPosition', true ),
+			$marker                  => (string) get_post_meta( $post_id, $marker, true ),
+		);
+	}
+
+	/**
+	 * Post meta for a Planning Center registration price.
+	 *
+	 * The display string is `_cp_registration_price`. Keys absent from
+	 * $meta_input are left alone, so a fallback or an ignored include does
+	 * not wipe a stored price.
+	 *
+	 * `_EventCost`, `_EventCurrencySymbol`, and `_EventCurrencyPosition` are
+	 * written only when Planning Center returned a price, and only when the
+	 * stored cost is empty or still equals `_cp_sync_event_cost`. That marker
+	 * is set to the cost this sync writes. On a later good sync with no price,
+	 * `_EventCost` (and the symbol, position, and marker) is deleted only when
+	 * the stored cost still equals the marker. A different cost is a hand edit
+	 * and is not overwritten or deleted.
+	 *
+	 * @param array $meta_input Formatted event meta.
+	 * @param array $stored     Current `_EventCost`, symbol, position, and marker.
+	 * @return array Key => value to store, or null to delete the key.
+	 */
+	public static function price_meta_writes( array $meta_input, array $stored = array() ) {
+		$writes = array();
+		$marker = \CP_Sync\Events\Meta::SYNC_EVENT_COST;
+
+		if ( array_key_exists( \CP_Sync\Events\Meta::REGISTRATION_PRICE, $meta_input ) ) {
+			$display = $meta_input[ \CP_Sync\Events\Meta::REGISTRATION_PRICE ];
+			$writes[ \CP_Sync\Events\Meta::REGISTRATION_PRICE ] = ( null === $display || '' === $display ) ? null : $display;
+		}
+
+		$incoming = array_key_exists( '_EventCost', $meta_input ) ? $meta_input['_EventCost'] : null;
+		$has_cost = null !== $incoming && '' !== $incoming;
+		$clear    = ! $has_cost && self::meta_requests_cost_clear( $meta_input );
+
+		if ( $has_cost ) {
+			if ( self::event_cost_is_hand_edit( $stored ) ) {
+				return $writes;
+			}
+
+			$cost                       = (string) $incoming;
+			$writes['_EventCost']       = $cost;
+			$writes[ $marker ]          = $cost;
+			$writes['_EventCurrencySymbol']   = self::blank_to_null( $meta_input['_EventCurrencySymbol'] ?? '' );
+			$writes['_EventCurrencyPosition'] = self::blank_to_null( $meta_input['_EventCurrencyPosition'] ?? '' );
+
+			return $writes;
+		}
+
+		if ( $clear && self::sync_owns_event_cost( $stored ) ) {
+			$writes['_EventCost']             = null;
+			$writes['_EventCurrencySymbol']   = null;
+			$writes['_EventCurrencyPosition'] = null;
+			$writes[ $marker ]                = null;
+		}
+
+		return $writes;
+	}
+
+	/**
+	 * Whether the formatter knows there is no public price.
+	 *
+	 * An empty `_cp_sync_event_cost` or an empty `_EventCost` in meta_input
+	 * is that signal. Absent keys are not.
+	 *
+	 * @param array $meta_input Formatted event meta.
+	 * @return bool
+	 */
+	protected static function meta_requests_cost_clear( array $meta_input ) {
+		$marker = \CP_Sync\Events\Meta::SYNC_EVENT_COST;
+
+		if ( array_key_exists( $marker, $meta_input ) && ( null === $meta_input[ $marker ] || '' === $meta_input[ $marker ] ) ) {
+			return true;
+		}
+
+		return array_key_exists( '_EventCost', $meta_input ) && ( null === $meta_input['_EventCost'] || '' === $meta_input['_EventCost'] );
+	}
+
+	/**
+	 * The stored cost was not written by the last sync, or was edited since.
+	 *
+	 * @param array $stored Current cost meta.
+	 * @return bool
+	 */
+	protected static function event_cost_is_hand_edit( array $stored ) {
+		$current = isset( $stored['_EventCost'] ) ? (string) $stored['_EventCost'] : '';
+
+		if ( '' === $current ) {
+			return false;
+		}
+
+		$marker = isset( $stored[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] ) ? (string) $stored[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] : '';
+
+		return '' === $marker || $current !== $marker;
+	}
+
+	/**
+	 * The stored cost is still the value this sync last wrote.
+	 *
+	 * @param array $stored Current cost meta.
+	 * @return bool
+	 */
+	protected static function sync_owns_event_cost( array $stored ) {
+		$current = isset( $stored['_EventCost'] ) ? (string) $stored['_EventCost'] : '';
+		$marker  = isset( $stored[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] ) ? (string) $stored[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] : '';
+
+		return '' !== $marker && $current === $marker;
+	}
+
+	/**
+	 * Empty price meta deletes the key. A value is stored as given.
+	 *
+	 * @param mixed $value Meta value.
+	 * @return mixed|null
+	 */
+	protected static function blank_to_null( $value ) {
+		if ( null === $value || '' === $value ) {
+			return null;
+		}
+
+		return $value;
 	}
 
 	/**

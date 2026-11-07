@@ -143,13 +143,31 @@ function get_template_hierarchy( $template, $args = [] ) {
  * @author Tanner Moushey
  */
 function get_template_part( $template, $args = [], $return = false ) {
-	$template = get_template_hierarchy( $template );
-	
+	$template_path = get_template_hierarchy( $template );
+
+	if ( ! is_string( $template_path ) || '' === $template_path || ! file_exists( $template_path ) ) {
+		return $return ? '' : null;
+	}
+
+	if ( ! is_array( $args ) ) {
+		$args = [];
+	}
+
+	$render = static function () use ( $template_path, $args ) {
+		if ( $args ) {
+			// Template variables are the documented way themes receive data. EXTR_SKIP
+			// keeps this function's own locals from being overwritten.
+			extract( $args, EXTR_SKIP ); // phpcs:ignore WordPress.PHP.DontExtract.extract_extract
+		}
+
+		include $template_path;
+	};
+
 	if ( $return ) {
 		ob_start();
-		include ( $template );
+		$render();
 		return ob_get_clean();
-	} else {
-		include ( $template );
 	}
+
+	$render();
 }

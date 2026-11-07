@@ -4,7 +4,7 @@ Tags: church, ccb, planning-center, sync, events
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,7 +33,7 @@ CP Sync connects your WordPress site to your church management system (ChMS), ke
 = Integrations =
 
 * **The Events Calendar** — ChMS events become Events Calendar entries with mapped venues, organizers, and categories
-* **CP Groups** — Display synced groups using the Church Plugins Groups plugin
+* **CP Groups** — Optional. CP Sync can show groups on your site without it. CP Groups adds filters, a map, and a contact form, and it uses the same groups.
 
 = CCB Event Enrichment =
 
@@ -67,7 +67,9 @@ CP Sync currently supports Planning Center Online (PCO) and Church Community Bui
 
 = Do I need The Events Calendar plugin? =
 
-Only if you want to sync events. Groups syncing works independently. If you sync events, install and activate The Events Calendar — CP Sync creates events in that plugin's format.
+No. Groups can show on your site without another plugin. Events can show on your site without The Events Calendar: each date gets a page, and a real series of dates gets a series page. Turn on Sync Events (Connect). Leave it off if you already have a page at /events/.
+
+Install The Events Calendar only if you want events in that calendar. While it is active, CP Sync keeps using it and does not create the separate event pages.
 
 = Why are my CCB venues missing addresses? =
 
@@ -90,6 +92,22 @@ At **Settings → CP Sync → Logs**. Increase verbosity by setting Log Level to
 Yes. CP Sync exposes action and filter hooks for developers — see the Developer Guide in the plugin's `/documentation/` directory. The new `cp_sync_{$type}_update_item_after` hook in 0.3.0 enables type-specific post-processing for custom integrations.
 
 == Changelog ==
+
+= 1.2.0 =
+* Fix: A synced item you moved to the Trash stays in the Trash when a filter leaves it out of a sync. It is not permanently deleted. When a later sync includes that item again, the same item stays in the Trash instead of a new published one being added.
+* Fix: Registration Category filters now follow the comparison you picked. "Is Not" and "Is Not in" leave a registration out when any of its categories is one you excluded, and they include a registration that has no category. "Is Empty" matches a registration with no category, and "Is Not Empty" matches one that has a category. If you already filter registrations by Category, the next sync can include or leave out different registrations than before.
+* Fix: With The Events Calendar, an event that is hidden or not approved is moved to the Trash instead of being deleted. When it is shown again, the same event comes back, including its image. An event that was removed in Planning Center or Church Community Builder is still deleted.
+* Fix: A published synced item that no longer matches a filter is deleted, and a later sync that includes it adds a new item. An item you permanently deleted in WordPress is added again as a new item once it matches. An item that is still published on the site is updated in place.
+* Fix: A Planning Center registration with several signup times is imported as one event, at the next upcoming time. If every time is in the past, it uses the most recent past time. It does not add one event per time.
+* Fix: A Start Date or End Date filter no longer stops the events sync when a registration has no signup time. That registration is left out, and the other events still sync.
+* New: Events synced from Planning Center Registrations store the public registration price: one price, a price range when there are several options, or Free. On sites that do not use The Events Calendar, an event's page shows the price when the event is not free. On sites that use The Events Calendar, the price also fills the event's cost, unless you entered a cost yourself.
+* New: Sites that do not use The Events Calendar can show events from Planning Center or Church Community Builder. Each date is a page under Events. A Planning Center event with more than one date, or a Church Community Builder event with more than one date, also gets a series page under Event Series. A single date does not. Turn on Sync Events (Connect). It starts off without The Events Calendar, including on sites updated from an earlier version, so a page you already have at /events/ is left alone. /events/ opens on a month calendar with a switch to a list view and a category filter. On a phone, days with events show a dot, and tapping a day lists its events. Add `[cp-sync-events]` to a page to show the next few dates. An event page shows the stored timezone, location, description, and a price when the event is not free, and can download a calendar file for that one published date. A series page lists its upcoming dates and does not download a file for the whole series. Events have no screens in the WordPress admin, because the sync owns their content. Sites that use The Events Calendar are unchanged.
+* New: Groups can be shown on the site without CP Groups: a groups page at /groups/, a page for each group, and the [cp-sync-groups] shortcode. The layout matches CP Groups, without its filters. A group page shows the photo, description, meeting details, leader names, and View Details and Register Now buttons when the church management system sent those links. Leader email addresses are not shown. CP Groups adds filters, a map, and a contact form, and it takes over the same groups when you activate it. Turn on Sync Groups (Connect). It starts off without CP Groups, including on sites updated from an earlier version. Groups have no screens in the WordPress admin until CP Groups is active, because the sync owns their content.
+* New: When a sync removes hidden or unapproved events, administrators see a notice with the counts. It stays until each administrator dismisses it, and a newer removal replaces it.
+* Church Community Builder events: The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
+* Fix: A Church Community Builder event whose start or end is not a date, such as TBD, is skipped instead of stopping the sync.
+* The plugin download includes the templates and styles for the event and group pages. They use the same ChurchPlugins CSS variables and buttons as other CP products.
+* Docs: Planning Center and Registration Filters notes match this release.
 
 = 1.1.0 =
 * New: Planning Center group leaders now sync to CP Groups. Group Leader gets every leader's name, and Group Leader Email gets the group's contact email, or the email of the first leader who has one (developers can change this with the `cp_sync_pco_group_leader_email` filter). On CP Groups 1.2 or later, leaders are saved as Group Leaders rows instead, each with that leader's own email; the contact email is only used when no leader has one. If the leaders request fails, leaders already stored are kept.
