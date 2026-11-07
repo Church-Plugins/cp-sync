@@ -20,6 +20,11 @@ use CP_Sync\Events\PostTypes;
 while ( have_posts() ) {
 	the_post();
 
+	if ( post_password_required() ) {
+		echo get_the_password_form(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core builds and escapes the form.
+		continue;
+	}
+
 	$cp_sync_post_id = get_the_ID();
 	$cp_sync_post    = get_post();
 	$cp_sync_image   = '';

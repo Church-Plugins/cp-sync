@@ -111,13 +111,13 @@ class CalendarFile {
 		$description = self::plain_text( isset( $record['content'] ) ? $record['content'] : '' );
 
 		if ( '' !== $description ) {
-			$lines[] = 'DESCRIPTION:' . self::escape_text( $description );
+			$lines[] = 'DESCRIPTION:' . self::escape_plain( $description );
 		}
 
 		$location = self::plain_text( isset( $record['location'] ) ? $record['location'] : '' );
 
 		if ( '' !== $location ) {
-			$lines[] = 'LOCATION:' . self::escape_text( $location );
+			$lines[] = 'LOCATION:' . self::escape_plain( $location );
 		}
 
 		$lines[] = 'END:VEVENT';
@@ -399,8 +399,20 @@ class CalendarFile {
 	 * @return string
 	 */
 	public static function escape_text( $value ) {
-		$value = self::plain_text( $value );
-		$value = str_replace( '\\', '\\\\', $value );
+		return self::escape_plain( self::plain_text( $value ) );
+	}
+
+	/**
+	 * Escape text that is already plain.
+	 *
+	 * Plain text is not stripped again. Decoded text can hold a literal "<",
+	 * which a second pass would treat as a tag.
+	 *
+	 * @param string $value Result of plain_text().
+	 * @return string
+	 */
+	protected static function escape_plain( $value ) {
+		$value = str_replace( '\\', '\\\\', (string) $value );
 		$value = str_replace( ';', '\\;', $value );
 		$value = str_replace( ',', '\\,', $value );
 		$value = str_replace( array( "\r\n", "\r", "\n" ), '\\n', $value );
@@ -425,7 +437,10 @@ class CalendarFile {
 	}
 
 	/**
-	 * Plain text for a calendar field. Tags are removed. Private keys are not read.
+	 * Plain text for a calendar field. Private keys are not read.
+	 *
+	 * Calendar apps do not read HTML. Registered shortcodes and tags are removed,
+	 * block ends and line breaks become new lines, and entities are decoded.
 	 *
 	 * @param mixed $value Raw value.
 	 * @return string
@@ -433,11 +448,23 @@ class CalendarFile {
 	protected static function plain_text( $value ) {
 		$value = (string) $value;
 
+		if ( function_exists( 'strip_shortcodes' ) ) {
+			$value = strip_shortcodes( $value );
+		}
+
+		$value = preg_replace( '#<br\s*/?>|</(?:li|tr)>|<(?:p|div|h[1-6]|blockquote|ul|ol|table)\b[^>]*>#i', "\n", $value );
+		$value = preg_replace( '#</(?:p|div|h[1-6]|blockquote|ul|ol|table)>#i', "\n\n", $value );
+
 		if ( function_exists( 'wp_strip_all_tags' ) ) {
 			$value = wp_strip_all_tags( $value );
 		} else {
 			$value = strip_tags( $value );
 		}
+
+		$value = html_entity_decode( $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		$value = str_replace( array( "\xC2\xA0", "\r\n", "\r" ), array( ' ', "\n", "\n" ), $value );
+		$value = preg_replace( '/[ \t]*\n[ \t]*/', "\n", $value );
+		$value = preg_replace( '/\n{3,}/', "\n\n", $value );
 
 		return trim( $value );
 	}

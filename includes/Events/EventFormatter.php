@@ -161,16 +161,28 @@ class EventFormatter {
 	 * An empty or unreadable end is not treated as past. An end equal to now
 	 * is still current, matching the upcoming-list comparison.
 	 *
-	 * @param string $end_utc UTC `Y-m-d H:i:s`.
-	 * @param string $now_utc UTC `Y-m-d H:i:s`.
+	 * When a start is given, an end at or before it is not a real end, the same
+	 * rule CalendarFile uses to omit DTEND. That event runs through the end of
+	 * its start date in $timezone, so it does not end the moment it starts.
+	 *
+	 * @param string $end_utc   UTC `Y-m-d H:i:s`.
+	 * @param string $now_utc   UTC `Y-m-d H:i:s`.
+	 * @param string $start_utc Optional UTC `Y-m-d H:i:s`.
+	 * @param string $timezone  Optional IANA zone or offset for the start date.
 	 * @return bool
 	 */
-	public static function has_ended( $end_utc, $now_utc ) {
-		$end = self::utc_instant( $end_utc );
-		$now = self::utc_instant( $now_utc );
+	public static function has_ended( $end_utc, $now_utc, $start_utc = '', $timezone = '' ) {
+		$end   = self::utc_instant( $end_utc );
+		$now   = self::utc_instant( $now_utc );
+		$start = self::utc_instant( $start_utc );
 
 		if ( null === $end || null === $now ) {
 			return false;
+		}
+
+		if ( null !== $start && $end <= $start ) {
+			$zone = EventTime::is_valid_timezone( $timezone ) ? $timezone : 'UTC';
+			$end  = $start->setTimezone( new \DateTimeZone( $zone ) )->setTime( 23, 59, 59 );
 		}
 
 		return $end < $now;

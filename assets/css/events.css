@@ -386,7 +386,8 @@
 }
 
 .cp-sync-event__placeholder {
-	background: var(--cp-sync-placeholder);
+	/* Shortcode lists sit outside the wrapper that defines the variable. */
+	background: var(--cp-sync-placeholder, #dce7e2);
 }
 
 .cp-sync-event__facts {

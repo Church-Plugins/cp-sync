@@ -119,10 +119,10 @@ const html = `<!doctype html>
   .media { width: 160px; }
 </style>
 <main class="${rootSelector.slice(1)} cp-sync-display">
-  <div id="bad-media" class="media"></div>
-  <div id="good-media" class="media"></div>
-  <div id="slow-media" class="media"></div>
-  <div id="later-media" class="media"></div>
+  <div id="bad-media" class="media cp-sync-event__media"></div>
+  <div id="good-media" class="media cp-sync-event__media"></div>
+  <div id="slow-media" class="media cp-sync-event__media"></div>
+  <div id="later-media" class="media cp-sync-event__media"></div>
   <div id="narrow">
     <h3 class="cp-sync-series__date-title" id="short"><a href="#short">December 6</a></h3>
     <h3 class="cp-sync-series__date-title" id="long"><a href="#long">December 13 service with a long title that wraps instead of being clipped on a narrow screen</a></h3>

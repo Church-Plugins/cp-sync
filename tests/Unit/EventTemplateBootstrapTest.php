@@ -62,6 +62,8 @@ class EventTemplateBootstrapTest extends TestCase {
 			}
 		);
 		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'post_password_required' )->justReturn( false );
+		Functions\when( 'get_the_password_form' )->justReturn( '<form class="post-password-form"></form>' );
 		Functions\when( 'wp_parse_args' )->alias(
 			static function ( $args, $defaults = array() ) {
 				return array_merge( (array) $defaults, is_array( $args ) ? $args : array() );
@@ -158,6 +160,20 @@ class EventTemplateBootstrapTest extends TestCase {
 		$this->assertStringContainsString( 'cp-sync-series-card', $series_archive );
 		$this->assertStringNotContainsString( 'cp-sync-event-card', $series_archive );
 		$this->assertStringNotContainsString( '<time', $series_archive );
+	}
+
+	public function test_password_protected_pages_show_only_the_password_form() {
+		Functions\when( 'post_password_required' )->justReturn( true );
+
+		foreach ( array( 'events/single' => $this->event, 'events/series' => $this->series ) as $template => $post ) {
+			$html = $this->render_main_template( $template, array( $post ), 'Events' );
+
+			$this->assertStringContainsString( 'post-password-form', $html, $template );
+			$this->assertStringNotContainsString( 'Worship together.', $html, $template );
+			$this->assertStringNotContainsString( 'Every week.', $html, $template );
+			$this->assertStringNotContainsString( 'Sanctuary', $html, $template );
+			$this->assertStringNotContainsString( '>Register</a>', $html, $template );
+		}
 	}
 
 	public function test_taxonomy_archive_heading_uses_the_term_name() {
@@ -292,6 +308,7 @@ class EventTemplateBootstrapTest extends TestCase {
 
 	public function test_a_past_event_keeps_its_record_and_drops_register() {
 		$saved = $GLOBALS['cp_sync_template_meta'][41];
+		$GLOBALS['cp_sync_template_meta'][41]['_cp_start_utc']          = '2019-12-31 22:00:00';
 		$GLOBALS['cp_sync_template_meta'][41]['_cp_end_utc']            = '2020-01-01 00:00:00';
 		$GLOBALS['cp_sync_template_meta'][41]['_cp_registration_price'] = '$10';
 

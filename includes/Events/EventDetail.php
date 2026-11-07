@@ -60,7 +60,7 @@ class EventDetail {
 		$content      = isset( $source['content'] ) ? (string) $source['content'] : '';
 		$content_text = self::plain_value( $content );
 		$register     = EventCard::http_url( isset( $source['registration_url'] ) ? $source['registration_url'] : '' );
-		$ended        = ( 'event' === $context ) && EventFormatter::has_ended( $end, $now );
+		$ended        = ( 'event' === $context ) && EventFormatter::has_ended( $end, $now, $start, $timezone );
 		$image        = EventCard::http_url( isset( $source['image'] ) ? $source['image'] : '' );
 		$permalink    = EventCard::http_url( isset( $source['permalink'] ) ? $source['permalink'] : '' );
 		$calendar     = false;
@@ -107,7 +107,7 @@ class EventDetail {
 			'map_url'           => self::map_search_url( $location ),
 			'excerpt'           => $excerpt,
 			'content'           => $content,
-			'has_content'       => '' !== $content_text,
+			'has_content'       => '' !== $content_text || self::has_media( $content ),
 			'show_register'     => '' !== $register && ! $ended,
 			'registration_url'  => ( '' !== $register && ! $ended ) ? $register : '',
 			'ended'             => $ended,
@@ -168,22 +168,26 @@ class EventDetail {
 			return false;
 		}
 
-		$saw_digit = false;
-
 		foreach ( $segments as $segment ) {
-			if ( ! preg_match( '/\d/', $segment ) ) {
-				return false;
-			}
-
-			$saw_digit = true;
-			$numeric   = preg_replace( '/[^0-9.]/', '', $segment );
-
-			if ( ! is_numeric( $numeric ) || (float) $numeric !== 0.0 ) {
+			// A zero amount with at most a currency symbol or code. "$0 deposit" and "Ages 0" are not prices of zero.
+			if ( ! preg_match( '/^(?:\p{Sc}|[A-Z]{3})?\s*0+(?:[.,]0+)?\s*(?:\p{Sc}|[A-Z]{3})?$/u', $segment ) ) {
 				return false;
 			}
 		}
 
-		return $saw_digit;
+		return true;
+	}
+
+	/**
+	 * Whether post content has media that survives wp_kses_post().
+	 *
+	 * Iframes and embeds are not listed because wp_kses_post() removes them.
+	 *
+	 * @param string $content Raw post content.
+	 * @return bool
+	 */
+	protected static function has_media( $content ) {
+		return 1 === preg_match( '/<(?:img|video|audio)\b/i', (string) $content );
 	}
 
 	/**
@@ -210,7 +214,7 @@ class EventDetail {
 	 * Verified zone name for one instant.
 	 *
 	 * Uses the long localized name when intl can produce one, otherwise the
-	 * stored IANA name. An invalid zone returns an empty string.
+	 * stored zone name or offset. An invalid zone returns an empty string.
 	 *
 	 * @param string             $timezone Stored zone.
 	 * @param \DateTimeImmutable $at       Local instant.
@@ -222,13 +226,18 @@ class EventDetail {
 		}
 
 		if ( class_exists( '\IntlTimeZone' ) ) {
-			$intl    = \IntlTimeZone::createTimeZone( $timezone );
-			$locale  = function_exists( 'get_locale' ) ? (string) get_locale() : 'en_US';
-			$daylight = (bool) $at->format( 'I' );
-			$label   = $intl->getDisplayName( $daylight, \IntlTimeZone::DISPLAY_LONG, '' !== $locale ? $locale : 'en_US' );
+			$intl = \IntlTimeZone::createTimeZone( $timezone );
 
-			if ( is_string( $label ) && '' !== $label && false === strpos( $label, 'Unknown' ) ) {
-				return $label;
+			// ICU has no zone for a manual offset such as -05:00. It returns its
+			// unknown zone, which it names "GMT", so the stored offset is used.
+			if ( 'Etc/Unknown' !== $intl->getID() ) {
+				$locale   = function_exists( 'get_locale' ) ? (string) get_locale() : 'en_US';
+				$daylight = (bool) $at->format( 'I' );
+				$label    = $intl->getDisplayName( $daylight, \IntlTimeZone::DISPLAY_LONG, '' !== $locale ? $locale : 'en_US' );
+
+				if ( is_string( $label ) && '' !== $label && false === strpos( $label, 'Unknown' ) ) {
+					return $label;
+				}
 			}
 		}
 

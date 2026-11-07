@@ -1,5 +1,8 @@
 /**
- * Replace an event image that fails to load.
+ * Replace a hero or card image that fails to load.
+ *
+ * Images in a description are left alone. Only the media slots have a space
+ * sized for the placeholder.
  *
  * The script is enqueued in the footer, so an image can already have failed
  * before this file runs. Those images do not fire another error event.
@@ -9,7 +12,9 @@
  * attribute.
  */
 (function () {
-	var rootSelector = '.cp-sync-events';
+	// Matched directly because shortcode lists have no .cp-sync-events wrapper.
+	var mediaSelector = '.cp-sync-event__media, .cp-sync-event-card__media, .cp-sync-series-card__media';
+	var imageSelector = '.cp-sync-event__media img, .cp-sync-event-card__media img, .cp-sync-series-card__media img';
 	var placeholderClass = 'cp-sync-event__placeholder';
 
 	function replaceFailedImage(image) {
@@ -17,7 +22,7 @@
 			return;
 		}
 
-		if (!image.closest(rootSelector)) {
+		if (!image.closest(mediaSelector)) {
 			return;
 		}
 
@@ -44,7 +49,8 @@
 	}
 
 	function alreadyFailed(image) {
-		return !!(image && image.tagName === 'IMG' && image.complete && image.naturalWidth === 0);
+		// An image with no src yet, such as a lazy-load placeholder, has not failed.
+		return !!(image && image.tagName === 'IMG' && image.getAttribute('src') && image.complete && image.naturalWidth === 0);
 	}
 
 	document.addEventListener(
@@ -55,7 +61,7 @@
 		true
 	);
 
-	var images = document.querySelectorAll(rootSelector + ' img');
+	var images = document.querySelectorAll(imageSelector);
 	var index;
 
 	for (index = 0; index < images.length; index++) {

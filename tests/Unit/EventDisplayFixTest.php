@@ -37,6 +37,23 @@ class EventDisplayFixTest extends TestCase {
 		$this->assertLessThan( strpos( $js, 'querySelectorAll' ), strpos( $js, "addEventListener" ) );
 	}
 
+	public function test_event_image_script_only_touches_media_slots() {
+		$js = file_get_contents( dirname( __DIR__, 2 ) . '/assets/js/events-display.js' );
+
+		$this->assertIsString( $js );
+		$this->assertStringNotContainsString( "'.cp-sync-events", $js );
+
+		foreach ( array( 'cp-sync-event__media', 'cp-sync-event-card__media', 'cp-sync-series-card__media' ) as $slot ) {
+			$this->assertStringContainsString( '.' . $slot . ' img', $js );
+		}
+	}
+
+	public function test_placeholder_has_a_color_outside_the_page_wrapper() {
+		$css = file_get_contents( dirname( __DIR__, 2 ) . '/assets/css/events.css' );
+
+		$this->assertMatchesRegularExpression( '/background: var\(--cp-sync-placeholder, #[0-9a-f]+\)/', (string) $css );
+	}
+
 	/**
 	 * The declaration block for one selector.
 	 *

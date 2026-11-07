@@ -215,7 +215,7 @@ class EventCard {
 	 */
 	protected static function button_html( $url, $label, $price = '' ) {
 		$html  = '<p class="cp-sync-event-card__action">';
-		$price = trim( (string) $price );
+		$price = EventDetail::price_label( $price );
 
 		if ( '' !== $price ) {
 			$html .= '<span class="cp-sync-event-card__price">' . self::esc_html_text( $price ) . '</span>';

@@ -270,6 +270,7 @@ class Display {
 		$query->set( 'meta_key', Meta::START_UTC );
 		$query->set( 'orderby', 'meta_value' );
 		$query->set( 'order', 'ASC' );
+		$query->set( 'has_password', false );
 		$query->set(
 			'meta_query',
 			array(
@@ -293,10 +294,11 @@ class Display {
 	 */
 	public static function series_archive_query_vars() {
 		return array(
-			'post_type'   => PostTypes::SERIES,
-			'post_status' => 'publish',
-			'meta_key'    => '',
-			'meta_query'  => array(),
+			'post_type'    => PostTypes::SERIES,
+			'post_status'  => 'publish',
+			'has_password' => false,
+			'meta_key'     => '',
+			'meta_query'   => array(),
 		);
 	}
 
@@ -449,15 +451,17 @@ class Display {
 	/**
 	 * Download a calendar file for the public event being viewed.
 	 *
-	 * Any other request, including a series or a bad id, is a 404. The file
-	 * is built from the local post. No remote calendar is fetched.
+	 * The flag only means something on a single event while these pages are on.
+	 * Every other URL ignores it and renders as usual. On an event, a bad flag
+	 * or a date that cannot be exported is a 404. The file is built from the
+	 * local post. No remote calendar is fetched.
 	 *
 	 * @return void
 	 */
 	public static function maybe_download_calendar() {
 		$flag = CalendarFile::request_flag();
 
-		if ( null === $flag ) {
+		if ( null === $flag || ! is_singular( PostTypes::EVENT ) || ! self::is_enabled() ) {
 			return;
 		}
 
