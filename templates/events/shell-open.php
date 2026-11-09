@@ -18,9 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 $cp_sync_block_theme = function_exists( 'wp_is_block_theme' ) && wp_is_block_theme();
 
 if ( $cp_sync_block_theme ) {
-	if ( function_exists( 'block_template_part' ) ) {
-		block_template_part( 'header' );
-	}
+	\CP_Sync\print_block_template_part( 'header' );
 } else {
 	get_header();
 }

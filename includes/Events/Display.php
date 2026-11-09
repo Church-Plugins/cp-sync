@@ -344,73 +344,9 @@ class Display {
 			return $template;
 		}
 
-		$canvas = self::block_canvas_template( $template );
-		if ( '' === $canvas ) {
-			return $found;
-		}
+		$canvas = \CP_Sync\render_for_block_canvas( $found, $template );
 
-		global $_wp_current_template_content, $post;
-
-		$previous = ( isset( $post ) && $post instanceof \WP_Post ) ? $post : null;
-
-		ob_start();
-		load_template( $found, false );
-		$_wp_current_template_content = \CP_Sync\Groups\Display::protect_block_template_html( ob_get_clean() );
-
-		if ( $previous instanceof \WP_Post && function_exists( 'setup_postdata' ) ) {
-			$post = $previous;
-			setup_postdata( $previous );
-		} elseif ( function_exists( 'wp_reset_postdata' ) ) {
-			wp_reset_postdata();
-		}
-
-		return $canvas;
-	}
-
-	/**
-	 * Canvas path for the current request.
-	 *
-	 * A block theme can still hand this filter a PHP template when a more
-	 * specific PHP file wins over the block index. Looking up the index canvas
-	 * here, before the capture, is what puts the event markup in the canvas.
-	 * When that lookup does not return the canvas file, the plugin template is
-	 * used directly.
-	 *
-	 * An incoming path that is already the canvas is kept. Looking it up again
-	 * would register the canvas head hooks a second time.
-	 *
-	 * @param mixed $template Incoming template path.
-	 * @return string Canvas path, or an empty string when the canvas is absent.
-	 */
-	private static function block_canvas_template( $template ) {
-		if ( ! function_exists( 'wp_is_block_theme' ) || ! wp_is_block_theme() ) {
-			return '';
-		}
-
-		if ( ! function_exists( 'locate_block_template' ) ) {
-			return '';
-		}
-
-		if ( self::is_template_canvas( $template ) ) {
-			return $template;
-		}
-
-		$located = locate_block_template( '', 'index', array( 'index' ) );
-
-		return self::is_template_canvas( $located ) ? $located : '';
-	}
-
-	/**
-	 * Whether a path is the WordPress block template canvas.
-	 *
-	 * @param mixed $path Template path.
-	 * @return bool
-	 */
-	private static function is_template_canvas( $path ) {
-		return is_string( $path )
-			&& '' !== $path
-			&& file_exists( $path )
-			&& 'template-canvas.php' === basename( $path );
+		return '' !== $canvas ? $canvas : $found;
 	}
 
 	/**

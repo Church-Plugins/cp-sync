@@ -11,7 +11,7 @@
 use CP_Sync\Groups\Display;
 
 if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
-	block_template_part( 'header' );
+	\CP_Sync\print_block_template_part( 'header' );
 } else {
 	get_header();
 }
@@ -72,7 +72,7 @@ if ( ! is_string( $title ) || '' === $title ) {
 </main>
 <?php
 if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
-	block_template_part( 'footer' );
+	\CP_Sync\print_block_template_part( 'footer' );
 } else {
 	get_footer();
 }

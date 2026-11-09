@@ -567,28 +567,9 @@ class Lite {
 			return $template;
 		}
 
-		if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
-			global $_wp_current_template_content, $post;
+		$canvas = \CP_Sync\render_for_block_canvas( $file, $template );
 
-			$previous = ( isset( $post ) && $post instanceof \WP_Post ) ? $post : null;
-
-			ob_start();
-			include $file;
-			// Theme and hook markup stays as the template printed it. ChMS
-			// text is protected when the group markup is built.
-			$_wp_current_template_content = ob_get_clean();
-
-			if ( $previous instanceof \WP_Post && function_exists( 'setup_postdata' ) ) {
-				$post = $previous;
-				setup_postdata( $previous );
-			} elseif ( function_exists( 'wp_reset_postdata' ) ) {
-				wp_reset_postdata();
-			}
-
-			return $template;
-		}
-
-		return $file;
+		return '' !== $canvas ? $canvas : $file;
 	}
 
 	/**

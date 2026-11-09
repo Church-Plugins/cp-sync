@@ -43,11 +43,18 @@ class EventBlockCanvasTest extends TestCase {
 	}
 
 	public function test_block_theme_shell_prints_template_parts_without_a_document() {
+		require_once dirname( __DIR__, 2 ) . '/includes/Templates.php';
 		Functions\when( 'wp_is_block_theme' )->justReturn( true );
 		$parts = array();
+		Functions\when( 'do_blocks' )->alias(
+			static function ( $blocks ) use ( &$parts ) {
+				$parts[] = $blocks;
+				return '';
+			}
+		);
 		Functions\when( 'block_template_part' )->alias(
-			static function ( $slug ) use ( &$parts ) {
-				$parts[] = $slug;
+			static function () {
+				throw new \RuntimeException( 'part printed without its shortcode pass' );
 			}
 		);
 		Functions\when( 'get_header' )->alias(
@@ -67,7 +74,13 @@ class EventBlockCanvasTest extends TestCase {
 		include dirname( __DIR__, 2 ) . '/templates/events/shell-close.php';
 		$html = ob_get_clean();
 
-		$this->assertSame( array( 'header', 'footer' ), $parts );
+		$this->assertSame(
+			array(
+				'<!-- wp:template-part {"slug":"header","tagName":"header"} /-->',
+				'<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->',
+			),
+			$parts
+		);
 		$this->assertStringContainsString( 'MAIN', $html );
 		$this->assertStringNotContainsString( '<!DOCTYPE', $html );
 		$this->assertStringNotContainsString( 'wp_head', $html );
@@ -86,7 +99,7 @@ class EventBlockCanvasTest extends TestCase {
 				echo 'THEME_FOOTER';
 			}
 		);
-		Functions\when( 'block_template_part' )->alias(
+		Functions\when( 'do_blocks' )->alias(
 			static function () {
 				throw new \RuntimeException( 'block part used' );
 			}

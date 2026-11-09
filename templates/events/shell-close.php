@@ -17,9 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 </main>
 <?php
 if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
-	if ( function_exists( 'block_template_part' ) ) {
-		block_template_part( 'footer' );
-	}
+	\CP_Sync\print_block_template_part( 'footer' );
 } else {
 	get_footer();
 }
