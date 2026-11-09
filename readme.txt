@@ -24,7 +24,6 @@ CP Sync connects your WordPress site to your church management system (ChMS), ke
 * **Groups Sync** — Import small groups, classes, and ministries with leaders, schedules, and meeting details
 * **Events Sync** — Push your ChMS calendar to The Events Calendar with full venue and image data
 * **Scheduled Imports** — Automatic background syncs on a configurable cadence
-* **Field Mapping** — Map ChMS fields to WordPress post fields, taxonomies, and custom meta
 * **Data Filters** — Include or exclude items by tag, group type, date range, and more
 * **WP-CLI Commands** — Run and debug imports from the command line
 * **Detailed Logging** — Built-in log viewer for troubleshooting sync issues
@@ -43,21 +42,19 @@ For Church Community Builder, CP Sync uses a two-phase strategy to populate comp
 
 1. Upload the `cp-sync` folder to the `/wp-content/plugins/` directory, or install through the WordPress plugin screen.
 2. Activate the plugin through the **Plugins** screen in WordPress.
-3. Go to **Settings → CP Sync** and select your ChMS tab (Planning Center or CCB).
-4. Connect to your ChMS:
-   * **PCO**: Complete the OAuth flow with your Planning Center credentials.
-   * **CCB**: Enter your CCB subdomain, API username, and API password.
-5. Click **Test Connection** to verify your credentials.
-6. Configure which groups and/or events to sync under their respective tabs.
-7. Save settings and run an initial sync, or wait for the scheduled background sync to run.
+3. Go to **Church Plugins → CP Sync** and open the **Connect** tab.
+4. Set **Church Management System**, then connect:
+   * **PCO**: Choose Planning Center Online, then click **Connect** under **PCO API Configuration** and complete the OAuth flow.
+   * **CCB**: Choose Church Community Builder, enter **Subdomain**, **API Username**, and **API Password**, then click **Connect to CCB**.
+5. On **Connect**, turn on **Sync Groups** and/or **Sync Events**, then click **Save all Settings**. Configure each enabled feed on its tab.
+6. Save settings and run an initial sync, or wait for the scheduled background sync to run.
 
 = Quick Start =
 
-1. **Connect** your ChMS (PCO or CCB)
+1. **Connect** your ChMS at **Church Plugins → CP Sync → Connect**
 2. **Choose** which groups and event calendars to import
-3. **Map fields** between your ChMS and WordPress (defaults work for most setups)
-4. **Set a schedule** under Advanced settings or run a manual sync to verify
-5. **Review logs** at Settings → CP Sync → Logs if anything looks off
+3. **Set a schedule** under **Advanced** (**Update Interval**) or click **Pull now**
+4. If anything looks off, open **Log**, set **Enable Debug Mode** to **Enable**, click **Save all Settings**, run the sync again, and check **Log File Content**
 
 == Frequently Asked Questions ==
 
@@ -73,11 +70,11 @@ Install The Events Calendar only if you want events in that calendar. While it i
 
 = Why are my CCB venues missing addresses? =
 
-In version 0.3.0 and later, CP Sync automatically enriches CCB events with full venue addresses via a follow-up call to the `event_profile` endpoint. If addresses are still missing, enable Debug logging at **Settings → CP Sync → Advanced** and look for `Skipping enrichment` or `Failed to fetch event_profile` messages. Recurring event occurrences without a numeric event ID cannot be enriched and will import with the venue name only.
+In version 0.3.0 and later, CP Sync automatically enriches CCB events with full venue addresses via a follow-up call to the `event_profile` endpoint. If addresses are still missing, open **Church Plugins → CP Sync → Log**, set **Enable Debug Mode** to **Enable**, click **Save all Settings**, run the sync again, and look for `Skipping enrichment` or `Failed to fetch event_profile` messages. Recurring event occurrences without a numeric event ID cannot be enriched and will import with the venue name only.
 
 = How often does it sync? =
 
-You can configure scheduled syncs at **Settings → CP Sync → Advanced**, or run a manual sync at any time. Background sync uses WordPress Cron — for sites with unreliable cron, see the Developer Guide for setting up a server-level cron job.
+You can configure scheduled syncs at **Church Plugins → CP Sync → Advanced** (**Update Interval**), or run a manual sync with **Pull now** at any time. Background sync uses WordPress Cron — for sites with unreliable cron, see the Developer Guide for setting up a server-level cron job.
 
 = Will syncing create duplicates? =
 
@@ -85,7 +82,7 @@ CP Sync uses a unique ChMS ID for each item to prevent duplicates. Re-running a 
 
 = Where can I find logs? =
 
-At **Settings → CP Sync → Logs**. Increase verbosity by setting Log Level to "Debug" under Advanced settings.
+On the **Log** tab at **Church Plugins → CP Sync**. Set **Enable Debug Mode** to **Enable**, click **Save all Settings**, then run the sync again and check **Log File Content**. CP Sync writes to the log only while debug mode is on.
 
 = Can I extend or customize CP Sync? =
 

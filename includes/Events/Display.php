@@ -29,7 +29,10 @@ class Display {
 		// priority 10 drops those rules until permalinks are saved again.
 		add_action( 'wp_loaded', array( __CLASS__, 'flush_rewrites_after_init' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_styles' ) );
-		add_filter( 'template_include', array( __CLASS__, 'template_include' ) );
+		// Priority 9 runs after an earlier template swap and before the default
+		// template filters. The canvas lookup itself happens inside this callback,
+		// ahead of the capture, because that lookup replaces the template content.
+		add_filter( 'template_include', array( __CLASS__, 'template_include' ), 9 );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_download_calendar' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'upcoming_archive' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'series_archive' ), 11 );
@@ -306,6 +309,11 @@ class Display {
 	/**
 	 * Swap in the plugin templates, which a theme can override from cp-sync/.
 	 *
+	 * Classic themes receive the PHP template. Block themes keep their canvas.
+	 * The event markup, including header and footer template parts, is rendered
+	 * first and stored as the canvas content so wp_head() can print the
+	 * scripts and layout styles those parts registered.
+	 *
 	 * @param string $template Current template path.
 	 * @return string
 	 */
@@ -332,7 +340,77 @@ class Display {
 
 		$found = \CP_Sync\get_template_hierarchy( $relative );
 
-		return ( is_string( $found ) && '' !== $found && file_exists( $found ) ) ? $found : $template;
+		if ( ! is_string( $found ) || '' === $found || ! file_exists( $found ) ) {
+			return $template;
+		}
+
+		$canvas = self::block_canvas_template( $template );
+		if ( '' === $canvas ) {
+			return $found;
+		}
+
+		global $_wp_current_template_content, $post;
+
+		$previous = ( isset( $post ) && $post instanceof \WP_Post ) ? $post : null;
+
+		ob_start();
+		load_template( $found, false );
+		$_wp_current_template_content = \CP_Sync\Groups\Display::protect_block_template_html( ob_get_clean() );
+
+		if ( $previous instanceof \WP_Post && function_exists( 'setup_postdata' ) ) {
+			$post = $previous;
+			setup_postdata( $previous );
+		} elseif ( function_exists( 'wp_reset_postdata' ) ) {
+			wp_reset_postdata();
+		}
+
+		return $canvas;
+	}
+
+	/**
+	 * Canvas path for the current request.
+	 *
+	 * A block theme can still hand this filter a PHP template when a more
+	 * specific PHP file wins over the block index. Looking up the index canvas
+	 * here, before the capture, is what puts the event markup in the canvas.
+	 * When that lookup does not return the canvas file, the plugin template is
+	 * used directly.
+	 *
+	 * An incoming path that is already the canvas is kept. Looking it up again
+	 * would register the canvas head hooks a second time.
+	 *
+	 * @param mixed $template Incoming template path.
+	 * @return string Canvas path, or an empty string when the canvas is absent.
+	 */
+	private static function block_canvas_template( $template ) {
+		if ( ! function_exists( 'wp_is_block_theme' ) || ! wp_is_block_theme() ) {
+			return '';
+		}
+
+		if ( ! function_exists( 'locate_block_template' ) ) {
+			return '';
+		}
+
+		if ( self::is_template_canvas( $template ) ) {
+			return $template;
+		}
+
+		$located = locate_block_template( '', 'index', array( 'index' ) );
+
+		return self::is_template_canvas( $located ) ? $located : '';
+	}
+
+	/**
+	 * Whether a path is the WordPress block template canvas.
+	 *
+	 * @param mixed $path Template path.
+	 * @return bool
+	 */
+	private static function is_template_canvas( $path ) {
+		return is_string( $path )
+			&& '' !== $path
+			&& file_exists( $path )
+			&& 'template-canvas.php' === basename( $path );
 	}
 
 	/**

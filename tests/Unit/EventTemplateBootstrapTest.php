@@ -31,6 +31,10 @@ class EventTemplateBootstrapTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
+		Functions\when( 'wp_is_block_theme' )->justReturn( false );
+		Functions\when( 'block_template_part' )->justReturn( null );
+		Functions\when( 'get_header' )->justReturn( null );
+		Functions\when( 'get_footer' )->justReturn( null );
 		Functions\when( 'get_option' )->justReturn( '' );
 		Functions\when( '__' )->returnArg( 1 );
 		Functions\when( 'esc_html__' )->returnArg( 1 );

@@ -1,7 +1,10 @@
 <?php
 /**
- * Opens the event page. Block themes get their header template part.
- * Classic themes use the theme header.
+ * Opens the event page.
+ *
+ * Classic themes use the theme header. Block themes print only the header
+ * template part. The block canvas still owns the document, so wp_head() runs
+ * after this part and can print the scripts and layout styles it registered.
  *
  * Override from the theme at cp-sync/events/shell-open.php.
  *
@@ -15,19 +18,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 $cp_sync_block_theme = function_exists( 'wp_is_block_theme' ) && wp_is_block_theme();
 
 if ( $cp_sync_block_theme ) {
-	?><!DOCTYPE html>
-	<html <?php language_attributes(); ?>>
-	<head>
-		<meta charset="<?php bloginfo( 'charset' ); ?>">
-		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<?php wp_head(); ?>
-	</head>
-	<body <?php body_class(); ?>>
-	<?php
-	wp_body_open();
-
-	if ( function_exists( 'block_header_area' ) ) {
-		block_header_area();
+	if ( function_exists( 'block_template_part' ) ) {
+		block_template_part( 'header' );
 	}
 } else {
 	get_header();
