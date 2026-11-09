@@ -763,6 +763,23 @@ class Display {
 	}
 
 	/**
+	 * Keep block comments as comments so a later do_blocks() cannot render them.
+	 *
+	 * wp_kses_post() keeps HTML comments, so a block comment in ChMS text would
+	 * otherwise render as a real block. The block parser reads the whole string,
+	 * including script and style tags.
+	 *
+	 * @param string $html Markup.
+	 * @return string
+	 */
+	public static function neutralize_block_delimiters( $html ) {
+		$html    = (string) $html;
+		$guarded = preg_replace( '#<!--(\s*/?)wp:#i', '<!--$1wp-escaped:', $html );
+
+		return is_string( $guarded ) ? $guarded : $html;
+	}
+
+	/**
 	 * Stop a URL that sits alone on a line or in a paragraph from being autoembedded.
 	 *
 	 * Block themes run the captured template through WP_Embed::autoembed().
@@ -795,7 +812,8 @@ class Display {
 	 * Markup captured for a block theme, with ChMS text left as text.
 	 *
 	 * get_the_block_template_html() runs autoembed, do_shortcode, and
-	 * do_blocks on this string. Script and style tags are left unchanged.
+	 * do_blocks on this string. Shortcodes and autoembeds are left alone inside
+	 * script and style tags. Block comments are neutralized everywhere.
 	 *
 	 * @param string $html       Rendered template HTML, or one attribute value.
 	 * @param bool   $attribute True for an attribute value. Autoembed wrapping
@@ -809,6 +827,7 @@ class Display {
 			return self::neutralize_shortcodes( $html );
 		}
 
+		$html  = self::neutralize_block_delimiters( $html );
 		$parts = preg_split( '#(<script\b[^>]*>.*?</script>|<style\b[^>]*>.*?</style>)#is', $html, -1, PREG_SPLIT_DELIM_CAPTURE );
 
 		if ( ! is_array( $parts ) ) {

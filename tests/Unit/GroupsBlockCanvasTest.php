@@ -120,6 +120,22 @@ class GroupsBlockCanvasTest extends TestCase {
 		$this->assertSame( '<input value="&#91;probe]">QUERY_OK', $GLOBALS['_wp_current_template_content'] );
 	}
 
+	public function test_block_comments_in_the_capture_cannot_render() {
+		file_put_contents(
+			$this->fixture,
+			"<?php\necho '<p>Text</p><!-- wp:rss {\"feedURL\":\"https://x.test\"} /--><!--wp:html--><!-- /wp:html --><script>var a = \"<!-- wp:rss /-->\";</script><!-- plain -->';\n"
+		);
+
+		Functions\when( 'wp_is_block_theme' )->justReturn( true );
+
+		Lite::get_instance()->template_include( $this->canvas );
+
+		$this->assertSame(
+			'<p>Text</p><!-- wp-escaped:rss {"feedURL":"https://x.test"} /--><!--wp-escaped:html--><!-- /wp-escaped:html --><script>var a = "<!-- wp-escaped:rss /-->";</script><!-- plain -->',
+			$GLOBALS['_wp_current_template_content']
+		);
+	}
+
 	public function test_php_template_on_a_block_theme_still_gets_the_canvas() {
 		$canvas = $this->canvas;
 
