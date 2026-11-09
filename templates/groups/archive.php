@@ -24,13 +24,13 @@ if ( ! is_string( $title ) || '' === $title ) {
 ?>
 <main id="cp-pg-template" class="cp-pg-template cp-sync-display">
 	<div class="cp-groups-archive cp-archive">
-		<h1 class="page-title"><?php echo esc_html( $title ); ?></h1>
+		<h1 class="page-title"><?php echo Display::protect_block_template_html( esc_html( $title ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped here. ?></h1>
 		<?php
 		$cp_sync_intro = function_exists( 'get_the_archive_description' ) ? get_the_archive_description() : '';
 		$cp_sync_intro = is_string( $cp_sync_intro ) ? trim( $cp_sync_intro ) : '';
 
 		if ( '' !== $cp_sync_intro && '' !== trim( wp_strip_all_tags( $cp_sync_intro ) ) ) {
-			echo '<div class="cp-groups-archive--intro">' . wp_kses_post( $cp_sync_intro ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_kses_post() above.
+			echo '<div class="cp-groups-archive--intro">' . Display::protect_block_template_html( wp_kses_post( $cp_sync_intro ) ) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_kses_post() above.
 		}
 		?>
 		<div class="cp-groups-archive--list">
