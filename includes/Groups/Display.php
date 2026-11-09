@@ -544,7 +544,7 @@ class Display {
 	 * @return string
 	 */
 	protected static function thumb_html( $url, $alt, $permalink ) {
-		$src   = esc_url( self::http_url( $url ) );
+		$src   = esc_url( self::css_safe_url( self::http_url( $url ) ) );
 		$link  = self::http_url( $permalink );
 		$href  = '' !== $link ? ' href="' . self::protect_block_template_html( esc_url( $link ), true ) . '" aria-hidden="true" tabindex="-1"' : '';
 
@@ -556,6 +556,25 @@ class Display {
 
 		return '<a class="cp-group-item--thumb--canvas"' . $href . ' style="background: url(\'' . $safe_src . '\') 0% 0% / cover;">'
 			. '<img alt="' . self::protect_block_template_html( esc_attr( $alt ), true ) . '" src="' . $safe_src . '"></a>';
+	}
+
+	/**
+	 * Percent-encode the characters that could end a CSS url() value.
+	 *
+	 * esc_url() writes a quote as an HTML entity, and the browser decodes that
+	 * before it reads the style attribute. Encoding first leaves nothing to decode.
+	 * Entities are decoded before that, so &#39; is encoded as a quote and the
+	 * semicolon in &amp; is not mistaken for one that ends a CSS declaration.
+	 *
+	 * @param string $url http(s) URL.
+	 * @return string
+	 */
+	protected static function css_safe_url( $url ) {
+		return str_replace(
+			[ "'", '"', '(', ')', '\\', ';' ],
+			[ '%27', '%22', '%28', '%29', '%5C', '%3B' ],
+			html_entity_decode( $url, ENT_QUOTES | ENT_HTML5, 'UTF-8' )
+		);
 	}
 
 	/**

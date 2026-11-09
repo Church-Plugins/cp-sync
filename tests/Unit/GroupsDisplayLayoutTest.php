@@ -110,6 +110,55 @@ class GroupsDisplayLayoutTest extends TestCase {
 		$this->assertLessThan( $copy, $meta );
 	}
 
+	public function test_image_url_cannot_break_out_of_the_css_value() {
+		$html = Display::render_group(
+			array(
+				'title'     => 'Prayer',
+				'permalink' => 'https://church.example/groups/prayer',
+				'image'     => "https://church.example/a.jpg');position:fixed;top:0;background:url('https://evil.example/x",
+			)
+		);
+
+		$this->assertStringContainsString( "url('https://church.example/a.jpg%27%29%3Bposition:fixed", $html );
+		$this->assertSame( 1, substr_count( $html, "url('" ) );
+		$this->assertStringNotContainsString( "');position", $html );
+	}
+
+	public function test_entity_encoded_quote_in_image_url_cannot_break_out_of_the_css_value() {
+		foreach ( array( '&#39;', '&#x27;', '&apos;' ) as $quote ) {
+			$html = Display::render_group(
+				array(
+					'title'     => 'Prayer',
+					'permalink' => 'https://church.example/groups/prayer',
+					'image'     => "https://church.example/a.jpg{$quote});position:fixed",
+				)
+			);
+
+			$this->assertStringContainsString( "url('https://church.example/a.jpg%27%29%3Bposition:fixed') 0% 0% / cover", $html, $quote );
+		}
+	}
+
+	public function test_escaped_ampersand_in_image_url_keeps_its_query_parameter() {
+		$html = Display::render_group(
+			array(
+				'title'     => 'Prayer',
+				'permalink' => 'https://church.example/groups/prayer',
+				'image'     => 'https://church.example/a.jpg?w=1&amp;h=2',
+			)
+		);
+
+		$this->assertStringContainsString( "url('https://church.example/a.jpg?w=1&h=2')", $html );
+		$this->assertStringNotContainsString( '%3B', $html );
+	}
+
+	public function test_archive_template_protects_term_text_from_shortcodes() {
+		$archive = (string) file_get_contents( dirname( __DIR__, 2 ) . '/templates/groups/archive.php' );
+
+		$this->assertStringContainsString( 'protect_block_template_html( esc_html( $title ) )', $archive );
+		$this->assertStringContainsString( 'protect_block_template_html( wp_kses_post( $cp_sync_intro ) )', $archive );
+		$this->assertStringContainsString( '&#91;contact-form-7 id=&quot;1&quot;]', Display::protect_block_template_html( esc_html( '[contact-form-7 id="1"]' ) ) );
+	}
+
 	public function test_attributes_show_only_when_turned_on() {
 		$html = Display::render_group(
 			array(
