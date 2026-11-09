@@ -306,6 +306,11 @@ class Display {
 	/**
 	 * Swap in the plugin templates, which a theme can override from cp-sync/.
 	 *
+	 * Classic themes receive the PHP template. Block themes keep their canvas.
+	 * The event markup, including header and footer template parts, is rendered
+	 * first and stored as the canvas content so wp_head() can print the
+	 * scripts and layout styles those parts registered.
+	 *
 	 * @param string $template Current template path.
 	 * @return string
 	 */
@@ -332,7 +337,30 @@ class Display {
 
 		$found = \CP_Sync\get_template_hierarchy( $relative );
 
-		return ( is_string( $found ) && '' !== $found && file_exists( $found ) ) ? $found : $template;
+		if ( ! is_string( $found ) || '' === $found || ! file_exists( $found ) ) {
+			return $template;
+		}
+
+		if ( function_exists( 'wp_is_block_theme' ) && wp_is_block_theme() ) {
+			global $_wp_current_template_content, $post;
+
+			$previous = ( isset( $post ) && $post instanceof \WP_Post ) ? $post : null;
+
+			ob_start();
+			include $found;
+			$_wp_current_template_content = ob_get_clean();
+
+			if ( $previous instanceof \WP_Post && function_exists( 'setup_postdata' ) ) {
+				$post = $previous;
+				setup_postdata( $previous );
+			} elseif ( function_exists( 'wp_reset_postdata' ) ) {
+				wp_reset_postdata();
+			}
+
+			return $template;
+		}
+
+		return $found;
 	}
 
 	/**
