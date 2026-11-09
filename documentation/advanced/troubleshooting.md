@@ -113,7 +113,7 @@ Converting the database to `utf8mb4` resolves this. See [System Requirements](..
    - On the **Connect** tab, **Sync Events** is on. If you activated The Events Calendar after the toggle was saved off, turn it on.
 
 2. **Church Community Builder venues**:
-   - Venue name, street, city, state, zip, and the event image can be added after import, for events that have a numeric CCB id.
+   - When The Events Calendar is active, venue name, street, city, state, zip, and the event image can be added after import, for events that have a numeric CCB id.
    - On the **Log** tab, set **Enable Debug Mode** to **Enable** and look for `Skipping enrichment` or `Failed to fetch event_profile`. Occurrences without a numeric event id are not enriched.
 
 ## Error Messages
