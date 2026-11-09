@@ -2,9 +2,9 @@
 
 CP Sync can show your groups on your website. You do not need the CP Groups plugin for this.
 
-The groups page uses the same layout as CP Groups, without its filters. Each group shows its photo, category and type buttons, name, meeting time, location, and a short description. The buttons open a page of groups with that category or type. Labels such as **Full** or **Kid Friendly** appear when your church management system sets them. A group's own page adds its leader names, the full description, **View Details** when your church management system has a page for the group, and **Register Now** when it has a signup link. Leader email addresses are not shown. CP Sync does not add search or filters; those stay in CP Groups.
+The groups page uses the same layout as CP Groups, without a filter column. Each group shows its photo, category and type buttons, name, meeting time, location, and a short description. The buttons open a page of groups with that category or type. Labels such as **Full** or **Kid Friendly** appear when your church management system sets them. A group's own page adds its leader names, the full description, **View Details** when your church management system has a page for the group, and **Register Now** when it has a signup link. Leader email addresses are not shown. CP Sync does not add search or filters.
 
-CP Groups adds filters, a map, and a contact form. If you activate CP Groups later, it uses the same groups. You do not import them again.
+CP Groups is optional. CP Sync can show the same groups without it. CP Groups adds its own group screens when you activate it. If you activate it later, it uses the same groups. You do not import them again.
 
 ## Turn It On
 
@@ -60,6 +60,6 @@ Colors, spacing, and buttons use the same ChurchPlugins CSS variables and `.cp-b
 
 ## If You Use CP Groups
 
-Install and activate CP Groups when you want filters, a map, or a contact form. CP Groups takes over the groups CP Sync already created, and they appear in the WordPress admin menu. If **Sync Groups** is off, turn it on to keep syncing.
+Install and activate CP Groups when you want its own group screens. It uses the groups CP Sync already created, and they appear in the WordPress admin menu. If **Sync Groups** is off, turn it on to keep syncing.
 
 See [CP Groups](cp-groups.md) for the sync settings.

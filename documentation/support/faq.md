@@ -37,7 +37,7 @@ Yes, CP-Sync provides extensive filtering options. You can filter by group type,
 No. CP Sync copies a fixed set of fields. There is no field-mapping setting.
 
 ### How does CP-Sync handle recurring events?
-With The Events Calendar, CP Sync imports each occurrence as its own event. It does not create a recurring series there.
+With The Events Calendar, each Planning Center date is its own event. Dates that share one Church Community Builder event id update the same event. CP Sync does not create a recurring series there.
 
 Without The Events Calendar, each date is still its own event page. A Planning Center event with more than one date, or a Church Community Builder event with more than one date, also gets a series page. One date does not. See [Events on your site](../integrations/events-on-your-site.md).
 
@@ -55,7 +55,7 @@ You can also show events without that plugin. See [Events on your site](../integ
 No. CP Sync can show a groups page at `/groups/` and a `[cp-sync-groups]` shortcode. Leader email addresses are not shown. See [Show Groups on Your Site](../integrations/show-groups.md).
 
 ### How does CP-Sync integrate with CP Groups?
-CP-Sync imports group data from your ChMS. With CP Groups active, that plugin shows the groups and adds filters, a map, and a contact form. It uses the same groups, so you do not import them again. Sync is one way: changes made in WordPress are not sent back to your ChMS. See the [CP Groups Integration Guide](../integrations/cp-groups.md) for details.
+CP-Sync imports group data from your ChMS. CP Groups is optional. CP Sync can show the same groups without it. With CP Groups active, that plugin adds its own group screens and uses the same groups, so you do not import them again. Sync is one way: changes made in WordPress are not sent back to your ChMS. See the [CP Groups Integration Guide](../integrations/cp-groups.md) for details.
 
 ### Can I use CP-Sync with other plugins not listed?
 While CP-Sync is specifically designed to work with The Events Calendar, CP Groups, and CP Sermons, developers can extend it to work with other plugins using hooks and filters. See the [Developer Guide](../advanced/developer-guide.md) for more information.

@@ -68,7 +68,7 @@ If you plan to use specific integrations:
 - No extra plugin. CP Sync shows a groups page and a shortcode. See [Show Groups on Your Site](../integrations/show-groups.md).
 
 ### CP Groups Integration
-- Optional. Install CP Groups (version 1.1 or higher; 1.2 or newer saves group leaders as Group Leaders rows) when you want filters, a map, and a contact form. It uses the same groups.
+- Optional. CP Sync can show the same groups without it. Install CP Groups (version 1.1 or higher; 1.2 or newer saves group leaders as Group Leaders rows) when you want its own group screens. It uses the same groups.
 
 ### The Events Calendar Integration
 - The Events Calendar plugin (by Modern Tribe) installed and activated (version 5.0 or higher)

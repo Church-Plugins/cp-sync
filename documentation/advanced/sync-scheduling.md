@@ -13,9 +13,10 @@ The first run is scheduled about an hour after the plugin loads. The choices are
 
 Which feeds run is set on the **Connect** tab:
 
-- **Sync Groups** and **Sync Events** are on until you turn them off.
-- **Sync Sermons** is shown for Planning Center, and it is off until you turn it on.
-- A toggle is disabled when its plugin is missing: CP Groups, The Events Calendar, or CP Sermons.
+- **Sync Groups** starts on when CP Groups is active, and off when it is not.
+- **Sync Events** starts on when The Events Calendar is active, and off when it is not.
+- Neither of those toggles is disabled.
+- **Sync Sermons** is shown for Planning Center. It is disabled until CP Sermons is active, and it is off until you turn it on.
 
 A turned-off feed is skipped. See [API Connections](../configuration/api-connections.md).
 
@@ -28,7 +29,7 @@ If you changed the sync interval before upgrading to 1.0.0 and the new interval 
 - On **Advanced**, click **Pull now**. This pulls every feed that is turned on. The tab shows **Hard pull started successfully**.
 - On **Groups**, **Events**, or **Sermons**, click **Pull Now**. The tab shows **Import started**.
 
-Those tabs appear after you are connected, the matching **Sync** toggle is on, and the companion plugin is active.
+The **Groups**, **Events**, and **Sermons** tabs appear after you are connected and the matching **Sync** toggle is on. The **Sermons** tab also stays hidden while **Sync Sermons** is disabled.
 
 While a sync is running, the page shows **A sync is currently in progress** and **Cancel Sync**.
 
