@@ -101,6 +101,7 @@ class _Init extends \ChurchPlugins\Setup\Plugin {
 		Admin\_Init::get_instance();
 		ChMS\_Init::get_instance();
 		Integrations\_Init::get_instance();
+		\CP_Sync\Events\Display::boot();
 		$this->setup = Setup\_Init::get_instance();
 		$this->logging = new \ChurchPlugins\Logging( $this->get_id(), $this->is_debug_mode() );
 	}

@@ -119,6 +119,31 @@ class Settings {
 	}
 
 	/**
+	 * Global settings after cp_sync_global_settings.
+	 *
+	 * The settings page and GET /cp-sync/v1/settings both use this so a
+	 * refetch cannot drop a default the page load added.
+	 *
+	 * @since 1.2.0
+	 * @return array
+	 */
+	public static function filtered_global_settings() {
+		$settings = function_exists( 'get_option' ) ? get_option( 'cp_sync_settings', array() ) : array();
+
+		if ( ! is_array( $settings ) ) {
+			$settings = array();
+		}
+
+		if ( ! function_exists( 'apply_filters' ) ) {
+			return $settings;
+		}
+
+		$filtered = apply_filters( 'cp_sync_global_settings', $settings );
+
+		return is_array( $filtered ) ? $filtered : $settings;
+	}
+
+	/**
 	 * Outputs the settings react entrypoint.
 	 */
 	public function settings_page_content() {
@@ -129,7 +154,7 @@ class Settings {
 		 * @return array
 		 * @since 1.0.0
 		 */
-		$global_settings = apply_filters( 'cp_sync_global_settings', get_option( 'cp_sync_settings', [] ) );
+		$global_settings = self::filtered_global_settings();
 		$compare_options = DataFilter::get_formatted_compare_options();
 		?>
 		<style>

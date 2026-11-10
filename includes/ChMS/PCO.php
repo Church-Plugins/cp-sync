@@ -27,6 +27,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public $settings_key = 'cp_sync_pco_settings';
 
 	/**
+	 * Signup key stamped with the SignupTime id that registration date filters
+	 * and the import both use.
+	 */
+	const SELECTED_SIGNUP_TIME_ID = '_cp_sync_selected_signup_time_id';
+
+	/**
 	 * Setup
 	 */
 	public function setup() {
@@ -853,6 +859,21 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				cp_sync()->logging->log( 'Group visibility filter FAILED: ' . $error->get_error_message() );
 				return new ChMSError( 'pco_filter_error', $error->get_error_message() );
 			}
+
+			// listed / visibility are the Groups API's own public flags. Groups
+			// that omit both keys are unchanged. Show All does not apply this.
+			$before_listed = count( $items );
+			$items         = \CP_Sync\Events\EventVisibility::filter_pco_groups( $items );
+			$unlisted      = $before_listed - count( $items );
+
+			if ( $unlisted > 0 ) {
+				cp_sync()->logging->log(
+					sprintf(
+						'Group visibility filter skipped %d groups that are not listed or not public',
+						$unlisted
+					)
+				);
+			}
 		}
 
 		$filter = new \CP_Sync\Setup\DataFilter(
@@ -1361,6 +1382,41 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * Start and end dates for a Planning Center group.
+	 *
+	 * strtotime( null ) is deprecated on PHP 8.1+. A missing or blank timestamp
+	 * is left empty instead.
+	 *
+	 * @since 1.2.0
+	 * @param mixed $created_at  Group created_at attribute.
+	 * @param mixed $archived_at Group archived_at attribute.
+	 * @return array{start_date:string,end_date:string|null}
+	 */
+	public static function group_boundary_dates( $created_at, $archived_at ) {
+		$start = self::group_timestamp( $created_at );
+		$end   = self::group_timestamp( $archived_at );
+
+		return [
+			'start_date' => ( false !== $start ) ? date( 'Y-m-d', $start ) : '',
+			'end_date'   => ( false !== $end ) ? date( 'Y-m-d', $end ) : null,
+		];
+	}
+
+	/**
+	 * @param mixed $value A ChMS datetime string, or nothing.
+	 * @return int|false
+	 */
+	protected static function group_timestamp( $value ) {
+		if ( ! is_string( $value ) || '' === $value ) {
+			return false;
+		}
+
+		$timestamp = strtotime( $value );
+
+		return ( false === $timestamp ) ? false : $timestamp;
+	}
+
+	/**
 	 * Format a group for the CP Sync integration
 	 *
 	 * @param array $group The group to format.
@@ -1413,8 +1469,10 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		}
 
 		// setup formatted group data to send to integration
-		$start_date = strtotime( $group['attributes']['created_at'] ?? null );
-		$end_date   = strtotime( $group['attributes']['archived_at'] ?? null );
+		$dates = self::group_boundary_dates(
+			$group['attributes']['created_at'] ?? null,
+			$group['attributes']['archived_at'] ?? null
+		);
 
 		$args = [
 			'chms_id'          => $group['id'],
@@ -1427,8 +1485,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			'group_life_stage' => [], // not used
 			'thumbnail_url'    => $group['attributes']['header_image']['original'] ?? '',
 			'meta_input'       => [
-				'start_date'    => date( 'Y-m-d', $start_date ),
-				'end_date'      => ! empty( $end_date ) ? date( 'Y-m-d', $end_date ) : null,
+				'start_date'    => $dates['start_date'],
+				'end_date'      => $dates['end_date'],
 				'public_url'    => $group['attributes']['public_church_center_web_url'] ?? '',
 			],
 		];
@@ -1649,6 +1707,8 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$relational = [];
 		$taxonomies = [];
 
+		$prices_known = null;
+
 		foreach ( $results as $source => $result ) {
 			$relational[ $source ] = $result['context']['relational_data'] ?? [];
 
@@ -1661,11 +1721,23 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			if ( 'calendar' === $source && ! empty( $result['taxonomies'] ) ) {
 				$taxonomies = $result['taxonomies'];
 			}
+
+			if ( 'registrations' === $source && isset( $result['context'] ) && is_array( $result['context'] ) && array_key_exists( 'registration_prices_known', $result['context'] ) ) {
+				$prices_known = (bool) $result['context']['registration_prices_known'];
+			}
+		}
+
+		$context = array(
+			'relational_data' => $relational,
+		);
+
+		if ( null !== $prices_known ) {
+			$context['registration_prices_known'] = $prices_known;
 		}
 
 		return [
 			'items'      => $items,
-			'context'    => [ 'relational_data' => $relational ],
+			'context'    => $context,
 			'taxonomies' => $taxonomies,
 		];
 	}
@@ -1732,6 +1804,9 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				return $this->format_event_from_calendar( $event, $sub_context );
 			}
 			if ( 'registrations' === $source ) {
+				if ( array_key_exists( 'registration_prices_known', $context ) ) {
+					$sub_context['registration_prices_known'] = $context['registration_prices_known'];
+				}
 				return $this->format_event_from_registrations( $event, $sub_context );
 			}
 			return false;
@@ -1858,25 +1933,25 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$filter_type = $filter_settings['type'] ?? 'all';
 		$conditions  = $filter_settings['conditions'] ?? [];
 
-		$public_events_only = 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
+		// Show All leaves hidden and unapproved events in the feed. The
+		// restrictive option ( Only Visible in Church Center ) applies the
+		// visibility and approval checks on their own, so an "any" condition
+		// group cannot include them again.
+		if ( $this->calendar_visibility_is_restrictive() ) {
+			$partition = \CP_Sync\Events\EventVisibility::partition_pco_calendar_items( $items, $relational_data );
+			$items     = $partition['kept'];
 
-		// Church Center visibility is an independent constraint applied as its own
-		// all-type filter — merging it into the user's condition group would OR it
-		// away under an "any" group. ( It previously also used the key `type`
-		// instead of `selector`, so DataFilter silently discarded it. )
-		if ( $public_events_only ) {
-			$visibility_filter = new \CP_Sync\Setup\DataFilter(
-				'all',
-				[ [ 'compare' => 'is_not_empty', 'selector' => 'visible_in_church_center' ] ],
-				$this->get_event_filter_config(),
-				$relational_data
-			);
+			foreach ( $partition['skipped_ids'] as $skipped_id ) {
+				\CP_Sync\Events\VisibilityRemovalNotice::record_skip( $skipped_id );
+			}
 
-			$error = $visibility_filter->apply( $items );
-
-			if ( is_wp_error( $error ) ) {
-				cp_sync()->logging->log( 'Calendar visibility filter FAILED: ' . $error->get_error_message() );
-				return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+			if ( ! empty( $partition['skipped_ids'] ) ) {
+				cp_sync()->logging->log(
+					sprintf(
+						'Calendar visibility filter skipped %d hidden or unapproved event instances',
+						count( $partition['skipped_ids'] )
+					)
+				);
 			}
 		}
 
@@ -1904,6 +1979,43 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	}
 
 	/**
+	 * GET /registrations/v2/signups, optionally including selection-type prices.
+	 *
+	 * Sparse fieldsets restrict relationships as well as attributes, so each
+	 * included relationship name is listed on fields[Signup]. Selection type
+	 * price fields are returned only when fields[SelectionType] asks for them.
+	 * price_currency is requested with the symbol so a later change can read
+	 * the currency code without another round trip; the display uses the symbol.
+	 *
+	 * @param int  $limit       Max signups to fetch ( 0 = all ).
+	 * @param bool $with_prices Whether to include selection_types and their prices.
+	 * @return array|false Raw JSON:API document, or false when the request failed.
+	 */
+	protected function request_registration_signups( $limit, $with_prices ) {
+		$includes = 'signup_times,signup_location,categories';
+		$fields   = 'name,description,logo_url,new_registration_url,archived,at_maximum_capacity,signup_times,signup_location,categories';
+
+		$query = $this->api()
+			->module( 'registrations' )
+			->table( 'signups' )
+			->order( '-created_at' );
+
+		if ( $with_prices ) {
+			$includes .= ',selection_types';
+			$fields   .= ',selection_types';
+			$query->param(
+				'fields[SelectionType]',
+				'name,price_cents,price_formatted,price_currency,price_currency_symbol,publicly_available'
+			);
+		}
+
+		return $query
+			->includes( $includes )
+			->param( 'fields[Signup]', $fields )
+			->get( $limit > 0 ? $limit : 100000 );
+	}
+
+	/**
 	 * Fetch events from PCO registrations
 	 *
 	 * @param int $limit Optional. Max signups to fetch ( 0 = all ). Applied to the
@@ -1925,23 +2037,27 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		// skip archived signups client-side below. `at_maximum_capacity` is served
 		// only when explicitly requested via a sparse fieldset, so we list every
 		// Signup attribute we consume (adding one to a fields request drops the
-		// rest for that type). If PCO rejects the shape the pull still succeeds and
-		// the sold-out meta is simply omitted (guarded in the formatter).
-		$raw_events = $this->api()
-			->module( 'registrations' )
-			->table( 'signups' )
-			->includes( 'signup_times,signup_location,categories' )
-			->order( '-created_at' )
-			// NOTE: per JSON:API, a sparse fieldset restricts RELATIONSHIPS as well as
-			// attributes — the relationship names must be listed or the payload loses
-			// the signup_times/signup_location/categories linkage entirely.
-			->param( 'fields[Signup]', 'name,description,logo_url,new_registration_url,archived,at_maximum_capacity,signup_times,signup_location,categories' )
-			->get( $limit > 0 ? $limit : 100000 );
+		// rest for that type). If PCO ignores an unknown field name, the pull still
+		// succeeds and the sold-out meta is simply omitted (guarded in the formatter).
+		//
+		// Price lives on SelectionType, included on this same request. A failure
+		// there is retried without selection types so a missing price cannot abort
+		// the signup import. That fallback does not touch prices already stored.
+		$requested_prices = true;
+		$raw_events       = $this->request_registration_signups( $limit, true );
+
+		if ( false === $raw_events || ! empty( $this->api()->errorMessage() ) ) {
+			$price_error = $this->api()->errorMessage() ?: 'signups request failed with no error detail';
+			cp_sync()->logging->log( 'Registrations price request failed; retrying without selection types: ' . var_export( $price_error, true ) );
+			$requested_prices = false;
+			$raw_events       = $this->request_registration_signups( $limit, false );
+		}
 
 		// A failed fetch must ABORT, not proceed with an empty list: an empty list
 		// here reads as "every signup was removed from PCO" downstream. ( The
 		// sparse-fieldset tolerance note above concerns PCO ignoring unknown field
-		// names, which still returns a successful response — not this. )
+		// names, which still returns a successful response — not this. ) The retry
+		// above is only for the price include. If signups themselves fail, stop.
 		if ( false === $raw_events || ! empty( $this->api()->errorMessage() ) ) {
 			$error = $this->api()->errorMessage() ?: 'signups request failed with no error detail';
 			cp_sync()->logging->log( 'Registrations fetch FAILED: ' . var_export( $error, true ) );
@@ -1972,21 +2088,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 		$filter_settings = $this->get_setting( 'registration_filter', [], 'ecp' );
 		cp_sync()->logging->log( sprintf( 'Filter settings: type=%s, conditions=%d', $filter_settings['type'] ?? 'all', count( $filter_settings['conditions'] ?? [] ) ) );
 
-		$filter_type = $filter_settings['type'] ?? 'all';
-		$conditions  = $filter_settings['conditions'] ?? [];
+		$items = $this->apply_registration_filter( $items, $relational_data, is_array( $filter_settings ) ? $filter_settings : [] );
 
-		$filter = new \CP_Sync\Setup\DataFilter(
-			$filter_type,
-			$conditions,
-			$this->get_registration_filter_config(),
-			$relational_data
-		);
-
-		$error = $filter->apply( $items ); // Apply the filter to the items
-
-		if ( is_wp_error( $error ) ) {
-			cp_sync()->logging->log( 'Registration filter FAILED: ' . $error->get_error_message() );
-			return new ChMSError( 'pco_filter_error', $error->get_error_message() );
+		if ( is_wp_error( $items ) ) {
+			cp_sync()->logging->log( 'Registration filter FAILED: ' . $items->get_error_message() );
+			return new ChMSError( 'pco_filter_error', $items->get_error_message() );
 		}
 
 		// Log filtering results
@@ -1999,13 +2105,47 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			cp_sync()->logging->log( 'Sample events to import: ' . implode( ', ', $event_names ) . ( $filtered_count > 5 ? '...' : '' ) );
 		}
 
+		// A fallback, or a successful response that never included selection
+		// types, is not evidence that signups have no price. Leave stored prices
+		// alone. An empty selection_types relationship is real data.
+		$prices_known = $requested_prices && self::payload_includes_selection_types( $raw_events['data'] ?? array(), $relational_data );
+
 		return [
 			'items'      => $items,
 			'context'    => [
-				'relational_data' => $relational_data,
+				'relational_data'            => $relational_data,
+				'registration_prices_known'  => $prices_known,
 			],
 			'taxonomies' => [],
 		];
+	}
+
+	/**
+	 * Whether a signups payload actually carried selection type data.
+	 *
+	 * An ignored include omits both the relationship and the included records.
+	 * An empty relationship on a signup is still data: that signup has no types.
+	 *
+	 * @param array $items            Raw signup resources, before the archived filter.
+	 * @param array $relational_data  Included records keyed by type, then id.
+	 * @return bool
+	 */
+	public static function payload_includes_selection_types( array $items, array $relational_data ) {
+		if ( ! empty( $relational_data['SelectionType'] ) && is_array( $relational_data['SelectionType'] ) ) {
+			return true;
+		}
+
+		foreach ( $items as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+
+			if ( array_key_exists( 'selection_types', $item['relationships'] ?? array() ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -2016,84 +2156,78 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * @return array|bool The formatted event or false if the event should be skipped.
 	 */
 	public function format_event_from_calendar( $event_instance, $context ) {
-		$relational_data = $context['relational_data'];
+		$neutral = $this->to_neutral_calendar_event( $event_instance, $context );
 
-		// Sanity check the event
-		$event_id = $event_instance['relationships']['event']['data']['id'] ?? 0;
-		
-		if( empty( $event_id ) ) {
+		if ( false === $neutral ) {
 			return false;
 		}
 
-		// Pull top-level event details
-		$event = $relational_data['Event'][ $event_id ] ?? [];
+		\CP_Sync\Events\NeutralFeed::add( $neutral );
 
-		$time_ids   = wp_list_pluck( $event_instance['relationships']['event_times']['data'], 'id' );
-		$start_date = $end_date = false;
+		return \CP_Sync\Events\TecEventMapper::to_tec_item( $neutral );
+	}
 
+	/**
+	 * Build the provider-neutral record for one Planning Center calendar instance.
+	 *
+	 * Times are stored in UTC. The Events Calendar receives them in the
+	 * WordPress site timezone. Hidden and unapproved rows are dropped in
+	 * fetch_events_from_calendar(), not here.
+	 *
+	 * @param array $event_instance The event instance to format.
+	 * @param array $context        Relational data.
+	 * @return array|false Neutral record, or false when the instance should be skipped.
+	 */
+	public function to_neutral_calendar_event( $event_instance, $context ) {
+		$relational_data = $context['relational_data'];
+
+		$event_id = $event_instance['relationships']['event']['data']['id'] ?? 0;
+
+		if ( empty( $event_id ) ) {
+			return false;
+		}
+
+		$event      = $relational_data['Event'][ $event_id ] ?? [];
+		$attributes = $event['attributes'] ?? [];
+
+		$time_ids  = wp_list_pluck( $event_instance['relationships']['event_times']['data'], 'id' );
 		$date_time = current( $time_ids );
 
 		if ( empty( $date_time ) ) {
 			return false;
 		}
 
-		$start_date = $relational_data['EventTime'][ $date_time ]['attributes']['starts_at'] ?? '';
-		$end_date   = $relational_data['EventTime'][ $date_time ]['attributes']['ends_at'] ?? '';
+		$start_raw = $relational_data['EventTime'][ $date_time ]['attributes']['starts_at'] ?? '';
+		$end_raw   = $relational_data['EventTime'][ $date_time ]['attributes']['ends_at'] ?? '';
 
-		if ( ! $start_date || ! $end_date ) {
+		if ( ! $start_raw || ! $end_raw ) {
 			return false;
 		}
 
-		$start_date = (new \DateTime( $start_date ))->setTimezone( wp_timezone() );
-		$end_date   = (new \DateTime( $end_date ))->setTimezone( wp_timezone() );
+		$start_utc = \CP_Sync\Events\EventTime::to_utc( $start_raw );
+		$end_utc   = \CP_Sync\Events\EventTime::to_utc( $end_raw );
 
-		// Begin stuffing the output
-		$args = [
-			'chms_id'        => $event_instance['id'],
-			'post_status'    => 'publish',
-			'post_title'     => $event['attributes']['name'] ?? '',
-			'post_content'   => $event['attributes']['description'] ?? '',
-			'post_excerpt'   => $event['attributes']['summary'] ?? '',
-			'tax_input'      => [],
-			'event_category' => [],
-			'thumbnail_url'  => '',
-			'meta_input'     => [
-				'registration_url' => $event['attributes']['registration_url'] ?? '',
-			],
-			'EventStartDate'        => $start_date->format( 'Y-m-d' ),
-			'EventEndDate'          => $end_date->format( 'Y-m-d' ),
-			'EventAllDay'           => $event_instance['attributes']['all_day_event'] ?? false,
-			'EventStartHour'        => $start_date->format( 'G' ),
-			'EventStartMinute'      => $start_date->format( 'i' ),
-			// 'EventStartMeridian'    => $event[''],
-			'EventEndHour'          => $end_date->format( 'G' ),
-			'EventEndMinute'        => $end_date->format( 'i' ),
-			// 'EventEndMeridian'      => $event[''],
-			// 'EventHideFromUpcoming' => $event[''],
-			// 'EventShowMapLink'      => $event[''],
-			// 'EventShowMap'          => $event[''],
-			// 'EventCost'             => $event[''],
-			'EventURL'              => $event['attributes']['registration_url'] ?? '',
-		];
-
-		// Featured image
-		if ( ! empty( $event['attributes']['image_url'] ) ) {
-			$args['thumbnail_url'] = $event['attributes']['image_url'];
+		if ( null === $start_utc || null === $end_utc ) {
+			return false;
 		}
 
-		// Venue. Calendar event instances carry the venue as a single free-text
-		// `location` string ( e.g. "Church - 401 Wabash Ave, Granite Falls, WA 98252,
-		// USA" ) right in the main query — no enrichment call needed. Parse it into
-		// TEC's EventVenue contract; empty/unparseable values yield no venue.
+		$site_timezone    = \CP_Sync\Events\EventTime::wordpress_timezone_name();
+		$registration_url = $attributes['registration_url'] ?? '';
+		$venue            = [];
+		$location_name    = '';
+
 		if ( ! empty( $event_instance['attributes']['location'] ) ) {
 			$venue = self::parse_calendar_location( $event_instance['attributes']['location'] );
-			if ( ! empty( $venue['venue'] ) ) {
-				$args['EventVenue'] = $venue;
+			if ( empty( $venue['venue'] ) ) {
+				$venue = [];
+			} else {
+				$location_name = $venue['venue'];
 			}
 		}
 
-		// Get the event's tags and pair them with appropriate taxonomies
-		$tags = wp_list_pluck( $event_instance['relationships']['tags']['data'], 'id' );
+		$tax_input   = [];
+		$categories  = [];
+		$tags        = wp_list_pluck( $event_instance['relationships']['tags']['data'], 'id' );
 
 		foreach ( $tags as $tag ) {
 			$tag_data = $relational_data['Tag'][ $tag ] ?? false;
@@ -2102,65 +2236,49 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 				continue;
 			}
 
-			$args['tax_input'][ $tag_data['attributes']['taxonomy'] ][] = $tag_data['id'];
+			$tax_input[ $tag_data['attributes']['taxonomy'] ][] = $tag_data['id'];
+
+			if ( ! empty( $tag_data['attributes']['name'] ) ) {
+				$categories[] = $tag_data['attributes']['name'];
+			}
 		}
 
-		// 	// This "tag" is a campus/location
-		// 	if( in_array( 'campus', $included_taxonomies ) ) {
+		return [
+			'provider'         => 'pco',
+			'chms_id'          => $event_instance['id'],
+			'series_id'        => (string) $event_id,
+			'categories'       => $categories,
+			'title'            => $attributes['name'] ?? '',
+			'content'          => $attributes['description'] ?? '',
+			'excerpt'          => $attributes['summary'] ?? '',
+			'post_status'      => 'publish',
+			'thumbnail_url'    => $attributes['image_url'] ?? '',
+			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
+			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
+			'site_timezone'    => $site_timezone,
+			'all_day'          => $event_instance['attributes']['all_day_event'] ?? false,
+			'location_name'    => $location_name,
+			'venue'            => $venue,
+			'registration_url' => $registration_url,
+			'event_url'        => $registration_url,
+			'tax_input'        => $tax_input,
+			'event_category'   => [],
+			'meta_input'       => [
+				'registration_url' => $registration_url,
+			],
+		];
+	}
 
-		// 		$campus =  $this->pull_campus_details( $tag_text );
-
-		// 		// Map to Location/Venue for TEC
-		// 		if( !empty( $campus ) && is_array( $campus ) ) {
-		// 			$args['Venue'] = [
-		// 				'Venue'    => $tag_text,
-		// 				'Country'  => $campus['country'] ?? '',
-		// 				'Address'  => $campus['street'] ?? '',
-		// 				'City'     => $campus['city'] ?? '',
-		// 				'State'    => $campus['state'] ?? '',
-		// 				'Zip'      => $campus['zip'],
-		// 			];
-		// 		}
-
-		// 	} else if( in_array( 'event_type', $included_taxonomies ) ) {
-		// 		// This is a TEC Event Category
-		// 		$args['event_category'][] = $tag_text;
-		// 	} else if( in_array( 'ministry_group', $included_taxonomies ) ) {
-		// 		// This is a TEC Event Category
-		// 		$args['tax_input']['cp_ministry'] = $tag_text;
-		// 	} else {
-
-		// 		// This is something else - we're assuming that it's a taxonomy and that the taxonomy is already registered
-		// 		foreach( $included_taxonomies as $loop_tax ) {
-		// 			$args['tax_input'][ $loop_tax ] = $tag_text;
-		// 		}
-		// 	}
-		// }
-
-		// // Add event contact info
-		// if( !empty( $event['contact'] ) ) {
-
-		// 	// Normalize variables so they're easier to work with
-		// 	$contact_email = $event['contact']['contact_data']['email_addresses'][0]['address'] ?? '';
-		// 	$contact_phone = $event['contact']['contact_data']['phone_numbers'][0]['number'] ?? '';
-		// 	$first_name = $event['contact']['first_name'] ?? '';
-		// 	$last_name = $event['contact']['last_name'] ?? '';
-		// 	$use_name = $first_name . ' ' . $last_name;
-
-		// 	// Only include if the person is not "empty" (depending on the ChMS definition of "empty")
-		// 	if( !empty( $first_name ) && 'no owner' !== strtolower( $use_name ) ) {
-		// 		$args['Organizer'] = [
-		// 			'Organizer' => $use_name,
-		// 			'Email'     => $contact_email,
-		// 			'Phone'     => $contact_phone,
-		// 		];
-		// 	}
-
-		// }
-
-		// throw new ChMSException( 400, 'The event formatting is not yet implemented' );
-
-		return $args;
+	/**
+	 * Whether calendar visibility and approval filters are on.
+	 *
+	 * Only the restrictive setting ( "Only Visible in Church Center" )
+	 * filters. "Show All" does not.
+	 *
+	 * @return bool
+	 */
+	public function calendar_visibility_is_restrictive() {
+		return 'public' === $this->get_setting( 'visibility', 'public', 'ecp' );
 	}
 
 	/**
@@ -2171,85 +2289,286 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	 * @return array|bool The formatted event or false if the event should be skipped.
 	 */
 	public function format_event_from_registrations( $signup, $context ) {
+		$neutral = $this->to_neutral_registration_event( $signup, $context );
+
+		if ( false === $neutral ) {
+			return false;
+		}
+
+		\CP_Sync\Events\NeutralFeed::add( $neutral );
+
+		return \CP_Sync\Events\TecEventMapper::to_tec_item( $neutral );
+	}
+
+	/**
+	 * Filter registration signups on the signup time the import will use.
+	 *
+	 * Each signup is stamped with select_registration_signup_time_id() first.
+	 * Start Date and End Date read that id. A signup with no usable time is
+	 * left unstamped; a date filter then depends on DataFilter's missing-relation
+	 * behavior (issue #72).
+	 *
+	 * @param array    $items            Signup resources.
+	 * @param array    $relational_data  Included records keyed by type, then id.
+	 * @param array    $filter_settings  registration_filter value: type and conditions.
+	 * @param int|null $now              Unix timestamp for "upcoming". Null uses time().
+	 * @return array|\WP_Error Filtered signups, or the filter error.
+	 */
+	public function apply_registration_filter( array $items, array $relational_data, array $filter_settings, $now = null ) {
+		$items = self::annotate_registration_signup_times( $items, $relational_data, $now );
+
+		$filter = new \CP_Sync\Setup\DataFilter(
+			$filter_settings['type'] ?? 'all',
+			$filter_settings['conditions'] ?? [],
+			$this->get_registration_filter_config(),
+			$relational_data
+		);
+
+		$error = $filter->apply( $items );
+
+		if ( is_wp_error( $error ) ) {
+			return $error;
+		}
+
+		return $items;
+	}
+
+	/**
+	 * Stamp each signup with the SignupTime id the date filters and the import share.
+	 *
+	 * Signups with no usable time are returned unchanged.
+	 *
+	 * @param array    $items           Signup resources.
+	 * @param array    $relational_data Included records keyed by type, then id.
+	 * @param int|null $now             Unix timestamp. Null uses time().
+	 * @return array
+	 */
+	public static function annotate_registration_signup_times( array $items, array $relational_data, $now = null ) {
+		$annotated = [];
+
+		foreach ( $items as $item ) {
+			if ( ! is_array( $item ) ) {
+				$annotated[] = $item;
+				continue;
+			}
+
+			$id = self::select_registration_signup_time_id( $item, $relational_data, $now );
+			if ( null !== $id ) {
+				$item[ self::SELECTED_SIGNUP_TIME_ID ] = $id;
+			}
+
+			$annotated[] = $item;
+		}
+
+		return $annotated;
+	}
+
+	/**
+	 * Signup time used for registration date filters and import.
+	 *
+	 * Next upcoming time: the earliest starts_at that is >= $now. API order is
+	 * ignored. When every usable time is in the past, the most recent one
+	 * (latest starts_at before $now). Equal starts_at values keep the earlier
+	 * entry in the signup's signup_times list. A time that starts at exactly
+	 * $now is upcoming.
+	 *
+	 * @param array    $signup          Signup resource.
+	 * @param array    $relational_data Included records keyed by type, then id.
+	 * @param int|null $now             Unix timestamp. Null uses time().
+	 * @return string|int|null SignupTime id, or null when none have a parseable starts_at.
+	 */
+	public static function select_registration_signup_time_id( $signup, $relational_data, $now = null ) {
+		if ( ! is_array( $signup ) || ! is_array( $relational_data ) ) {
+			return null;
+		}
+
+		$now   = null === $now ? time() : (int) $now;
+		$links = $signup['relationships']['signup_times']['data'] ?? [];
+
+		if ( ! is_array( $links ) ) {
+			return null;
+		}
+
+		// A to-one object instead of a list.
+		if ( isset( $links['id'] ) ) {
+			$links = [ $links ];
+		}
+
+		$upcoming = [];
+		$past     = [];
+
+		foreach ( $links as $index => $link ) {
+			if ( ! is_array( $link ) || ! self::is_signup_time_id( $link['id'] ?? null ) ) {
+				continue;
+			}
+
+			$id     = $link['id'];
+			$record = $relational_data['SignupTime'][ $id ] ?? null;
+			if ( ! is_array( $record ) ) {
+				continue;
+			}
+
+			$starts = $record['attributes']['starts_at'] ?? '';
+			$utc    = \CP_Sync\Events\EventTime::to_utc( is_string( $starts ) ? $starts : '' );
+			if ( null === $utc ) {
+				continue;
+			}
+
+			$candidate = [
+				'id'    => $id,
+				'ts'    => $utc->getTimestamp(),
+				'index' => (int) $index,
+			];
+
+			if ( $candidate['ts'] >= $now ) {
+				$upcoming[] = $candidate;
+			} else {
+				$past[] = $candidate;
+			}
+		}
+
+		$chosen = self::pick_signup_time( $upcoming, false );
+		if ( null !== $chosen ) {
+			return $chosen;
+		}
+
+		return self::pick_signup_time( $past, true );
+	}
+
+	/**
+	 * Whether $id can be a SignupTime id.
+	 *
+	 * @param mixed $id Candidate id.
+	 * @return bool
+	 */
+	private static function is_signup_time_id( $id ) {
+		if ( is_int( $id ) ) {
+			return true;
+		}
+
+		return is_string( $id ) && '' !== $id;
+	}
+
+	/**
+	 * Id of the earliest candidate, or the latest when $latest is true.
+	 *
+	 * Ties keep the earlier list index.
+	 *
+	 * @param array $candidates Rows of id, ts, and index.
+	 * @param bool  $latest     True to pick the greatest timestamp.
+	 * @return string|int|null
+	 */
+	private static function pick_signup_time( array $candidates, $latest ) {
+		if ( empty( $candidates ) ) {
+			return null;
+		}
+
+		usort(
+			$candidates,
+			static function ( $a, $b ) use ( $latest ) {
+				if ( $a['ts'] === $b['ts'] ) {
+					return $a['index'] <=> $b['index'];
+				}
+
+				$cmp = $a['ts'] <=> $b['ts'];
+
+				return $latest ? -$cmp : $cmp;
+			}
+		);
+
+		return $candidates[0]['id'];
+	}
+
+	/**
+	 * Build the provider-neutral record for one Planning Center signup.
+	 *
+	 * Registrations are not calendar events: there is no series id, and the
+	 * signup URL stays on registration_url rather than the TEC website field.
+	 * Church Center visibility and approval apply to calendar Events only.
+	 *
+	 * The date is select_registration_signup_time_id(): the next upcoming
+	 * signup time, or the most recent past time when none are upcoming. A stamp
+	 * from apply_registration_filter() wins so the filter and the import use
+	 * the same time. Context key `now` (unix timestamp) overrides the clock
+	 * when nothing was stamped.
+	 *
+	 * @param array $signup  The signup to format.
+	 * @param array $context Relational data.
+	 * @return array|false Neutral record, or false when the signup should be skipped.
+	 */
+	public function to_neutral_registration_event( $signup, $context ) {
 		$relational_data = $context['relational_data'];
 
-		// Dates live on the related SignupTime rows; use the first one. Without a
-		// usable start/end there is nothing to import as a dated event.
-		$time_ids  = wp_list_pluck( $signup['relationships']['signup_times']['data'] ?? [], 'id' );
-		$time_id   = current( $time_ids );
+		// Dates live on the related SignupTime rows. Without a usable start/end
+		// there is nothing to import as a dated event.
+		$time_id = $signup[ self::SELECTED_SIGNUP_TIME_ID ] ?? null;
+		if ( ! self::is_signup_time_id( $time_id ) ) {
+			$now     = is_array( $context ) ? ( $context['now'] ?? null ) : null;
+			$time_id = self::select_registration_signup_time_id(
+				$signup,
+				is_array( $relational_data ) ? $relational_data : [],
+				$now
+			);
+		}
 
-		if ( empty( $time_id ) ) {
+		if ( ! self::is_signup_time_id( $time_id ) ) {
 			// e.g. an "ongoing" registration — no scheduled dates, so it cannot become
 			// a dated event. Log it so the fetched-vs-processed counts add up.
-			cp_sync()->logging->log( sprintf(
-				'Skipping signup %s (%s): no scheduled dates (signup_times is empty)',
-				$signup['id'] ?? '?',
-				$signup['attributes']['name'] ?? 'unnamed'
-			) );
+			$time_links = $signup['relationships']['signup_times']['data'] ?? [];
+			if ( is_array( $time_links ) && isset( $time_links['id'] ) ) {
+				$time_links = [ $time_links ];
+			}
+			cp_sync()->logging->log(
+				sprintf(
+					'Skipping signup %s (%s): %s',
+					$signup['id'] ?? '?',
+					$signup['attributes']['name'] ?? 'unnamed',
+					( is_array( $time_links ) && count( $time_links ) > 0 )
+						? 'no signup time with a usable start'
+						: 'no scheduled dates (signup_times is empty)'
+				)
+			);
 			return false;
 		}
 
-		$start_date = $relational_data['SignupTime'][ $time_id ]['attributes']['starts_at'] ?? '';
-		$end_date   = $relational_data['SignupTime'][ $time_id ]['attributes']['ends_at'] ?? '';
-		$all_day    = $relational_data['SignupTime'][ $time_id ]['attributes']['all_day'] ?? false;
+		$start_raw = $relational_data['SignupTime'][ $time_id ]['attributes']['starts_at'] ?? '';
+		$end_raw   = $relational_data['SignupTime'][ $time_id ]['attributes']['ends_at'] ?? '';
+		$all_day   = $relational_data['SignupTime'][ $time_id ]['attributes']['all_day'] ?? false;
 
-		if ( ! $start_date || ! $end_date ) {
-			cp_sync()->logging->log( sprintf(
-				'Skipping signup %s (%s): signup time has no usable start/end date',
-				$signup['id'] ?? '?',
-				$signup['attributes']['name'] ?? 'unnamed'
-			) );
+		if ( ! $start_raw || ! $end_raw ) {
+			cp_sync()->logging->log(
+				sprintf(
+					'Skipping signup %s (%s): signup time has no usable start/end date',
+					$signup['id'] ?? '?',
+					$signup['attributes']['name'] ?? 'unnamed'
+				)
+			);
 			return false;
 		}
 
-		$start_date = ( new \DateTime( $start_date ) )->setTimezone( wp_timezone() );
-		$end_date   = ( new \DateTime( $end_date ) )->setTimezone( wp_timezone() );
+		$start_utc = \CP_Sync\Events\EventTime::to_utc( $start_raw );
+		$end_utc   = \CP_Sync\Events\EventTime::to_utc( $end_raw );
 
-		// Begin stuffing the output. chms_id is prefixed with `reg_` so registrations
-		// and calendar events never collide in the shared store keyspace (plan §3/§4).
-		$args = [
-			'chms_id'        => 'reg_' . $signup['id'],
-			'post_status'    => 'publish',
-			'post_title'     => $signup['attributes']['name'] ?? '',
-			'post_content'   => $signup['attributes']['description'] ?? '',
-			'tax_input'      => [],
-			'event_category' => [],
-			'thumbnail_url'  => '',
-			// Deliberately NO EventURL ( TEC "Event Website" ) for registrations: the
-			// only URL PCO exposes is the signup/reservation page, which already has a
-			// home as the "Register" button ( registration_url meta below ). Pointing
-			// the website field at the same reservation form would be redundant and
-			// would send visitors into a form instead of an event page.
-			'meta_input'     => [
-				'registration_url' => $signup['attributes']['new_registration_url'] ?? '',
-			],
-			'EventStartDate'   => $start_date->format( 'Y-m-d' ),
-			'EventStartHour'   => $start_date->format( 'G' ),
-			'EventStartMinute' => $start_date->format( 'i' ),
-			'EventEndDate'     => $end_date->format( 'Y-m-d' ),
-			'EventEndHour'     => $end_date->format( 'G' ),
-			'EventEndMinute'   => $end_date->format( 'i' ),
+		if ( null === $start_utc || null === $end_utc ) {
+			return false;
+		}
+
+		$site_timezone = \CP_Sync\Events\EventTime::wordpress_timezone_name();
+
+		$registration_url = $signup['attributes']['new_registration_url'] ?? '';
+		$meta_input       = [
+			'registration_url' => $registration_url,
 		];
-
-		if ( $all_day ) {
-			$args['EventAllDay'] = true;
-		}
 
 		// at_maximum_capacity is only present when the sparse fieldset request
 		// succeeded; expose sold-out state only when we actually have the value.
 		if ( array_key_exists( 'at_maximum_capacity', $signup['attributes'] ?? [] ) ) {
-			$args['meta_input']['registration_sold_out'] = ! empty( $signup['attributes']['at_maximum_capacity'] );
+			$meta_input['registration_sold_out'] = ! empty( $signup['attributes']['at_maximum_capacity'] );
 		}
 
-		// Featured image
-		if ( ! empty( $signup['attributes']['logo_url'] ) ) {
-			$args['thumbnail_url'] = $signup['attributes']['logo_url'];
-		}
-
-		// Categories. The documented Category vertex has no slug, so derive a stable
-		// slug from the name (TEC does the same when given a non-string key).
-		$category_ids = wp_list_pluck( $signup['relationships']['categories']['data'] ?? [], 'id' );
 		$categories   = [];
+		$category_ids = wp_list_pluck( $signup['relationships']['categories']['data'] ?? [], 'id' );
+
 		foreach ( $category_ids as $category_id ) {
 			$data = $relational_data['Category'][ $category_id ]['attributes'] ?? [];
 			if ( empty( $data['name'] ) ) {
@@ -2258,16 +2577,11 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$categories[ sanitize_title( $data['name'] ) ] = $data['name'];
 		}
 
-		if ( ! empty( $categories ) ) {
-			$args['event_category'] = $categories;
-		}
-
 		// Location. signup_location is a to-one relationship; normalize to a list so
-		// either an object or an array of one is handled. NOTE: despite the docs
-		// listing `address_data`, the live API returns a FLAT shape (name,
-		// formatted_address, latitude, longitude, …) — verified against a real
-		// account 2026-07-29 — so this uses the dedicated flat parser, NOT the
-		// Google-components get_location_details().
+		// either an object or an array of one is handled. The live API returns a
+		// flat shape (name, formatted_address, latitude, longitude), so this uses
+		// parse_signup_location() rather than get_location_details().
+		$venue        = [];
 		$location_rel = $signup['relationships']['signup_location']['data'] ?? [];
 		if ( isset( $location_rel['id'] ) ) {
 			$location_rel = [ $location_rel ];
@@ -2277,12 +2591,313 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			$data     = $relational_data['SignupLocation'][ $location_id ]['attributes'] ?? [];
 			$location = self::parse_signup_location( $data );
 			if ( ! empty( $location['venue'] ) ) {
-				$args['EventVenue'] = $location;
+				$venue = $location;
 				break;
 			}
 		}
 
-		return $args;
+		// A missing or unreadable price must not drop the signup. When selection
+		// types were not in the response, the price keys stay off the record so
+		// stored values are left alone. A good response with no public price
+		// writes an empty display price, which clears it.
+		$prices_known = self::registration_prices_known( $signup, is_array( $relational_data ) ? $relational_data : array(), $context );
+		$price        = self::empty_registration_price();
+
+		if ( $prices_known ) {
+			try {
+				$price = self::registration_price_from_signup(
+					$signup,
+					is_array( $relational_data ) ? $relational_data : array()
+				);
+			} catch ( \Throwable $e ) {
+				$prices_known = false;
+				if ( function_exists( 'cp_sync' ) ) {
+					cp_sync()->logging->log(
+						sprintf(
+							'Registration price skipped for signup %s: %s',
+							$signup['id'] ?? '?',
+							$e->getMessage()
+						)
+					);
+				}
+			}
+		}
+
+		$record = [
+			'provider'         => 'pco',
+			'kind'             => 'registration',
+			'chms_id'          => 'reg_' . $signup['id'],
+			'title'            => $signup['attributes']['name'] ?? '',
+			'content'          => $signup['attributes']['description'] ?? '',
+			'excerpt'          => '',
+			'post_status'      => 'publish',
+			'thumbnail_url'    => ! empty( $signup['attributes']['logo_url'] ) ? $signup['attributes']['logo_url'] : '',
+			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
+			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
+			'site_timezone'    => $site_timezone,
+			'all_day'          => (bool) $all_day,
+			'location_name'    => $venue['venue'] ?? '',
+			'venue'            => $venue,
+			'registration_url' => $registration_url,
+			'event_url'        => '',
+			'tax_input'        => [],
+			'event_category'   => $categories,
+			'meta_input'       => $meta_input,
+		];
+
+		if ( ! $prices_known ) {
+			return $record;
+		}
+
+		$meta_input[ \CP_Sync\Events\Meta::REGISTRATION_PRICE ] = $price['display'];
+		$record['registration_price']                           = $price['display'];
+
+		if ( '' !== $price['cost'] ) {
+			// TEC cost fields are written only when Planning Center sent a price.
+			// The marker is the value this sync stored, so a later empty price
+			// can tell a sync-owned cost from a hand edit.
+			$meta_input['_EventCost']                            = $price['cost'];
+			$meta_input['_EventCurrencySymbol']                  = $price['symbol'];
+			$meta_input['_EventCurrencyPosition']                = $price['position'];
+			$meta_input[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] = $price['cost'];
+		} else {
+			$meta_input[ \CP_Sync\Events\Meta::SYNC_EVENT_COST ] = '';
+		}
+
+		$record['meta_input'] = $meta_input;
+
+		return $record;
+	}
+
+	/**
+	 * Whether this signup's price can be read from the response.
+	 *
+	 * An explicit context flag wins. It is false after a fallback request and
+	 * when the payload carried no selection_types data. Without a flag, a
+	 * selection_types relationship or included SelectionType means the include
+	 * arrived. Anything else is treated as "not in the response".
+	 *
+	 * @param array $signup          Signup resource.
+	 * @param array $relational_data Included records.
+	 * @param array $context         Formatter context.
+	 * @return bool
+	 */
+	public static function registration_prices_known( $signup, array $relational_data, $context ) {
+		if ( is_array( $context ) && array_key_exists( 'registration_prices_known', $context ) ) {
+			return (bool) $context['registration_prices_known'];
+		}
+
+		if ( is_array( $signup ) && array_key_exists( 'selection_types', $signup['relationships'] ?? array() ) ) {
+			return true;
+		}
+
+		return ! empty( $relational_data['SelectionType'] ) && is_array( $relational_data['SelectionType'] );
+	}
+
+	/**
+	 * Display price for one signup's publicly available selection types.
+	 *
+	 * Selection types that are not linked on the signup are ignored, so prices
+	 * included for a different signup are not applied here. A missing
+	 * relationship yields no price.
+	 *
+	 * @param array $signup          Signup JSON:API resource.
+	 * @param array $relational_data Included records keyed by type, then id.
+	 * @return array{display: string, cost: string, symbol: string, position: string}
+	 */
+	public static function registration_price_from_signup( $signup, $relational_data ) {
+		if ( ! is_array( $signup ) || ! is_array( $relational_data ) ) {
+			return self::empty_registration_price();
+		}
+
+		$rel = $signup['relationships']['selection_types']['data'] ?? null;
+
+		if ( null === $rel ) {
+			return self::empty_registration_price();
+		}
+
+		if ( isset( $rel['id'] ) ) {
+			$rel = array( $rel );
+		}
+
+		if ( ! is_array( $rel ) ) {
+			return self::empty_registration_price();
+		}
+
+		$types = array();
+
+		foreach ( $rel as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+
+			$id = isset( $row['id'] ) ? (string) $row['id'] : '';
+
+			if ( '' === $id ) {
+				continue;
+			}
+
+			$record = $relational_data['SelectionType'][ $id ] ?? null;
+
+			if ( is_array( $record ) ) {
+				$types[] = $record;
+			}
+		}
+
+		return self::registration_price( $types );
+	}
+
+	/**
+	 * Turn selection types into the price stored on the event.
+	 *
+	 * Only publicly available types count. One price is the currency symbol
+	 * plus price_formatted. Several prices are a range from the lowest to the
+	 * highest. Every price at zero is Free. No usable types is no price.
+	 *
+	 * `cost` is the number (or numeric range, or Free) written to The Events
+	 * Calendar's `_EventCost`. `symbol` is `_EventCurrencySymbol`. `position`
+	 * is `_EventCurrencyPosition` (`prefix` when a symbol is present).
+	 * `display` is the string shown on CP Sync's own event pages.
+	 *
+	 * @param array $selection_types SelectionType resources, or attribute arrays.
+	 * @return array{display: string, cost: string, symbol: string, position: string}
+	 */
+	public static function registration_price( array $selection_types ) {
+		$prices = array();
+
+		foreach ( $selection_types as $type ) {
+			if ( ! is_array( $type ) ) {
+				continue;
+			}
+
+			$attrs = ( isset( $type['attributes'] ) && is_array( $type['attributes'] ) ) ? $type['attributes'] : $type;
+
+			if ( ! self::selection_type_is_public( $attrs ) ) {
+				continue;
+			}
+
+			if ( ! array_key_exists( 'price_cents', $attrs ) || ! is_numeric( $attrs['price_cents'] ) ) {
+				continue;
+			}
+
+			$cents     = (int) $attrs['price_cents'];
+			$formatted = self::price_text( $attrs['price_formatted'] ?? '' );
+
+			if ( '' === $formatted ) {
+				$formatted = number_format( $cents / 100, 2, '.', '' );
+			}
+
+			$prices[] = array(
+				'cents'     => $cents,
+				'formatted' => $formatted,
+				'symbol'    => self::price_text( $attrs['price_currency_symbol'] ?? '' ),
+			);
+		}
+
+		if ( empty( $prices ) ) {
+			return self::empty_registration_price();
+		}
+
+		$all_zero = true;
+
+		foreach ( $prices as $price ) {
+			if ( 0 !== $price['cents'] ) {
+				$all_zero = false;
+				break;
+			}
+		}
+
+		if ( $all_zero ) {
+			$free   = __( 'Free', 'cp-sync' );
+			$symbol = $prices[0]['symbol'];
+
+			return array(
+				'display'  => $free,
+				'cost'     => $free,
+				'symbol'   => $symbol,
+				'position' => '' !== $symbol ? 'prefix' : '',
+			);
+		}
+
+		$min = $prices[0];
+		$max = $prices[0];
+
+		foreach ( $prices as $price ) {
+			if ( $price['cents'] < $min['cents'] ) {
+				$min = $price;
+			}
+
+			if ( $price['cents'] > $max['cents'] ) {
+				$max = $price;
+			}
+		}
+
+		if ( $min['cents'] === $max['cents'] ) {
+			return array(
+				'display'  => $min['symbol'] . $min['formatted'],
+				'cost'     => $min['formatted'],
+				'symbol'   => $min['symbol'],
+				'position' => '' !== $min['symbol'] ? 'prefix' : '',
+			);
+		}
+
+		// A spaced en dash separates the ends. The Events Calendar pulls the
+		// numbers back out and applies one currency symbol. The display string
+		// already includes a symbol on each end. A signup is one currency; the
+		// lowest price's symbol is the one stored for The Events Calendar.
+		$separator = ' – ';
+
+		return array(
+			'display'  => $min['symbol'] . $min['formatted'] . $separator . $max['symbol'] . $max['formatted'],
+			'cost'     => $min['formatted'] . $separator . $max['formatted'],
+			'symbol'   => $min['symbol'],
+			'position' => '' !== $min['symbol'] ? 'prefix' : '',
+		);
+	}
+
+	/**
+	 * No public price. Callers write this only when selection types were in the response.
+	 *
+	 * @return array{display: string, cost: string, symbol: string, position: string}
+	 */
+	public static function empty_registration_price() {
+		return array(
+			'display'  => '',
+			'cost'     => '',
+			'symbol'   => '',
+			'position' => '',
+		);
+	}
+
+	/**
+	 * Whether a selection type is offered on the public registration.
+	 *
+	 * Missing and false are hidden. Only an explicit public flag counts.
+	 *
+	 * @param array $attrs SelectionType attributes.
+	 * @return bool
+	 */
+	protected static function selection_type_is_public( array $attrs ) {
+		if ( ! array_key_exists( 'publicly_available', $attrs ) ) {
+			return false;
+		}
+
+		$value = $attrs['publicly_available'];
+
+		return true === $value || 1 === $value || '1' === $value || 'true' === $value;
+	}
+
+	/**
+	 * Plain single-line price text from the API.
+	 *
+	 * @param mixed $value Raw attribute.
+	 * @return string
+	 */
+	protected static function price_text( $value ) {
+		$value = trim( strip_tags( (string) $value ) );
+		$value = preg_replace( '/\s+/', ' ', $value );
+
+		return trim( (string) $value );
 	}
 
 	/**
@@ -2534,14 +3149,12 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 	public function get_registration_filter_config() {
 		return [
 			// Signup has no date attributes of its own; the dates live on the related
-			// SignupTime rows. DataFilter's relation lookup resolves a single related
-			// id, so we point at the FIRST signup_time (`...data.0.id`) and read its
-			// starts_at/ends_at. Signups with multiple times are filtered on their
-			// first occurrence — a documented, pragmatic limitation of the single-id
-			// relation mechanism (see review notes / needs live verification).
+			// SignupTime rows. apply_registration_filter() stamps the selected time
+			// (next upcoming starts_at, else the most recent past time) and both
+			// rules read that id, which is the time the import uses too.
 			'start_date' => [
 				'label'         => __( 'Start Date', 'cp-sync' ),
-				'path'          => 'relationships.signup_times.data.0.id',
+				'path'          => self::SELECTED_SIGNUP_TIME_ID,
 				'relation'      => 'SignupTime',
 				'relation_path' => 'attributes.starts_at',
 				'type'          => 'date',
@@ -2549,7 +3162,7 @@ class PCO extends \CP_Sync\ChMS\ChMS {
 			],
 			'end_date' => [
 				'label'         => __( 'End Date', 'cp-sync' ),
-				'path'          => 'relationships.signup_times.data.0.id',
+				'path'          => self::SELECTED_SIGNUP_TIME_ID,
 				'relation'      => 'SignupTime',
 				'relation_path' => 'attributes.ends_at',
 				'type'          => 'date',

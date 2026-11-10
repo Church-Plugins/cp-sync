@@ -1,0 +1,9 @@
+// Event and series pages: list, detail, and shortcode. There is no CP product to
+// copy these from, so they use the same tokens and .cp-button as CP Groups.
+@import "../frontend-shared/framework";
+@import "../frontend-shared/base";
+
+.cp-sync-display {
+	@import "list";
+	@import "detail";
+}

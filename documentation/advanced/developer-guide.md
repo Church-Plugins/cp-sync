@@ -43,7 +43,18 @@ apply_filters('cp_sync_pco_group_leader_email', $email, $group, $leader_meta);
 // mu-plugin, not a theme: it is read once when CP Sync loads. Defining the
 // CP_SYNC_DEBUG constant as true also works.
 apply_filters('cp_sync_debug_mode', $debug_mode);
+
+// Public address for CP Sync event pages. Default "events" (/events/).
+// Used only when The Events Calendar is not active.
+apply_filters('cp_sync_event_rewrite_slug', 'events');
+
+// Public address for CP Sync series pages. Default "event-series"
+// so it does not take /series/ from CP Sermons. Filter it to "series"
+// on a site that does not use that address.
+apply_filters('cp_sync_event_series_rewrite_slug', 'event-series');
 ```
+
+A published event page can download a calendar file for that one date by adding `?cp-sync-ics=1` to its permalink. The file is built on the site from the stored start and end. Series pages do not offer a file, and neither does a password-protected date or a date without a real start. The parameter is ignored on every other URL.
 
 ## Preserving Past Events
 
@@ -84,6 +95,23 @@ add_filter('cp_sync_remove_past_events', function($remove_past, $chms_id, $post_
 
 To keep an individual event untouched by sync entirely — past or future — use the lock
 option on the event itself rather than this filter.
+
+## Groups Lite templates
+
+When CP Groups is not active and **Sync Groups** is on for the active church management system, CP Sync registers `cp_group` (archive slug `groups`) plus `cp_group_type`, `cp_group_category`, and `cp_group_life_stage`. These types are public but have no admin screens or REST routes. An events-only site does not get that archive. An unsaved **Sync Groups** or **Sync Events** toggle is on only while CP Groups or The Events Calendar is active. The 1.2.0 upgrade saves both toggles once: without the plugin, off, even if saved on; with the plugin, a saved value stays and an unsaved toggle is stored on. Activating CP Groups registers those same names and takes over the posts. The life-stage rewrite slug stays `life stages` (with the space) until a follow-up in both plugins.
+
+Theme overrides live in `cp-sync/` inside the theme:
+
+- `cp-sync/groups/archive.php`
+- `cp-sync/groups/single.php`
+
+The lookup is `CP_Sync\get_template_hierarchy()`. The shortcode is `[cp-sync-groups count="12" type="small-groups"]`. Leader output reads the `leaders` meta rows first (name only), then the legacy `leader` value. Emails are not printed.
+
+Groups Lite uses CP Groups' class names: `cp-pg-template`, `cp-groups-archive`, `cp-group-item` with `cp-group-item--disable-modal`, and `cp-group-single`. `src/groups-display/group/_list.scss` and `_single.scss` are copies of the CP Groups files, so a design change there can be copied over. Lite-only rules are in `_lite.scss`. Rules are scoped under `.cp-sync-display` so they outrank common theme rules, and one more class overrides them. Values come from the ChurchPlugins `--cp-*` variables.
+
+## Events calendar
+
+`GET /wp-json/cp-sync/v1/events?start=YYYY-MM-DD&end=YYYY-MM-DD&category=slug` is a public, read-only route that returns published dates without a password. It is registered only while CP Sync's event pages are on. The range can be at most 100 days, and a response has at most 500 dates. `start` and `end` are the event's stored local clock time with no offset, so the calendar does not shift them to the visitor's timezone. `url` is the date's own page. Text fields are plain text. Write them as text, not HTML.
 
 ## REST API Endpoints
 

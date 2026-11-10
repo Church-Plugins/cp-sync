@@ -958,11 +958,11 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * from midnight to 23:59 ( single- or multi-day ). Detect that shape so
 	 * TEC can render "All Day" instead of a literal 12:00am - 11:59pm range.
 	 *
-	 * @param \DateTime $start The event start.
-	 * @param \DateTime $end   The event end.
+	 * @param \DateTimeInterface $start The event start.
+	 * @param \DateTimeInterface $end   The event end.
 	 * @return bool
 	 */
-	public static function is_all_day_span( \DateTime $start, \DateTime $end ) {
+	public static function is_all_day_span( \DateTimeInterface $start, \DateTimeInterface $end ) {
 		return '00:00' === $start->format( 'H:i' ) && '23:59' === $end->format( 'H:i' );
 	}
 
@@ -974,49 +974,24 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 	 * @return array
 	 */
 	public function format_event( $event, $context ) {
-		// Data has been normalized in normalize_ccb_event
-		$start_date = new \DateTime( $event['start_datetime'] ?? 'now' );
-		$end_date   = new \DateTime( $event['end_datetime'] ?? 'now' );
-
-		// Use event ID as chms_id (event_id for public_calendar_listing)
-		$event_id = $event['event_id'] ?? $event['id'] ?? md5( $event['name'] . $start_date->getTimestamp() );
-
-		$base_url = $this->get_base_url();
-		$event_url = $base_url ? $base_url . 'event_detail.php?event_id=' . $event_id : '';
-
-		// Handle image (public_calendar_listing uses 'image' field)
-		$thumbnail = '';
-		if ( ! empty( $event['image'] ) && is_string( $event['image'] ) ) {
-			$thumbnail = $event['image'];
+		if ( ! \CP_Sync\Events\EventVisibility::ccb_is_syncable( $event ) ) {
+			\CP_Sync\Events\VisibilityRemovalNotice::record_skip( $event['event_id'] ?? ( $event['id'] ?? '' ) );
+			cp_sync()->logging->log(
+				sprintf(
+					'Skipping CCB event "%s": not approved or not publicly listed',
+					$event['name'] ?? ''
+				)
+			);
+			return false;
 		}
 
-		$args = [
-			// post data
-			'chms_id'       => $event_id,
-			'post_status'   => 'publish',
-			'post_title'    => trim( $event['name'] ?? '' ),
-			'post_content'  => $event['description'] ?? '',
-			'thumbnail_url' => $thumbnail,
+		$neutral = $this->to_neutral_event( $event, is_array( $context ) ? $context : [] );
 
-			// Event Data
-			'EventStartDate' => $start_date->format( 'Y-m-d H:i:s' ),
-			'EventEndDate'   => $end_date->format( 'Y-m-d H:i:s' ),
-			'EventAllDay'    => self::is_all_day_span( $start_date, $end_date ),
-			'EventTimezone'  => $event['timezone'] ?? $start_date->getTimezone()->getName(),
-			'EventURL'       => $event_url,
+		if ( false === $neutral ) {
+			return false;
+		}
 
-			'tax_input'      => [],
-			'event_category' => [],
-
-			// extra meta
-			'meta_input' => [
-				'event_type'       => $event['event_type'] ?? '',
-				'group_name'       => $event['group'] ?? '',
-				'organizer_name'   => $event['organizer'] ?? '',
-				'approval_status'  => $event['approval_status'] ?? '',
-				'_chms_modified'   => $event['_chms_modified'] ?? '',
-			],
-		];
+		\CP_Sync\Events\NeutralFeed::add( $neutral );
 
 		// Skip venue creation during initial import for CCB events.
 		// public_calendar_listing only provides a venue name (no address), so creating
@@ -1033,10 +1008,94 @@ class CCB extends \CP_Sync\ChMS\ChMS {
 			);
 		}
 
-		// Note: public_calendar_listing returns individual occurrences, not recurring definitions
-		// Each occurrence is returned as a separate item in the API response
+		return \CP_Sync\Events\TecEventMapper::to_tec_item( $neutral );
+	}
 
-		return $args;
+	/**
+	 * Build the provider-neutral record for one CCB occurrence.
+	 *
+	 * Listing times are naive wall-clock values. A valid event timezone is
+	 * used to read that clock, as the EventTimezone label, and for the UTC
+	 * meta. Otherwise the WordPress site timezone is used for all three.
+	 *
+	 * @param array $event   Normalized event row.
+	 * @param array $context Unused. Kept for the formatter signature.
+	 * @return array|false
+	 */
+	public function to_neutral_event( $event, $context ) {
+		$explicit = ( isset( $event['timezone'] ) && is_string( $event['timezone'] ) ) ? $event['timezone'] : '';
+		$zone     = \CP_Sync\Events\EventTime::is_valid_timezone( $explicit )
+			? $explicit
+			: \CP_Sync\Events\EventTime::wordpress_timezone_name();
+
+		$start_raw = $event['start_datetime'] ?? 'now';
+		$end_raw   = $event['end_datetime'] ?? 'now';
+
+		$start_utc = \CP_Sync\Events\EventTime::to_utc( $start_raw, $zone );
+		$end_utc   = \CP_Sync\Events\EventTime::to_utc( $end_raw, $zone );
+
+		// A start such as "TBD" used to throw from DateTime before this
+		// guard, which aborted the whole sync instead of skipping the row.
+		if ( null === $start_utc || null === $end_utc ) {
+			return false;
+		}
+
+		// The id fallback hash uses the same instant the previous formatter used.
+		$event_id = $event['event_id'] ?? $event['id'] ?? '';
+
+		if ( '' === (string) $event_id ) {
+			try {
+				$legacy_start = new \DateTime( $start_raw );
+			} catch ( \Exception $e ) {
+				return false;
+			}
+
+			$event_id = md5( ( $event['name'] ?? '' ) . $legacy_start->getTimestamp() );
+		}
+
+		$local_start = \CP_Sync\Events\EventTime::to_local( \CP_Sync\Events\EventTime::format_utc( $start_utc ), $zone );
+		$local_end   = \CP_Sync\Events\EventTime::to_local( \CP_Sync\Events\EventTime::format_utc( $end_utc ), $zone );
+
+		$base_url  = $this->get_base_url();
+		$event_url = $base_url ? $base_url . 'event_detail.php?event_id=' . $event_id : '';
+
+		$thumbnail = '';
+		if ( ! empty( $event['image'] ) && is_string( $event['image'] ) ) {
+			$thumbnail = $event['image'];
+		}
+
+		$location_name = '';
+		if ( ! empty( $event['location_name'] ) && is_string( $event['location_name'] ) ) {
+			$location_name = $event['location_name'];
+		}
+
+		return [
+			'provider'         => 'ccb',
+			'chms_id'          => $event_id,
+			'series_id'        => (string) $event_id,
+			'title'            => trim( $event['name'] ?? '' ),
+			'content'          => $event['description'] ?? '',
+			'excerpt'          => '',
+			'post_status'      => 'publish',
+			'thumbnail_url'    => $thumbnail,
+			'start_utc'        => \CP_Sync\Events\EventTime::format_utc( $start_utc ),
+			'end_utc'          => \CP_Sync\Events\EventTime::format_utc( $end_utc ),
+			'timezone'         => $zone,
+			'all_day'          => self::is_all_day_span( $local_start, $local_end ),
+			'location_name'    => $location_name,
+			'event_url'        => $event_url,
+			'visible'          => null,
+			'approval_status'  => array_key_exists( 'approval_status', $event ) ? \CP_Sync\Events\EventVisibility::approval_status_text( $event['approval_status'] ) : '',
+			'tax_input'        => [],
+			'event_category'   => [],
+			'meta_input'       => [
+				'event_type'      => $event['event_type'] ?? '',
+				'group_name'      => $event['group'] ?? '',
+				'organizer_name'  => $event['organizer'] ?? '',
+				'approval_status' => \CP_Sync\Events\EventVisibility::approval_status_text( $event['approval_status'] ?? '' ),
+				'_chms_modified'  => $event['_chms_modified'] ?? '',
+			],
+		];
 	}
 
 	/**

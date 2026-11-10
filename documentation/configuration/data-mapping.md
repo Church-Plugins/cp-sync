@@ -4,7 +4,7 @@ CP Sync copies fields from your church management system into WordPress on a fix
 
 ## Groups
 
-Groups are created as CP Groups. Turn on **Sync Groups** on the **Connect** tab, with CP Groups active. See [CP Groups](../integrations/cp-groups.md).
+Groups are saved as groups on your site. Turn on **Sync Groups** on the **Connect** tab. Without CP Groups, CP Sync shows them on your site. See [Show Groups on Your Site](../integrations/show-groups.md). With CP Groups active, that plugin shows them. See [CP Groups](../integrations/cp-groups.md).
 
 ### Planning Center
 
@@ -50,7 +50,9 @@ When CP Locations is active, campus or area is assigned as the group's location 
 
 ## Events
 
-Events are created in The Events Calendar. Turn on **Sync Events** on the **Connect** tab, with The Events Calendar active. See [The Events Calendar](../integrations/the-events-calendar.md).
+When The Events Calendar is active, events are created there. Turn on **Sync Events** on the **Connect** tab. See [The Events Calendar](../integrations/the-events-calendar.md).
+
+When it is not active, CP Sync creates its own event and series pages. See [Events on your site](../integrations/events-on-your-site.md#what-is-copied).
 
 ### Planning Center Calendar
 
@@ -61,14 +63,14 @@ On the **Events** tab, set **Event source** to **Pull from Calendar** or **Calen
 | Name | Event title |
 | Description | Event page body |
 | Summary | Excerpt, used by listings that show a summary |
-| Start and end | Event start and end |
+| Start and end | Event start and end, in the WordPress site timezone |
 | Location | Venue |
 | Image | Featured image |
 | Tag groups selected under **Tag groups** | Taxonomies on the event |
 
 **Summary** and **Description** are described in [Planning Center Online](../chms/planning-center.md#how-event-text-maps-from-planning-center) and [What's New in CP Sync 1.0.0](../getting-started/whats-new-1-0-0.md#planning-center-how-event-text-maps).
 
-Calendar sync imports future event instances.
+Calendar sync imports future event instances. With **Only Visible in Church Center**, hidden events and events with an explicit non-approved status are skipped. **Show All** does not apply that filter.
 
 ### Planning Center Registrations
 
@@ -78,10 +80,11 @@ Set **Event source** to **Pull from Registrations** or **Calendar AND Registrati
 |-----------------|---------------------|
 | Name | Event title |
 | Description | Event page body |
-| First signup time (start and end) | Event start and end |
+| Next upcoming signup time (start and end). When every time is in the past, the most recent past time. | Event start and end |
 | Signup location | Venue |
 | Logo | Featured image |
 | Categories | Event categories |
+| Public registration prices | Event cost. One option shows that price. Several options show a range from the lowest to the highest, such as $75 – $200. When every public option is free, the event says Free. A signup with no public price has no cost. |
 
 When **Event source** is **Calendar AND Registrations**, the **Events** tab shows **Events are not deduplicated across Calendar and Registrations — an event published in both will import twice.**
 
@@ -91,10 +94,10 @@ When **Event source** is **Calendar AND Registrations**, the **Events** tab show
 |--------------------------|---------------------|
 | Name | Event title |
 | Description | Event page body |
-| Start and end | Event start and end |
+| Start and end | Event start and end. The clock time is the time CCB sent. The timezone is the event's zone when CCB sends a valid timezone, otherwise the WordPress site timezone. |
 | Image | Featured image |
 
-Each occurrence is imported as its own event. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
+Dates that share one Church Community Builder event id update the same Events Calendar event. When that event has a numeric id, the event profile can add a venue with the name, street, city, state, and zip, and an image. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
 
 ## Sermons
 
@@ -112,4 +115,4 @@ Open the feed tab and use its filter:
 
 The filter line reads **Pull Groups where**, **Pull Events where**, **Pull Sermons where**, **Pull Calendar Filters where**, or **Pull Registration Filters where**, then **All** or **Any**, then **of the following match**. Add a rule with **Add Condition**.
 
-For Planning Center Calendar events, **Visibility** under **Calendar Settings** is separate from the **Calendar Filters** builder. An empty **Calendar Filters** builder does not turn **Visibility** off.
+For Planning Center Calendar events, **Visibility** under **Calendar Settings** is separate from the **Calendar Filters** builder. An empty **Calendar Filters** builder does not turn **Visibility** off. **Only Visible in Church Center** skips hidden events and events with an explicit non-approved status. **Show All** does not. When **Only Visible in Church Center** is selected for groups, groups that are not listed or not public are skipped when Planning Center sends those fields.

@@ -143,13 +143,138 @@ function get_template_hierarchy( $template, $args = [] ) {
  * @author Tanner Moushey
  */
 function get_template_part( $template, $args = [], $return = false ) {
-	$template = get_template_hierarchy( $template );
-	
+	$template_path = get_template_hierarchy( $template );
+
+	if ( ! is_string( $template_path ) || '' === $template_path || ! file_exists( $template_path ) ) {
+		return $return ? '' : null;
+	}
+
+	if ( ! is_array( $args ) ) {
+		$args = [];
+	}
+
+	$render = static function () use ( $template_path, $args ) {
+		if ( $args ) {
+			// Template variables are the documented way themes receive data. EXTR_SKIP
+			// keeps this function's own locals from being overwritten.
+			extract( $args, EXTR_SKIP ); // phpcs:ignore WordPress.PHP.DontExtract.extract_extract
+		}
+
+		include $template_path;
+	};
+
 	if ( $return ) {
 		ob_start();
-		include ( $template );
+		$render();
 		return ob_get_clean();
-	} else {
-		include ( $template );
 	}
+
+	$render();
+}
+
+/**
+ * Print a theme template part the way a block template does.
+ *
+ * The template part block runs the part's own shortcodes before its blocks
+ * render, and adds the wrapping element. block_template_part() does neither.
+ * A value a block prints from the request, such as the search box, therefore
+ * never reaches do_shortcode().
+ *
+ * @since 1.2.0
+ *
+ * @param string $slug Part slug and wrapping element: header or footer.
+ * @return void
+ */
+function print_block_template_part( $slug ) {
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Block output, as in core.
+	echo do_blocks( sprintf( '<!-- wp:template-part {"slug":"%1$s","tagName":"%1$s"} /-->', $slug ) );
+}
+
+/**
+ * Render a plugin template into the block theme canvas.
+ *
+ * get_the_block_template_html() runs autoembed and do_shortcode over the stored
+ * content. Theme parts have already had that pass when they print, and ChMS and
+ * request values must not get one, so the whole capture is protected.
+ *
+ * The file loads at the same scope as the WordPress template loader, so it can
+ * read the query globals and cannot change this function's variables. wp_head()
+ * still runs after the capture and prints what the template registered.
+ *
+ * @since 1.2.0
+ *
+ * @param string $file     Plugin or theme override template.
+ * @param mixed  $template Incoming template_include path.
+ * @return string Canvas path, or an empty string when the file should load directly.
+ */
+function render_for_block_canvas( $file, $template ) {
+	$canvas = block_canvas_template( $template );
+
+	if ( '' === $canvas ) {
+		return '';
+	}
+
+	global $_wp_current_template_content, $post;
+
+	$previous = ( isset( $post ) && $post instanceof \WP_Post ) ? $post : null;
+
+	ob_start();
+	load_template( $file, false );
+	$_wp_current_template_content = Groups\Display::protect_block_template_html( ob_get_clean() );
+
+	if ( $previous instanceof \WP_Post && function_exists( 'setup_postdata' ) ) {
+		$post = $previous; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restores the post the template loop moved.
+		setup_postdata( $previous );
+	} elseif ( function_exists( 'wp_reset_postdata' ) ) {
+		wp_reset_postdata();
+	}
+
+	return $canvas;
+}
+
+/**
+ * Canvas path for the current request.
+ *
+ * A block theme can still hand template_include a PHP template when a more
+ * specific PHP file wins over the block index. Looking up the index canvas
+ * before the capture is what puts the markup in the canvas, because the lookup
+ * replaces the template content. An incoming canvas is kept, because looking it
+ * up again would register the canvas head hooks a second time.
+ *
+ * @since 1.2.0
+ *
+ * @param mixed $template Incoming template path.
+ * @return string Canvas path, or an empty string when there is no canvas.
+ */
+function block_canvas_template( $template ) {
+	if ( ! function_exists( 'wp_is_block_theme' ) || ! wp_is_block_theme() ) {
+		return '';
+	}
+
+	if ( ! function_exists( 'locate_block_template' ) ) {
+		return '';
+	}
+
+	if ( is_template_canvas( $template ) ) {
+		return $template;
+	}
+
+	$located = locate_block_template( '', 'index', array( 'index' ) );
+
+	return is_template_canvas( $located ) ? $located : '';
+}
+
+/**
+ * Whether a path is the WordPress block template canvas.
+ *
+ * @since 1.2.0
+ *
+ * @param mixed $path Template path.
+ * @return bool
+ */
+function is_template_canvas( $path ) {
+	return is_string( $path )
+		&& '' !== $path
+		&& file_exists( $path )
+		&& 'template-canvas.php' === basename( $path );
 }

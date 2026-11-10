@@ -195,10 +195,20 @@ class Reset {
 		$summary = [
 			'queue'   => $this->clear_queue(),
 			'options' => [],
+			'caches'  => 0,
 		];
 
 		foreach ( self::state_option_prefixes() as $prefix ) {
 			$summary['options'][ $prefix . '%' ] = $this->delete_options_like( $prefix );
+		}
+
+		foreach ( $this->get_integrations() as $integration ) {
+			if ( ! is_object( $integration ) || empty( $integration->id ) || ! method_exists( $integration, 'flush_chms_id_cache' ) ) {
+				continue;
+			}
+
+			$integration->flush_chms_id_cache();
+			$summary['caches']++;
 		}
 
 		return $summary;
@@ -231,6 +241,14 @@ class Reset {
 
 		$summary['attachments'] = $this->delete_sideloaded_attachments();
 		$summary['files']       = $this->remove_image_cache_dir();
+
+		/**
+		 * After imported integration content is deleted.
+		 *
+		 * CP Sync event posts are not owned by an Integration subclass, so the
+		 * display layer removes them here.
+		 */
+		do_action( 'cp_sync_reset_content', $this );
 
 		return $summary;
 	}

@@ -66,11 +66,10 @@ class _Init {
 	 * @return void
 	 */
 	protected function includes() {
-		$integrations = [];
-
-		if ( function_exists( 'cp_groups' ) ) {
-			$integrations[ 'cp_groups' ] = '\CP_Sync\Integrations\CP_Groups';
-		}
+		// Writes to cp_group, which CP Groups or Groups Lite registers.
+		$integrations = [
+			'cp_groups' => '\CP_Sync\Integrations\CP_Groups',
+		];
 
 		if ( defined( 'TRIBE_EVENTS_FILE' ) ) {
 			$integrations[ 'tec' ] = '\CP_Sync\Integrations\TEC';
@@ -102,28 +101,23 @@ class _Init {
 	}
 
 	/**
-	 * Whether an integration type's required companion plugin is active.
+	 * Whether an integration type has somewhere to send its items.
 	 *
-	 * The two pinned conditions ( mirroring includes() ): Groups needs the CP Groups
-	 * plugin ( cp_groups() ), Events needs The Events Calendar ( TRIBE_EVENTS_FILE ).
+	 * Groups and events are always available, because CP Sync shows them itself
+	 * when CP Groups or The Events Calendar is absent. Sermons need CP Sermons.
 	 * Any other type is treated as available ( it is gated elsewhere, e.g. the
 	 * supported-types check in pull_integration() ).
 	 *
 	 * @since 0.4.0
-	 * @param string $type The integration type ( 'groups' | 'events' ).
+	 * @param string $type The integration type.
 	 * @return bool
 	 */
 	public static function is_integration_available( $type ) {
-		switch ( $type ) {
-			case 'groups':
-				return function_exists( 'cp_groups' );
-			case 'events':
-				return defined( 'TRIBE_EVENTS_FILE' );
-			case 'sermons':
-				return function_exists( 'cp_library' );
-			default:
-				return true;
+		if ( 'sermons' === $type ) {
+			return function_exists( 'cp_library' );
 		}
+
+		return true;
 	}
 
 	/**
@@ -133,20 +127,15 @@ class _Init {
 	 * both surfaces speak with one voice.
 	 *
 	 * @since 0.4.0
-	 * @param string $type The integration type ( 'groups' | 'events' ).
+	 * @param string $type The integration type.
 	 * @return string
 	 */
 	public static function integration_unavailable_message( $type ) {
-		switch ( $type ) {
-			case 'groups':
-				return __( 'Requires the CP Groups plugin, which is not active on this site.', 'cp-sync' );
-			case 'events':
-				return __( 'Requires The Events Calendar plugin, which is not active on this site.', 'cp-sync' );
-			case 'sermons':
-				return __( 'Requires the CP Sermons plugin, which is not active on this site.', 'cp-sync' );
-			default:
-				return __( 'This integration is not available on this site.', 'cp-sync' );
+		if ( 'sermons' === $type ) {
+			return __( 'Requires the CP Sermons plugin, which is not active on this site.', 'cp-sync' );
 		}
+
+		return __( 'This integration is not available on this site.', 'cp-sync' );
 	}
 
 	/**
@@ -243,9 +232,13 @@ class _Init {
 			return new WP_Error( 'invalid_integration_type', 'Invalid integration type. Supported types are `' . implode( '`, `', self::$supported_types ) . '`' );
 		}
 
-		// (a) Availability: the required companion plugin must be active. Guards the
-		// manual pull buttons, the REST /pull + /pull/{type} routes, and the cron path
-		// ( which funnels through pull_content() → here ).
+		// CP Sync's own event pages are the destination when The Events Calendar is
+		// absent. Sync Events is still required, below.
+		$native_events = 'events' === $integration_type && ! \CP_Sync\Events\Display::tec_is_active();
+
+		// (a) Availability: the type must have a destination. Guards the manual pull
+		// buttons, the REST /pull + /pull/{type} routes, and the cron path ( which
+		// funnels through pull_content() → here ).
 		if ( ! self::is_integration_available( $integration_type ) ) {
 			$message = self::integration_unavailable_message( $integration_type );
 			cp_sync()->logging->log( sprintf( 'Skipping %s pull: %s', $integration_type, $message ) );
@@ -254,11 +247,14 @@ class _Init {
 
 		// (b) Enable toggle: the active ChMS's `connect.sync_{type}` setting. The
 		// unstored fallback comes from ChMS::sync_toggle_default() — the single source
-		// shared with the schema FieldDef ( groups/events default ON, preserving
-		// long-standing behavior; sermons default OFF so updates never silently start
-		// syncing them ).
+		// shared with the schema FieldDef ( groups/events default ON only while CP Groups
+		// or The Events Calendar is active; sermons default OFF so updates never silently
+		// start syncing them ).
+		// Native event pages use the same Sync Events switch. The stored value,
+		// including its default, is what the ChMS fetch reads for visibility,
+		// date range, and registration source.
 		$active_chms = \CP_Sync\ChMS\_Init::get_instance()->get_active_chms_class();
-		if ( $active_chms && ! $active_chms->get_setting( "sync_{$integration_type}", \CP_Sync\ChMS\ChMS::sync_toggle_default( $integration_type ), 'connect' ) ) {
+		if ( $active_chms && ! $active_chms->is_sync_enabled( $integration_type ) ) {
 			$message = sprintf(
 				/* translators: %s: the integration type being synced (e.g. Groups, Events). */
 				__( '%s sync is disabled in CP Sync settings.', 'cp-sync' ),
@@ -276,13 +272,29 @@ class _Init {
 		 * @param string     $integration_type The integration type to pull.
 		 * @return array|null|WP_Error
 		 */
-		$data = apply_filters( "cp_sync_pull_$integration_type", null, $integration_type );
+		$neutral_events = array();
+
+		if ( $native_events ) {
+			\CP_Sync\Events\NeutralFeed::start();
+		}
+
+		try {
+			$data = apply_filters( "cp_sync_pull_$integration_type", null, $integration_type );
+		} finally {
+			if ( $native_events ) {
+				$neutral_events = \CP_Sync\Events\NeutralFeed::finish();
+			}
+		}
 
 		if ( is_wp_error( $data ) ) {
 			return $data;
 		}
 
 		if ( null !== $data ) {
+			if ( $native_events ) {
+				return \CP_Sync\Events\Display::import_neutral( $neutral_events );
+			}
+
 			// process the data for all integrations that have this type
 			foreach( self::$_integrations as $integration ) {
 				if ( $integration->type === $integration_type ) {

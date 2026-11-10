@@ -31,7 +31,7 @@ Changing **Church Management System** while you are connected leaves the Plannin
 
 After you are connected, the same tab shows a **Sync** section (**Sync Groups**, **Sync Events**, and **Sync Sermons**). Click **Save all Settings** after you change those toggles.
 
-**Sync Groups** is disabled until CP Groups is active. The help text then reads **Requires the CP Groups plugin, which is not active on this site.** **Sync Events** is disabled until The Events Calendar is active, with the same kind of help text. **Sync Sermons** is disabled until CP Sermons is active. **Sync Groups** and **Sync Events** are on until you turn them off. **Sync Sermons** is off until you turn it on. The **Groups**, **Events**, and **Sermons** tabs appear after you are connected, the matching toggle is on, and that plugin is active.
+**Sync Groups** starts on when CP Groups is active. Without CP Groups, it starts off, and turning it on shows groups on your site at `/groups/`. **Sync Events** starts on when The Events Calendar is active. Without it, it starts off, and turning it on shows events at `/events/` and `/event-series/`. Those addresses replace any page already using them. **Sync Sermons** is disabled until CP Sermons is active, and it is off until you turn it on. The **Groups**, **Events**, and **Sermons** tabs appear after you are connected and the matching toggle is on.
 
 ## Church Community Builder (CCB) Connection
 
@@ -63,7 +63,7 @@ Changing **Church Management System** while you are connected leaves the Church 
 
 After you are connected, the same tab shows a **Sync** section (**Sync Groups** and **Sync Events**). Click **Save all Settings** after you change those toggles.
 
-**Sync Groups** is disabled until CP Groups is active. **Sync Events** is disabled until The Events Calendar is active. Both toggles are on until you turn them off. The **Groups** and **Events** tabs appear after you are connected, the matching toggle is on, and that plugin is active.
+**Sync Groups** starts on when CP Groups is active. Without CP Groups, it starts off, and turning it on shows groups on your site at `/groups/`. **Sync Events** starts on when The Events Calendar is active. Without it, it starts off, and turning it on shows events at `/events/` and `/event-series/`. Those addresses replace any page already using them. The **Groups** and **Events** tabs appear after you are connected and the matching toggle is on.
 
 ## Testing Connections
 

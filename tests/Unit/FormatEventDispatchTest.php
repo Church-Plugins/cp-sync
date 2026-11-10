@@ -28,6 +28,7 @@ class FormatEventDispatchTest extends TestCase {
 		Monkey\setUp();
 		Functions\when( '__' )->returnArg( 1 );
 		Functions\when( 'wp_timezone' )->justReturn( new \DateTimeZone( 'UTC' ) );
+		Functions\when( 'get_option' )->justReturn( [] );
 		Functions\when( 'sanitize_title' )->alias(
 			static fn( $title ) => strtolower( preg_replace( '/[^a-z0-9]+/i', '-', trim( $title ) ) )
 		);

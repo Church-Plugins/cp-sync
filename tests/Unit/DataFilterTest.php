@@ -386,13 +386,181 @@ class DataFilterTest extends TestCase {
 		$this->assertFalse( $f->check( [ 'group_id' => 'g2' ] ) );
 	}
 
-	public function test_relational_data_missing_record_yields_wp_error() {
+	public function test_missing_relational_record_is_a_non_match() {
 		$config     = [ 'group' => [ 'path' => 'group_id', 'relation' => 'groups', 'relation_path' => 'name' ] ];
 		$relational = [ 'groups' => [ 'g1' => [ 'name' => 'Youth' ] ] ];
 		$f          = new DataFilter( 'all', [ $this->cond( 'group', 'is', 'Youth' ) ], $config, $relational );
 
-		$result = $f->check( [ 'group_id' => 'nonexistent' ] );
+		$this->assertFalse( $f->check( [ 'group_id' => 'nonexistent' ] ) );
+	}
+
+	/**
+	 * Registration start/end date filters read a related signup time. A signup
+	 * with no times, or an id that was not included, must drop out. The other
+	 * signups still sync.
+	 */
+	public function test_missing_relation_on_a_date_filter_drops_that_item_and_keeps_the_rest() {
+		$config     = [
+			'start_date' => [
+				'path'          => 'relationships.signup_times.data.0.id',
+				'relation'      => 'SignupTime',
+				'relation_path' => 'attributes.starts_at',
+			],
+		];
+		$relational = [
+			'SignupTime' => [
+				'future' => [ 'attributes' => [ 'starts_at' => '2026-12-10T15:00:00Z' ] ],
+				'past'   => [ 'attributes' => [ 'starts_at' => '2026-01-02T15:00:00Z' ] ],
+			],
+		];
+		$filter     = new DataFilter(
+			'all',
+			[ $this->cond( 'start_date', 'is_greater_than', '2026-06-01T00:00:00Z' ) ],
+			$config,
+			$relational
+		);
+		$items      = [
+			[
+				'id'            => 'ongoing',
+				'relationships' => [ 'signup_times' => [ 'data' => [] ] ],
+			],
+			[
+				'id' => 'no-relationships',
+			],
+			[
+				'id'            => 'dangling',
+				'relationships' => [ 'signup_times' => [ 'data' => [ [ 'id' => 'missing-time' ] ] ] ],
+			],
+			[
+				'id'            => 'upcoming',
+				'relationships' => [ 'signup_times' => [ 'data' => [ [ 'id' => 'future' ] ] ] ],
+			],
+			[
+				'id'            => 'old',
+				'relationships' => [ 'signup_times' => [ 'data' => [ [ 'id' => 'past' ] ] ] ],
+			],
+		];
+
+		$result = $filter->apply( $items );
+
+		$this->assertNull( $result );
+		$this->assertSame( [ 'upcoming' ], array_column( $items, 'id' ) );
+		$this->assertFalse( $filter->check( [ 'relationships' => [ 'signup_times' => [ 'data' => [] ] ] ] ) );
+		$this->assertTrue(
+			$filter->check(
+				[ 'relationships' => [ 'signup_times' => [ 'data' => [ [ 'id' => 'future' ] ] ] ] ]
+			)
+		);
+		$this->assertFalse(
+			$filter->check(
+				[ 'relationships' => [ 'signup_times' => [ 'data' => [ [ 'id' => 'past' ] ] ] ] ]
+			)
+		);
+	}
+
+	/**
+	 * A missing relation does not match a negative compare either. The item is
+	 * filtered out rather than kept because "no value" is not the expected value.
+	 */
+	public function test_missing_relation_does_not_match_is_not() {
+		$config = [
+			'group' => [
+				'path'          => 'group_id',
+				'relation'      => 'groups',
+				'relation_path' => 'name',
+			],
+		];
+		$filter = new DataFilter(
+			'all',
+			[ $this->cond( 'group', 'is_not', 'Youth' ) ],
+			$config,
+			[ 'groups' => [ 'g1' => [ 'name' => 'Youth' ] ] ]
+		);
+		$items  = [
+			[ 'id' => 'missing', 'group_id' => 'gone' ],
+			[ 'id' => 'other', 'group_id' => 'g1' ],
+		];
+
+		$this->assertNull( $filter->apply( $items ) );
+		$this->assertSame( [], array_column( $items, 'id' ) );
+		$this->assertTrue(
+			( new DataFilter(
+				'all',
+				[ $this->cond( 'group', 'is_not', 'Youth' ) ],
+				$config,
+				[ 'groups' => [ 'g2' => [ 'name' => 'Adults' ] ] ]
+			) )->check( [ 'group_id' => 'g2' ] )
+		);
+	}
+
+	/**
+	 * 'any' still keeps an item when a different condition matches. The missing
+	 * relation fails only its own condition.
+	 */
+	public function test_any_keeps_item_when_missing_relation_fails_and_another_condition_matches() {
+		$config = [
+			'start_date' => [
+				'path'          => 'relationships.signup_times.data.0.id',
+				'relation'      => 'SignupTime',
+				'relation_path' => 'attributes.starts_at',
+			],
+			'event_name' => [ 'path' => 'attributes.name' ],
+		];
+		$filter = new DataFilter(
+			'any',
+			[
+				$this->cond( 'start_date', 'is_greater_than', '2026-06-01T00:00:00Z' ),
+				$this->cond( 'event_name', 'is', 'Camp' ),
+			],
+			$config,
+			[ 'SignupTime' => [] ]
+		);
+		$items  = [
+			[
+				'id'            => 'ongoing',
+				'attributes'    => [ 'name' => 'Camp' ],
+				'relationships' => [ 'signup_times' => [ 'data' => [] ] ],
+			],
+			[
+				'id'            => 'other',
+				'attributes'    => [ 'name' => 'Other' ],
+				'relationships' => [ 'signup_times' => [ 'data' => [] ] ],
+			],
+		];
+
+		$this->assertNull( $filter->apply( $items ) );
+		$this->assertSame( [ 'ongoing' ], array_column( $items, 'id' ) );
+	}
+
+	public function test_missing_relation_path_still_fails_the_run() {
+		$config = [
+			'start_date' => [
+				'path'     => 'relationships.signup_times.data.0.id',
+				'relation' => 'SignupTime',
+			],
+		];
+		$filter = new DataFilter(
+			'all',
+			[ $this->cond( 'start_date', 'is_greater_than', '2026-06-01T00:00:00Z' ) ],
+			$config,
+			[
+				'SignupTime' => [
+					'future' => [ 'attributes' => [ 'starts_at' => '2026-12-10T15:00:00Z' ] ],
+				],
+			]
+		);
+		$items  = [
+			[
+				'id'            => 'upcoming',
+				'relationships' => [ 'signup_times' => [ 'data' => [ [ 'id' => 'future' ] ] ] ],
+			],
+		];
+
+		$result = $filter->apply( $items );
+
 		$this->assertInstanceOf( \WP_Error::class, $result );
 		$this->assertSame( 'invalid_filter_config', $result->get_error_code() );
+		$this->assertSame( 'Invalid filter config: missing a relational data path', $result->get_error_message() );
+		$this->assertSame( [ 'upcoming' ], array_column( $items, 'id' ) );
 	}
 }

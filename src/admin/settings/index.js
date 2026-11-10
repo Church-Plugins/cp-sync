@@ -89,8 +89,8 @@ function Settings() {
 	);
 
 	// A per-feed tab (one carrying a `type`) is shown only when its feed is BOTH
-	// enabled (the `connect.sync_<type>` setting is not explicitly false —
-	// default-true semantics) AND available (its schema toggle is not `disabled`).
+	// enabled (the `connect.sync_<type>` setting, or the schema default when it has
+	// never been saved) AND available (its schema toggle is not `disabled`).
 	// A missing schema is treated as available so tabs are not hidden mid-load.
 	const connectValues = settings.connect || {};
 
@@ -110,8 +110,8 @@ function Settings() {
 						return false;
 					}
 					// Nothing stored yet → the schema's declared default decides
-					// (e.g. sermons default OFF so updates don't surface the tab
-					// until the admin opts in).
+					// (sermons, and groups or events without their companion plugin,
+					// default OFF so the tab waits until the admin opts in).
 					if ( stored === undefined && field.default === false ) {
 						return false;
 					}

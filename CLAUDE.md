@@ -6,8 +6,9 @@ There is **one** build system: **wp-scripts**. (The old wpackio build and the jQ
 widgets it compiled were removed in 1.0.)
 
 - `npm run build:wp` — wp-scripts → `build/src/`. Compiles the **React settings SPA**
-  (`src/admin/settings/`), the only compiled JS in the plugin. Enqueued via
-  `enqueue_asset()` in `Admin/Settings.php`. **This is the only command that compiles JS.**
+  (`src/admin/settings/`) and the front-end assets (`src/groups-display/`,
+  `src/events-display/`, `src/events-calendar/`). Enqueued via `enqueue_asset()`.
+  **This is the only command that compiles JS and SCSS.**
 - `npm run build:all` — alias for `build:wp` (kept for muscle memory / older docs).
 - `npm run start:wp` — dev watch.
 - `npm run lint:wp` — ESLint over JS (`wp-scripts lint-js`).
@@ -61,6 +62,18 @@ it there first, then bump the gitlink here to the merged SHA. `build:wp` output
   schemas JS-side (`schema-form/schemas/*`) and the global POST uses the generic
   sanitizer; per-ChMS screens are PHP-declared. Filter configs still ship separately
   (`/{chms}/filters`) from the schema route — merging them is planned post-1.0.
+
+## Front-end styling (groups and events pages)
+
+- **Match other CP products.** Use the ChurchPlugins `--cp-*` variables and `.cp-button`
+  (`src/frontend-shared/_framework.scss` imports them), not plugin-specific colors.
+- **Specificity:** rules sit under `.cp-sync-display`, so they are two classes deep. That
+  beats common theme rules, and one more class overrides them. No IDs or `!important`.
+- **Groups Lite tracks CP Groups.** `src/groups-display/group/_list.scss` and `_single.scss`
+  are unmodified copies of the CP Groups files, and the markup uses its class names. Put
+  Lite-only rules in `_lite.scss` so the copies can be refreshed.
+- Saved ChurchPlugins customizer values do not reach the front end yet. That is a known
+  framework gap to fix in a later release. The variables here will pick the values up.
 
 ## Code Style
 - Follow WordPress coding standards for PHP and JavaScript
