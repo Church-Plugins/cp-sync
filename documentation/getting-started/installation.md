@@ -40,7 +40,7 @@ After activating the plugin:
 1. Go to **Church Plugins → CP Sync** and confirm the **Connect** tab loads.
 2. Connect your church management system.
 3. On the **Advanced** tab, click **Pull now**. The tab shows **Hard pull started successfully** when the sync starts.
-4. Or open **Groups**, **Events**, or **Sermons** (those tabs appear after you are connected, the matching **Sync** toggle is on, and the companion plugin is active) and click **Pull Now**. That button shows **Import started**.
+4. Or open **Groups**, **Events**, or **Sermons** and click **Pull Now**. Those tabs appear after you are connected and the matching **Sync** toggle is on. The **Sermons** tab also stays hidden while **Sync Sermons** is disabled. **Pull Now** shows **Import started**.
 
 ## Troubleshooting Installation
 

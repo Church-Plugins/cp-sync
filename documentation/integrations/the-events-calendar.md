@@ -55,7 +55,7 @@ On the **Events** tab, the heading reads **Select data to pull from Church Commu
 - **Events**, under **Event Filters**: **Pull Events where**, then **All** or **Any**, and **Add Condition**.
 - **Generate Preview** and **Pull Now**. **Pull Now** shows **Import started**.
 
-Each occurrence is imported as its own event. The public calendar listing is already limited to approved public events. If CCB marks an event as not approved, it is skipped. After import, events with a numeric CCB id get a venue (name, street, city, state, and zip) and an image from the event profile. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
+Dates that share one Church Community Builder event id update the same Events Calendar event. The public calendar listing is already limited to approved public events. If CCB marks an event as not approved, it is skipped. When that event has a numeric id, the event profile can add a venue with the name, street, city, state, and zip, and an image. See [Church Community Builder](../chms/church-community-builder.md#event-enrichment).
 
 ## What Is Copied
 

@@ -22,7 +22,7 @@ CP Sync connects your WordPress site to your church management system (ChMS), ke
 = Features =
 
 * **Groups Sync** — Import small groups, classes, and ministries with leaders, schedules, and meeting details
-* **Events Sync** — Push your ChMS calendar to The Events Calendar with full venue and image data
+* **Events Sync** — Import events from your church management system. While The Events Calendar is active, they go there. Without it, turn on Sync Events to show them on your site.
 * **Scheduled Imports** — Automatic background syncs on a configurable cadence
 * **Data Filters** — Include or exclude items by tag, group type, date range, and more
 * **WP-CLI Commands** — Run and debug imports from the command line
@@ -31,12 +31,12 @@ CP Sync connects your WordPress site to your church management system (ChMS), ke
 
 = Integrations =
 
-* **The Events Calendar** — ChMS events become Events Calendar entries with mapped venues, organizers, and categories
-* **CP Groups** — Optional. CP Sync can show groups on your site without it. CP Groups adds filters, a map, and a contact form, and it uses the same groups.
+* **The Events Calendar** — Optional. While it is active, events from your church management system are created there.
+* **CP Groups** — Optional. CP Sync can show the same groups without it. CP Groups adds filters and a contact form when you activate it.
 
 = CCB Event Enrichment =
 
-For Church Community Builder, CP Sync uses a two-phase strategy to populate complete event data: the calendar listing for the initial import, then the event profile to fill in full venue addresses (street, city, state, zip) and event images. Subsequent syncs only re-enrich events that CCB reports as modified, keeping repeat syncs fast.
+The calendar listing imports the event. On CP Sync's own event pages, that import saves the location name. When The Events Calendar is active and the event has a numeric Church Community Builder id, the event profile can then add a venue with the name, street, city, state, and zip, and an image. Later syncs do that again only when Church Community Builder reports a change.
 
 == Installation ==
 
@@ -64,13 +64,13 @@ CP Sync currently supports Planning Center Online (PCO) and Church Community Bui
 
 = Do I need The Events Calendar plugin? =
 
-No. Groups can show on your site without another plugin. Events can show on your site without The Events Calendar: each date gets a page, and a real series of dates gets a series page. Turn on Sync Events (Connect). Leave it off if you already have a page at /events/.
+No. Groups can show on your site without another plugin. Events can show on your site without The Events Calendar: each date gets a page, and a real series of dates gets a series page. Turn on Sync Events (Connect). Leave it off if you already have a page at /events/. The /events/ page opens on a month calendar. Calendar and List switch between that calendar and a list of upcoming dates. Without JavaScript, the page shows the list. The Category filter appears only when the site has event categories. On these pages, a Church Community Builder event type is used as a category when the listing includes one.
 
 Install The Events Calendar only if you want events in that calendar. While it is active, CP Sync keeps using it and does not create the separate event pages.
 
 = Why are my CCB venues missing addresses? =
 
-In version 0.3.0 and later, CP Sync automatically enriches CCB events with full venue addresses via a follow-up call to the `event_profile` endpoint. If addresses are still missing, open **Church Plugins → CP Sync → Log**, set **Enable Debug Mode** to **Enable**, click **Save all Settings**, run the sync again, and look for `Skipping enrichment` or `Failed to fetch event_profile` messages. Recurring event occurrences without a numeric event ID cannot be enriched and will import with the venue name only.
+When The Events Calendar is active, and the event has a numeric Church Community Builder id, the event profile can add a venue with the name, street, city, state, and zip, and an image. The calendar listing itself does not save that address. If addresses are still missing, open **Church Plugins → CP Sync → Log**, set **Enable Debug Mode** to **Enable**, click **Save all Settings**, run the sync again, and look for `Skipping enrichment` or `Failed to fetch event_profile` messages. An event without a numeric Church Community Builder id cannot use that profile, so it does not get a venue from this step.
 
 = How often does it sync? =
 
@@ -99,7 +99,7 @@ Yes. CP Sync exposes action and filter hooks for developers — see the Develope
 * Fix: A Start Date or End Date filter no longer stops the events sync when a registration has no signup time. That registration is left out, and the other events still sync.
 * New: Events synced from Planning Center Registrations store the public registration price: one price, a price range when there are several options, or Free. On sites that do not use The Events Calendar, an event's page shows the price when the event is not free. On sites that use The Events Calendar, the price also fills the event's cost, unless you entered a cost yourself.
 * New: Sites that do not use The Events Calendar can show events from Planning Center or Church Community Builder. Each date is a page under Events. A Planning Center event with more than one date, or a Church Community Builder event with more than one date, also gets a series page under Event Series. A single date does not. Turn on Sync Events (Connect). It starts off without The Events Calendar, including on sites updated from an earlier version, so a page you already have at /events/ is left alone. /events/ opens on a month calendar with a switch to a list view and a category filter. On a phone, days with events show a dot, and tapping a day lists its events. Add `[cp-sync-events]` to a page to show the next few dates. An event page shows the stored timezone, location, description, and a price when the event is not free, and can download a calendar file for that one published date. A series page lists its upcoming dates and does not download a file for the whole series. Events have no screens in the WordPress admin, because the sync owns their content. Sites that use The Events Calendar are unchanged.
-* New: Groups can be shown on the site without CP Groups: a groups page at /groups/, a page for each group, and the [cp-sync-groups] shortcode. The layout matches CP Groups, without its filters. A group page shows the photo, description, meeting details, leader names, and View Details and Register Now buttons when the church management system sent those links. Leader email addresses are not shown. CP Groups adds filters, a map, and a contact form, and it takes over the same groups when you activate it. Turn on Sync Groups (Connect). It starts off without CP Groups, including on sites updated from an earlier version. Groups have no screens in the WordPress admin until CP Groups is active, because the sync owns their content.
+* New: Groups can be shown on the site without CP Groups: a groups page at /groups/, a page for each group, and the [cp-sync-groups] shortcode. The layout matches CP Groups, without its filters. A group page shows the photo, description, meeting details, leader names, and View Details and Register Now buttons when the church management system sent those links. Leader email addresses are not shown. CP Groups adds filters and a contact form, and it takes over the same groups when you activate it. Turn on Sync Groups (Connect). It starts off without CP Groups, including on sites updated from an earlier version. Groups have no screens in the WordPress admin until CP Groups is active, because the sync owns their content.
 * New: When a sync removes hidden or unapproved events, administrators see a notice with the counts. It stays until each administrator dismisses it, and a newer removal replaces it.
 * Church Community Builder events: The first sync after updating may adjust each event's saved timezone once. The time shown on the event does not change.
 * Fix: A Church Community Builder event whose start or end is not a date, such as TBD, is skipped instead of stopping the sync.

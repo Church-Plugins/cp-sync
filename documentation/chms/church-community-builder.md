@@ -84,16 +84,11 @@ The public calendar listing is already limited to approved public events. If CCB
 
 ### Event Enrichment
 
-CCB exposes event data through two endpoints with different levels of detail. CP Sync uses both: the calendar listing for the initial import, then the event profile to fill in details that the listing omits.
+The calendar listing imports the event. On CP Sync's own event pages, that import saves the location name. When The Events Calendar is active and the event has a numeric Church Community Builder id, the event profile can then add a venue with the name, street, city, state, and zip, and an image. Later syncs do that again only when Church Community Builder reports a change. Venues shared by more than one event are updated once in that sync.
 
-After each event is imported or updated, CP Sync automatically fetches the event profile to populate:
+Without The Events Calendar, this profile step does not run.
 
-- **Full venue address** — street, city, state, and zip (the calendar listing only provides a venue name)
-- **Event image** — the featured image from the event's profile
-
-Enrichment runs once per event on first import, then re-runs only when CCB reports the event has been modified, so subsequent syncs stay fast. Venues are deduplicated within a sync so events sharing a location don't trigger redundant updates.
-
-**Limitation:** Recurring event occurrences from the calendar listing don't include a numeric event ID and can't be enriched. These events will import with the venue name only. Master events with a numeric ID enrich normally.
+An event without a numeric Church Community Builder id cannot use the profile. With The Events Calendar, that event does not get a venue from this step.
 
 ### Keeping Hand Edits on Synced Posts
 

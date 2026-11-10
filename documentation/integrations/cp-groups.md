@@ -6,7 +6,7 @@ CP-Sync imports groups from Planning Center or Church Community Builder. CP Grou
 
 Before using the CP Groups integration:
 
-- CP Groups installed and activated, when you want its filters, map, and contact form
+- CP Groups installed and activated, when you want filters and a contact form. CP Sync can show the same groups without it.
 - CP-Sync must be installed and activated
 - Your church management system must be connected
 - You need an account that can manage options (an Administrator)
