@@ -139,4 +139,4 @@ For websites with unreliable WordPress cron:
    */15 * * * * wget -q -O /dev/null https://your-site.com/wp-cron.php?doing_wp_cron
    ```
 
-For more advanced development information, consult the inline code documentation or [contact our developer support team](https://docs.churchplugins.com/contact-support/).
+For more advanced development information, consult the inline code documentation or [contact our developer support team](https://churchplugins.com/contact/).
