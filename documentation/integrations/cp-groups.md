@@ -26,7 +26,7 @@ If CP Groups is not active, groups still sync while **Sync Groups** is on, and C
 
 On the **Groups** tab:
 
-- **Group Tags to Sync**: each selected tag group is added as a group category. When CP Groups is active, it is also shown as a filter on the groups page.
+- **Group Tags to Sync**: each selected tag group is added as a category and shown as a filter on the groups page.
 - **Visibility**: **Only Visible in Church Center** (the default) or **Show All**.
 - **Groups**: include or exclude groups. The line reads **Pull Groups where**, then **All** or **Any**, then **of the following match**. Add a rule with **Add Condition**.
 - **Generate Preview**: shows a sample of the groups that match.
