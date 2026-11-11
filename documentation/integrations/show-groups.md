@@ -9,13 +9,14 @@ CP Groups is optional. CP Sync can show the same groups without it. CP Groups ad
 ## Turn It On
 
 1. Go to **Church Plugins → CP Sync**.
-2. On the **Connect** tab, turn on **Sync Groups**. Without CP Groups, it is off until you turn it on. On a site updated from before 1.2.0, it starts off too, even if it was on before.
-3. Click **Save all Settings**.
-4. After a sync, open `yoursite.org/groups/`.
+2. On the **Connect** tab, connect Planning Center or Church Community Builder. See [API Connections](../configuration/api-connections.md).
+3. Under **Sync**, turn on **Sync Groups**. Without CP Groups, it is off until you turn it on. On a site updated from before 1.2.0, it starts off too, even if it was on before.
+4. Click **Save all Settings**.
+5. After a sync, open `yoursite.org/groups/`.
 
 When Groups sync is on, the groups list uses `/groups/`. If a page on your site already uses that address, rename that page's slug. In **Pages**, open the page, change the slug (the last part of its web address) to something else, such as `groups-info`, and update the page. The groups list stays at `/groups/`. If the old address still opens the page, go to **Settings → Permalinks** and click **Save Changes**.
 
-With **Show All**, every group syncs and appears on your site, including groups unlisted in your ChMS.
+On Planning Center, if **Visibility** on the **Groups** tab is set to **Show All**, every group syncs and appears on your site, including groups unlisted in Planning Center.
 
 Each group also has its own page. The photo and title on the groups page link to it. **All groups** at the top of that page returns to the list. On the groups list, the description is shortened to about two lines, and a long group name stays on one line. The web address of each group stays the same if you install CP Groups later, because CP Groups uses these same groups.
 
@@ -37,7 +38,7 @@ That shows 12 groups. To show a different number:
 [cp-sync-groups count="3"]
 ```
 
-The count you set is the number of groups shown, including after you install CP Groups. CP Groups' own groups page uses its **Groups per page** setting instead of this count.
+The count you set is the number of groups shown, including after you install CP Groups. CP Groups' own groups page uses its **Pagination** setting (groups per page, on the CP Groups **Advanced** settings tab) instead of this count.
 
 `count="-1"` shows every group.
 
