@@ -7,10 +7,11 @@ If The Events Calendar is active, CP Sync keeps sending events there and does no
 ## Turn it on
 
 1. Go to **Church Plugins → CP Sync**.
-2. On the **Connect** tab, turn on **Sync Events**. Without The Events Calendar, it is off until you turn it on. On a site updated from before 1.2.0, it starts off too, even if it was on before.
-3. Click **Save all Settings**.
-4. Open the **Events** tab. Visibility, date range, event source, and registration settings on that tab are what the sync uses.
-5. Click **Pull now** on the **Advanced** tab, or wait for the next scheduled sync.
+2. On the **Connect** tab, connect Planning Center or Church Community Builder. See [API Connections](../configuration/api-connections.md).
+3. Under **Sync**, turn on **Sync Events**. Without The Events Calendar, it is off until you turn it on. On a site updated from before 1.2.0, it starts off too, even if it was on before.
+4. Click **Save all Settings**.
+5. Open the **Events** tab. Visibility, date range, event source, and registration settings on that tab are what the sync uses.
+6. Click **Pull now** on the **Advanced** tab, or wait for the next scheduled sync.
 
 The first visit after you turn this on refreshes the event links. If `/events/` shows a "page not found" message, go to **Settings → Permalinks** and click **Save Changes**.
 
@@ -116,6 +117,8 @@ Put this on any page or post:
 
 It lists the next 5 upcoming dates.
 
+The shortcode works only while **Sync Events** is on and The Events Calendar is not active.
+
 | Attribute | What it does |
 | --- | --- |
 | `limit` | How many dates to show. The default is 5. Use `limit="0"` to show every upcoming date. |
@@ -134,4 +137,4 @@ Examples:
 
 ## Theme templates
 
-A theme can replace a template by copying it into `cp-sync/events/` in the theme. The files are `archive.php`, `toolbar.php`, `calendar.php`, `single.php`, `series.php`, `card.php`, `list.php`, `detail-header.php`, `details.php`, `calendar-links.php`, and `series-dates.php`. Colors, spacing, and buttons use the same ChurchPlugins CSS variables and `.cp-button` as other CP products, such as `--cp-color-brand-primary`. Set those variables in your theme's CSS to change the look. The calendar's colors follow them too.
+A theme can replace a template by copying it into `cp-sync/events/` in the theme. The files are `archive.php`, `toolbar.php`, `calendar.php`, `single.php`, `series.php`, `series-archive.php`, `card.php`, `series-card.php`, `list.php`, `detail-header.php`, `details.php`, `calendar-links.php`, `series-dates.php`, `shell-open.php`, and `shell-close.php`. Colors, spacing, and buttons use the same ChurchPlugins CSS variables and `.cp-button` as other CP products, such as `--cp-color-brand-primary`. Set those variables in your theme's CSS to change the look. The calendar's colors follow them too.
