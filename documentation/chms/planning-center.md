@@ -83,7 +83,7 @@ Sending events to The Events Calendar needs that plugin to be active. Without it
 
 4. Click **Save all Settings**
 
-**Caution:** If you switch **Event Source** to **Pull from Calendar** from **Pull from Registrations** or **Calendar AND Registrations**, the next sync permanently deletes upcoming Registrations-sourced events — including events that are still running today. Past events (already ended) are kept. Events with **Prevent sync from updating this post** checked are kept, so lock any Registrations events you want to keep before you switch. Coming from **Pull from Registrations**, Calendar events then import as new posts. Coming from **Calendar AND Registrations**, the Calendar copies stay and the duplicate Registrations copies are removed, leaving one Calendar copy of events that were in both. Switching to **Calendar AND Registrations** keeps existing Registrations posts; an event present in both apps imports twice.
+**Caution:** With The Events Calendar active, if you switch **Event Source** to **Pull from Calendar** from **Pull from Registrations** or **Calendar AND Registrations**, the next sync permanently deletes upcoming Registrations-sourced events — including events that are still running today. Past events (already ended) are kept. Events with **Prevent sync from updating this post** checked are kept, so lock any Registrations events you want to keep before you switch. Coming from **Pull from Registrations**, Calendar events then import as new posts. Coming from **Calendar AND Registrations**, the Calendar copies stay and the duplicate Registrations copies are removed, leaving one Calendar copy of events that were in both. Switching to **Calendar AND Registrations** keeps existing Registrations posts; an event present in both apps imports twice.
 
 A registration with several signup dates imports as one event, at its next upcoming date. If every date has passed, it uses the most recent past date. It does not create one event per date. A registration with no signup times is skipped. That does not stop the sync.
 
@@ -91,7 +91,7 @@ In CP Sync 1.0.0 and later, events keep their real times, and past events are ke
 
 ### Calendar Settings: Visibility
 
-When your Planning Center **Event source** is **Calendar** or **Both**, the **Calendar Settings** section includes a **Visibility** option:
+When your Planning Center **Event source** is **Pull from Calendar** or **Calendar AND Registrations**, the **Calendar Settings** section includes a **Visibility** option:
 
 - **Only Visible in Church Center** (default) — Keeps events that Planning Center marks as visible in Church Center and approved. Hidden events, and events whose approval status is an explicit non-approved value such as pending or rejected, are not synced. An empty or missing approval status is treated as approved.
 - **Show All** — Does not filter on Church Center visibility or approval.
